@@ -11,6 +11,18 @@ export async function propose(context) {
     return null;
   }
 
+  const requireApproval = config.limits?.require_approval !== false;
+
+  if (requireApproval && !dryRun) {
+    console.log('require_approval is enabled — running in dry-run mode.');
+    console.log('Set require_approval: false in .github/roadmap.yml to create issues automatically.');
+    console.log('Ideas that would be proposed:');
+    for (const idea of ideas) {
+      console.log(`  [${idea.priority}] ${idea.title}`);
+    }
+    return { created: [], dropped: ideas.length, require_approval: true };
+  }
+
   const gh = createClient(token);
   const maxIssues = config.limits?.max_issues_per_run || 3;
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
