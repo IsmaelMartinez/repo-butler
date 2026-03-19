@@ -37,7 +37,7 @@ export async function observe(context) {
   const packageJson = await gh.getFileContent(owner, repo, 'package.json');
   let packageData = null;
   if (packageJson) {
-    try { packageData = JSON.parse(packageJson); } catch { /* malformed package.json */ }
+    try { packageData = JSON.parse(packageJson); } catch { console.warn('Warning: could not parse package.json, file may be malformed.'); }
   }
 
   const snapshot = {
@@ -83,7 +83,8 @@ export async function observePortfolio(context) {
       params: { sort: 'pushed', direction: 'desc', type: 'owner' },
       max: 200,
     });
-  } catch {
+  } catch (err) {
+    if (!err.message?.includes('404')) throw err;
     repos = await gh.paginate(`/orgs/${owner}/repos`, {
       params: { sort: 'pushed', direction: 'desc' },
       max: 200,

@@ -10,6 +10,12 @@ import { ClaudeProvider } from './providers/claude.js';
 
 const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose'];
 
+export function validateRepoFormat(repo) {
+  if (!repo.includes('/')) {
+    throw new Error(`GITHUB_REPOSITORY must be in "owner/repo" format, got: "${repo}"`);
+  }
+}
+
 async function main() {
   const phase = process.env.INPUT_PHASE
     || process.argv.find(a => a.startsWith('--phase='))?.split('=')[1]
@@ -32,10 +38,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (!repo.includes('/')) {
-    console.error(`Error: GITHUB_REPOSITORY must be in "owner/repo" format, got: "${repo}"`);
-    process.exit(1);
-  }
+  validateRepoFormat(repo);
 
   const [owner, name] = repo.split('/');
   const context = { owner, repo: name, token, config, dryRun };
@@ -130,7 +133,11 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run when executed directly, not when imported for testing.
+const isMain = process.argv[1]?.endsWith('index.js') || process.argv[1]?.endsWith('src/index.js');
+if (isMain) {
+  main().catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
+}

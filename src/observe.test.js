@@ -135,8 +135,16 @@ BODY: Current test coverage is low. Add unit tests for core modules.
 });
 
 describe('input validation', () => {
-  it('rejects repo format without slash', () => {
-    assert.equal('owner/repo'.includes('/'), true);
-    assert.equal('just-repo-name'.includes('/'), false);
+  it('accepts valid owner/repo format', async () => {
+    const { validateRepoFormat } = await import('./index.js');
+    assert.doesNotThrow(() => validateRepoFormat('owner/repo'));
+  });
+
+  it('throws for repo format without slash', async () => {
+    const { validateRepoFormat } = await import('./index.js');
+    assert.throws(
+      () => validateRepoFormat('just-repo-name'),
+      /must be in "owner\/repo" format/,
+    );
   });
 });
