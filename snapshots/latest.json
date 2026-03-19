@@ -1,0 +1,106 @@
+{
+  "timestamp": "2026-03-19T09:31:59.261Z",
+  "repository": "IsmaelMartinez/repo-butler",
+  "meta": {
+    "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
+    "language": "JavaScript",
+    "stars": 0,
+    "forks": 0,
+    "watchers": 0,
+    "open_issues_count": 0,
+    "default_branch": "main",
+    "license": "MIT",
+    "topics": [],
+    "created_at": "2026-03-19T00:10:09Z",
+    "pushed_at": "2026-03-19T08:45:47Z",
+    "archived": false
+  },
+  "issues": {
+    "open": [],
+    "recently_closed": []
+  },
+  "pull_requests": {
+    "recently_merged": []
+  },
+  "labels": [
+    {
+      "name": "bug",
+      "description": "Something isn't working",
+      "color": "d73a4a"
+    },
+    {
+      "name": "documentation",
+      "description": "Improvements or additions to documentation",
+      "color": "0075ca"
+    },
+    {
+      "name": "duplicate",
+      "description": "This issue or pull request already exists",
+      "color": "cfd3d7"
+    },
+    {
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "name": "good first issue",
+      "description": "Good for newcomers",
+      "color": "7057ff"
+    },
+    {
+      "name": "help wanted",
+      "description": "Extra attention is needed",
+      "color": "008672"
+    },
+    {
+      "name": "invalid",
+      "description": "This doesn't seem right",
+      "color": "e4e669"
+    },
+    {
+      "name": "question",
+      "description": "Further information is requested",
+      "color": "d876e3"
+    },
+    {
+      "name": "wontfix",
+      "description": "This will not be worked on",
+      "color": "ffffff"
+    }
+  ],
+  "milestones": [],
+  "releases": [],
+  "workflows": [
+    {
+      "name": "Repo Butler",
+      "path": ".github/workflows/self-test.yml",
+      "state": "active"
+    }
+  ],
+  "roadmap": {
+    "path": "ROADMAP.md",
+    "content": "# Repo Butler — Roadmap\n\n**Last Updated:** 2026-03-19\n**Status:** All five phases implemented, tested against teams-for-linux\n\n---\n\n## Architecture\n\nThe agent follows a five-phase loop:\n\n```\nOBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE\n```\n\n1. **OBSERVE** — Gather project state via GitHub API. No LLM needed.\n2. **ASSESS** — Diff current snapshot against previous run. Optionally summarise with Gemini Flash.\n3. **UPDATE** — Generate an updated roadmap document and open a PR. Uses Gemini Flash.\n4. **IDEATE** — Generate improvement ideas. Uses Claude for deeper reasoning (falls back to Gemini).\n5. **PROPOSE** — Create GitHub issues from ideas, capped and labelled for human review.\n\n## Current State\n\n### Implemented\n\n- **OBSERVE**: open/closed issues, merged PRs, labels, milestones, releases, workflows, repo metadata, roadmap content, package.json parsing, portfolio-level repo classification\n- **ASSESS**: snapshot persistence via GitHub Contents API on a data branch, diff computation (new/resolved issues, merged PRs, new releases, label changes), LLM-powered change summarisation\n- **UPDATE**: generates updated roadmap from observation + assessment data, creates a PR on a feature branch\n- **IDEATE**: structured idea generation with priority/labels/body, parsed from LLM output\n- **PROPOSE**: creates GitHub issues from ideas, respects `max_issues_per_run`, ensures labels exist, sorts by priority\n- **Providers**: Gemini Flash (free tier REST API) and Claude (Anthropic Messages API), both zero-dependency\n- **Store**: snapshot persistence on a `repo-butler-data` orphan branch via Git Data API\n- **Self-dogfooding**: `.github/roadmap.yml` config and daily workflow with manual dispatch\n\n### Next Up\n\n- End-to-end test with a Gemini API key (OBSERVE and ASSESS work without one)\n- Consumer documentation for using this on other repos\n- Tests for core modules (observe, assess, store, idea parsing)\n- Rate limiting / retry logic for the GitHub and LLM APIs\n- Richer portfolio observation: CI status, README presence, open issue details per repo\n\n### Future\n\n- Electron release watcher (monitor Electron releases for fixes to blocked issues)\n- Multi-repo mode (observe several repos in a single run, cross-reference)\n- Configurable assessment templates per project type\n- Weekly digest email/notification option\n"
+  },
+  "package": {
+    "version": "0.1.0",
+    "dependencies": [],
+    "devDependencies": []
+  },
+  "summary": {
+    "repo": "0 stars, 0 forks",
+    "open_issues": 0,
+    "blocked_issues": 0,
+    "awaiting_feedback": 0,
+    "recently_closed": 0,
+    "recently_merged_prs": 0,
+    "bot_prs": 0,
+    "human_prs": 0,
+    "unique_contributors": 0,
+    "releases": 0,
+    "latest_release": "none",
+    "top_open_labels": [],
+    "high_reaction_issues": [],
+    "stale_awaiting_feedback": []
+  }
+}
