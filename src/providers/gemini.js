@@ -15,11 +15,14 @@ export class GeminiProvider extends LLMProvider {
   }
 
   async generate(prompt) {
-    const url = `${API_BASE}/models/${this.model}:generateContent?key=${this.apiKey}`;
+    const url = `${API_BASE}/models/${this.model}:generateContent`;
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': this.apiKey,
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {

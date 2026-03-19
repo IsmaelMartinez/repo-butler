@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run tests
+        run: node --test src/**/*.test.js
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check for API key leaks
+        run: |
+          # Ensure no API keys are hardcoded in source files
+          if grep -rn 'AIza\|sk-ant-\|sk-[a-zA-Z0-9]\{40\}' src/ --include='*.js'; then
+            echo "ERROR: Potential API key found in source code"
+            exit 1
+          fi
+
+      - name: Check for unsafe URL patterns
+        run: |
+          # Ensure API keys are not in URL query parameters
+          if grep -rn 'key=.*apiKey\|key=.*this\.' src/ --include='*.js'; then
+            echo "ERROR: API key passed in URL query parameter"
+            exit 1
+          fi

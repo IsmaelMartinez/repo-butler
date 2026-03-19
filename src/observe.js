@@ -35,7 +35,10 @@ export async function observe(context) {
 
   // Fetch package.json for dependency info.
   const packageJson = await gh.getFileContent(owner, repo, 'package.json');
-  const packageData = packageJson ? JSON.parse(packageJson) : null;
+  let packageData = null;
+  if (packageJson) {
+    try { packageData = JSON.parse(packageJson); } catch { /* malformed package.json */ }
+  }
 
   const snapshot = {
     timestamp: new Date().toISOString(),
@@ -73,10 +76,19 @@ export async function observePortfolio(context) {
 
   console.log(`Observing portfolio for ${owner}...`);
 
-  const repos = await gh.paginate(`/users/${owner}/repos`, {
-    params: { sort: 'pushed', direction: 'desc', type: 'owner' },
-    max: 200,
-  });
+  // Try user endpoint first, fall back to org endpoint.
+  let repos;
+  try {
+    repos = await gh.paginate(`/users/${owner}/repos`, {
+      params: { sort: 'pushed', direction: 'desc', type: 'owner' },
+      max: 200,
+    });
+  } catch {
+    repos = await gh.paginate(`/orgs/${owner}/repos`, {
+      params: { sort: 'pushed', direction: 'desc' },
+      max: 200,
+    });
+  }
 
   const portfolio = repos.map(r => ({
     name: r.name,

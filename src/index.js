@@ -32,6 +32,11 @@ async function main() {
     process.exit(1);
   }
 
+  if (!repo.includes('/')) {
+    console.error(`Error: GITHUB_REPOSITORY must be in "owner/repo" format, got: "${repo}"`);
+    process.exit(1);
+  }
+
   const [owner, name] = repo.split('/');
   const context = { owner, repo: name, token, config, dryRun };
 

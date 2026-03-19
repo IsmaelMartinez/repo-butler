@@ -16,24 +16,32 @@ export function createStore(context) {
       await gh.request(`/repos/${owner}/${repo}/branches/${DATA_BRANCH}`);
     } catch {
       // Branch doesn't exist — create an orphan branch via the Git Data API.
-      // Create a blob, tree, commit, then ref.
-      const blob = await gh.request(`/repos/${owner}/${repo}/git/blobs`, {
-        method: 'POST',
-        body: { content: '{}', encoding: 'utf-8' },
-      });
-      const tree = await gh.request(`/repos/${owner}/${repo}/git/trees`, {
-        method: 'POST',
-        body: { tree: [{ path: 'init.json', mode: '100644', type: 'blob', sha: blob.sha }] },
-      });
-      const commit = await gh.request(`/repos/${owner}/${repo}/git/commits`, {
-        method: 'POST',
-        body: { message: 'chore: initialise repo-butler data branch', tree: tree.sha, parents: [] },
-      });
-      await gh.request(`/repos/${owner}/${repo}/git/refs`, {
-        method: 'POST',
-        body: { ref: `refs/heads/${DATA_BRANCH}`, sha: commit.sha },
-      });
-      console.log(`Created data branch: ${DATA_BRANCH}`);
+      try {
+        const blob = await gh.request(`/repos/${owner}/${repo}/git/blobs`, {
+          method: 'POST',
+          body: { content: '{}', encoding: 'utf-8' },
+        });
+        const tree = await gh.request(`/repos/${owner}/${repo}/git/trees`, {
+          method: 'POST',
+          body: { tree: [{ path: 'init.json', mode: '100644', type: 'blob', sha: blob.sha }] },
+        });
+        const commit = await gh.request(`/repos/${owner}/${repo}/git/commits`, {
+          method: 'POST',
+          body: { message: 'chore: initialise repo-butler data branch', tree: tree.sha, parents: [] },
+        });
+        await gh.request(`/repos/${owner}/${repo}/git/refs`, {
+          method: 'POST',
+          body: { ref: `refs/heads/${DATA_BRANCH}`, sha: commit.sha },
+        });
+        console.log(`Created data branch: ${DATA_BRANCH}`);
+      } catch (err) {
+        // Branch may have been created by a concurrent run — check again.
+        try {
+          await gh.request(`/repos/${owner}/${repo}/branches/${DATA_BRANCH}`);
+        } catch {
+          throw err;
+        }
+      }
     }
   }
 
@@ -84,26 +92,34 @@ export function createStore(context) {
   }
 
   async function writeFile(path, content) {
-    // Check if file exists to get its SHA (needed for updates).
-    let sha;
-    try {
-      const existing = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, {
-        params: { ref: DATA_BRANCH },
-      });
-      sha = existing.sha;
-    } catch {
-      // File doesn't exist yet — that's fine.
-    }
+    // Retry once on 409 conflict (concurrent writes from overlapping runs).
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let sha;
+      try {
+        const existing = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, {
+          params: { ref: DATA_BRANCH },
+        });
+        sha = existing.sha;
+      } catch {
+        // File doesn't exist yet — that's fine.
+      }
 
-    await gh.request(`/repos/${owner}/${repo}/contents/${path}`, {
-      method: 'PUT',
-      body: {
-        message: `chore: update ${path}`,
-        content: Buffer.from(content).toString('base64'),
-        branch: DATA_BRANCH,
-        ...(sha ? { sha } : {}),
-      },
-    });
+      try {
+        await gh.request(`/repos/${owner}/${repo}/contents/${path}`, {
+          method: 'PUT',
+          body: {
+            message: `chore: update ${path}`,
+            content: Buffer.from(content).toString('base64'),
+            branch: DATA_BRANCH,
+            ...(sha ? { sha } : {}),
+          },
+        });
+        return;
+      } catch (err) {
+        if (attempt === 0 && err.message?.includes('409')) continue;
+        throw err;
+      }
+    }
   }
 
   return { readSnapshot, readPreviousSnapshot, writeSnapshot };

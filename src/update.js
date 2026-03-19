@@ -33,7 +33,7 @@ export async function update(context) {
   const defaultBranch = snapshot.meta?.default_branch || 'main';
 
   // Create branch from default branch.
-  const ref = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
+  const ref = await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${defaultBranch}`);
   await gh.request(`/repos/${owner}/${repo}/git/refs`, {
     method: 'POST',
     body: { ref: `refs/heads/${branchName}`, sha: ref.object.sha },
