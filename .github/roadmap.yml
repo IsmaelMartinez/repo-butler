@@ -1,0 +1,26 @@
+repository: IsmaelMartinez/repo-butler
+
+roadmap:
+  path: ROADMAP.md
+
+schedule:
+  assess: daily
+  ideate: weekly
+
+providers:
+  default: gemini
+
+context: |
+  Repo Butler is a continuous roadmap planner agent that runs on a schedule,
+  analyses the state of GitHub repositories, maintains a living roadmap,
+  generates improvement ideas, and proposes work as issues.
+  It eats its own dog food — this config makes the agent plan its own roadmap.
+
+limits:
+  max_issues_per_run: 3
+  require_approval: true
+
+observe:
+  issues_closed_days: 90
+  prs_merged_days: 90
+  releases_count: 10

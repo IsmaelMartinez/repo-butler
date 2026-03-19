@@ -1,0 +1,20 @@
+{
+  "name": "repo-butler",
+  "version": "0.1.0",
+  "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "observe": "node src/index.js --phase observe",
+    "test": "node --test src/**/*.test.js"
+  },
+  "keywords": [
+    "github",
+    "roadmap",
+    "agent",
+    "automation"
+  ],
+  "author": "IsmaelMartinez",
+  "license": "MIT"
+}

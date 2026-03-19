@@ -1,0 +1,39 @@
+name: 'Repo Butler'
+description: 'Continuous roadmap planner — analyses repos, maintains a living roadmap, and proposes improvements'
+author: 'IsmaelMartinez'
+
+inputs:
+  github-token:
+    description: 'GitHub token with issues and pull-requests write access'
+    required: true
+    default: ${{ github.token }}
+  config-path:
+    description: 'Path to the roadmap config file'
+    required: false
+    default: '.github/roadmap.yml'
+  phase:
+    description: 'Which phase to run: observe, assess, update, ideate, propose, or all'
+    required: false
+    default: 'all'
+  gemini-api-key:
+    description: 'Gemini API key (free tier: 10 RPM, 250 RPD)'
+    required: false
+  claude-api-key:
+    description: 'Claude API key (for deep reasoning in ideate phase)'
+    required: false
+  dry-run:
+    description: 'If true, log what would happen but do not create issues or PRs'
+    required: false
+    default: 'false'
+
+outputs:
+  report:
+    description: 'JSON summary of what the agent observed and proposed'
+
+runs:
+  using: 'node22'
+  main: 'src/index.js'
+
+branding:
+  icon: 'compass'
+  color: 'blue'
