@@ -1,0 +1,40 @@
+name: Repo Butler
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Phase to run (observe, assess, update, ideate, propose, all)'
+        required: false
+        default: 'observe'
+      dry-run:
+        description: 'Dry run (true/false)'
+        required: false
+        default: 'true'
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run Repo Butler
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_PHASE: ${{ github.event.inputs.phase || 'observe' }}
+          INPUT_CONFIG_PATH: .github/roadmap.yml
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: node src/index.js

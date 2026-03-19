@@ -1,5 +1,12 @@
 import { loadConfig } from './config.js';
-import { observe } from './observe.js';
+import { observe, observePortfolio } from './observe.js';
+import { assess } from './assess.js';
+import { update } from './update.js';
+import { ideate } from './ideate.js';
+import { propose } from './propose.js';
+import { createStore } from './store.js';
+import { GeminiProvider } from './providers/gemini.js';
+import { ClaudeProvider } from './providers/claude.js';
 
 const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose'];
 
@@ -28,6 +35,21 @@ async function main() {
   const [owner, name] = repo.split('/');
   const context = { owner, repo: name, token, config, dryRun };
 
+  // Initialise LLM providers from environment or action inputs.
+  const geminiKey = process.env.INPUT_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const claudeKey = process.env.INPUT_CLAUDE_API_KEY || process.env.CLAUDE_API_KEY;
+
+  const providers = {};
+  if (geminiKey) providers.gemini = new GeminiProvider(geminiKey);
+  if (claudeKey) providers.claude = new ClaudeProvider(claudeKey);
+
+  // Default provider for ASSESS/UPDATE; deep provider for IDEATE.
+  const defaultProvider = providers[config.providers?.default] || providers.gemini || null;
+  const deepProvider = providers[config.providers?.deep] || providers.claude || defaultProvider;
+
+  // Initialise snapshot store.
+  const store = createStore(context);
+
   const phasesToRun = phase === 'all' ? PHASES : [phase];
 
   for (const p of phasesToRun) {
@@ -37,19 +59,69 @@ async function main() {
       case 'observe': {
         const snapshot = await observe(context);
         context.snapshot = snapshot;
-        console.log(JSON.stringify(snapshot.summary, null, 2));
+
+        // Also run portfolio observation if this is the config repo.
+        const portfolio = await observePortfolio(context);
+        context.portfolio = portfolio;
+
+        // Load previous snapshot for ASSESS.
+        context.previousSnapshot = await store.readSnapshot();
+
+        // Persist current snapshot.
+        await store.writeSnapshot(snapshot);
+
+        console.log('Repo summary:', JSON.stringify(snapshot.summary, null, 2));
+        console.log('Portfolio classification:', JSON.stringify(portfolio.classification, null, 2));
         break;
       }
-      case 'assess':
-      case 'update':
-      case 'ideate':
-      case 'propose':
-        console.log(`Phase "${p}" is not yet implemented.`);
+
+      case 'assess': {
+        context.provider = defaultProvider;
+        const assessment = await assess(context);
+        context.assessment = assessment;
+        if (assessment?.assessment) {
+          console.log('Assessment:', assessment.assessment);
+        }
         break;
+      }
+
+      case 'update': {
+        context.provider = defaultProvider;
+        const result = await update(context);
+        context.updateResult = result;
+        break;
+      }
+
+      case 'ideate': {
+        context.provider = deepProvider;
+        const result = await ideate(context);
+        context.ideas = result?.ideas || [];
+        break;
+      }
+
+      case 'propose': {
+        const result = await propose(context);
+        context.proposeResult = result;
+        break;
+      }
+
       default:
         console.error(`Unknown phase: ${p}`);
         process.exit(1);
     }
+  }
+
+  // Output summary for GitHub Actions.
+  if (process.env.GITHUB_OUTPUT) {
+    const { appendFileSync } = await import('node:fs');
+    const report = {
+      snapshot_summary: context.snapshot?.summary,
+      portfolio: context.portfolio?.classification,
+      assessment: context.assessment?.assessment,
+      ideas_count: context.ideas?.length || 0,
+      issues_created: context.proposeResult?.created?.length || 0,
+    };
+    appendFileSync(process.env.GITHUB_OUTPUT, `report=${JSON.stringify(report)}\n`);
   }
 }
 

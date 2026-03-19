@@ -144,26 +144,22 @@ async function fetchClosedIssues(gh, owner, repo, since) {
 async function fetchMergedPRs(gh, owner, repo, since) {
   // Use the search API to find merged PRs since a date.
   const query = `repo:${owner}/${repo} is:pr is:merged merged:>${since}`;
-  const results = await gh.paginate('/search/issues', {
-    params: { q: query, sort: 'updated', order: 'desc', per_page: 100 },
-    max: 200,
-  });
 
-  // Search API wraps results in { items: [...] }.
-  // paginate won't work directly — use a single request instead.
   const data = await gh.request('/search/issues', {
     params: { q: query, sort: 'updated', order: 'desc', per_page: 100 },
   });
 
-  const prs = data.items || [];
+  let allPRs = data.items || [];
 
-  // If there are more than 100, fetch page 2.
-  let allPRs = [...prs];
+  // Fetch additional pages if needed (search API caps at 100 per page).
   if (data.total_count > 100) {
-    const page2 = await gh.request('/search/issues', {
-      params: { q: query, sort: 'updated', order: 'desc', per_page: 100, page: 2 },
-    });
-    allPRs = [...allPRs, ...(page2.items || [])];
+    const totalPages = Math.min(Math.ceil(data.total_count / 100), 10);
+    for (let page = 2; page <= totalPages; page++) {
+      const pageData = await gh.request('/search/issues', {
+        params: { q: query, sort: 'updated', order: 'desc', per_page: 100, page },
+      });
+      allPRs = [...allPRs, ...(pageData.items || [])];
+    }
   }
 
   return allPRs.map(pr => ({
