@@ -5,8 +5,11 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "observe": "node src/index.js --phase observe",
+    "start": "node --env-file=.env.local src/index.js",
+    "observe": "node --env-file=.env.local src/index.js --phase=observe",
+    "report": "node --env-file=.env.local src/index.js --phase=report",
+    "assess": "node --env-file=.env.local src/index.js --phase=assess",
+    "all": "node --env-file=.env.local src/index.js --phase=all",
     "test": "node --test src/**/*.test.js"
   },
   "keywords": [
