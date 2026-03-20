@@ -100,6 +100,29 @@ function diffLabels(currentLabels, previousLabels) {
   return changes;
 }
 
+export function computeTrends(weeklySnapshots) {
+  if (!weeklySnapshots || weeklySnapshots.length === 0) {
+    return { weeks: [], direction: 'stable' };
+  }
+
+  const weeks = weeklySnapshots.map(s => ({
+    week: s._week || 'unknown',
+    open_issues: s.summary?.open_issues ?? 0,
+    merged_prs: s.summary?.recently_merged_prs ?? 0,
+    releases: s.releases?.length ?? s.summary?.releases ?? 0,
+  }));
+
+  if (weeks.length < 2) {
+    return { weeks, direction: 'stable' };
+  }
+
+  const first = weeks[0].open_issues;
+  const last = weeks[weeks.length - 1].open_issues;
+  const direction = last > first ? 'growing' : last < first ? 'shrinking' : 'stable';
+
+  return { weeks, direction };
+}
+
 function buildAssessPrompt(snapshot, diff, projectContext) {
   const parts = [
     `You are a project health analyst. Assess the changes in ${snapshot.repository} since the last observation.`,

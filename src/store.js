@@ -6,6 +6,8 @@ import { createClient } from './github.js';
 const DATA_BRANCH = 'repo-butler-data';
 const SNAPSHOT_PATH = 'snapshots/latest.json';
 const PREVIOUS_PATH = 'snapshots/previous.json';
+const WEEKLY_DIR = 'snapshots/weekly';
+const MAX_WEEKLY_SNAPSHOTS = 12;
 
 export function createStore(context) {
   const { owner, repo, token } = context;
@@ -75,6 +77,14 @@ export function createStore(context) {
     // Write new snapshot as latest.
     await writeFile(SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2));
     console.log(`Snapshot saved to ${DATA_BRANCH}:${SNAPSHOT_PATH}`);
+
+    // Write/overwrite the current week's weekly snapshot.
+    const weekKey = isoWeekKey(new Date());
+    await writeFile(`${WEEKLY_DIR}/${weekKey}.json`, JSON.stringify(snapshot, null, 2));
+    console.log(`Weekly snapshot saved as ${weekKey}`);
+
+    // Prune old weekly snapshots beyond MAX_WEEKLY_SNAPSHOTS.
+    await pruneWeeklySnapshots();
   }
 
   async function readFile(path) {
@@ -122,5 +132,75 @@ export function createStore(context) {
     }
   }
 
-  return { readSnapshot, readPreviousSnapshot, writeSnapshot };
+  async function listWeeklyDir() {
+    // Must read from the data branch, not the default branch.
+    try {
+      const data = await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}`, {
+        params: { ref: DATA_BRANCH },
+      });
+      return Array.isArray(data) ? data.map(f => f.name) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function readWeeklyHistory(weeks = MAX_WEEKLY_SNAPSHOTS) {
+    const files = await listWeeklyDir();
+    const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+    const selected = jsonFiles.slice(-weeks);
+
+    // Read files in parallel for performance.
+    const results = await Promise.all(
+      selected.map(async (file) => {
+        const content = await readFile(`${WEEKLY_DIR}/${file}`);
+        if (!content) return null;
+        try {
+          const parsed = JSON.parse(content);
+          parsed._week = file.replace('.json', '');
+          return parsed;
+        } catch {
+          return null;
+        }
+      })
+    );
+    return results.filter(Boolean);
+  }
+
+  async function pruneWeeklySnapshots() {
+    const files = await listWeeklyDir();
+    const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+
+    if (jsonFiles.length <= MAX_WEEKLY_SNAPSHOTS) return;
+
+    const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_WEEKLY_SNAPSHOTS);
+    await Promise.all(toDelete.map(async (file) => {
+      try {
+        const existing = await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}/${file}`, {
+          params: { ref: DATA_BRANCH },
+        });
+        await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}/${file}`, {
+          method: 'DELETE',
+          body: {
+            message: `chore: prune old weekly snapshot ${file}`,
+            sha: existing.sha,
+            branch: DATA_BRANCH,
+          },
+        });
+      } catch {
+        // Ignore errors during pruning — not critical.
+      }
+    }));
+  }
+
+  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory };
+}
+
+// Return ISO week key as YYYY-WNN (e.g. "2026-W12").
+export function isoWeekKey(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  // Set to nearest Thursday: current date + 4 - current day number (Mon=1, Sun=7).
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
 }
