@@ -1,48 +1,46 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-03-19
-**Status:** All five phases implemented, tested against teams-for-linux
+**Last Updated:** 2026-03-20
+**Status:** All six phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/)
 
 ---
 
 ## Architecture
 
-The agent follows a five-phase loop:
-
 ```
-OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE
+OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
 ```
 
-1. **OBSERVE** — Gather project state via GitHub API. No LLM needed.
+1. **OBSERVE** — Gather project state via GitHub API. Portfolio-level repo classification. No LLM needed.
 2. **ASSESS** — Diff current snapshot against previous run. Optionally summarise with Gemini Flash.
-3. **UPDATE** — Generate an updated roadmap document and open a PR. Uses Gemini Flash.
-4. **IDEATE** — Generate improvement ideas. Uses Claude for deeper reasoning (falls back to Gemini).
+3. **UPDATE** — Generate an updated roadmap document and open a PR.
+4. **IDEATE** — Generate improvement ideas. Claude for deeper reasoning, Gemini Flash as default.
 5. **PROPOSE** — Create GitHub issues from ideas, capped and labelled for human review.
+6. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
 
-## Current State
+## Implemented
 
-### Implemented
+All six phases are working. The system runs daily at 2am UTC via GitHub Actions cron, generating fresh reports and deploying them to GitHub Pages.
 
-- **OBSERVE**: open/closed issues, merged PRs, labels, milestones, releases, workflows, repo metadata, roadmap content, package.json parsing, portfolio-level repo classification
-- **ASSESS**: snapshot persistence via GitHub Contents API on a data branch, diff computation (new/resolved issues, merged PRs, new releases, label changes), LLM-powered change summarisation
-- **UPDATE**: generates updated roadmap from observation + assessment data, creates a PR on a feature branch
-- **IDEATE**: structured idea generation with priority/labels/body, parsed from LLM output
-- **PROPOSE**: creates GitHub issues from ideas, respects `max_issues_per_run`, ensures labels exist, sorts by priority
-- **Providers**: Gemini Flash (free tier REST API) and Claude (Anthropic Messages API), both zero-dependency
-- **Store**: snapshot persistence on a `repo-butler-data` orphan branch via Git Data API
-- **Self-dogfooding**: `.github/roadmap.yml` config and daily workflow with manual dispatch
+Observing covers open/closed issues, merged PRs, labels, milestones, releases, workflows, repo metadata, roadmap content, and package.json parsing. Portfolio observation classifies all repos by activity level (active, dormant, archive candidate, fork, test).
 
-### Next Up
+Assessing persists snapshots on a `repo-butler-data` orphan branch via the Git Data API, then computes diffs between runs (new/resolved issues, merged PRs, new releases, label changes). LLM summarisation is optional.
 
-- End-to-end test with a Gemini API key (OBSERVE and ASSESS work without one)
-- Consumer documentation for using this on other repos
-- Tests for core modules (observe, assess, store, idea parsing)
-- Rate limiting / retry logic for the GitHub and LLM APIs
-- Richer portfolio observation: CI status, README presence, open issue details per repo
+Reporting generates per-repo HTML dashboards for every active portfolio repo. Repos with 10+ commits get full charts (PR velocity, issue trends, release cadence, contributors, labels). Repos with less activity get lightweight summary cards. The portfolio page is the landing page with a stacked weekly commit heatmap, health matrix, and distribution charts.
 
-### Future
+The GitHub API client handles rate limiting with automatic retry/backoff (reads `retry-after` and `x-ratelimit-reset` headers). Search API calls are throttled at 2.5s intervals. Branch protection is enabled on main — PRs required, force pushes blocked. CI runs tests and secret-leak checks on every PR.
 
-- Electron release watcher (monitor Electron releases for fixes to blocked issues)
-- Multi-repo mode (observe several repos in a single run, cross-reference)
-- Configurable assessment templates per project type
-- Weekly digest email/notification option
+## Next Up
+
+- End-to-end test of ASSESS/UPDATE/IDEATE/PROPOSE with a Gemini API key
+- Historical trend charts (compare this week's snapshot against 4 weeks ago, not just the previous run)
+- Report caching (skip regeneration if snapshot hasn't changed)
+- Consumer documentation and action.yml packaging for use in other repos
+
+## Future
+
+- Multi-repo cross-referencing (identify patterns across repos, e.g. the same dependency being outdated everywhere)
+- Electron release watcher (monitor releases for fixes relevant to blocked issues)
+- Configurable report themes and sections
+- Weekly digest notifications (email or Slack)
+- Community health scoring (response time, contributor onboarding, documentation coverage)
