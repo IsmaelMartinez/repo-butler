@@ -18,6 +18,8 @@ OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
 5. **PROPOSE** — Create GitHub issues from ideas, capped and labelled for human review.
 6. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
 
+See [ADR-001](docs/decisions/001-repo-butler-vs-triage-bot.md) for the boundary between this project and the triage bot.
+
 ## Implemented
 
 All six phases are working. The system runs daily at 2am UTC via GitHub Actions cron, generating fresh reports and deploying them to GitHub Pages.
@@ -32,15 +34,24 @@ The GitHub API client handles rate limiting with automatic retry/backoff (reads 
 
 ## Next Up
 
-- End-to-end test of ASSESS/UPDATE/IDEATE/PROPOSE with a Gemini API key
-- Historical trend charts (compare this week's snapshot against 4 weeks ago, not just the previous run)
-- Report caching (skip regeneration if snapshot hasn't changed)
-- Consumer documentation and action.yml packaging for use in other repos
+### 1. End-to-end LLM phases
+
+Test the ASSESS, UPDATE, IDEATE, and PROPOSE phases with a Gemini API key. OBSERVE and REPORT work without one, but the LLM-dependent phases have only been tested with mock providers. Add `GEMINI_API_KEY` as a repo secret and run a full `phase=all` dispatch. Validate that the assessment reads coherently, the roadmap PR is well-formed, the ideas are actionable, and the proposal respects `require_approval`.
+
+### 2. Triage bot integration
+
+Wire OBSERVE to POST collected data to the triage bot's `/ingest` endpoint, enriching its event journal. Wire ASSESS and IDEATE to read synthesis findings from the triage bot's `/report/trends` endpoint. Add live dashboard links to per-repo report pages for repos where the bot is installed. See [ADR-001](docs/decisions/001-repo-butler-vs-triage-bot.md) for the full integration design.
+
+### 3. Historical trend charts
+
+Store weekly snapshots (not just latest + previous) so the reports can show trends over 4-12 weeks. Currently the ASSESS phase can only compare "now vs last run" — with a history of snapshots it could show trajectory (is the backlog growing? is velocity increasing?).
+
+### 4. Report caching
+
+Skip report regeneration if the snapshot hash hasn't changed since the last run. The full report generation takes ~15 minutes due to search API throttling — caching would reduce daily cron duration to under a minute on quiet days.
 
 ## Future
 
-- Multi-repo cross-referencing (identify patterns across repos, e.g. the same dependency being outdated everywhere)
-- Electron release watcher (monitor releases for fixes relevant to blocked issues)
-- Configurable report themes and sections
-- Weekly digest notifications (email or Slack)
-- Community health scoring (response time, contributor onboarding, documentation coverage)
+These are ideas, not commitments. They'll be evaluated as the system matures.
+
+Multi-repo cross-referencing would identify patterns across repos, such as the same dependency being outdated everywhere or similar issue themes appearing in unrelated projects. Configurable report themes would let other users customise the dashboard appearance. Weekly digest notifications (email or Slack) would push the report summary rather than requiring a visit to the Pages site. Community health scoring would add metrics like response time, contributor onboarding friction, and documentation coverage.
