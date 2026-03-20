@@ -1,6 +1,7 @@
 // UPDATE phase: generate an updated roadmap document and open a PR.
 
 import { createClient } from './github.js';
+import { validateRoadmap } from './safety.js';
 
 export async function update(context) {
   const { owner, repo, token, snapshot, assessment, provider, config, dryRun } = context;
@@ -21,11 +22,19 @@ export async function update(context) {
   const prompt = buildUpdatePrompt(currentRoadmap, snapshot, assessment, config.context);
   const updatedRoadmap = await provider.generate(prompt);
 
+  // Safety check before publishing.
+  const safety = validateRoadmap(updatedRoadmap);
+  if (!safety.valid) {
+    console.error('SAFETY: Roadmap failed validation, skipping PR creation:');
+    for (const err of safety.errors) console.error(`  - ${err}`);
+    return { roadmap: updatedRoadmap, pr: null, safety };
+  }
+
   if (dryRun) {
-    console.log('DRY RUN — would create PR with updated roadmap.');
+    console.log('DRY RUN — would create PR with updated roadmap (safety: passed).');
     console.log('Updated roadmap preview (first 500 chars):');
     console.log(updatedRoadmap.slice(0, 500));
-    return { roadmap: updatedRoadmap, pr: null };
+    return { roadmap: updatedRoadmap, pr: null, safety };
   }
 
   const gh = createClient(token);
@@ -81,7 +90,7 @@ export async function update(context) {
   });
 
   console.log(`PR created: ${pr.html_url}`);
-  return { roadmap: updatedRoadmap, pr: pr.html_url };
+  return { roadmap: updatedRoadmap, pr: pr.html_url, safety };
 }
 
 function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext) {
