@@ -33,7 +33,7 @@ export async function propose(context) {
     for (const idea of safeIdeas) {
       console.log(`  [${idea.priority}] ${idea.title}`);
     }
-    return { created: [], dropped: safeIdeas.length, require_approval: true };
+    return { created: [], dropped: ideas.length, require_approval: true };
   }
 
   const gh = createClient(token);
@@ -82,7 +82,7 @@ export async function propose(context) {
     console.log(`Capped at ${maxIssues} issues. ${safeIdeas.length - maxIssues} ideas dropped.`);
   }
 
-  return { created, dropped: safeIdeas.length - toPropose.length };
+  return { created, dropped: ideas.length - created.length };
 }
 
 async function ensureLabel(gh, owner, repo, name, description, color) {

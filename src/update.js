@@ -90,7 +90,7 @@ export async function update(context) {
   });
 
   console.log(`PR created: ${pr.html_url}`);
-  return { roadmap: updatedRoadmap, pr: pr.html_url };
+  return { roadmap: updatedRoadmap, pr: pr.html_url, safety };
 }
 
 function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext) {

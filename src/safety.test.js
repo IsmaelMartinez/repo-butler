@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateIssueTitle, validateIssueBody,
-  validateRoadmap, validateIdeas,
+  validateRoadmap, validateIdeas, validateProvider,
 } from './safety.js';
 
 describe('validateIssueTitle', () => {
@@ -17,9 +17,12 @@ describe('validateIssueTitle', () => {
     assert.equal(validateIssueTitle(null).valid, false);
   });
 
+  it('accepts titles at exactly 120 chars', () => {
+    assert.equal(validateIssueTitle('A'.repeat(120)).valid, true);
+  });
+
   it('rejects titles over 120 chars', () => {
-    const long = 'A'.repeat(121);
-    assert.equal(validateIssueTitle(long).valid, false);
+    assert.equal(validateIssueTitle('A'.repeat(121)).valid, false);
   });
 
   it('rejects titles with newlines', () => {
@@ -136,5 +139,39 @@ describe('validateIdeas', () => {
     ];
     const result = validateIdeas(ideas);
     assert.equal(result.filtered.length, 0);
+  });
+});
+
+describe('validateProvider', () => {
+  it('passes when provider returns OK', async () => {
+    const mock = { generate: async () => 'OK' };
+    const result = await validateProvider(mock);
+    assert.equal(result.valid, true);
+  });
+
+  it('passes when provider returns OK with extra text', async () => {
+    const mock = { generate: async () => 'OK, I am ready.' };
+    const result = await validateProvider(mock);
+    assert.equal(result.valid, true);
+  });
+
+  it('fails when provider returns unexpected text', async () => {
+    const mock = { generate: async () => 'Error: invalid API key' };
+    const result = await validateProvider(mock);
+    assert.equal(result.valid, false);
+    assert.ok(result.error.includes('unexpected response'));
+  });
+
+  it('fails when provider returns empty', async () => {
+    const mock = { generate: async () => '' };
+    const result = await validateProvider(mock);
+    assert.equal(result.valid, false);
+  });
+
+  it('fails when provider throws', async () => {
+    const mock = { generate: async () => { throw new Error('403 Forbidden'); } };
+    const result = await validateProvider(mock);
+    assert.equal(result.valid, false);
+    assert.ok(result.error.includes('403 Forbidden'));
   });
 });

@@ -146,9 +146,12 @@ export function validateIdeas(ideas) {
 // Validate that an LLM provider responds before running the full pipeline.
 export async function validateProvider(provider) {
   try {
-    const response = await provider.generate('Respond with exactly: OK');
-    if (!response || typeof response !== 'string' || response.length === 0) {
+    const response = await provider.generate('Respond with exactly the word OK and nothing else.');
+    if (!response || typeof response !== 'string') {
       return { valid: false, error: 'Provider returned empty response' };
+    }
+    if (!response.trim().startsWith('OK')) {
+      return { valid: false, error: `Provider returned unexpected response: "${response.slice(0, 100)}"` };
     }
     return { valid: true };
   } catch (err) {
