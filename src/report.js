@@ -19,10 +19,10 @@ export async function report(context) {
   }
 
   // Cache check: skip regeneration if snapshot hasn't changed.
-  if (store) {
-    const currentHash = computeSnapshotHash(context.snapshot);
+  const currentHash = store ? computeSnapshotHash(context.snapshot) : null;
+  if (store && !context.forceReport) {
     const lastHash = await store.readLastHash();
-    if (currentHash === lastHash && !context.forceReport) {
+    if (currentHash === lastHash) {
       console.log('No changes since last report — skipping regeneration');
       return { cached: true };
     }
@@ -115,8 +115,7 @@ export async function report(context) {
   }
 
   // Persist hash after successful generation.
-  if (store) {
-    const currentHash = computeSnapshotHash(snapshot);
+  if (store && currentHash) {
     await store.writeHash(currentHash);
   }
 

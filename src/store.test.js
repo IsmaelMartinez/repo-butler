@@ -39,4 +39,10 @@ describe('computeSnapshotHash', () => {
     assert.equal(typeof hash, 'string');
     assert.equal(hash.length, 64);
   });
+
+  it('ignores fields outside summary', () => {
+    const a = computeSnapshotHash({ summary: { open_issues: 5 }, timestamp: '2026-01-01' });
+    const b = computeSnapshotHash({ summary: { open_issues: 5 }, timestamp: '2026-03-20' });
+    assert.equal(a, b);
+  });
 });
