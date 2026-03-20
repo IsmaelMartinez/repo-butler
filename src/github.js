@@ -18,18 +18,40 @@ export function createClient(token) {
       }
     }
 
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(url, {
+        method,
+        headers: { ...headers, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+      // Handle rate limiting with retry.
+      if (res.status === 403 || res.status === 429) {
+        const retryAfter = res.headers.get('retry-after');
+        const resetTime = res.headers.get('x-ratelimit-reset');
+        let waitMs;
+        if (retryAfter) {
+          waitMs = parseInt(retryAfter, 10) * 1000;
+        } else if (resetTime) {
+          waitMs = Math.max(0, parseInt(resetTime, 10) * 1000 - Date.now()) + 1000;
+        } else {
+          waitMs = (attempt + 1) * 10000;
+        }
+        const waitSec = Math.min(Math.ceil(waitMs / 1000), 120);
+        console.log(`Rate limited on ${path}, waiting ${waitSec}s (attempt ${attempt + 1}/3)...`);
+        await new Promise(r => setTimeout(r, waitSec * 1000));
+        continue;
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+      }
+
+      return res.json();
     }
 
-    return res.json();
+    throw new Error(`GitHub API ${method} ${path}: rate limited after 3 retries`);
   }
 
   async function paginate(path, { params = {}, max = 500 } = {}) {
