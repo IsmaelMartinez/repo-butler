@@ -4,11 +4,12 @@ import { assess } from './assess.js';
 import { update } from './update.js';
 import { ideate } from './ideate.js';
 import { propose } from './propose.js';
+import { report } from './report.js';
 import { createStore } from './store.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ClaudeProvider } from './providers/claude.js';
 
-const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose'];
+const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report'];
 
 export function validateRepoFormat(repo) {
   if (!repo.includes('/')) {
@@ -113,6 +114,12 @@ async function main() {
         break;
       }
 
+      case 'report': {
+        const result = await report(context);
+        context.reportResult = result;
+        break;
+      }
+
       default:
         console.error(`Unknown phase: ${p}`);
         process.exit(1);
@@ -122,14 +129,14 @@ async function main() {
   // Output summary for GitHub Actions.
   if (process.env.GITHUB_OUTPUT) {
     const { appendFileSync } = await import('node:fs');
-    const report = {
+    const summary = {
       snapshot_summary: context.snapshot?.summary,
       portfolio: context.portfolio?.classification,
       assessment: context.assessment?.assessment,
       ideas_count: context.ideas?.length || 0,
       issues_created: context.proposeResult?.created?.length || 0,
     };
-    appendFileSync(process.env.GITHUB_OUTPUT, `report=${JSON.stringify(report)}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `report=${JSON.stringify(summary)}\n`);
   }
 }
 

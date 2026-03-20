@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       phase:
-        description: 'Phase to run (observe, assess, update, ideate, propose, all)'
+        description: 'Phase to run (observe, report, assess, all)'
         required: false
         default: 'observe'
       dry-run:
@@ -18,6 +18,8 @@ permissions:
   issues: write
   pull-requests: write
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   run:
@@ -37,4 +39,37 @@ jobs:
           INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          REPORT_OUTPUT_DIR: reports
         run: node src/index.js
+
+      - name: Generate reports
+        if: github.event.inputs.phase == 'report' || github.event.inputs.phase == 'all' || github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_PHASE: report
+          INPUT_CONFIG_PATH: .github/roadmap.yml
+          REPORT_OUTPUT_DIR: reports
+        run: |
+          # Only run report phase if it wasn't already included
+          if [[ "${{ github.event.inputs.phase }}" != "report" && "${{ github.event.inputs.phase }}" != "all" ]]; then
+            node src/index.js --phase=observe
+            node src/index.js --phase=report
+          fi
+
+      - name: Upload Pages artifact
+        if: github.event.inputs.phase == 'report' || github.event.inputs.phase == 'all' || github.event_name == 'schedule'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports
+
+  deploy-pages:
+    if: github.event.inputs.phase == 'report' || github.event.inputs.phase == 'all' || github.event_name == 'schedule'
+    needs: run
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
