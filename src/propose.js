@@ -2,6 +2,7 @@
 // Respects max_issues_per_run and require_approval settings.
 
 import { createClient } from './github.js';
+import { validateIdeas } from './safety.js';
 
 export async function propose(context) {
   const { owner, repo, token, ideas, config, dryRun } = context;
@@ -11,16 +12,28 @@ export async function propose(context) {
     return null;
   }
 
+  // Safety-filter ideas before proposing.
+  const safety = validateIdeas(ideas);
+  if (safety.errors.length > 0) {
+    console.warn(`SAFETY: ${safety.errors.length} issues found, ${ideas.length - safety.filtered.length} ideas dropped:`);
+    for (const err of safety.errors) console.warn(`  - ${err}`);
+  }
+  if (!safety.valid) {
+    console.error('SAFETY: No ideas passed validation. Skipping PROPOSE.');
+    return { created: [], dropped: ideas.length, safety };
+  }
+  const safeIdeas = safety.filtered;
+
   const requireApproval = config.limits?.require_approval !== false;
 
   if (requireApproval && !dryRun) {
     console.log('require_approval is enabled — running in dry-run mode.');
     console.log('Set require_approval: false in .github/roadmap.yml to create issues automatically.');
     console.log('Ideas that would be proposed:');
-    for (const idea of ideas) {
+    for (const idea of safeIdeas) {
       console.log(`  [${idea.priority}] ${idea.title}`);
     }
-    return { created: [], dropped: ideas.length, require_approval: true };
+    return { created: [], dropped: safeIdeas.length, require_approval: true };
   }
 
   const gh = createClient(token);
@@ -34,7 +47,7 @@ export async function propose(context) {
 
   // Sort by priority: high > medium > low.
   const priorityOrder = { high: 0, medium: 1, low: 2 };
-  const sorted = [...ideas].sort((a, b) =>
+  const sorted = [...safeIdeas].sort((a, b) =>
     (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1)
   );
 
@@ -65,11 +78,11 @@ export async function propose(context) {
     created.push({ title: idea.title, number: issue.number, labels, url: issue.html_url });
   }
 
-  if (toPropose.length < ideas.length) {
-    console.log(`Capped at ${maxIssues} issues. ${ideas.length - maxIssues} ideas dropped.`);
+  if (toPropose.length < safeIdeas.length) {
+    console.log(`Capped at ${maxIssues} issues. ${safeIdeas.length - maxIssues} ideas dropped.`);
   }
 
-  return { created, dropped: ideas.length - toPropose.length };
+  return { created, dropped: safeIdeas.length - toPropose.length };
 }
 
 async function ensureLabel(gh, owner, repo, name, description, color) {

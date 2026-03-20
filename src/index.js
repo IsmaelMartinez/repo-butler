@@ -56,10 +56,24 @@ async function main() {
   const defaultProvider = providers[config.providers?.default] || providers.gemini || null;
   const deepProvider = providers[config.providers?.deep] || providers.claude || defaultProvider;
 
+  // Validate LLM provider early if LLM phases will run.
+  const llmPhases = ['assess', 'update', 'ideate'];
+  const phasesToRun = phase === 'all' ? PHASES : [phase];
+  const needsLLM = phasesToRun.some(p => llmPhases.includes(p));
+
+  if (needsLLM && defaultProvider) {
+    const { validateProvider } = await import('./safety.js');
+    console.log(`Validating ${defaultProvider.name} provider...`);
+    const check = await validateProvider(defaultProvider);
+    if (!check.valid) {
+      console.error(`Provider validation failed: ${check.error}`);
+      process.exit(1);
+    }
+    console.log('Provider OK.');
+  }
+
   // Initialise snapshot store.
   const store = createStore(context);
-
-  const phasesToRun = phase === 'all' ? PHASES : [phase];
 
   for (const p of phasesToRun) {
     console.log(`\n=== Phase: ${p.toUpperCase()} ===\n`);
