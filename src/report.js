@@ -7,7 +7,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export async function report(context) {
-  const { owner, repo, token, config } = context;
+  const { owner, token, config } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
 
   // Auto-run observe if no snapshot exists (standalone report phase).
@@ -21,28 +21,84 @@ export async function report(context) {
 
   await mkdir(outDir, { recursive: true });
 
-  // Gather extra data for charts.
   const gh = createClient(token);
-  const [prActivity, issueActivity, weeklyCommits, prAuthors, repoDetails] = await Promise.all([
-    fetchMonthlyPRActivity(gh, owner, repo),
-    fetchMonthlyIssueActivity(gh, owner, repo),
-    fetchWeeklyCommits(gh, owner, repo),
-    fetchPRAuthors(gh, owner, repo),
-    portfolio ? fetchPortfolioDetails(gh, owner, portfolio.repos) : Promise.resolve(null),
-  ]);
 
-  // Generate per-repo report.
-  const repoHtml = generateRepoReport(snapshot, prActivity, issueActivity, prAuthors);
-  const repoPath = join(outDir, 'index.html');
-  await writeFile(repoPath, repoHtml);
-  console.log(`Repo report written to ${repoPath}`);
+  // Gather portfolio-level data.
+  const repoDetails = portfolio
+    ? await fetchPortfolioDetails(gh, owner, portfolio.repos)
+    : null;
 
-  // Generate portfolio report.
+  // Generate portfolio report as the landing page.
   if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, weeklyCommits);
-    const portfolioPath = join(outDir, 'portfolio.html');
-    await writeFile(portfolioPath, portfolioHtml);
-    console.log(`Portfolio report written to ${portfolioPath}`);
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null);
+    await writeFile(join(outDir, 'index.html'), portfolioHtml);
+    console.log('Portfolio report written to index.html');
+  }
+
+  // Generate per-repo reports for active repos with meaningful activity.
+  if (portfolio) {
+    const activeRepos = portfolio.repos
+      .filter(r => !r.archived && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo'))
+      .sort((a, b) => (repoDetails?.[b.name]?.commits || 0) - (repoDetails?.[a.name]?.commits || 0));
+
+    for (const r of activeRepos) {
+      const commits = repoDetails?.[r.name]?.commits || 0;
+      console.log(`Generating report for ${r.name} (${commits} commits)...`);
+
+      if (commits >= 10) {
+        // Full report with charts — fetch monthly data.
+        const [prActivity, issueActivity, prAuthors] = await Promise.all([
+          fetchMonthlyPRActivity(gh, owner, r.name),
+          fetchMonthlyIssueActivity(gh, owner, r.name),
+          fetchPRAuthors(gh, owner, r.name),
+        ]);
+
+        // Fetch releases and open issues for this repo.
+        const [releases, openIssues, meta] = await Promise.all([
+          gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 }).catch(() => []),
+          gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 100 })
+            .then(issues => issues.filter(i => !i.pull_request))
+            .catch(() => []),
+          gh.request(`/repos/${owner}/${r.name}`).catch(() => null),
+        ]);
+
+        const repoSnapshot = {
+          repository: `${owner}/${r.name}`,
+          meta: meta ? {
+            stars: meta.stargazers_count, forks: meta.forks_count,
+            watchers: meta.subscribers_count, default_branch: meta.default_branch,
+          } : { stars: r.stars, forks: r.forks },
+          issues: {
+            open: openIssues.map(i => ({
+              number: i.number, title: i.title, labels: i.labels.map(l => l.name),
+              reactions: i.reactions?.total_count || 0, comments: i.comments,
+            })),
+          },
+          releases: releases.map(rel => ({
+            tag: rel.tag_name, published_at: rel.published_at, prerelease: rel.prerelease,
+          })),
+          summary: {
+            open_issues: openIssues.length,
+            blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
+            awaiting_feedback: openIssues.filter(i => i.labels.some(l => l.name.includes('feedback'))).length,
+            recently_merged_prs: prActivity.reduce((s, m) => s + m.count, 0),
+            human_prs: prAuthors.filter(a => !a.author.includes('[bot]')).reduce((s, a) => s + a.count, 0),
+            bot_prs: prAuthors.filter(a => a.author.includes('[bot]')).reduce((s, a) => s + a.count, 0),
+            releases: releases.length,
+            latest_release: releases[0]?.tag_name || 'none',
+          },
+        };
+
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors);
+        await writeFile(join(outDir, `${r.name}.html`), html);
+      } else {
+        // Lightweight report — just metadata, no search API calls.
+        const html = generateLightRepoReport(owner, r, repoDetails?.[r.name]);
+        await writeFile(join(outDir, `${r.name}.html`), html);
+      }
+    }
+
+    console.log(`Generated reports for ${activeRepos.length} repos.`);
   }
 
   return { outDir };
@@ -186,7 +242,7 @@ ${CSS}
 </head>
 <body>
 <h1>${snapshot.repository}</h1>
-<div class="subtitle">Project Health Report — ${now} — <a href="portfolio.html">portfolio view</a></div>
+<div class="subtitle">Project Health Report — ${now} — <a href="index.html">portfolio view</a></div>
 <div class="grid">
   <div class="card"><h3>Stars</h3><div class="stat">${fmt(snapshot.meta?.stars)}</div><div class="stat-label">${snapshot.meta?.forks} forks, ${snapshot.meta?.watchers} watchers</div></div>
   <div class="card"><h3>Open Issues</h3><div class="stat">${s.open_issues}</div><div class="stat-label">${s.blocked_issues} blocked, ${s.awaiting_feedback} awaiting feedback</div></div>
@@ -267,7 +323,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
     const healthScore = r.status === 'active' ? ((r.commits > 0 ? 1 : 0) + ((r.ci || 0) >= 2 ? 1 : 0) + (r.license && r.license !== 'None' ? 1 : 0) + ((r.open_issues || 0) <= 5 ? 1 : 0)) : 0;
     const health = r.status !== 'active' ? (r.status === 'test' || r.status === 'fork' ? 'none' : 'bad') : healthScore >= 3 ? 'good' : healthScore >= 2 ? 'warn' : 'bad';
     return `<tr>
-      <td><a href="https://github.com/${owner}/${r.name}">${r.name}</a></td>
+      <td><a href="${r.name}.html">${r.name}</a></td>
       <td>${r.description ? escHtml(r.description).slice(0, 50) : '—'}</td>
       <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
       <td>${r.commits || 0}</td><td>${(r.ci || 0) > 0 ? r.ci : '<span style="color:#f85149">0</span>'}</td>
@@ -286,7 +342,7 @@ ${CSS}
 </head>
 <body>
 <h1>@${owner}</h1>
-<div class="subtitle">GitHub Portfolio Health Report — ${now} — <a href="index.html">repo view</a></div>
+<div class="subtitle">GitHub Portfolio Health Report — ${now} — click any repo name for details</div>
 <div class="grid">
   <div class="card"><h3>Repos</h3><div class="stat">${repos.length}</div><div class="stat-label">${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div></div>
   <div class="card"><h3>Stars</h3><div class="stat">${fmt(totalStars)}</div></div>
@@ -323,6 +379,40 @@ new Chart(document.getElementById('commitChart'),{type:'bar',data:{labels:commit
 // Throttle search API calls to stay under 30 req/min secondary rate limit.
 function throttle() {
   return new Promise(r => setTimeout(r, 2500));
+}
+
+function generateLightRepoReport(owner, repo, details) {
+  const now = new Date().toISOString().split('T')[0];
+  const pushed = repo.pushed_at?.split('T')[0] || 'unknown';
+  const commits = details?.commits || 0;
+  const ci = details?.ci || 0;
+  const license = details?.license || 'None';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${owner}/${repo.name}</title>
+${CSS}
+</head>
+<body>
+<h1>${repo.name}</h1>
+<div class="subtitle">${escHtml(repo.description || 'No description')} — ${now} — <a href="index.html">portfolio view</a></div>
+<div class="grid">
+  <div class="card"><h3>Language</h3><div class="stat stat-sm">${repo.language || '—'}</div></div>
+  <div class="card"><h3>Stars</h3><div class="stat">${repo.stars}</div><div class="stat-label">${repo.forks} forks</div></div>
+  <div class="card"><h3>Open Issues</h3><div class="stat">${repo.open_issues || 0}</div></div>
+  <div class="card"><h3>Commits (6mo)</h3><div class="stat">${commits}</div></div>
+  <div class="card"><h3>CI Workflows</h3><div class="stat">${ci}</div></div>
+  <div class="card"><h3>Last Push</h3><div class="stat stat-sm">${pushed}</div></div>
+</div>
+<div class="chart-container" style="text-align:center;padding:3rem;color:#8b949e">
+  This repo has fewer than 10 commits in the last 6 months.<br>
+  Full charts are generated for repos with more activity.
+</div>
+<p style="text-align:center;margin-top:2rem"><a href="https://github.com/${owner}/${repo.name}">View on GitHub</a></p>
+<div class="footer">Generated by <a href="https://github.com/IsmaelMartinez/repo-butler">repo-butler</a></div>
+</body></html>`;
 }
 
 function last12Months() {
@@ -371,6 +461,7 @@ h2{font-size:1.2rem;margin:2.5rem 0 1rem;color:#7ee787;border-bottom:1px solid #
 .card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1.2rem}
 .card h3{font-size:0.8rem;color:#8b949e;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em}
 .stat{font-size:2.2rem;font-weight:700;color:#f0f6fc}
+.stat-sm{font-size:1.4rem}
 .stat-label{color:#8b949e;font-size:0.8rem}
 .chart-container{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1.5rem;margin-bottom:1.5rem}
 .chart-title{font-size:0.95rem;color:#e6edf3;margin-bottom:1rem}
