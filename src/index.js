@@ -1,6 +1,6 @@
 import { loadConfig } from './config.js';
 import { observe, observePortfolio } from './observe.js';
-import { assess } from './assess.js';
+import { assess, computeTrends } from './assess.js';
 import { update } from './update.js';
 import { ideate } from './ideate.js';
 import { propose } from './propose.js';
@@ -93,6 +93,10 @@ async function main() {
         // Persist current snapshot.
         await store.writeSnapshot(snapshot);
 
+        // Read weekly history for trend analysis.
+        context.weeklyHistory = await store.readWeeklyHistory();
+        console.log(`Loaded ${context.weeklyHistory.length} weekly snapshots for trends.`);
+
         console.log('Repo summary:', JSON.stringify(snapshot.summary, null, 2));
         console.log('Portfolio classification:', JSON.stringify(portfolio.classification, null, 2));
         break;
@@ -104,6 +108,12 @@ async function main() {
         context.assessment = assessment;
         if (assessment?.assessment) {
           console.log('Assessment:', assessment.assessment);
+        }
+
+        // Compute trends from weekly history if available.
+        if (context.weeklyHistory?.length > 0) {
+          context.trends = computeTrends(context.weeklyHistory);
+          console.log(`Trend direction: ${context.trends.direction} (${context.trends.weeks.length} weeks)`);
         }
         break;
       }
