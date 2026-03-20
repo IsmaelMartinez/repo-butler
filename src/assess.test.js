@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeTrends } from './assess.js';
+import { isoWeekKey } from './store.js';
 
 describe('computeTrends', () => {
   it('returns stable with empty weeks for empty array', () => {
@@ -74,5 +75,26 @@ describe('computeTrends', () => {
     assert.equal(result.weeks[0].merged_prs, 0);
     assert.equal(result.weeks[0].releases, 0);
     assert.equal(result.direction, 'growing');
+  });
+});
+
+describe('isoWeekKey', () => {
+  it('returns correct week for a mid-year date', () => {
+    assert.equal(isoWeekKey(new Date('2026-03-20T00:00:00Z')), '2026-W12');
+  });
+
+  it('handles Jan 1 that belongs to previous year week 53', () => {
+    // Jan 1, 2016 is a Friday — ISO week belongs to 2015-W53
+    assert.equal(isoWeekKey(new Date('2016-01-01T00:00:00Z')), '2015-W53');
+  });
+
+  it('handles Dec 31 that belongs to next year week 1', () => {
+    // Dec 31, 2018 is a Monday — ISO week belongs to 2019-W01
+    assert.equal(isoWeekKey(new Date('2018-12-31T00:00:00Z')), '2019-W01');
+  });
+
+  it('handles Dec 28 in a year with 53 weeks', () => {
+    // Dec 28, 2026 is a Monday — should be 2026-W53
+    assert.equal(isoWeekKey(new Date('2026-12-28T00:00:00Z')), '2026-W53');
   });
 });

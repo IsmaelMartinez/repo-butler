@@ -132,40 +132,48 @@ export function createStore(context) {
     }
   }
 
-  async function readWeeklyHistory(weeks = MAX_WEEKLY_SNAPSHOTS) {
-    const files = await gh.listDir(owner, repo, WEEKLY_DIR);
-    // Filter to .json files and sort chronologically.
-    const jsonFiles = files
-      .filter(f => f.endsWith('.json'))
-      .sort();
+  async function listWeeklyDir() {
+    // Must read from the data branch, not the default branch.
+    try {
+      const data = await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}`, {
+        params: { ref: DATA_BRANCH },
+      });
+      return Array.isArray(data) ? data.map(f => f.name) : [];
+    } catch {
+      return [];
+    }
+  }
 
-    // Take the most recent N weeks.
+  async function readWeeklyHistory(weeks = MAX_WEEKLY_SNAPSHOTS) {
+    const files = await listWeeklyDir();
+    const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
     const selected = jsonFiles.slice(-weeks);
 
-    const snapshots = [];
-    for (const file of selected) {
-      const content = await readFile(`${WEEKLY_DIR}/${file}`);
-      if (content) {
+    // Read files in parallel for performance.
+    const results = await Promise.all(
+      selected.map(async (file) => {
+        const content = await readFile(`${WEEKLY_DIR}/${file}`);
+        if (!content) return null;
         try {
           const parsed = JSON.parse(content);
           parsed._week = file.replace('.json', '');
-          snapshots.push(parsed);
+          return parsed;
         } catch {
-          // Skip malformed files.
+          return null;
         }
-      }
-    }
-    return snapshots;
+      })
+    );
+    return results.filter(Boolean);
   }
 
   async function pruneWeeklySnapshots() {
-    const files = await gh.listDir(owner, repo, WEEKLY_DIR);
+    const files = await listWeeklyDir();
     const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
 
     if (jsonFiles.length <= MAX_WEEKLY_SNAPSHOTS) return;
 
     const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_WEEKLY_SNAPSHOTS);
-    for (const file of toDelete) {
+    await Promise.all(toDelete.map(async (file) => {
       try {
         const existing = await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}/${file}`, {
           params: { ref: DATA_BRANCH },
@@ -181,7 +189,7 @@ export function createStore(context) {
       } catch {
         // Ignore errors during pruning — not critical.
       }
-    }
+    }));
   }
 
   return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory };
@@ -189,7 +197,7 @@ export function createStore(context) {
 
 // Return ISO week key as YYYY-WNN (e.g. "2026-W12").
 export function isoWeekKey(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   // Set to nearest Thursday: current date + 4 - current day number (Mon=1, Sun=7).
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));

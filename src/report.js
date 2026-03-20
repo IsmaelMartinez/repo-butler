@@ -89,7 +89,9 @@ export async function report(context) {
           },
         };
 
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, context.trends);
+        // Only show trends for the main observed repo — trends data is repo-specific.
+        const repoTrends = (r.name === context.repo) ? context.trends : null;
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends);
         await writeFile(join(outDir, `${r.name}.html`), html);
       } else {
         // Lightweight report — just metadata, no search API calls.
