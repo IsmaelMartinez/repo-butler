@@ -13,6 +13,11 @@ on:
         description: 'Dry run (true/false)'
         required: false
         default: 'true'
+      force-report:
+        description: 'Force report regeneration even if unchanged'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   issues: write
@@ -42,6 +47,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           REPORT_OUTPUT_DIR: reports
+          REPORT_FORCE: ${{ github.event.inputs.force-report }}
         run: node src/index.js
 
       - name: Check reports exist

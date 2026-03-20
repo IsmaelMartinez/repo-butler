@@ -3,11 +3,12 @@
 
 import { createClient } from './github.js';
 import { observe, observePortfolio } from './observe.js';
+import { computeSnapshotHash } from './store.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export async function report(context) {
-  const { owner, token, config } = context;
+  const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
 
   // Auto-run observe if no snapshot exists (standalone report phase).
@@ -15,6 +16,16 @@ export async function report(context) {
     console.log('No snapshot — running OBSERVE first...');
     context.snapshot = await observe(context);
     context.portfolio = await observePortfolio(context);
+  }
+
+  // Cache check: skip regeneration if snapshot hasn't changed.
+  if (store) {
+    const currentHash = computeSnapshotHash(context.snapshot);
+    const lastHash = await store.readLastHash();
+    if (currentHash === lastHash && !context.forceReport) {
+      console.log('No changes since last report — skipping regeneration');
+      return { cached: true };
+    }
   }
 
   const { snapshot, portfolio } = context;
@@ -101,6 +112,12 @@ export async function report(context) {
     }
 
     console.log(`Generated reports for ${activeRepos.length} repos.`);
+  }
+
+  // Persist hash after successful generation.
+  if (store) {
+    const currentHash = computeSnapshotHash(snapshot);
+    await store.writeHash(currentHash);
   }
 
   return { outDir };

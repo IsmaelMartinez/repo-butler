@@ -2,6 +2,15 @@
 // Stores snapshots as JSON files so the ASSESS phase can diff runs.
 
 import { createClient } from './github.js';
+import { createHash } from 'node:crypto';
+
+const HASH_PATH = 'snapshots/hash.txt';
+
+export function computeSnapshotHash(snapshot) {
+  const summary = snapshot?.summary ?? null;
+  const data = JSON.stringify(summary);
+  return createHash('sha256').update(data).digest('hex');
+}
 
 const DATA_BRANCH = 'repo-butler-data';
 const SNAPSHOT_PATH = 'snapshots/latest.json';
@@ -133,7 +142,6 @@ export function createStore(context) {
   }
 
   async function listWeeklyDir() {
-    // Must read from the data branch, not the default branch.
     try {
       const data = await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}`, {
         params: { ref: DATA_BRANCH },
@@ -149,7 +157,6 @@ export function createStore(context) {
     const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
     const selected = jsonFiles.slice(-weeks);
 
-    // Read files in parallel for performance.
     const results = await Promise.all(
       selected.map(async (file) => {
         const content = await readFile(`${WEEKLY_DIR}/${file}`);
@@ -192,13 +199,22 @@ export function createStore(context) {
     }));
   }
 
-  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory };
+  async function readLastHash() {
+    const content = await readFile(HASH_PATH);
+    return content ? content.trim() : null;
+  }
+
+  async function writeHash(hash) {
+    await ensureDataBranch();
+    await writeFile(HASH_PATH, hash);
+  }
+
+  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, readLastHash, writeHash };
 }
 
 // Return ISO week key as YYYY-WNN (e.g. "2026-W12").
 export function isoWeekKey(date) {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  // Set to nearest Thursday: current date + 4 - current day number (Mon=1, Sun=7).
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);

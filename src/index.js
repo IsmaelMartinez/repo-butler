@@ -42,7 +42,8 @@ async function main() {
   validateRepoFormat(repo);
 
   const [owner, name] = repo.split('/');
-  const context = { owner, repo: name, token, config, dryRun };
+  const forceReport = (process.env.REPORT_FORCE || '') === 'true';
+  const context = { owner, repo: name, token, config, dryRun, forceReport };
 
   // Initialise LLM providers from environment or action inputs.
   const geminiKey = process.env.INPUT_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -74,6 +75,7 @@ async function main() {
 
   // Initialise snapshot store.
   const store = createStore(context);
+  context.store = store;
 
   for (const p of phasesToRun) {
     console.log(`\n=== Phase: ${p.toUpperCase()} ===\n`);
