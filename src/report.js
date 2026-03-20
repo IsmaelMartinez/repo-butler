@@ -2,17 +2,22 @@
 // Produces two reports: per-repo (target repo) and portfolio (all repos).
 
 import { createClient } from './github.js';
+import { observe, observePortfolio } from './observe.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export async function report(context) {
-  const { owner, repo, token, snapshot, portfolio, config } = context;
+  const { owner, repo, token, config } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
 
-  if (!snapshot) {
-    console.log('No snapshot available — run OBSERVE first.');
-    return null;
+  // Auto-run observe if no snapshot exists (standalone report phase).
+  if (!context.snapshot) {
+    console.log('No snapshot — running OBSERVE first...');
+    context.snapshot = await observe(context);
+    context.portfolio = await observePortfolio(context);
   }
+
+  const { snapshot, portfolio } = context;
 
   await mkdir(outDir, { recursive: true });
 
