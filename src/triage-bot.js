@@ -16,7 +16,7 @@ export async function createTriageBotClient(context) {
   }
 
   const baseUrl = config.bot_url;
-  const ingestSecret = process.env.TRIAGE_BOT_INGEST_SECRET || process.env.INGEST_SECRET;
+  const ingestSecret = process.env.TRIAGE_BOT_INGEST_SECRET;
   const repoKey = `${owner}/${repo}`;
 
   console.log(`Triage bot discovered at ${baseUrl} for ${repoKey}`);
@@ -28,7 +28,7 @@ export async function createTriageBotClient(context) {
     // POST observation data to the bot's /ingest endpoint.
     async ingestEvents(snapshot) {
       if (!ingestSecret) {
-        console.log('Triage bot: no INGEST_SECRET set, skipping event ingestion.');
+        console.log('Triage bot: no TRIAGE_BOT_INGEST_SECRET set, skipping event ingestion.');
         return null;
       }
 
@@ -46,7 +46,7 @@ export async function createTriageBotClient(context) {
         });
 
         if (!res.ok) {
-          const text = await res.text();
+          const text = await res.text().catch(() => '');
           console.warn(`Triage bot ingest failed: ${res.status} ${text.slice(0, 100)}`);
           return null;
         }
@@ -70,7 +70,11 @@ export async function createTriageBotClient(context) {
           return null;
         }
 
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!data) {
+          console.warn('Triage bot trends: empty or invalid JSON response.');
+          return null;
+        }
         console.log('Triage bot: loaded synthesis trends.');
         return data;
       } catch (err) {
@@ -85,7 +89,12 @@ export async function createTriageBotClient(context) {
 async function discoverBotConfig(gh, owner, repo) {
   // Check for explicit env var first.
   if (process.env.TRIAGE_BOT_URL) {
-    return { bot_url: process.env.TRIAGE_BOT_URL.replace(/\/+$/, '') };
+    const url = process.env.TRIAGE_BOT_URL.replace(/\/+$/, '');
+    if (!url.startsWith('https://')) {
+      console.warn('TRIAGE_BOT_URL must start with https:// — ignoring.');
+      return null;
+    }
+    return { bot_url: url };
   }
 
   // Try reading .github/butler.json from the repo.
@@ -95,10 +104,15 @@ async function discoverBotConfig(gh, owner, repo) {
   try {
     const config = JSON.parse(content);
     if (config.bot_url) {
-      return { bot_url: config.bot_url.replace(/\/+$/, '') };
+      const url = config.bot_url.replace(/\/+$/, '');
+      if (!url.startsWith('https://')) {
+        console.warn(`butler.json bot_url must start with https:// — got "${url.slice(0, 50)}", ignoring.`);
+        return null;
+      }
+      return { bot_url: url };
     }
   } catch {
-    // Malformed butler.json — not a fatal error.
+    console.warn('butler.json: malformed JSON, skipping triage bot integration.');
   }
 
   return null;
@@ -109,7 +123,6 @@ function snapshotToEvents(snapshot, repoKey) {
   const events = [];
   const now = new Date().toISOString();
 
-  // Add a snapshot event with summary metrics.
   events.push({
     repo: repoKey,
     event_type: 'butler_observation',
