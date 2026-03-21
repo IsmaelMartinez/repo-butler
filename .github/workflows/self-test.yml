@@ -46,6 +46,7 @@ jobs:
           INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          TRIAGE_BOT_INGEST_SECRET: ${{ secrets.TRIAGE_BOT_INGEST_SECRET }}
           REPORT_OUTPUT_DIR: reports
           REPORT_FORCE: ${{ github.event.inputs.force-report }}
         run: node src/index.js
