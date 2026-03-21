@@ -8,6 +8,7 @@ import { report } from './report.js';
 import { createStore } from './store.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ClaudeProvider } from './providers/claude.js';
+import { createTriageBotClient } from './triage-bot.js';
 
 const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report'];
 
@@ -77,6 +78,10 @@ async function main() {
   const store = createStore(context);
   context.store = store;
 
+  // Auto-discover triage bot integration (optional, fails gracefully).
+  const triageBot = await createTriageBotClient(context);
+  context.triageBot = triageBot;
+
   for (const p of phasesToRun) {
     console.log(`\n=== Phase: ${p.toUpperCase()} ===\n`);
 
@@ -95,6 +100,11 @@ async function main() {
         // Persist current snapshot.
         await store.writeSnapshot(snapshot);
 
+        // Send observation to triage bot if available.
+        if (triageBot) {
+          await triageBot.ingestEvents(snapshot);
+        }
+
         // Read weekly history for trend analysis.
         context.weeklyHistory = await store.readWeeklyHistory();
         console.log(`Loaded ${context.weeklyHistory.length} weekly snapshots for trends.`);
@@ -105,6 +115,11 @@ async function main() {
       }
 
       case 'assess': {
+        // Fetch triage bot synthesis findings if available.
+        if (triageBot) {
+          context.triageBotTrends = await triageBot.fetchTrends();
+        }
+
         context.provider = defaultProvider;
         const assessment = await assess(context);
         context.assessment = assessment;
