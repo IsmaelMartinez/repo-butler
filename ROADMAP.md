@@ -37,15 +37,17 @@ Assessing persists snapshots on a `repo-butler-data` orphan branch via the Git D
 
 Reporting generates per-repo HTML dashboards for every active portfolio repo, with full charts for active repos and lightweight cards for quieter ones. Report caching skips regeneration when the snapshot hash hasn't changed. Multi-repo trend charts store lightweight weekly snapshots per portfolio repo. A safety layer validates all LLM output before publishing. Triage bot integration is optional and auto-discovered. The ASSESS and IDEATE prompts include triage bot intelligence when available.
 
-The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 58 tests and secret-leak checks on every PR.
+Phase 1 (Richer Observation) shipped 2026-03-22 via PR #18. Added community health profile, Dependabot vulnerability alerts, CI pass rate, bus factor, and time-to-close median to both the OBSERVE phase and the REPORT phase. Portfolio table gained Community, Vulns, and CI% columns. Per-repo reports gained a Repository Health section with five cards. 74 tests, 18 merged PRs.
+
+The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 74 tests and secret-leak checks on every PR.
 
 ---
 
 ## Roadmap
 
-### Phase 1 — Richer Observation (consume, don't replicate)
+### ~~Phase 1 — Richer Observation (consume, don't replicate)~~ SHIPPED
 
-Enrich the OBSERVE phase with data from GitHub APIs and installed tools. All read-only, zero new dependencies.
+Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pass rate, bus factor, time-to-close median. Portfolio table + per-repo health cards.
 
 **GitHub Community Health Profile** — Call `/repos/{owner}/{repo}/community/profile` (one unauthenticated call per public repo) to get a health percentage and presence/absence of README, CODE_OF_CONDUCT, CONTRIBUTING, issue templates, PR template, and LICENSE. Add to the portfolio health matrix as a "Community" column. The API returns structured data that directly maps to a gap checklist for the CARE phase.
 
@@ -91,6 +93,14 @@ Each tier shows pass/fail criteria as a checklist on the per-repo report, tellin
 
 ### Phase 4 — Richer Reports
 
+**Bug fix: release cadence chart** — The "Days between releases" chart shows negative values because the subtraction order is reversed. Fix the date calculation to produce positive intervals.
+
+**Open PR triage view** — The single biggest gap identified from real-world usage. Add a section to per-repo reports showing all open PRs with age, CI status, review state, and actionability classification (merge candidate, needs CI fix, needs author rework, stale). Data available from `/repos/{owner}/{repo}/pulls?state=open`. This turns the report from a status dashboard into a triage tool. Three PRs on teams-for-linux were ready to merge with no review blockers — the report didn't surface this.
+
+**Issue staleness detection** — Flag "awaiting user feedback" issues by how long they've been waiting. Issues stale for 30+ days should be highlighted prominently. Real-world example: teams-for-linux had an issue at 561 days stale that should have been auto-closed long ago. Could also surface a "reporter responsiveness" metric — percentage of issues where the reporter replied after the first maintainer response.
+
+**Blocked issue context** — Show what issues are blocked on, not just that they're blocked. Distinguish "blocked: upstream" (Electron/Chromium issues the maintainer cannot fix) from "blocked: internal dependency" (work that depends on other issues being resolved). Five of six blocked issues on teams-for-linux were upstream — this changes how a maintainer prioritises their backlog.
+
 **Calendar heatmap** — Add a GitHub-style calendar heatmap (pure CSS grid, no library) to per-repo pages using the weekly participation data already fetched. This is the single most recognisable visualisation in developer tooling.
 
 **PR cycle time** — Display median time from PR open to merge alongside the PR count chart, with benchmark indicators (under 2 hours = elite, under 24 hours = good, over 48 hours = needs attention). Data available from the search API.
@@ -102,6 +112,8 @@ Each tier shows pass/fail criteria as a checklist on the per-repo report, tellin
 **Embeddable SVG health badge** — Generate a standalone SVG badge showing the repo's health tier that can be embedded in README files. Extends repo-butler's reach beyond the Pages site.
 
 **SBOM-based dependency inventory** — Use GitHub's SBOM endpoint (`/repos/{owner}/{repo}/dependency-graph/sbom`) to get the full dependency graph per repo, then cross-reference across the portfolio. Surface "lodash is used in 7/19 repos" and flag dependency license conflicts. No external tool needed.
+
+**AI agent actionability score** — Since repo-butler generates reports that AI agents consume, add a "what to do next" section with concrete actions ranked by effort/impact. Example output: "1. Merge #2193, #2319, #2331 — all CI green, no review blockers. 2. Investigate CI failures on #2329, #2357. 3. Close stale awaiting-feedback issues." This turns the report from a dashboard into a task list.
 
 ### Phase 5 — Structured Issue Specs
 
