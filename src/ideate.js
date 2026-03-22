@@ -1,8 +1,10 @@
 // IDEATE phase: generate improvement ideas based on the project state.
 // Uses a deeper-reasoning LLM (Claude by default) for creative suggestions.
 
+import { appendTriageBotContext } from './assess.js';
+
 export async function ideate(context) {
-  const { snapshot, assessment, provider, config, dryRun } = context;
+  const { snapshot, assessment, provider, config, dryRun, triageBotTrends } = context;
 
   if (!provider) {
     console.log('No LLM provider configured — skipping IDEATE phase.');
@@ -15,7 +17,7 @@ export async function ideate(context) {
   }
 
   const maxIdeas = config.limits?.max_issues_per_run || 3;
-  const prompt = buildIdeatePrompt(snapshot, assessment, config.context, maxIdeas);
+  const prompt = buildIdeatePrompt(snapshot, assessment, config.context, maxIdeas, triageBotTrends);
   const rawResponse = await provider.generate(prompt);
 
   const ideas = parseIdeas(rawResponse);
@@ -28,7 +30,7 @@ export async function ideate(context) {
   return { ideas, raw: rawResponse };
 }
 
-function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas) {
+function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triageBotTrends) {
   const parts = [
     'You are a technical advisor for an open-source project. Generate actionable improvement ideas based on the project state below.',
     '',
@@ -67,6 +69,10 @@ function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas) {
     parts.push('Roadmap (truncated):', roadmapPreview, '');
   }
 
+  if (triageBotTrends) {
+    appendTriageBotContext(parts, triageBotTrends);
+  }
+
   parts.push(`Generate exactly ${maxIdeas} improvement ideas. For each idea, output this exact format:`, '');
   parts.push('---IDEA---');
   parts.push('TITLE: <concise title suitable as a GitHub issue title>');
@@ -81,6 +87,9 @@ function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas) {
   parts.push('- Prioritise ideas that compound value: automation, testing, documentation.');
   parts.push('- Consider the contributor count — single-maintainer projects need different ideas than team projects.');
   parts.push('- Do not propose ideas that duplicate existing open issues.');
+  if (triageBotTrends) {
+    parts.push('- Use the triage bot intelligence data to inform your ideas — patterns in triage activity, agent sessions, and synthesis findings are real signals.');
+  }
 
   return parts.join('\n');
 }
