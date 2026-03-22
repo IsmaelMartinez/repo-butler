@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeTrends } from './assess.js';
+import { computeTrends, appendTriageBotContext } from './assess.js';
 import { isoWeekKey } from './store.js';
 
 describe('computeTrends', () => {
@@ -96,5 +96,45 @@ describe('isoWeekKey', () => {
   it('handles Dec 28 in a year with 53 weeks', () => {
     // Dec 28, 2026 is a Monday — should be 2026-W53
     assert.equal(isoWeekKey(new Date('2026-12-28T00:00:00Z')), '2026-W53');
+  });
+});
+
+describe('appendTriageBotContext', () => {
+  it('appends triage summary when data is available', () => {
+    const parts = [];
+    const trends = {
+      triage: [
+        { week: '2026-03-09', total: 6, promoted: 3, rate: 0.5 },
+        { week: '2026-03-16', total: 5, promoted: 2, rate: 0.4 },
+      ],
+      agents: [
+        { week: '2026-03-16', total: 2, approved: 1, rejected: 1, pending: 0, complete: 0 },
+      ],
+      synthesis: [{ week: '2026-03-16', briefings: 1, findings: 3 }],
+      response_time: [{ week: '2026-03-16', avg_seconds: 12.5 }],
+    };
+    appendTriageBotContext(parts, trends);
+    const text = parts.join('\n');
+    assert.ok(text.includes('Triage bot:'));
+    assert.ok(text.includes('11 sessions'));
+    assert.ok(text.includes('45% promotion')); // 5 promoted out of 11 = 45%
+    assert.ok(text.includes('Enhancement research:'));
+    assert.ok(text.includes('Synthesis engine:'));
+    assert.ok(text.includes('12.5s'));
+  });
+
+  it('does nothing when trends is null', () => {
+    const parts = [];
+    appendTriageBotContext(parts, null);
+    assert.equal(parts.length, 0);
+  });
+
+  it('handles empty trends data gracefully', () => {
+    const parts = [];
+    appendTriageBotContext(parts, { triage: [], agents: [], synthesis: [], response_time: [] });
+    const text = parts.join('\n');
+    assert.ok(text.includes('Triage Bot Intelligence'));
+    assert.ok(!text.includes('Enhancement research:'));
+    assert.ok(!text.includes('Synthesis engine:'));
   });
 });

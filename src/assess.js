@@ -2,7 +2,7 @@
 // No LLM needed for the diff itself — the LLM summarises the changes.
 
 export async function assess(context) {
-  const { snapshot, previousSnapshot, provider } = context;
+  const { snapshot, previousSnapshot, provider, triageBotTrends } = context;
 
   if (!snapshot) {
     console.log('No current snapshot — run OBSERVE first.');
@@ -22,7 +22,7 @@ export async function assess(context) {
     return { diff, assessment: null };
   }
 
-  const prompt = buildAssessPrompt(snapshot, diff, context.config?.context);
+  const prompt = buildAssessPrompt(snapshot, diff, context.config?.context, triageBotTrends);
   const assessment = await provider.generate(prompt);
 
   return { diff, assessment };
@@ -123,7 +123,7 @@ export function computeTrends(weeklySnapshots) {
   return { weeks, direction };
 }
 
-function buildAssessPrompt(snapshot, diff, projectContext) {
+function buildAssessPrompt(snapshot, diff, projectContext, triageBotTrends) {
   const parts = [
     `You are a project health analyst. Assess the changes in ${snapshot.repository} since the last observation.`,
     '',
@@ -173,10 +173,63 @@ function buildAssessPrompt(snapshot, diff, projectContext) {
     }
   }
 
+  if (triageBotTrends) {
+    appendTriageBotContext(parts, triageBotTrends);
+  }
+
   parts.push('', 'Provide a concise assessment (3-5 paragraphs) covering:');
   parts.push('1. What themes or patterns emerge from the changes?');
   parts.push('2. Are there any concerns (velocity drop, growing backlog, stale issues)?');
   parts.push('3. What should the maintainer focus on next?');
+  if (triageBotTrends) {
+    parts.push('4. How do the triage bot findings relate to the changes observed?');
+  }
 
   return parts.filter(Boolean).join('\n');
+}
+
+const RECENT_WEEKS = 4;
+
+// Shared helper: append triage bot synthesis context to an LLM prompt.
+export function appendTriageBotContext(parts, trends) {
+  if (!trends) return;
+
+  parts.push('', '--- Triage Bot Intelligence ---');
+
+  // Triage activity summary — use weighted promotion rate.
+  const recentTriage = trends.triage?.slice(-RECENT_WEEKS) || [];
+  if (recentTriage.length > 0) {
+    const totalSessions = recentTriage.reduce((s, t) => s + (t.total || 0), 0);
+    const totalPromoted = recentTriage.reduce((s, t) => s + (t.promoted || 0), 0);
+    const weightedRate = totalSessions > 0 ? Math.round((totalPromoted / totalSessions) * 100) : 0;
+    parts.push(`Triage bot: ${totalSessions} sessions in last ${recentTriage.length} weeks, ${weightedRate}% promotion rate.`);
+  }
+
+  // Agent sessions.
+  const recentAgents = trends.agents?.slice(-RECENT_WEEKS) || [];
+  const totalAgentSessions = recentAgents.reduce((s, a) => s + (a.total || 0), 0);
+  if (totalAgentSessions > 0) {
+    const approved = recentAgents.reduce((s, a) => s + (a.approved || 0), 0);
+    const rejected = recentAgents.reduce((s, a) => s + (a.rejected || 0), 0);
+    parts.push(`Enhancement research: ${totalAgentSessions} agent sessions (${approved} approved, ${rejected} rejected).`);
+  }
+
+  // Synthesis findings (clusters, drift, upstream).
+  const recentSynthesis = trends.synthesis?.slice(-RECENT_WEEKS) || [];
+  const totalFindings = recentSynthesis.reduce((s, x) => s + (x.findings || 0), 0);
+  const totalBriefings = recentSynthesis.reduce((s, x) => s + (x.briefings || 0), 0);
+  if (totalFindings > 0 || totalBriefings > 0) {
+    parts.push(`Synthesis engine: ${totalBriefings} briefings posted, ${totalFindings} findings detected (issue clusters, ADR drift, upstream impacts).`);
+  }
+
+  // Response time trend.
+  const responseTimes = trends.response_time?.slice(-RECENT_WEEKS) || [];
+  const avgResponseTime = responseTimes.length > 0
+    ? responseTimes.reduce((s, r) => s + (r.avg_seconds || 0), 0) / responseTimes.length
+    : null;
+  if (avgResponseTime != null) {
+    parts.push(`Average triage response time: ${avgResponseTime.toFixed(1)}s.`);
+  }
+
+  parts.push('--- End Triage Bot Intelligence ---', '');
 }
