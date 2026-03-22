@@ -5,49 +5,138 @@
 
 ---
 
+## Vision
+
+Repo Butler is evolving from a reporting tool into a genuine butler — one that not only tells you what your repos need but takes care of it. The positioning is deliberate: don't replicate what Renovate, Dependabot, SonarCloud, or the triage bot already do well. Instead, consume their data, present a unified view, and open PRs to install the tools that are missing. The butler orchestrates; the specialist tools execute.
+
+The competitive landscape confirms this is a unique niche. Implementation agents (Copilot Coding Agent, Sweep, Devin) take known issues and write code. Planning tools (CodeRabbit Issue Planner) produce implementation plans. Project intelligence platforms (Linear AI, OSSInsight, GrimoireLab) either require infrastructure or are SaaS. No tool does the full loop of observe → assess → propose → act across an entire portfolio from a zero-dependency GitHub Action.
+
 ## Architecture
 
 ```
-OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
+OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → CARE → REPORT
 ```
 
-1. **OBSERVE** — Gather project state via GitHub API. Portfolio-level repo classification. No LLM needed.
-2. **ASSESS** — Diff current snapshot against previous run, compute weekly trends. Optionally summarise with Gemini Flash.
-3. **UPDATE** — Generate an updated roadmap document and open a PR. Safety-validated before publishing.
-4. **IDEATE** — Generate improvement ideas. Claude for deeper reasoning, Gemini Flash as default.
-5. **PROPOSE** — Create GitHub issues from ideas, safety-filtered, capped and labelled for human review.
-6. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
+1. **OBSERVE** — Gather project state via GitHub API. Portfolio-level classification. Consume data from installed tools. No LLM needed.
+2. **ASSESS** — Diff snapshots, compute trends, detect health gaps. Optionally summarise with Gemini Flash.
+3. **UPDATE** — Generate an updated roadmap document and open a PR. Safety-validated.
+4. **IDEATE** — Generate improvement ideas informed by triage bot intelligence and health signals.
+5. **PROPOSE** — Create GitHub issues from ideas, safety-filtered, capped and labelled.
+6. **CARE** — Open setup PRs to install missing tools and fix health gaps. Deterministic, not LLM-generated.
+7. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
 
 See [ADR-001](docs/decisions/001-repo-butler-vs-triage-bot.md) for the boundary between this project and the triage bot.
 
 ## Implemented
 
-All six phases are working end-to-end with real Gemini API calls validated. The system runs daily at 2am UTC via GitHub Actions cron, generating fresh reports and deploying them to GitHub Pages.
+All six original phases are working end-to-end with real Gemini API calls validated. The system runs daily at 2am UTC via GitHub Actions cron, generating fresh reports and deploying them to GitHub Pages.
 
 Observing covers open/closed issues, merged PRs, labels, milestones, releases, workflows, repo metadata, roadmap content, and package.json parsing. Portfolio observation classifies all repos by activity level (active, dormant, archive candidate, fork, test).
 
 Assessing persists snapshots on a `repo-butler-data` orphan branch via the Git Data API, computes diffs between runs, and tracks weekly snapshot history for trend analysis. The `computeTrends` function produces a direction signal (growing/shrinking/stable) from up to 12 weeks of data.
 
-Reporting generates per-repo HTML dashboards for every active portfolio repo, with full charts for active repos and lightweight cards for quieter ones. The portfolio landing page shows a stacked weekly commit heatmap, health matrix, and distribution charts. Report caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day crons from ~15 minutes to seconds.
-
-A safety layer validates all LLM output before publishing. Roadmap content is checked for length, markdown structure, URL allowlist, and blocked patterns. Ideas are individually filtered — bad ones are dropped, good ones pass through. Provider validation fails fast on invalid API keys.
-
-Triage bot integration is optional and auto-discovered. If `.github/butler.json` exists in the target repo with a `bot_url`, the OBSERVE phase POSTs snapshot metrics to `/ingest` and the ASSESS phase fetches synthesis findings from `/report/trends`. Per-repo report footers link to the live triage dashboard when available. A missing or unreachable bot never blocks the pipeline.
-
-The ASSESS and IDEATE LLM prompts include triage bot intelligence when available: triage session counts and weighted promotion rates, agent session outcomes, synthesis findings, and response times. This data is injected via `appendTriageBotContext`, a shared helper that produces a structured context section for any LLM prompt.
-
-Multi-repo trend charts store lightweight weekly snapshots for every portfolio repo at `snapshots/portfolio-weekly/YYYY-WNN.json` on the data branch. Per-repo reports read their own weekly history and compute trends independently. The main observed repo uses the richer full-snapshot history; other repos track open issue counts over time. After 2+ weeks of accumulation, every active repo's report gains a trend section. Pruning enforces 12-week retention.
+Reporting generates per-repo HTML dashboards for every active portfolio repo, with full charts for active repos and lightweight cards for quieter ones. Report caching skips regeneration when the snapshot hash hasn't changed. Multi-repo trend charts store lightweight weekly snapshots per portfolio repo. A safety layer validates all LLM output before publishing. Triage bot integration is optional and auto-discovered. The ASSESS and IDEATE prompts include triage bot intelligence when available.
 
 The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 58 tests and secret-leak checks on every PR.
 
-## Next Up
+---
 
-### 1. Consumer packaging
+## Roadmap
 
-Bundle with `ncc` so other people can `uses: IsmaelMartinez/repo-butler@v1` without checking out the source. Currently the `action.yml` points at raw `src/index.js` which requires the consumer to have Node 22 and all source files in the action's directory.
+### Phase 1 — Richer Observation (consume, don't replicate)
+
+Enrich the OBSERVE phase with data from GitHub APIs and installed tools. All read-only, zero new dependencies.
+
+**GitHub Community Health Profile** — Call `/repos/{owner}/{repo}/community/profile` (one unauthenticated call per public repo) to get a health percentage and presence/absence of README, CODE_OF_CONDUCT, CONTRIBUTING, issue templates, PR template, and LICENSE. Add to the portfolio health matrix as a "Community" column. The API returns structured data that directly maps to a gap checklist for the CARE phase.
+
+**Dependabot Vulnerability Alerts** — Call `/repos/{owner}/{repo}/dependabot/alerts?state=open` to get open security alerts with severity (critical/high/medium/low), affected package, and patched version. Add a "Vulns" column to the health matrix, colour-coded by maximum severity. Requires `vulnerability_alerts: read` scope on the token for cross-repo access.
+
+**CI Workflow Pass Rate** — Call `/repos/{owner}/{repo}/actions/runs?status=completed&per_page=100` and compute `success / (success + failure + cancelled + timed_out)`, excluding skipped runs. Display as a percentage in the health matrix and flag repos below 90% as having flaky CI.
+
+**Time to First Response** — From existing issue data (already fetched), compute the median time between issue creation and the first comment by someone other than the author. This is a CHAOSS standard metric and a key community health signal.
+
+**Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.
+
+### Phase 2 — The CARE Phase (setup PRs for missing tools)
+
+A new phase that detects what each repo is missing and opens PRs to fix it. Every PR is deterministic (template-based, not LLM-generated), labelled `repo-butler` and `setup`, and never merged automatically.
+
+**Dependabot configuration** — When a repo has no `.github/dependabot.yml`, auto-detect ecosystems from root file presence (`package.json` → npm, `go.mod` → gomod, `requirements.txt` → pip, etc.) and open a PR adding a correctly configured `dependabot.yml` with weekly schedule and a `github-actions` entry. Dependabot is built into GitHub and activates immediately on merge — no app installation needed.
+
+**Issue templates** — When the community health profile shows no issue templates, open a PR adding `.github/ISSUE_TEMPLATE/bug_report_form.yml`, `feature_request_form.yml`, and `config.yml` with YAML form-based templates (the modern format). Templates are generic enough to work for any project.
+
+**CONTRIBUTING guide** — When missing, open a PR adding a minimal `CONTRIBUTING.md` covering fork-and-PR workflow, code style expectations, and a note that the project is maintained in spare time.
+
+**CODEOWNERS** — When missing, auto-generate from the Contributors API (`/repos/{owner}/{repo}/contributors?per_page=1`, filtering out bots) and open a PR adding `.github/CODEOWNERS` with `* @{top_contributor}`.
+
+**Triage bot configuration** — When the triage bot is deployed but a repo doesn't have `.github/butler.json`, open a PR adding a default config that enables triage and points to the bot URL. The triage bot activates immediately on merge.
+
+**Renovate configuration** — When a repo has npm/pip/go dependencies but no `renovate.json` and no `dependabot.yml`, open a PR adding `renovate.json` with the `config:recommended` preset, weekend schedule, and minor automerge. Note in the PR description that the Mend Renovate App must be installed separately.
+
+**License** — When a public repo has no LICENSE file, open a PR adding MIT (the most common for the portfolio). The PR description should note that the maintainer should review the license choice.
+
+Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. For self-dogfooding on IsmaelMartinez's repos, a PAT stored as a repo secret is the simplest path. The CARE phase should be opt-in via config and always respects `require_approval` (PRs only, never auto-merge).
+
+### Phase 3 — Tiered Health Model
+
+Replace the green/yellow/red health dot with a structured maturity model inspired by Backstage Soundcheck and Port.io scorecards.
+
+**Gold tier** — has CI workflows, a license, fewer than 10 open issues, a release in the last 90 days, community health profile above 80%, Dependabot or Renovate configured, zero critical/high vulnerability alerts. Gold repos are healthy and well-maintained.
+
+**Silver tier** — has CI and a license, community health profile above 50%, some activity in the last 6 months. Silver repos are maintained but have gaps.
+
+**Bronze tier** — has some activity. Bronze repos are alive but need attention.
+
+Each tier shows pass/fail criteria as a checklist on the per-repo report, telling the maintainer exactly what to do next. The portfolio page shows tier badges instead of dots. The CARE phase uses the gap list to determine which setup PRs to open — it targets Bronze and Silver repos to help them reach the next tier.
+
+### Phase 4 — Richer Reports
+
+**Calendar heatmap** — Add a GitHub-style calendar heatmap (pure CSS grid, no library) to per-repo pages using the weekly participation data already fetched. This is the single most recognisable visualisation in developer tooling.
+
+**PR cycle time** — Display median time from PR open to merge alongside the PR count chart, with benchmark indicators (under 2 hours = elite, under 24 hours = good, over 48 hours = needs attention). Data available from the search API.
+
+**Issue velocity imbalance alert** — When issues opened exceed issues closed for 3+ consecutive months, flag it prominently in the report as a backlog pressure warning. Data already collected.
+
+**Narrative weekly digest** — A "story mode" recap page that presents changes card-by-card: "This week: 3 repos had new releases, teams-for-linux closed 12 issues, 2 repos dropped below Silver." Inspired by GitHub Wrapped and Stepsize's data storytelling. Could optionally be posted as a GitHub Discussion.
+
+**Embeddable SVG health badge** — Generate a standalone SVG badge showing the repo's health tier that can be embedded in README files. Extends repo-butler's reach beyond the Pages site.
+
+**SBOM-based dependency inventory** — Use GitHub's SBOM endpoint (`/repos/{owner}/{repo}/dependency-graph/sbom`) to get the full dependency graph per repo, then cross-reference across the portfolio. Surface "lodash is used in 7/19 repos" and flag dependency license conflicts. No external tool needed.
+
+### Phase 5 — Structured Issue Specs
+
+When the IDEATE/PROPOSE phases generate issues, format them with a "current state / proposed state" specification inspired by Copilot Workspace. Each issue includes which files are likely affected, what patterns exist, and a clear scope statement. This makes repo-butler's output directly consumable by implementation agents — Copilot Coding Agent, Sweep, or a human developer can pick up the issue and know exactly what to do.
+
+Include a rationale section in each proposed issue explaining which signals triggered the suggestion (e.g., "this idea was triggered by 5 issues mentioning screen sharing in the last month with no matching roadmap coverage"). Inspired by Linear's triage intelligence transparency.
+
+Check for existing similar issues before creating new ones (duplicate detection via title similarity) to prevent the butler from proposing work that already exists in the backlog.
+
+### Consumer Packaging
+
+Bundle with `ncc` so other people can `uses: IsmaelMartinez/repo-butler@v1` without checking out the source. Currently the `action.yml` points at raw `src/index.js` which requires the consumer to have Node 22 and all source files in the action's directory. This is a prerequisite for other people actually using the butler.
+
+---
 
 ## Future
 
-These are ideas, not commitments. They'll be evaluated as the system matures.
+These are ideas for later evaluation, not commitments.
 
-Multi-repo cross-referencing would identify patterns across repos, such as the same dependency being outdated everywhere or similar issue themes appearing in unrelated projects. Configurable report themes would let other users customise the dashboard appearance. Weekly digest notifications (email or Slack) would push the report summary rather than requiring a visit to the Pages site. Community health scoring would add metrics like response time, contributor onboarding friction, and documentation coverage.
+**Libyear dependency freshness** — Using SBOM data plus npm/PyPI registry lookups, compute the cumulative age of each repo's dependencies versus their latest versions. A single number per repo answering "how stale are the dependencies?"
+
+**External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern.
+
+**Contributor funnel** — Flag first-time contributors (PR authors whose first-ever merged PR in the repo falls within the observation window). Compute contributor confidence ratio (contributors / stargazers) as a lightweight sustainability indicator.
+
+**Sparkline mini-charts** — Add tiny inline trend lines in the portfolio table rows (26-week activity sparkline per repo) instead of just a number. Implementable with pure SVG, no library.
+
+**Campaign view** — Group improvement ideas and setup PRs into named campaigns on the portfolio dashboard: "License Compliance: 14/19 repos done, 5 need action." Transforms the dashboard from a status display into an active task tracker.
+
+## What NOT to build
+
+Cross-platform identity resolution (GitHub + Slack + Discord) — that's Orbit/Common Room territory. File-level code ownership analysis — requires git cloning which breaks the API-only architecture. Natural-language data querying — cool but requires a database. Grafana dashboards — the static HTML approach is the right constraint. Anything that requires self-hosted infrastructure — the zero-cost, zero-dependency positioning is the moat.
+
+## Relationship to Other Tools
+
+The butler consumes, it doesn't compete. Renovate handles dependency updates — the butler installs Renovate. Dependabot handles security alerts — the butler reads them and surfaces them in the dashboard. The triage bot handles per-issue intelligence — the butler reads its trends and configures it on new repos. SonarCloud handles code quality — the butler reads its scores. GitHub's community health profile defines the checklist — the butler runs through it and fixes the gaps.
+
+The value is the unified view and the agency to act. No other tool sees the whole portfolio, understands what's missing, and opens PRs to fix it.
