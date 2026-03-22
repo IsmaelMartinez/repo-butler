@@ -16,6 +16,7 @@ const DATA_BRANCH = 'repo-butler-data';
 const SNAPSHOT_PATH = 'snapshots/latest.json';
 const PREVIOUS_PATH = 'snapshots/previous.json';
 const WEEKLY_DIR = 'snapshots/weekly';
+const PORTFOLIO_WEEKLY_DIR = 'snapshots/portfolio-weekly';
 const MAX_WEEKLY_SNAPSHOTS = 12;
 
 export function createStore(context) {
@@ -199,6 +200,65 @@ export function createStore(context) {
     }));
   }
 
+  // Store lightweight weekly summaries for each portfolio repo.
+  async function writePortfolioWeekly(portfolio, repoDetails) {
+    if (!portfolio?.repos || !repoDetails) return;
+
+    const weekKey = isoWeekKey(new Date());
+    const summaries = {};
+
+    for (const r of portfolio.repos) {
+      if (r.archived || r.fork) continue;
+      const details = repoDetails[r.name];
+      summaries[r.name] = {
+        open_issues: r.open_issues || 0,
+        commits_6mo: details?.commits || 0,
+        stars: r.stars || 0,
+      };
+    }
+
+    const path = `${PORTFOLIO_WEEKLY_DIR}/${weekKey}.json`;
+    await writeFile(path, JSON.stringify(summaries, null, 2));
+    console.log(`Portfolio weekly snapshot saved as ${weekKey} (${Object.keys(summaries).length} repos)`);
+  }
+
+  // Read weekly history for a specific repo from portfolio snapshots.
+  async function readRepoWeeklyHistory(repoName, weeks = MAX_WEEKLY_SNAPSHOTS) {
+    const files = await listDir(PORTFOLIO_WEEKLY_DIR);
+    const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+    const selected = jsonFiles.slice(-weeks);
+
+    const results = await Promise.all(
+      selected.map(async (file) => {
+        const content = await readFile(`${PORTFOLIO_WEEKLY_DIR}/${file}`);
+        if (!content) return null;
+        try {
+          const parsed = JSON.parse(content);
+          const repoData = parsed[repoName];
+          if (!repoData) return null;
+          return {
+            _week: file.replace('.json', ''),
+            summary: { open_issues: repoData.open_issues, recently_merged_prs: 0 },
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+    return results.filter(Boolean);
+  }
+
+  async function listDir(dirPath) {
+    try {
+      const data = await gh.request(`/repos/${owner}/${repo}/contents/${dirPath}`, {
+        params: { ref: DATA_BRANCH },
+      });
+      return Array.isArray(data) ? data.map(f => f.name) : [];
+    } catch {
+      return [];
+    }
+  }
+
   async function readLastHash() {
     const content = await readFile(HASH_PATH);
     return content ? content.trim() : null;
@@ -209,7 +269,7 @@ export function createStore(context) {
     await writeFile(HASH_PATH, hash);
   }
 
-  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, readLastHash, writeHash };
+  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLastHash, writeHash };
 }
 
 // Return ISO week key as YYYY-WNN (e.g. "2026-W12").

@@ -44,6 +44,11 @@ export async function report(context) {
     const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
+
+    // Persist weekly portfolio summaries for per-repo trend charts.
+    if (store) {
+      await store.writePortfolioWeekly(portfolio, repoDetails);
+    }
   }
 
   // Generate per-repo reports for active repos with meaningful activity.
@@ -100,8 +105,17 @@ export async function report(context) {
           },
         };
 
-        // Only show trends for the main observed repo — trends data is repo-specific.
-        const repoTrends = (r.name === context.repo) ? context.trends : null;
+        // Compute per-repo trends from portfolio weekly history.
+        let repoTrends = null;
+        if (r.name === context.repo && context.trends) {
+          repoTrends = context.trends;
+        } else if (store) {
+          const { computeTrends } = await import('./assess.js');
+          const repoHistory = await store.readRepoWeeklyHistory(r.name);
+          if (repoHistory.length >= 2) {
+            repoTrends = computeTrends(repoHistory);
+          }
+        }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
         const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl);
         await writeFile(join(outDir, `${r.name}.html`), html);
