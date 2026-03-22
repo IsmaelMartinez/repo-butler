@@ -9,6 +9,139 @@ describe('observe module', () => {
     assert.equal(typeof mod.observe, 'function');
     assert.equal(typeof mod.observePortfolio, 'function');
   });
+
+  it('exports computeBusFactor and computeTimeToCloseMedian', async () => {
+    const mod = await import('./observe.js');
+    assert.equal(typeof mod.computeBusFactor, 'function');
+    assert.equal(typeof mod.computeTimeToCloseMedian, 'function');
+  });
+});
+
+describe('computeBusFactor', () => {
+  it('returns 1 for a single author', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    const prs = Array.from({ length: 10 }, () => ({ author: 'alice' }));
+    assert.equal(computeBusFactor(prs), 1);
+  });
+
+  it('returns 1 for two authors split 50/50', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    const prs = [
+      ...Array.from({ length: 5 }, () => ({ author: 'alice' })),
+      ...Array.from({ length: 5 }, () => ({ author: 'bob' })),
+    ];
+    assert.equal(computeBusFactor(prs), 1);
+  });
+
+  it('returns 2 when two authors are needed to cover >= 50%', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    const prs = [
+      ...Array.from({ length: 3 }, () => ({ author: 'alice' })),
+      ...Array.from({ length: 3 }, () => ({ author: 'bob' })),
+      ...Array.from({ length: 3 }, () => ({ author: 'charlie' })),
+    ];
+    assert.equal(computeBusFactor(prs), 2);
+  });
+
+  it('returns 1 for a heavily skewed distribution', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    const prs = [
+      ...Array.from({ length: 8 }, () => ({ author: 'alice' })),
+      { author: 'bob' },
+      { author: 'charlie' },
+    ];
+    assert.equal(computeBusFactor(prs), 1);
+  });
+
+  it('returns 0 when all authors are bots', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    const prs = Array.from({ length: 10 }, () => ({ author: 'dependabot[bot]' }));
+    assert.equal(computeBusFactor(prs), 0);
+  });
+
+  it('returns null when fewer than 5 human PRs', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    const prs = [
+      ...Array.from({ length: 3 }, () => ({ author: 'alice' })),
+      ...Array.from({ length: 2 }, () => ({ author: 'github-actions[bot]' })),
+    ];
+    assert.equal(computeBusFactor(prs), null);
+  });
+
+  it('filters bots and computes bus factor from human PRs only', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    const prs = [
+      ...Array.from({ length: 8 }, () => ({ author: 'alice' })),
+      ...Array.from({ length: 5 }, () => ({ author: 'bob' })),
+      ...Array.from({ length: 10 }, () => ({ author: 'dependabot[bot]' })),
+      ...Array.from({ length: 3 }, () => ({ author: 'app/github-actions' })),
+    ];
+    assert.equal(computeBusFactor(prs), 1);
+  });
+
+  it('returns null for an empty array', async () => {
+    const { computeBusFactor } = await import('./observe.js');
+    assert.equal(computeBusFactor([]), null);
+  });
+});
+
+describe('computeTimeToCloseMedian', () => {
+  it('returns null for an empty array', async () => {
+    const { computeTimeToCloseMedian } = await import('./observe.js');
+    assert.equal(computeTimeToCloseMedian([]), null);
+  });
+
+  it('returns null for null input', async () => {
+    const { computeTimeToCloseMedian } = await import('./observe.js');
+    assert.equal(computeTimeToCloseMedian(null), null);
+  });
+
+  it('returns null for undefined input', async () => {
+    const { computeTimeToCloseMedian } = await import('./observe.js');
+    assert.equal(computeTimeToCloseMedian(undefined), null);
+  });
+
+  it('returns correct median for a single issue', async () => {
+    const { computeTimeToCloseMedian } = await import('./observe.js');
+    const issues = [
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-06T00:00:00Z' },
+    ];
+    assert.deepEqual(computeTimeToCloseMedian(issues), { median_days: 5, sample_size: 1 });
+  });
+
+  it('returns correct median for an odd number of issues', async () => {
+    const { computeTimeToCloseMedian } = await import('./observe.js');
+    const issues = [
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-03T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-06T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-11T00:00:00Z' },
+    ];
+    assert.deepEqual(computeTimeToCloseMedian(issues), { median_days: 5, sample_size: 3 });
+  });
+
+  it('returns correct median for an even number of issues', async () => {
+    const { computeTimeToCloseMedian } = await import('./observe.js');
+    const issues = [
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-02T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-04T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-08T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-12T00:00:00Z' },
+    ];
+    assert.deepEqual(computeTimeToCloseMedian(issues), { median_days: 5, sample_size: 4 });
+  });
+
+  it('reports sample_size matching input length', async () => {
+    const { computeTimeToCloseMedian } = await import('./observe.js');
+    const issues = [
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-02T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-03T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-04T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-05T00:00:00Z' },
+      { created_at: '2025-01-01T00:00:00Z', closed_at: '2025-01-06T00:00:00Z' },
+    ];
+    const result = computeTimeToCloseMedian(issues);
+    assert.equal(result.sample_size, 5);
+  });
 });
 
 describe('assess module', () => {

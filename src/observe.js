@@ -18,6 +18,9 @@ export async function observe(context) {
     releases,
     workflows,
     repoMeta,
+    communityProfile,
+    dependabotAlerts,
+    ciPassRate,
   ] = await Promise.all([
     fetchOpenIssues(gh, owner, repo),
     fetchClosedIssues(gh, owner, repo, since),
@@ -27,6 +30,9 @@ export async function observe(context) {
     fetchReleases(gh, owner, repo, config.observe?.releases_count || 10),
     fetchWorkflows(gh, owner, repo),
     fetchRepoMeta(gh, owner, repo),
+    fetchCommunityProfile(gh, owner, repo),
+    fetchDependabotAlerts(gh, owner, repo),
+    fetchCIPassRate(gh, owner, repo),
   ]);
 
   // Fetch roadmap content if configured.
@@ -61,8 +67,12 @@ export async function observe(context) {
       dependencies: Object.keys(packageData.dependencies || {}),
       devDependencies: Object.keys(packageData.devDependencies || {}),
     } : null,
+    community_profile: communityProfile,
+    dependabot_alerts: dependabotAlerts,
+    ci_pass_rate: ciPassRate,
     summary: buildSummary({
       openIssues, closedIssues, mergedPRs, releases, repoMeta, labels,
+      communityProfile, dependabotAlerts, ciPassRate,
     }),
   };
 
@@ -245,10 +255,90 @@ async function fetchRepoMeta(gh, owner, repo) {
   };
 }
 
+async function fetchCommunityProfile(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/community/profile`);
+    return {
+      health_percentage: data.health_percentage,
+      files: {
+        readme: !!data.files?.readme,
+        license: !!data.files?.license,
+        contributing: !!data.files?.contributing,
+        code_of_conduct: !!data.files?.code_of_conduct,
+        issue_template: !!data.files?.issue_template,
+        pull_request_template: !!data.files?.pull_request_template,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchDependabotAlerts(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts`, {
+      params: { state: 'open', per_page: 100 },
+    });
+    const alerts = Array.isArray(data) ? data : [];
+    const severityOrder = ['critical', 'high', 'medium', 'low'];
+    let critical = 0, high = 0, medium = 0, low = 0;
+    let maxSeverityIndex = severityOrder.length;
+
+    for (const alert of alerts) {
+      const severity = alert.security_vulnerability?.severity || alert.security_advisory?.severity;
+      if (severity === 'critical') { critical++; }
+      else if (severity === 'high') { high++; }
+      else if (severity === 'medium') { medium++; }
+      else if (severity === 'low') { low++; }
+      const idx = severityOrder.indexOf(severity);
+      if (idx !== -1 && idx < maxSeverityIndex) { maxSeverityIndex = idx; }
+    }
+
+    return {
+      count: alerts.length,
+      critical,
+      high,
+      medium,
+      low,
+      max_severity: maxSeverityIndex < severityOrder.length ? severityOrder[maxSeverityIndex] : null,
+    };
+  } catch (err) {
+    if (err.message?.includes('403') || err.message?.includes('404')) {
+      console.log(`Note: Dependabot alerts not available for ${owner}/${repo} (${err.message})`);
+    }
+    return null;
+  }
+}
+
+async function fetchCIPassRate(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/actions/runs`, {
+      params: { status: 'completed', per_page: 100 },
+    });
+    const runs = data.workflow_runs || [];
+    let passed = 0, failed = 0;
+
+    for (const run of runs) {
+      if (run.conclusion === 'success') { passed++; }
+      else if (run.conclusion === 'failure' || run.conclusion === 'cancelled' || run.conclusion === 'timed_out') { failed++; }
+    }
+
+    const total = passed + failed;
+    return {
+      pass_rate: total > 0 ? passed / total : null,
+      total_runs: total,
+      passed,
+      failed,
+    };
+  } catch {
+    return { pass_rate: null, total_runs: 0, passed: 0, failed: 0 };
+  }
+}
+
 
 // --- Analysis helpers ---
 
-function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta, labels }) {
+function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta, labels, communityProfile, dependabotAlerts, ciPassRate }) {
   const labelCounts = {};
   for (const issue of openIssues) {
     for (const label of issue.labels) {
@@ -288,6 +378,12 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
     stale_awaiting_feedback: awaitingFeedback
       .filter(i => daysSince(i.updated_at) > 14)
       .map(i => `#${i.number}: ${i.title} (${daysSince(i.updated_at)}d)`),
+    community_health: communityProfile?.health_percentage ?? null,
+    dependabot_alert_count: dependabotAlerts?.count ?? 0,
+    dependabot_max_severity: dependabotAlerts?.max_severity ?? null,
+    ci_pass_rate: ciPassRate?.pass_rate ?? null,
+    bus_factor: computeBusFactor(mergedPRs),
+    time_to_close_median: computeTimeToCloseMedian(closedIssues),
   };
 }
 
@@ -316,6 +412,54 @@ function classifyRepos(repos) {
       .map(r => r.name),
     forks: repos.filter(r => r.fork).map(r => r.name),
     archived: repos.filter(r => r.archived).map(r => r.name),
+  };
+}
+
+export function computeBusFactor(mergedPRs) {
+  if (!mergedPRs || mergedPRs.length === 0) return null;
+
+  const humanPRs = mergedPRs.filter(pr =>
+    pr.author && !pr.author.includes('[bot]') && !pr.author.startsWith('app/')
+  );
+
+  if (humanPRs.length === 0) return 0;
+  if (humanPRs.length < 5) return null;
+
+  const authorCounts = {};
+  for (const pr of humanPRs) {
+    authorCounts[pr.author] = (authorCounts[pr.author] || 0) + 1;
+  }
+
+  const sorted = Object.values(authorCounts).sort((a, b) => b - a);
+  const threshold = humanPRs.length * 0.5;
+  let cumulative = 0;
+
+  for (let i = 0; i < sorted.length; i++) {
+    cumulative += sorted[i];
+    if (cumulative >= threshold) return i + 1;
+  }
+
+  return sorted.length;
+}
+
+export function computeTimeToCloseMedian(closedIssues) {
+  if (!closedIssues || closedIssues.length === 0) return null;
+
+  const durations = closedIssues
+    .filter(i => i.created_at && i.closed_at)
+    .map(i => (new Date(i.closed_at).getTime() - new Date(i.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+  if (durations.length === 0) return null;
+
+  durations.sort((a, b) => a - b);
+  const mid = Math.floor(durations.length / 2);
+  const median = durations.length % 2 === 0
+    ? (durations[mid - 1] + durations[mid]) / 2
+    : durations[mid];
+
+  return {
+    median_days: Math.round(median * 10) / 10,
+    sample_size: durations.length,
   };
 }
 

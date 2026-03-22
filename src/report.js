@@ -206,7 +206,7 @@ async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci] = await Promise.all([
+    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -219,8 +219,37 @@ async function fetchPortfolioDetails(gh, owner, repos) {
       gh.request(`/repos/${owner}/${r.name}/actions/workflows`)
         .then(d => d.total_count || 0)
         .catch(() => 0),
+      gh.request(`/repos/${owner}/${r.name}/community/profile`)
+        .then(d => d.health_percentage ?? null)
+        .catch(() => null),
+      gh.request(`/repos/${owner}/${r.name}/dependabot/alerts?state=open&per_page=100`)
+        .then(alerts => {
+          const count = alerts.length;
+          let maxSeverity = null;
+          const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+          for (const a of alerts) {
+            const sev = a.security_vulnerability?.severity || a.security_advisory?.severity;
+            if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
+              maxSeverity = sev;
+            }
+          }
+          return { count, max_severity: maxSeverity };
+        })
+        .catch(() => ({ count: 0, max_severity: null })),
+      gh.request(`/repos/${owner}/${r.name}/actions/runs?status=completed&per_page=100`)
+        .then(d => {
+          const runs = d.workflow_runs || [];
+          let success = 0, fail = 0;
+          for (const run of runs) {
+            if (run.conclusion === 'success') success++;
+            else if (run.conclusion === 'failure' || run.conclusion === 'cancelled' || run.conclusion === 'timed_out') fail++;
+          }
+          const total = success + fail;
+          return total > 0 ? success / total : null;
+        })
+        .catch(() => null),
     ]);
-    details[r.name] = { commits, weekly, license, ci };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate };
   });
 
   await Promise.all(fetches);
@@ -295,6 +324,7 @@ ${CSS}
   <div class="card"><h3>PRs Merged (90d)</h3><div class="stat">${s.recently_merged_prs}</div><div class="stat-label">${s.human_prs} human, ${s.bot_prs} bot</div></div>
   <div class="card"><h3>Releases</h3><div class="stat">${s.releases}</div><div class="stat-label">Latest: ${s.latest_release}</div></div>
 </div>
+${buildHealthSection(snapshot)}
 <h2>Development Velocity</h2>
 <div class="chart-container"><div class="chart-title">Merged PRs per Month</div><canvas id="prChart"></canvas></div>
 <div class="chart-container"><div class="chart-title">Issues Opened vs Closed per Month</div><canvas id="issueChart"></canvas></div>
@@ -367,14 +397,20 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
 
   const tableRows = classified.map(r => {
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
-    const healthScore = r.status === 'active' ? ((r.commits > 0 ? 1 : 0) + ((r.ci || 0) >= 2 ? 1 : 0) + (r.license && r.license !== 'None' ? 1 : 0) + ((r.open_issues || 0) <= 5 ? 1 : 0)) : 0;
-    const health = r.status !== 'active' ? (r.status === 'test' || r.status === 'fork' ? 'none' : 'bad') : healthScore >= 3 ? 'good' : healthScore >= 2 ? 'warn' : 'bad';
+    const healthScore = r.status === 'active' ? ((r.commits > 0 ? 1 : 0) + ((r.ci || 0) >= 2 ? 1 : 0) + (r.license && r.license !== 'None' ? 1 : 0) + ((r.open_issues || 0) <= 5 ? 1 : 0) + ((r.communityHealth ?? -1) >= 50 ? 1 : 0) + ((!r.vulns || r.vulns.max_severity === null || (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high')) ? 1 : 0)) : 0;
+    const health = r.status !== 'active' ? (r.status === 'test' || r.status === 'fork' ? 'none' : 'bad') : healthScore >= 5 ? 'good' : healthScore >= 3 ? 'warn' : 'bad';
+    const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? '#7ee787' : r.communityHealth >= 50 ? '#d29922' : '#f85149';
+    const vulnColor = r.vulns == null ? '#6e7681' : r.vulns.count === 0 ? '#7ee787' : r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : r.vulns.max_severity === 'medium' ? '#d29922' : '#7ee787';
+    const ciPassColor = r.ciPassRate == null ? '#6e7681' : r.ciPassRate >= 0.9 ? '#7ee787' : r.ciPassRate >= 0.7 ? '#d29922' : '#f85149';
     return `<tr>
       <td><a href="${r.name}.html">${r.name}</a></td>
       <td>${r.description ? escHtml(r.description).slice(0, 50) : '—'}</td>
       <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
       <td>${r.commits || 0}</td><td>${(r.ci || 0) > 0 ? r.ci : '<span style="color:#f85149">0</span>'}</td>
       <td>${!r.license || r.license === 'None' ? '<span style="color:#d29922">none</span>' : r.license}</td>
+      <td><span style="color:${communityColor}">${r.communityHealth != null ? r.communityHealth + '%' : '—'}</span></td>
+      <td><span style="color:${vulnColor}">${r.vulns != null ? r.vulns.count : '—'}</span></td>
+      <td><span style="color:${ciPassColor}">${r.ciPassRate != null ? Math.round(r.ciPassRate * 100) + '%' : '—'}</span></td>
       <td><span class="badge ${badgeClass}">${r.status}</span></td>
       <td><span class="health-dot health-${health}"></span></td></tr>`;
   }).join('');
@@ -400,7 +436,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Status</th><th></th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Status</th><th></th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 <h2>Distribution</h2>
@@ -495,6 +531,53 @@ function fmt(n) {
 
 function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function buildHealthSection(snapshot) {
+  const cp = snapshot.community_profile;
+  const da = snapshot.dependabot_alerts;
+  const cipr = snapshot.ci_pass_rate;
+  const busFactor = snapshot.summary?.bus_factor;
+  const ttc = snapshot.summary?.time_to_close_median;
+
+  const check = v => v ? '\u2713' : '\u2717';
+  const checkColor = v => v ? '#7ee787' : '#f85149';
+
+  const communityHtml = cp ? `<div class="card"><h3>Community Profile</h3>
+<div class="stat">${cp.health_percentage}%</div>
+<div class="stat-label" style="margin-top:0.5rem;line-height:1.8">
+${['readme', 'license', 'contributing', 'code_of_conduct', 'issue_template', 'pull_request_template'].map(f =>
+    `<span style="color:${checkColor(cp.files?.[f])}">${check(cp.files?.[f])}</span> ${f.replace(/_/g, ' ')}`
+  ).join('<br>')}
+</div></div>` : `<div class="card"><h3>Community Profile</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+
+  const vulnHtml = da ? `<div class="card"><h3>Dependabot Alerts</h3>
+<div class="stat" style="color:${da.count === 0 ? '#7ee787' : da.critical > 0 || da.high > 0 ? '#f85149' : '#d29922'}">${da.count}</div>
+<div class="stat-label" style="margin-top:0.5rem;line-height:1.8">
+${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>` : ''}${da.high ? `<span style="color:#f85149">${da.high} high</span><br>` : ''}${da.medium ? `<span style="color:#d29922">${da.medium} medium</span><br>` : ''}${da.low ? `<span style="color:#7ee787">${da.low} low</span>` : ''}${da.count === 0 ? 'No open alerts' : ''}
+</div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+
+  const ciColor = cipr == null ? '#6e7681' : cipr.pass_rate >= 0.9 ? '#7ee787' : cipr.pass_rate >= 0.7 ? '#d29922' : '#f85149';
+  const ciHtml = cipr ? `<div class="card"><h3>CI Pass Rate</h3>
+<div class="stat" style="color:${ciColor}">${Math.round(cipr.pass_rate * 100)}%</div>
+<div class="stat-label">${cipr.passed}/${cipr.total_runs} runs passed</div></div>` : `<div class="card"><h3>CI Pass Rate</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+
+  const busHtml = `<div class="card"><h3>Bus Factor</h3>
+<div class="stat" style="color:${busFactor == null ? '#6e7681' : busFactor <= 1 ? '#f85149' : busFactor <= 2 ? '#d29922' : '#7ee787'}">${busFactor != null ? busFactor : '\u2014'}</div>
+<div class="stat-label">${busFactor != null ? 'distinct contributors' : 'unavailable'}</div></div>`;
+
+  const ttcHtml = `<div class="card"><h3>Time to Close</h3>
+<div class="stat" style="color:${ttc == null ? '#6e7681' : ttc.median_days <= 7 ? '#7ee787' : ttc.median_days <= 30 ? '#d29922' : '#f85149'}">${ttc != null ? ttc.median_days + 'd' : '\u2014'}</div>
+<div class="stat-label">${ttc != null ? 'median days (n=' + ttc.sample_size + ')' : 'unavailable'}</div></div>`;
+
+  return `<h2>Repository Health</h2>
+<div class="grid">
+${communityHtml}
+${vulnHtml}
+${ciHtml}
+${busHtml}
+${ttcHtml}
+</div>`;
 }
 
 const CSS = `<style>
