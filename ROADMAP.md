@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-03-22
+**Last Updated:** 2026-03-23
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/)
 
 ---
@@ -36,6 +36,8 @@ Triage bot integration is optional and auto-discovered. If `.github/butler.json`
 
 The ASSESS and IDEATE LLM prompts include triage bot intelligence when available: triage session counts and weighted promotion rates, agent session outcomes, synthesis findings, and response times. This data is injected via `appendTriageBotContext`, a shared helper that produces a structured context section for any LLM prompt.
 
+Multi-repo trend charts store lightweight weekly snapshots for every portfolio repo at `snapshots/portfolio-weekly/YYYY-WNN.json` on the data branch. Per-repo reports read their own weekly history and compute trends independently. The main observed repo uses the richer full-snapshot history; other repos track open issue counts over time. After 2+ weeks of accumulation, every active repo's report gains a trend section. Pruning enforces 12-week retention.
+
 The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 58 tests and secret-leak checks on every PR.
 
 ## Next Up
@@ -43,10 +45,6 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 ### 1. Consumer packaging
 
 Bundle with `ncc` so other people can `uses: IsmaelMartinez/repo-butler@v1` without checking out the source. Currently the `action.yml` points at raw `src/index.js` which requires the consumer to have Node 22 and all source files in the action's directory.
-
-### 2. Multi-repo trend charts
-
-Currently only the main observed repo gets trend charts (weekly open issues / merged PRs). Extend to store and display weekly history for all portfolio repos, not just the primary target.
 
 ## Future
 
