@@ -235,7 +235,7 @@ async function fetchPortfolioDetails(gh, owner, repos) {
           }
           return { count, max_severity: maxSeverity };
         })
-        .catch(() => ({ count: 0, max_severity: null })),
+        .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/actions/runs?status=completed&per_page=100`)
         .then(d => {
           const runs = d.workflow_runs || [];
@@ -397,7 +397,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
 
   const tableRows = classified.map(r => {
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
-    const healthScore = r.status === 'active' ? ((r.commits > 0 ? 1 : 0) + ((r.ci || 0) >= 2 ? 1 : 0) + (r.license && r.license !== 'None' ? 1 : 0) + ((r.open_issues || 0) <= 5 ? 1 : 0) + ((r.communityHealth ?? -1) >= 50 ? 1 : 0) + ((!r.vulns || r.vulns.max_severity === null || (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high')) ? 1 : 0)) : 0;
+    const healthScore = r.status === 'active' ? ((r.commits > 0 ? 1 : 0) + ((r.ci || 0) >= 2 ? 1 : 0) + (r.license && r.license !== 'None' ? 1 : 0) + ((r.open_issues || 0) <= 5 ? 1 : 0) + ((r.communityHealth ?? -1) >= 50 ? 1 : 0) + (r.vulns != null && (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high') ? 1 : 0)) : 0;
     const health = r.status !== 'active' ? (r.status === 'test' || r.status === 'fork' ? 'none' : 'bad') : healthScore >= 5 ? 'good' : healthScore >= 3 ? 'warn' : 'bad';
     const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? '#7ee787' : r.communityHealth >= 50 ? '#d29922' : '#f85149';
     const vulnColor = r.vulns == null ? '#6e7681' : r.vulns.count === 0 ? '#7ee787' : r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : r.vulns.max_severity === 'medium' ? '#d29922' : '#7ee787';
@@ -557,8 +557,9 @@ ${['readme', 'license', 'contributing', 'code_of_conduct', 'issue_template', 'pu
 ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>` : ''}${da.high ? `<span style="color:#f85149">${da.high} high</span><br>` : ''}${da.medium ? `<span style="color:#d29922">${da.medium} medium</span><br>` : ''}${da.low ? `<span style="color:#7ee787">${da.low} low</span>` : ''}${da.count === 0 ? 'No open alerts' : ''}
 </div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
-  const ciColor = cipr == null ? '#6e7681' : cipr.pass_rate >= 0.9 ? '#7ee787' : cipr.pass_rate >= 0.7 ? '#d29922' : '#f85149';
-  const ciHtml = cipr ? `<div class="card"><h3>CI Pass Rate</h3>
+  const hasCiData = cipr?.pass_rate != null;
+  const ciColor = !hasCiData ? '#6e7681' : cipr.pass_rate >= 0.9 ? '#7ee787' : cipr.pass_rate >= 0.7 ? '#d29922' : '#f85149';
+  const ciHtml = hasCiData ? `<div class="card"><h3>CI Pass Rate</h3>
 <div class="stat" style="color:${ciColor}">${Math.round(cipr.pass_rate * 100)}%</div>
 <div class="stat-label">${cipr.passed}/${cipr.total_runs} runs passed</div></div>` : `<div class="card"><h3>CI Pass Rate</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 

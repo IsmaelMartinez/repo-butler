@@ -379,7 +379,7 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
       .filter(i => daysSince(i.updated_at) > 14)
       .map(i => `#${i.number}: ${i.title} (${daysSince(i.updated_at)}d)`),
     community_health: communityProfile?.health_percentage ?? null,
-    dependabot_alert_count: dependabotAlerts?.count ?? 0,
+    dependabot_alert_count: dependabotAlerts ? dependabotAlerts.count : null,
     dependabot_max_severity: dependabotAlerts?.max_severity ?? null,
     ci_pass_rate: ciPassRate?.pass_rate ?? null,
     bus_factor: computeBusFactor(mergedPRs),
