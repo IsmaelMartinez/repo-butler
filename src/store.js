@@ -142,9 +142,9 @@ export function createStore(context) {
     }
   }
 
-  async function listWeeklyDir() {
+  async function listBranchDir(dirPath) {
     try {
-      const data = await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}`, {
+      const data = await gh.request(`/repos/${owner}/${repo}/contents/${dirPath}`, {
         params: { ref: DATA_BRANCH },
       });
       return Array.isArray(data) ? data.map(f => f.name) : [];
@@ -154,7 +154,7 @@ export function createStore(context) {
   }
 
   async function readWeeklyHistory(weeks = MAX_WEEKLY_SNAPSHOTS) {
-    const files = await listWeeklyDir();
+    const files = await listBranchDir(WEEKLY_DIR);
     const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
     const selected = jsonFiles.slice(-weeks);
 
@@ -175,7 +175,7 @@ export function createStore(context) {
   }
 
   async function pruneWeeklySnapshots() {
-    const files = await listWeeklyDir();
+    const files = await listBranchDir(WEEKLY_DIR);
     const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
 
     if (jsonFiles.length <= MAX_WEEKLY_SNAPSHOTS) return;
@@ -220,11 +220,29 @@ export function createStore(context) {
     const path = `${PORTFOLIO_WEEKLY_DIR}/${weekKey}.json`;
     await writeFile(path, JSON.stringify(summaries, null, 2));
     console.log(`Portfolio weekly snapshot saved as ${weekKey} (${Object.keys(summaries).length} repos)`);
+
+    // Prune old portfolio snapshots beyond retention.
+    const files = await listBranchDir(PORTFOLIO_WEEKLY_DIR);
+    const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+    if (jsonFiles.length > MAX_WEEKLY_SNAPSHOTS) {
+      const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_WEEKLY_SNAPSHOTS);
+      await Promise.all(toDelete.map(async (file) => {
+        try {
+          const existing = await gh.request(`/repos/${owner}/${repo}/contents/${PORTFOLIO_WEEKLY_DIR}/${file}`, {
+            params: { ref: DATA_BRANCH },
+          });
+          await gh.request(`/repos/${owner}/${repo}/contents/${PORTFOLIO_WEEKLY_DIR}/${file}`, {
+            method: 'DELETE',
+            body: { message: `chore: prune old portfolio snapshot ${file}`, sha: existing.sha, branch: DATA_BRANCH },
+          });
+        } catch { /* pruning is best-effort */ }
+      }));
+    }
   }
 
   // Read weekly history for a specific repo from portfolio snapshots.
   async function readRepoWeeklyHistory(repoName, weeks = MAX_WEEKLY_SNAPSHOTS) {
-    const files = await listDir(PORTFOLIO_WEEKLY_DIR);
+    const files = await listBranchDir(PORTFOLIO_WEEKLY_DIR);
     const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
     const selected = jsonFiles.slice(-weeks);
 
@@ -238,7 +256,8 @@ export function createStore(context) {
           if (!repoData) return null;
           return {
             _week: file.replace('.json', ''),
-            summary: { open_issues: repoData.open_issues, recently_merged_prs: 0 },
+            // PR data not available in portfolio snapshots — only open issues tracked.
+            summary: { open_issues: repoData.open_issues },
           };
         } catch {
           return null;
@@ -246,17 +265,6 @@ export function createStore(context) {
       })
     );
     return results.filter(Boolean);
-  }
-
-  async function listDir(dirPath) {
-    try {
-      const data = await gh.request(`/repos/${owner}/${repo}/contents/${dirPath}`, {
-        params: { ref: DATA_BRANCH },
-      });
-      return Array.isArray(data) ? data.map(f => f.name) : [];
-    } catch {
-      return [];
-    }
   }
 
   async function readLastHash() {

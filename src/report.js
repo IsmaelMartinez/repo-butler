@@ -4,6 +4,7 @@
 import { createClient } from './github.js';
 import { observe, observePortfolio } from './observe.js';
 import { computeSnapshotHash } from './store.js';
+import { computeTrends } from './assess.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -110,10 +111,13 @@ export async function report(context) {
         if (r.name === context.repo && context.trends) {
           repoTrends = context.trends;
         } else if (store) {
-          const { computeTrends } = await import('./assess.js');
-          const repoHistory = await store.readRepoWeeklyHistory(r.name);
-          if (repoHistory.length >= 2) {
-            repoTrends = computeTrends(repoHistory);
+          try {
+            const repoHistory = await store.readRepoWeeklyHistory(r.name);
+            if (repoHistory.length >= 2) {
+              repoTrends = computeTrends(repoHistory);
+            }
+          } catch {
+            // Trend data unavailable for this repo — not critical.
           }
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
