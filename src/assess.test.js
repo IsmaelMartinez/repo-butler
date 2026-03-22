@@ -117,7 +117,7 @@ describe('appendTriageBotContext', () => {
     const text = parts.join('\n');
     assert.ok(text.includes('Triage bot:'));
     assert.ok(text.includes('11 sessions'));
-    assert.ok(text.includes('45% promotion'));
+    assert.ok(text.includes('45% promotion')); // 5 promoted out of 11 = 45%
     assert.ok(text.includes('Enhancement research:'));
     assert.ok(text.includes('Synthesis engine:'));
     assert.ok(text.includes('12.5s'));

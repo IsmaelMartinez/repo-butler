@@ -188,22 +188,25 @@ function buildAssessPrompt(snapshot, diff, projectContext, triageBotTrends) {
   return parts.filter(Boolean).join('\n');
 }
 
+const RECENT_WEEKS = 4;
+
 // Shared helper: append triage bot synthesis context to an LLM prompt.
 export function appendTriageBotContext(parts, trends) {
   if (!trends) return;
 
   parts.push('', '--- Triage Bot Intelligence ---');
 
-  // Triage activity summary.
-  const recentTriage = trends.triage?.slice(-4) || [];
+  // Triage activity summary — use weighted promotion rate.
+  const recentTriage = trends.triage?.slice(-RECENT_WEEKS) || [];
   if (recentTriage.length > 0) {
     const totalSessions = recentTriage.reduce((s, t) => s + (t.total || 0), 0);
-    const avgRate = recentTriage.reduce((s, t) => s + (t.rate || 0), 0) / recentTriage.length;
-    parts.push(`Triage bot: ${totalSessions} sessions in last ${recentTriage.length} weeks, ${Math.round(avgRate * 100)}% promotion rate.`);
+    const totalPromoted = recentTriage.reduce((s, t) => s + (t.promoted || 0), 0);
+    const weightedRate = totalSessions > 0 ? Math.round((totalPromoted / totalSessions) * 100) : 0;
+    parts.push(`Triage bot: ${totalSessions} sessions in last ${recentTriage.length} weeks, ${weightedRate}% promotion rate.`);
   }
 
   // Agent sessions.
-  const recentAgents = trends.agents?.slice(-4) || [];
+  const recentAgents = trends.agents?.slice(-RECENT_WEEKS) || [];
   const totalAgentSessions = recentAgents.reduce((s, a) => s + (a.total || 0), 0);
   if (totalAgentSessions > 0) {
     const approved = recentAgents.reduce((s, a) => s + (a.approved || 0), 0);
@@ -212,7 +215,7 @@ export function appendTriageBotContext(parts, trends) {
   }
 
   // Synthesis findings (clusters, drift, upstream).
-  const recentSynthesis = trends.synthesis?.slice(-4) || [];
+  const recentSynthesis = trends.synthesis?.slice(-RECENT_WEEKS) || [];
   const totalFindings = recentSynthesis.reduce((s, x) => s + (x.findings || 0), 0);
   const totalBriefings = recentSynthesis.reduce((s, x) => s + (x.briefings || 0), 0);
   if (totalFindings > 0 || totalBriefings > 0) {
@@ -220,11 +223,11 @@ export function appendTriageBotContext(parts, trends) {
   }
 
   // Response time trend.
-  const responseTimes = trends.response_time?.slice(-4) || [];
+  const responseTimes = trends.response_time?.slice(-RECENT_WEEKS) || [];
   const avgResponseTime = responseTimes.length > 0
     ? responseTimes.reduce((s, r) => s + (r.avg_seconds || 0), 0) / responseTimes.length
     : null;
-  if (avgResponseTime) {
+  if (avgResponseTime != null) {
     parts.push(`Average triage response time: ${avgResponseTime.toFixed(1)}s.`);
   }
 
