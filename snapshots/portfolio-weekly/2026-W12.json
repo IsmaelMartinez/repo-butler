@@ -1,13 +1,13 @@
 {
-  "betis-escocia": {
-    "open_issues": 3,
-    "commits_6mo": 146,
-    "stars": 1
-  },
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 48,
+    "commits_6mo": 50,
     "stars": 0
+  },
+  "betis-escocia": {
+    "open_issues": 2,
+    "commits_6mo": 147,
+    "stars": 1
   },
   "teams-for-linux": {
     "open_issues": 23,
