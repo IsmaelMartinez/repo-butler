@@ -13,7 +13,7 @@ The competitive landscape confirms this is a unique niche. Implementation agents
 
 ## Architecture
 
-```
+```text
 OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → CARE → REPORT
 ```
 
