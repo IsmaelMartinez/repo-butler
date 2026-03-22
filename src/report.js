@@ -2,7 +2,7 @@
 // Produces two reports: per-repo (target repo) and portfolio (all repos).
 
 import { createClient } from './github.js';
-import { observe, observePortfolio } from './observe.js';
+import { observe, observePortfolio, computeBusFactor, computeTimeToCloseMedian } from './observe.js';
 import { computeSnapshotHash } from './store.js';
 import { computeTrends } from './assess.js';
 import { writeFile, mkdir } from 'node:fs/promises';
@@ -70,14 +70,32 @@ export async function report(context) {
           fetchPRAuthors(gh, owner, r.name),
         ]);
 
-        // Fetch releases and open issues for this repo.
-        const [releases, openIssues, meta] = await Promise.all([
+        // Fetch releases, open issues, closed issues, and Phase 1 health data.
+        const [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
           gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 }).catch(() => []),
           gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 100 })
             .then(issues => issues.filter(i => !i.pull_request))
             .catch(() => []),
+          gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'closed', since: daysAgoISO(90), sort: 'updated', direction: 'desc' }, max: 200 })
+            .then(issues => issues.filter(i => !i.pull_request).map(i => ({ created_at: i.created_at, closed_at: i.closed_at })))
+            .catch(() => []),
           gh.request(`/repos/${owner}/${r.name}`).catch(() => null),
+          gh.request(`/repos/${owner}/${r.name}/community/profile`)
+            .then(d => ({
+              health_percentage: d.health_percentage,
+              files: {
+                readme: !!d.files?.readme, license: !!d.files?.license,
+                contributing: !!d.files?.contributing, code_of_conduct: !!d.files?.code_of_conduct,
+                issue_template: !!d.files?.issue_template, pull_request_template: !!d.files?.pull_request_template,
+              },
+            }))
+            .catch(() => null),
         ]);
+
+        // Use Phase 1 data from fetchPortfolioDetails where available.
+        const details = repoDetails?.[r.name];
+        const prData = prAuthors.map(a => ({ author: a.author, count: a.count }));
+        const mergedPRsForBusFactor = prData.flatMap(a => Array.from({ length: a.count }, () => ({ author: a.author })));
 
         const repoSnapshot = {
           repository: `${owner}/${r.name}`,
@@ -94,6 +112,9 @@ export async function report(context) {
           releases: releases.map(rel => ({
             tag: rel.tag_name, published_at: rel.published_at, prerelease: rel.prerelease,
           })),
+          community_profile: communityProfile,
+          dependabot_alerts: details?.vulns || null,
+          ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
           summary: {
             open_issues: openIssues.length,
             blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
@@ -103,6 +124,8 @@ export async function report(context) {
             bot_prs: prAuthors.filter(a => a.author.includes('[bot]')).reduce((s, a) => s + a.count, 0),
             releases: releases.length,
             latest_release: releases[0]?.tag_name || 'none',
+            bus_factor: computeBusFactor(mergedPRsForBusFactor),
+            time_to_close_median: computeTimeToCloseMedian(closedIssues),
           },
         };
 
@@ -561,7 +584,7 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
   const ciColor = !hasCiData ? '#6e7681' : cipr.pass_rate >= 0.9 ? '#7ee787' : cipr.pass_rate >= 0.7 ? '#d29922' : '#f85149';
   const ciHtml = hasCiData ? `<div class="card"><h3>CI Pass Rate</h3>
 <div class="stat" style="color:${ciColor}">${Math.round(cipr.pass_rate * 100)}%</div>
-<div class="stat-label">${cipr.passed}/${cipr.total_runs} runs passed</div></div>` : `<div class="card"><h3>CI Pass Rate</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+<div class="stat-label">${cipr.total_runs > 0 ? `${cipr.passed}/${cipr.total_runs} runs passed` : 'from workflow runs'}</div></div>` : `<div class="card"><h3>CI Pass Rate</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const busHtml = `<div class="card"><h3>Bus Factor</h3>
 <div class="stat" style="color:${busFactor == null ? '#6e7681' : busFactor <= 1 ? '#f85149' : busFactor <= 2 ? '#d29922' : '#7ee787'}">${busFactor != null ? busFactor : '\u2014'}</div>
