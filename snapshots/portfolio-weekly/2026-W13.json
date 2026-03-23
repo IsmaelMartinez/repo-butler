@@ -1,18 +1,18 @@
 {
+  "github-issue-triage-bot": {
+    "open_issues": 0,
+    "commits_6mo": 173,
+    "stars": 1
+  },
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 56,
+    "commits_6mo": 57,
     "stars": 0
   },
   "teams-for-linux": {
     "open_issues": 13,
     "commits_6mo": 323,
-    "stars": 4527
-  },
-  "github-issue-triage-bot": {
-    "open_issues": 0,
-    "commits_6mo": 173,
-    "stars": 1
+    "stars": 4528
   },
   "generator-atlassian-compass-event-catalog": {
     "open_issues": 0,
