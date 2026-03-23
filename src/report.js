@@ -167,43 +167,49 @@ export async function report(context) {
 // --- Data fetchers for charts ---
 
 async function fetchMonthlyPRActivity(gh, owner, repo) {
+  const since = daysAgoISO(365);
+  const prs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+    params: { state: 'closed', sort: 'updated', direction: 'desc' },
+    max: 500,
+  });
+  const merged = prs.filter(pr => pr.merged_at && pr.merged_at >= since);
   const months = last12Months();
-  const results = [];
-  for (const { label, start, end } of months) {
-    const data = await gh.request('/search/issues', {
-      params: { q: `repo:${owner}/${repo} is:pr is:merged merged:${start}..${end}`, per_page: 1 },
-    });
-    results.push({ month: label, count: data.total_count });
-    await throttle();
-  }
-  return results;
+  return months.map(({ label, start, end }) => ({
+    month: label,
+    count: merged.filter(pr => pr.merged_at >= start && pr.merged_at < end).length,
+  }));
 }
 
 async function fetchMonthlyIssueActivity(gh, owner, repo) {
+  const since = daysAgoISO(365);
+  const [created, closed] = await Promise.all([
+    gh.paginate(`/repos/${owner}/${repo}/issues`, {
+      params: { state: 'all', since, sort: 'created', direction: 'desc' },
+      max: 500,
+    }).then(items => items.filter(i => !i.pull_request)),
+    gh.paginate(`/repos/${owner}/${repo}/issues`, {
+      params: { state: 'closed', since, sort: 'updated', direction: 'desc' },
+      max: 500,
+    }).then(items => items.filter(i => !i.pull_request)),
+  ]);
   const months = last12Months();
-  const results = [];
-  for (const { label, start, end } of months) {
-    const [opened, closed] = await Promise.all([
-      gh.request('/search/issues', {
-        params: { q: `repo:${owner}/${repo} is:issue created:${start}..${end}`, per_page: 1 },
-      }),
-      gh.request('/search/issues', {
-        params: { q: `repo:${owner}/${repo} is:issue closed:${start}..${end}`, per_page: 1 },
-      }),
-    ]);
-    results.push({ month: label, opened: opened.total_count, closed: closed.total_count });
-    await throttle();
-  }
-  return results;
+  return months.map(({ label, start, end }) => ({
+    month: label,
+    opened: created.filter(i => i.created_at >= start && i.created_at < end).length,
+    closed: closed.filter(i => i.closed_at && i.closed_at >= start && i.closed_at < end).length,
+  }));
 }
 
 async function fetchPRAuthors(gh, owner, repo) {
-  const data = await gh.request('/search/issues', {
-    params: { q: `repo:${owner}/${repo} is:pr is:merged merged:>${daysAgoISO(90)}`, per_page: 100 },
+  const since = daysAgoISO(90);
+  const prs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+    params: { state: 'closed', sort: 'updated', direction: 'desc' },
+    max: 200,
   });
+  const merged = prs.filter(pr => pr.merged_at && pr.merged_at >= since);
   const counts = {};
-  for (const item of data.items || []) {
-    const author = item.user?.login || 'unknown';
+  for (const pr of merged) {
+    const author = pr.user?.login || 'unknown';
     counts[author] = (counts[author] || 0) + 1;
   }
   return Object.entries(counts)
@@ -483,11 +489,6 @@ new Chart(document.getElementById('commitChart'),{type:'bar',data:{labels:commit
 
 
 // --- Helpers ---
-
-// Throttle search API calls to stay under 30 req/min secondary rate limit.
-function throttle() {
-  return new Promise(r => setTimeout(r, 2500));
-}
 
 function generateLightRepoReport(owner, repo, details) {
   const now = new Date().toISOString().split('T')[0];
