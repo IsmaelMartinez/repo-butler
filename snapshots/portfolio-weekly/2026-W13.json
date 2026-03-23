@@ -1,7 +1,12 @@
 {
+  "teams-for-linux": {
+    "open_issues": 24,
+    "commits_6mo": 320,
+    "stars": 4526
+  },
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 51,
+    "commits_6mo": 52,
     "stars": 0
   },
   "betis-escocia": {
@@ -13,11 +18,6 @@
     "open_issues": 2,
     "commits_6mo": 371,
     "stars": 1
-  },
-  "teams-for-linux": {
-    "open_issues": 23,
-    "commits_6mo": 320,
-    "stars": 4526
   },
   "generator-atlassian-compass-event-catalog": {
     "open_issues": 0,
