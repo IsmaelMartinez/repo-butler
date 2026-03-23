@@ -1,17 +1,17 @@
 {
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 50,
+    "commits_6mo": 51,
     "stars": 0
-  },
-  "bonnie-wee-plot": {
-    "open_issues": 2,
-    "commits_6mo": 371,
-    "stars": 1
   },
   "betis-escocia": {
     "open_issues": 2,
     "commits_6mo": 147,
+    "stars": 1
+  },
+  "bonnie-wee-plot": {
+    "open_issues": 2,
+    "commits_6mo": 371,
     "stars": 1
   },
   "teams-for-linux": {
