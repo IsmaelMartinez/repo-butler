@@ -240,7 +240,6 @@ async function fetchOpenPRs(gh, owner, repo) {
         bot: isBot,
         labels,
         review_requested: hasReviewRequested,
-        mergeable_state: pr.mergeable_state,
         created_at: pr.created_at,
         updated_at: pr.updated_at,
       };
