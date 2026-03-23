@@ -598,6 +598,10 @@ function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const VELOCITY_ALERT_MONTHS = 3;
+const VELOCITY_CRITICAL_MONTHS = 5;
+const VELOCITY_CRITICAL_DEFICIT = 20;
+
 function detectVelocityImbalance(issueActivity) {
   let consecutive = 0;
   let deficit = 0;
@@ -610,7 +614,7 @@ function detectVelocityImbalance(issueActivity) {
       break;
     }
   }
-  if (consecutive >= 3) {
+  if (consecutive >= VELOCITY_ALERT_MONTHS) {
     return { alert: true, consecutive_months: consecutive, total_deficit: deficit };
   }
   return { alert: false };
@@ -618,7 +622,7 @@ function detectVelocityImbalance(issueActivity) {
 
 function buildVelocityAlert(imbalance) {
   if (!imbalance.alert) return '';
-  const critical = imbalance.consecutive_months >= 5 || imbalance.total_deficit > 20;
+  const critical = imbalance.consecutive_months >= VELOCITY_CRITICAL_MONTHS || imbalance.total_deficit > VELOCITY_CRITICAL_DEFICIT;
   const cls = critical ? ' alert-critical' : '';
   return `<div class="alert-banner${cls}">\u26a0\ufe0f Backlog pressure: issues opened have exceeded issues closed for ${imbalance.consecutive_months} consecutive months (deficit: +${imbalance.total_deficit})</div>`;
 }
