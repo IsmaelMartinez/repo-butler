@@ -222,7 +222,7 @@ async function fetchOpenPRs(gh, owner, repo) {
   try {
     const prs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
       params: { state: 'open', sort: 'updated', direction: 'desc' },
-      max: 50,
+      max: 200,
     });
     const now = Date.now();
     return prs.map(pr => {
@@ -661,14 +661,14 @@ function buildPRTriageSection(openPRs, repoFullName) {
       <td>${labels || '—'}</td></tr>`;
   }).join('');
 
-  const mergeReady = openPRs.filter(pr => !pr.draft && !pr.bot).length;
+  const toReview = openPRs.filter(pr => pr.review_requested && !pr.draft && !pr.bot).length;
   const drafts = openPRs.filter(pr => pr.draft).length;
   const botPRs = openPRs.filter(pr => pr.bot).length;
   const stale = openPRs.filter(pr => pr.age_days >= 30).length;
 
   const summary = [
     `${openPRs.length} open`,
-    mergeReady > 0 ? `${mergeReady} to review` : null,
+    toReview > 0 ? `${toReview} awaiting review` : null,
     drafts > 0 ? `${drafts} draft` : null,
     botPRs > 0 ? `${botPRs} bot` : null,
     stale > 0 ? `<span style="color:#f85149">${stale} stale</span>` : null,
