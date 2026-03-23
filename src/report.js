@@ -64,10 +64,11 @@ export async function report(context) {
 
       if (commits >= 10) {
         // Full report with charts — fetch monthly data.
-        const [prActivity, issueActivity, prAuthors] = await Promise.all([
+        const [prActivity, issueActivity, prAuthors, openPRs] = await Promise.all([
           fetchMonthlyPRActivity(gh, owner, r.name),
           fetchMonthlyIssueActivity(gh, owner, r.name),
           fetchPRAuthors(gh, owner, r.name),
+          fetchOpenPRs(gh, owner, r.name),
         ]);
 
         // Fetch releases, open issues, closed issues, and Phase 1 health data.
@@ -143,7 +144,7 @@ export async function report(context) {
           }
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl);
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs);
         await writeFile(join(outDir, `${r.name}.html`), html);
       } else {
         // Lightweight report — just metadata, no search API calls.
@@ -215,6 +216,38 @@ async function fetchPRAuthors(gh, owner, repo) {
   return Object.entries(counts)
     .map(([author, count]) => ({ author, count }))
     .sort((a, b) => b.count - a.count);
+}
+
+async function fetchOpenPRs(gh, owner, repo) {
+  try {
+    const prs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'open', sort: 'updated', direction: 'desc' },
+      max: 50,
+    });
+    const now = Date.now();
+    return prs.map(pr => {
+      const ageDays = Math.floor((now - new Date(pr.created_at).getTime()) / 86400000);
+      const hasReviewRequested = pr.requested_reviewers?.length > 0;
+      const isDraft = pr.draft;
+      const labels = pr.labels?.map(l => l.name) || [];
+      const isBot = pr.user?.login?.includes('[bot]') || pr.user?.login?.startsWith('app/');
+      return {
+        number: pr.number,
+        title: pr.title,
+        author: pr.user?.login || 'unknown',
+        age_days: ageDays,
+        draft: isDraft,
+        bot: isBot,
+        labels,
+        review_requested: hasReviewRequested,
+        mergeable_state: pr.mergeable_state,
+        created_at: pr.created_at,
+        updated_at: pr.updated_at,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function fetchWeeklyCommits(gh, owner, repo) {
@@ -290,7 +323,7 @@ async function fetchPortfolioDetails(gh, owner, repos) {
 
 // --- HTML generators ---
 
-function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl) {
+function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = []) {
   const s = snapshot.summary;
   const releases = snapshot.releases || [];
   const labels = snapshot.issues?.open
@@ -350,7 +383,7 @@ new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${tr
 ${CSS}
 </head>
 <body>
-<h1>${snapshot.repository}</h1>
+<h1><a href="https://github.com/${snapshot.repository}" style="color:#f0f6fc;text-decoration:none">${snapshot.repository} <svg height="24" width="24" viewBox="0 0 16 16" style="vertical-align:middle;fill:#8b949e"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
 <div class="subtitle">Project Health Report — ${now} — <a href="index.html">portfolio view</a></div>
 <div class="grid">
   <div class="card"><h3>Stars</h3><div class="stat">${fmt(snapshot.meta?.stars)}</div><div class="stat-label">${snapshot.meta?.forks} forks, ${snapshot.meta?.watchers} watchers</div></div>
@@ -359,6 +392,7 @@ ${CSS}
   <div class="card"><h3>Releases</h3><div class="stat">${s.releases}</div><div class="stat-label">Latest: ${s.latest_release}</div></div>
 </div>
 ${buildHealthSection(snapshot)}
+${buildPRTriageSection(openPRs, snapshot.repository)}
 <h2>Development Velocity</h2>
 <div class="chart-container"><div class="chart-title">Merged PRs per Month</div><canvas id="prChart"></canvas></div>
 <div class="chart-container"><div class="chart-title">Issues Opened vs Closed per Month</div><canvas id="issueChart"></canvas></div>
@@ -458,7 +492,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
 ${CSS}
 </head>
 <body>
-<h1>@${owner}</h1>
+<h1><a href="https://github.com/${owner}" style="color:#f0f6fc;text-decoration:none">@${owner} <svg height="24" width="24" viewBox="0 0 16 16" style="vertical-align:middle;fill:#8b949e"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
 <div class="subtitle">GitHub Portfolio Health Report — ${now} — click any repo name for details</div>
 <div class="grid">
   <div class="card"><h3>Repos</h3><div class="stat">${repos.length}</div><div class="stat-label">${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div></div>
@@ -607,6 +641,45 @@ ${vulnHtml}
 ${ciHtml}
 ${busHtml}
 ${ttcHtml}
+</div>`;
+}
+
+function buildPRTriageSection(openPRs, repoFullName) {
+  if (!openPRs || openPRs.length === 0) return '';
+
+  const now = Date.now();
+  const rows = openPRs.map(pr => {
+    const stale = pr.age_days >= 30;
+    const ageColor = stale ? '#f85149' : pr.age_days >= 14 ? '#d29922' : '#8b949e';
+    const authorDisplay = pr.bot ? `<span style="color:#8b949e">${escHtml(pr.author)}</span>` : escHtml(pr.author);
+    const labels = pr.labels.map(l => `<span style="background:#21262d;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem">${escHtml(l)}</span>`).join(' ');
+    const draftBadge = pr.draft ? '<span style="color:#8b949e;font-size:0.7rem"> draft</span>' : '';
+
+    return `<tr>
+      <td><a href="https://github.com/${repoFullName}/pull/${pr.number}">#${pr.number}</a>${draftBadge}</td>
+      <td>${escHtml(pr.title.length > 60 ? pr.title.slice(0, 58) + '…' : pr.title)}</td>
+      <td>${authorDisplay}</td>
+      <td style="color:${ageColor}">${pr.age_days}d</td>
+      <td>${labels || '—'}</td></tr>`;
+  }).join('');
+
+  const mergeReady = openPRs.filter(pr => !pr.draft && !pr.bot).length;
+  const drafts = openPRs.filter(pr => pr.draft).length;
+  const botPRs = openPRs.filter(pr => pr.bot).length;
+  const stale = openPRs.filter(pr => pr.age_days >= 30).length;
+
+  const summary = [
+    `${openPRs.length} open`,
+    mergeReady > 0 ? `${mergeReady} to review` : null,
+    drafts > 0 ? `${drafts} draft` : null,
+    botPRs > 0 ? `${botPRs} bot` : null,
+    stale > 0 ? `<span style="color:#f85149">${stale} stale</span>` : null,
+  ].filter(Boolean).join(', ');
+
+  return `<h2>Open Pull Requests <span style="font-size:0.8rem;color:#8b949e">(${summary})</span></h2>
+<div class="chart-container">
+<table><thead><tr><th>PR</th><th>Title</th><th>Author</th><th>Age</th><th>Labels</th></tr></thead>
+<tbody>${rows}</tbody></table>
 </div>`;
 }
 
