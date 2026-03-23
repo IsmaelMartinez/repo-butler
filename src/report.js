@@ -683,6 +683,17 @@ function buildPRTriageSection(openPRs, repoFullName) {
 </div>`;
 }
 
+const UPSTREAM_KEYWORDS = ['electron', 'chromium', 'upstream', 'webkit', 'node.js', 'v8', 'wayland', 'pipewire', 'xdg', 'gtk', 'libnotify', 'dbus', 'fedora', 'ubuntu'];
+
+function classifyBlocker(title, labels) {
+  const text = title.toLowerCase();
+  if (UPSTREAM_KEYWORDS.some(k => text.includes(k))) return 'upstream';
+  if (labels.some(l => l.toLowerCase().includes('upstream'))) return 'upstream';
+  if (labels.some(l => l.toLowerCase().includes('depends') || l.toLowerCase().includes('dependency'))) return 'dependency';
+  if (text.includes('depends on') || text.includes('blocked by') || text.includes('waiting for')) return 'dependency';
+  return 'unknown';
+}
+
 function buildStalenessSection(snapshot) {
   const issues = snapshot.issues?.open || [];
   if (issues.length === 0) return '';
@@ -721,18 +732,24 @@ function buildStalenessSection(snapshot) {
   }
 
   if (blockedIssues.length > 0) {
-    const blockedRows = blockedIssues.map(i => {
+    const classified = blockedIssues.map(i => ({ ...i, reason: classifyBlocker(i.title, i.labels) }));
+    const blockedRows = classified.map(i => {
       const color = i.age_days >= 90 ? '#f85149' : i.age_days >= 30 ? '#d29922' : '#8b949e';
+      const reasonColor = i.reason === 'upstream' ? '#d29922' : i.reason === 'dependency' ? '#388bfd' : '#8b949e';
       return `<tr>
         <td><a href="https://github.com/${snapshot.repository}/issues/${i.number}">#${i.number}</a></td>
         <td>${escHtml(i.title.length > 55 ? i.title.slice(0, 53) + '…' : i.title)}</td>
+        <td style="color:${reasonColor}">${i.reason}</td>
         <td style="color:${color}">${i.age_days}d</td>
         <td>${i.comments}</td></tr>`;
     }).join('');
 
+    const upstreamCount = classified.filter(i => i.reason === 'upstream').length;
+    const blockedSummary = upstreamCount > 0 ? `${blockedIssues.length} total, ${upstreamCount} upstream` : `${blockedIssues.length}`;
+
     html += `<div class="chart-container">
-<div class="chart-title">Blocked Issues <span style="font-size:0.8rem;color:#8b949e">(${blockedIssues.length})</span></div>
-<table><thead><tr><th>Issue</th><th>Title</th><th>Age</th><th>Comments</th></tr></thead>
+<div class="chart-title">Blocked Issues <span style="font-size:0.8rem;color:#8b949e">(${blockedSummary})</span></div>
+<table><thead><tr><th>Issue</th><th>Title</th><th>Blocked on</th><th>Age</th><th>Comments</th></tr></thead>
 <tbody>${blockedRows}</tbody></table>
 </div>`;
   }
