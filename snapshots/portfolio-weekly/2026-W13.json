@@ -1,0 +1,77 @@
+{
+  "repo-butler": {
+    "open_issues": 0,
+    "commits_6mo": 50,
+    "stars": 0
+  },
+  "bonnie-wee-plot": {
+    "open_issues": 2,
+    "commits_6mo": 371,
+    "stars": 1
+  },
+  "betis-escocia": {
+    "open_issues": 2,
+    "commits_6mo": 147,
+    "stars": 1
+  },
+  "teams-for-linux": {
+    "open_issues": 23,
+    "commits_6mo": 320,
+    "stars": 4526
+  },
+  "generator-atlassian-compass-event-catalog": {
+    "open_issues": 0,
+    "commits_6mo": 156,
+    "stars": 4
+  },
+  "ismaelmartinez.me.uk": {
+    "open_issues": 15,
+    "commits_6mo": 66,
+    "stars": 0
+  },
+  "github-issue-triage-bot": {
+    "open_issues": 1,
+    "commits_6mo": 169,
+    "stars": 1
+  },
+  "ai-model-advisor": {
+    "open_issues": 1,
+    "commits_6mo": 184,
+    "stars": 1
+  },
+  "sound3fy": {
+    "open_issues": 1,
+    "commits_6mo": 56,
+    "stars": 3
+  },
+  "local-brain": {
+    "open_issues": 2,
+    "commits_6mo": 212,
+    "stars": 0
+  },
+  "yourear": {
+    "open_issues": 2,
+    "commits_6mo": 37,
+    "stars": 1
+  },
+  "seagate-photos": {
+    "open_issues": 7,
+    "commits_6mo": 0,
+    "stars": 3
+  },
+  "leapp-codeartifact-login-plugin": {
+    "open_issues": 7,
+    "commits_6mo": 0,
+    "stars": 0
+  },
+  "logger-to-kibana": {
+    "open_issues": 14,
+    "commits_6mo": 0,
+    "stars": 0
+  },
+  "gridfs-storage-engine": {
+    "open_issues": 3,
+    "commits_6mo": 0,
+    "stars": 8
+  }
+}
