@@ -391,6 +391,7 @@ ${CSS}
   <div class="card"><h3>PRs Merged (90d)</h3><div class="stat">${s.recently_merged_prs}</div><div class="stat-label">${s.human_prs} human, ${s.bot_prs} bot</div></div>
   <div class="card"><h3>Releases</h3><div class="stat">${s.releases}</div><div class="stat-label">Latest: ${s.latest_release}</div></div>
 </div>
+${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
 ${buildHealthSection(snapshot)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
 ${buildStalenessSection(snapshot)}
@@ -597,6 +598,31 @@ function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function detectVelocityImbalance(issueActivity) {
+  let consecutive = 0;
+  let deficit = 0;
+  for (let i = issueActivity.length - 1; i >= 0; i--) {
+    const m = issueActivity[i];
+    if (m.opened > m.closed) {
+      consecutive++;
+      deficit += m.opened - m.closed;
+    } else {
+      break;
+    }
+  }
+  if (consecutive >= 3) {
+    return { alert: true, consecutive_months: consecutive, total_deficit: deficit };
+  }
+  return { alert: false };
+}
+
+function buildVelocityAlert(imbalance) {
+  if (!imbalance.alert) return '';
+  const critical = imbalance.consecutive_months >= 5 || imbalance.total_deficit > 20;
+  const cls = critical ? ' alert-critical' : '';
+  return `<div class="alert-banner${cls}">\u26a0\ufe0f Backlog pressure: issues opened have exceeded issues closed for ${imbalance.consecutive_months} consecutive months (deficit: +${imbalance.total_deficit})</div>`;
+}
+
 function buildHealthSection(snapshot) {
   const cp = snapshot.community_profile;
   const da = snapshot.dependabot_alerts;
@@ -792,5 +818,7 @@ a{color:#58a6ff;text-decoration:none}
 .health-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 .health-good{background:#7ee787}.health-warn{background:#d29922}.health-bad{background:#f85149}.health-none{background:#6e7681}
 .footer{text-align:center;color:#6e7681;font-size:0.8rem;margin-top:3rem;padding:1rem}
+.alert-banner{background:#161b22;border-left:4px solid #d29922;border-radius:0 8px 8px 0;padding:1rem 1.5rem;margin-bottom:1.5rem;color:#e6edf3;font-size:0.9rem}
+.alert-banner.alert-critical{border-color:#f85149}
 @media(max-width:900px){.two-col,.three-col{grid-template-columns:1fr}}
 </style>`;
