@@ -234,7 +234,7 @@ async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate] = await Promise.all([
+    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate, openIssues] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -276,8 +276,11 @@ async function fetchPortfolioDetails(gh, owner, repos) {
           return total > 0 ? success / total : null;
         })
         .catch(() => null),
+      gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 200 })
+        .then(issues => issues.filter(i => !i.pull_request).length)
+        .catch(() => r.open_issues || 0),
     ]);
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues };
   });
 
   await Promise.all(fetches);
