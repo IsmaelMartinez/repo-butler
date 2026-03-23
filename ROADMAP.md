@@ -59,39 +59,7 @@ Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pas
 
 **Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.
 
-### Phase 2 — The CARE Phase (setup PRs for missing tools)
-
-A new phase that detects what each repo is missing and opens PRs to fix it. Every PR is deterministic (template-based, not LLM-generated), labelled `repo-butler` and `setup`, and never merged automatically.
-
-**Dependabot configuration** — When a repo has no `.github/dependabot.yml`, auto-detect ecosystems from root file presence (`package.json` → npm, `go.mod` → gomod, `requirements.txt` → pip, etc.) and open a PR adding a correctly configured `dependabot.yml` with weekly schedule and a `github-actions` entry. Dependabot is built into GitHub and activates immediately on merge — no app installation needed.
-
-**Issue templates** — When the community health profile shows no issue templates, open a PR adding `.github/ISSUE_TEMPLATE/bug_report_form.yml`, `feature_request_form.yml`, and `config.yml` with YAML form-based templates (the modern format). Templates are generic enough to work for any project.
-
-**CONTRIBUTING guide** — When missing, open a PR adding a minimal `CONTRIBUTING.md` covering fork-and-PR workflow, code style expectations, and a note that the project is maintained in spare time.
-
-**CODEOWNERS** — When missing, auto-generate from the Contributors API (`/repos/{owner}/{repo}/contributors?per_page=1`, filtering out bots) and open a PR adding `.github/CODEOWNERS` with `* @{top_contributor}`.
-
-**Triage bot configuration** — When the triage bot is deployed but a repo doesn't have `.github/butler.json`, open a PR adding a default config that enables triage and points to the bot URL. The triage bot activates immediately on merge.
-
-**Renovate configuration** — When a repo has npm/pip/go dependencies but no `renovate.json` and no `dependabot.yml`, open a PR adding `renovate.json` with the `config:recommended` preset, weekend schedule, and minor automerge. Note in the PR description that the Mend Renovate App must be installed separately.
-
-**License** — When a public repo has no LICENSE file, open a PR adding MIT (the most common for the portfolio). The PR description should note that the maintainer should review the license choice.
-
-Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. For self-dogfooding on IsmaelMartinez's repos, a PAT stored as a repo secret is the simplest path. The CARE phase should be opt-in via config and always respects `require_approval` (PRs only, never auto-merge).
-
-### Phase 3 — Tiered Health Model
-
-Replace the green/yellow/red health dot with a structured maturity model inspired by Backstage Soundcheck and Port.io scorecards.
-
-**Gold tier** — has CI workflows, a license, fewer than 10 open issues, a release in the last 90 days, community health profile above 80%, Dependabot or Renovate configured, zero critical/high vulnerability alerts. Gold repos are healthy and well-maintained.
-
-**Silver tier** — has CI and a license, community health profile above 50%, some activity in the last 6 months. Silver repos are maintained but have gaps.
-
-**Bronze tier** — has some activity. Bronze repos are alive but need attention.
-
-Each tier shows pass/fail criteria as a checklist on the per-repo report, telling the maintainer exactly what to do next. The portfolio page shows tier badges instead of dots. The CARE phase uses the gap list to determine which setup PRs to open — it targets Bronze and Silver repos to help them reach the next tier.
-
-### Phase 4 — Richer Reports
+### Phase 2 — Richer Reports
 
 **Bug fix: release cadence chart** — The "Days between releases" chart shows negative values because the subtraction order is reversed. Fix the date calculation to produce positive intervals.
 
@@ -115,7 +83,19 @@ Each tier shows pass/fail criteria as a checklist on the per-repo report, tellin
 
 **AI agent actionability score** — Since repo-butler generates reports that AI agents consume, add a "what to do next" section with concrete actions ranked by effort/impact. Example output: "1. Merge #2193, #2319, #2331 — all CI green, no review blockers. 2. Investigate CI failures on #2329, #2357. 3. Close stale awaiting-feedback issues." This turns the report from a dashboard into a task list.
 
-### Phase 5 — Structured Issue Specs
+### Phase 3 — Tiered Health Model
+
+Replace the green/yellow/red health dot with a structured maturity model inspired by Backstage Soundcheck and Port.io scorecards.
+
+**Gold tier** — has CI workflows, a license, fewer than 10 open issues, a release in the last 90 days, community health profile above 80%, Dependabot or Renovate configured, zero critical/high vulnerability alerts. Gold repos are healthy and well-maintained.
+
+**Silver tier** — has CI and a license, community health profile above 50%, some activity in the last 6 months. Silver repos are maintained but have gaps.
+
+**Bronze tier** — has some activity. Bronze repos are alive but need attention.
+
+Each tier shows pass/fail criteria as a checklist on the per-repo report, telling the maintainer exactly what to do next. The portfolio page shows tier badges instead of dots.
+
+### Phase 4 — Structured Issue Specs
 
 When the IDEATE/PROPOSE phases generate issues, format them with a "current state / proposed state" specification inspired by Copilot Workspace. Each issue includes which files are likely affected, what patterns exist, and a clear scope statement. This makes repo-butler's output directly consumable by implementation agents — Copilot Coding Agent, Sweep, or a human developer can pick up the issue and know exactly what to do.
 
@@ -142,6 +122,16 @@ These are ideas for later evaluation, not commitments.
 **Sparkline mini-charts** — Add tiny inline trend lines in the portfolio table rows (26-week activity sparkline per repo) instead of just a number. Implementable with pure SVG, no library.
 
 **Campaign view** — Group improvement ideas and setup PRs into named campaigns on the portfolio dashboard: "License Compliance: 14/19 repos done, 5 need action." Transforms the dashboard from a status display into an active task tracker.
+
+### Phase 5 — The CARE Phase (setup PRs for missing tools)
+
+Deferred from the original Phase 2 position. Needs a design pass to make it generic and configurable rather than opinionated about specific tools. The current design hardcodes Dependabot over Renovate, MIT license, specific issue template formats, and a specific workflow (PRs from a PAT). A generic version would need configurable tool preferences, pluggable templates, and a rule engine for "what's missing" rather than hardcoded checks.
+
+The core idea remains: detect what each repo is missing and open PRs to fix it. Every PR is deterministic (template-based, not LLM-generated), labelled `repo-butler` and `setup`, and never merged automatically. Targets include dependency management config, issue templates, CONTRIBUTING guide, CODEOWNERS, triage bot config, license files, and any other gap detected by the community health profile.
+
+Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. The CARE phase should be opt-in via config and always respect `require_approval` (PRs only, never auto-merge).
+
+Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, separate cross-repo PAT, contributor name sanitisation for CODEOWNERS.
 
 ## What NOT to build
 
