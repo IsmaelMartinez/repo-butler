@@ -324,10 +324,13 @@ function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, tren
   const hasTrends = trends && trends.weeks && trends.weeks.length >= 2;
   const trendsHtml = hasTrends ? `
 <h2>Trends <span style="font-size:0.8rem;color:${trends.direction === 'growing' ? '#f85149' : trends.direction === 'shrinking' ? '#7ee787' : '#8b949e'}">(issues ${trends.direction})</span></h2>
-<div class="chart-container"><div class="chart-title">Weekly Trends — Open Issues &amp; Merged PRs</div><canvas id="trendsChart"></canvas></div>` : '';
+<div class="chart-container"><div class="chart-title">Weekly Trends — Open Issues</div><canvas id="trendsChart"></canvas></div>` : '';
 
+  const hasMergedPrData = hasTrends && trends.weeks.some(w => w.merged_prs > 0);
+  const mergedPrDataset = hasMergedPrData ? `,{label:'Merged PRs',data:[${trends.weeks.map(w => w.merged_prs).join(',')}],borderColor:'#388bfd',backgroundColor:'rgba(56,139,253,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y1'}` : '';
+  const mergedPrScale = hasMergedPrData ? `,y1:{type:'linear',position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'Merged PRs'}}` : '';
   const trendsJs = hasTrends ? `
-new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${trends.weeks.map(w => `'${w.week}'`).join(',')}],datasets:[{label:'Open Issues',data:[${trends.weeks.map(w => w.open_issues).join(',')}],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y'},{label:'Merged PRs',data:[${trends.weeks.map(w => w.merged_prs).join(',')}],borderColor:'#388bfd',backgroundColor:'rgba(56,139,253,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y1'}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{type:'linear',position:'left',beginAtZero:true,grid:{color:'#21262d'},title:{display:true,text:'Open Issues'}},y1:{type:'linear',position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'Merged PRs'}},x:{grid:{display:false}}}}});` : '';
+new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${trends.weeks.map(w => `'${w.week}'`).join(',')}],datasets:[{label:'Open Issues',data:[${trends.weeks.map(w => w.open_issues).join(',')}],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y'}${mergedPrDataset}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{type:'linear',position:'left',beginAtZero:true,grid:{color:'#21262d'},title:{display:true,text:'Open Issues'}}${mergedPrScale},x:{grid:{display:false}}}}});` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">

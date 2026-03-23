@@ -258,6 +258,16 @@ async function fetchRepoMeta(gh, owner, repo) {
 async function fetchCommunityProfile(gh, owner, repo) {
   try {
     const data = await gh.request(`/repos/${owner}/${repo}/community/profile`);
+    // The community profile API doesn't detect YAML form-based issue templates
+    // (.yml in .github/ISSUE_TEMPLATE/), only the older .md format. Fall back
+    // to checking the directory contents when the API says null.
+    let hasIssueTemplate = !!data.files?.issue_template;
+    if (!hasIssueTemplate) {
+      try {
+        const dir = await gh.request(`/repos/${owner}/${repo}/contents/.github/ISSUE_TEMPLATE`);
+        hasIssueTemplate = Array.isArray(dir) && dir.length > 0;
+      } catch { /* directory doesn't exist */ }
+    }
     return {
       health_percentage: data.health_percentage,
       files: {
@@ -265,7 +275,7 @@ async function fetchCommunityProfile(gh, owner, repo) {
         license: !!data.files?.license,
         contributing: !!data.files?.contributing,
         code_of_conduct: !!data.files?.code_of_conduct,
-        issue_template: !!data.files?.issue_template,
+        issue_template: hasIssueTemplate,
         pull_request_template: !!data.files?.pull_request_template,
       },
     };
