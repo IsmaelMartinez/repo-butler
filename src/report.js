@@ -107,6 +107,7 @@ export async function report(context) {
             open: openIssues.map(i => ({
               number: i.number, title: i.title, labels: i.labels.map(l => l.name),
               reactions: i.reactions?.total_count || 0, comments: i.comments,
+              created_at: i.created_at, updated_at: i.updated_at,
             })),
           },
           releases: releases.map(rel => ({
@@ -392,6 +393,7 @@ ${CSS}
 </div>
 ${buildHealthSection(snapshot)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
+${buildStalenessSection(snapshot)}
 <h2>Development Velocity</h2>
 <div class="chart-container"><div class="chart-title">Merged PRs per Month</div><canvas id="prChart"></canvas></div>
 <div class="chart-container"><div class="chart-title">Issues Opened vs Closed per Month</div><canvas id="issueChart"></canvas></div>
@@ -679,6 +681,63 @@ function buildPRTriageSection(openPRs, repoFullName) {
 <table><thead><tr><th>PR</th><th>Title</th><th>Author</th><th>Age</th><th>Labels</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`;
+}
+
+function buildStalenessSection(snapshot) {
+  const issues = snapshot.issues?.open || [];
+  if (issues.length === 0) return '';
+
+  const now = Date.now();
+  const feedbackIssues = issues
+    .filter(i => i.labels.some(l => l.includes('feedback')))
+    .map(i => ({ ...i, stale_days: Math.floor((now - new Date(i.updated_at).getTime()) / 86400000) }))
+    .sort((a, b) => b.stale_days - a.stale_days);
+
+  const blockedIssues = issues
+    .filter(i => i.labels.includes('blocked'))
+    .map(i => ({ ...i, age_days: Math.floor((now - new Date(i.created_at).getTime()) / 86400000) }))
+    .sort((a, b) => b.age_days - a.age_days);
+
+  if (feedbackIssues.length === 0 && blockedIssues.length === 0) return '';
+
+  let html = '<h2>Issue Triage</h2>';
+
+  if (feedbackIssues.length > 0) {
+    const critical = feedbackIssues.filter(i => i.stale_days >= 30).length;
+    const feedbackRows = feedbackIssues.map(i => {
+      const color = i.stale_days >= 30 ? '#f85149' : i.stale_days >= 14 ? '#d29922' : '#8b949e';
+      return `<tr>
+        <td><a href="https://github.com/${snapshot.repository}/issues/${i.number}">#${i.number}</a></td>
+        <td>${escHtml(i.title.length > 55 ? i.title.slice(0, 53) + '…' : i.title)}</td>
+        <td style="color:${color}">${i.stale_days}d</td>
+        <td>${i.comments}</td></tr>`;
+    }).join('');
+
+    html += `<div class="chart-container">
+<div class="chart-title">Awaiting Feedback <span style="font-size:0.8rem;color:#8b949e">(${feedbackIssues.length} issues${critical > 0 ? `, <span style="color:#f85149">${critical} stale 30d+</span>` : ''})</span></div>
+<table><thead><tr><th>Issue</th><th>Title</th><th>Waiting</th><th>Comments</th></tr></thead>
+<tbody>${feedbackRows}</tbody></table>
+</div>`;
+  }
+
+  if (blockedIssues.length > 0) {
+    const blockedRows = blockedIssues.map(i => {
+      const color = i.age_days >= 90 ? '#f85149' : i.age_days >= 30 ? '#d29922' : '#8b949e';
+      return `<tr>
+        <td><a href="https://github.com/${snapshot.repository}/issues/${i.number}">#${i.number}</a></td>
+        <td>${escHtml(i.title.length > 55 ? i.title.slice(0, 53) + '…' : i.title)}</td>
+        <td style="color:${color}">${i.age_days}d</td>
+        <td>${i.comments}</td></tr>`;
+    }).join('');
+
+    html += `<div class="chart-container">
+<div class="chart-title">Blocked Issues <span style="font-size:0.8rem;color:#8b949e">(${blockedIssues.length})</span></div>
+<table><thead><tr><th>Issue</th><th>Title</th><th>Age</th><th>Comments</th></tr></thead>
+<tbody>${blockedRows}</tbody></table>
+</div>`;
+  }
+
+  return html;
 }
 
 const CSS = `<style>
