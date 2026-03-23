@@ -762,7 +762,6 @@ function buildStalenessSection(snapshot) {
 function buildCalendarHeatmap(weeklyCommits) {
   if (!weeklyCommits || weeklyCommits.length === 0) return '';
   const max = Math.max(...weeklyCommits);
-  if (max === 0) return '#161b22';
   function cellColor(count) {
     if (count === 0) return '#161b22';
     const ratio = count / max;
