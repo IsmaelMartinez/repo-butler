@@ -211,7 +211,7 @@ export function createStore(context) {
       if (r.archived || r.fork) continue;
       const details = repoDetails[r.name];
       summaries[r.name] = {
-        open_issues: r.open_issues || 0,
+        open_issues: details?.open_issues ?? r.open_issues ?? 0,
         commits_6mo: details?.commits || 0,
         stars: r.stars || 0,
       };
