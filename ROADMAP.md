@@ -14,7 +14,7 @@ The competitive landscape confirms this is a unique niche. Implementation agents
 ## Architecture
 
 ```text
-OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → CARE → REPORT
+OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
 ```
 
 1. **OBSERVE** — Gather project state via GitHub API. Portfolio-level classification. Consume data from installed tools. No LLM needed.
@@ -22,8 +22,7 @@ OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → CARE → REPORT
 3. **UPDATE** — Generate an updated roadmap document and open a PR. Safety-validated.
 4. **IDEATE** — Generate improvement ideas informed by triage bot intelligence and health signals.
 5. **PROPOSE** — Create GitHub issues from ideas, safety-filtered, capped and labelled.
-6. **CARE** — Open setup PRs to install missing tools and fix health gaps. Deterministic, not LLM-generated.
-7. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
+6. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
 
 See [ADR-001](docs/decisions/001-repo-butler-vs-triage-bot.md) for the boundary between this project and the triage bot.
 
@@ -131,7 +130,7 @@ The core idea remains: detect what each repo is missing and open PRs to fix it. 
 
 Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. The CARE phase should be opt-in via config and always respect `require_approval` (PRs only, never auto-merge).
 
-Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, separate cross-repo PAT, contributor name sanitisation for CODEOWNERS.
+Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, separate cross-repo PAT, contributor name sanitization for CODEOWNERS.
 
 ## What NOT to build
 
