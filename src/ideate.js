@@ -124,7 +124,7 @@ export function parseIdeas(raw) {
     const body = bodyMatch?.[1]?.trim() || '';
 
     if (title) {
-      const affectedFiles = affectedFilesRaw
+      const affectedFiles = affectedFilesRaw && affectedFilesRaw.toLowerCase() !== 'unknown'
         ? affectedFilesRaw.split(',').map(f => f.trim()).filter(Boolean)
         : [];
 
@@ -133,9 +133,9 @@ export function parseIdeas(raw) {
         priority,
         labels: labelsRaw.split(',').map(l => l.trim()).filter(Boolean),
         rationale,
-        current_state: currentState,
-        proposed_state: proposedState,
-        affected_files: affectedFiles,
+        currentState,
+        proposedState,
+        affectedFiles,
         scope,
         body,
       });

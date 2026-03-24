@@ -67,16 +67,21 @@ Parallel test jobs.
     assert.equal(ideas[0].priority, 'high');
     assert.deepEqual(ideas[0].labels, ['enhancement', 'feature']);
     assert.equal(ideas[0].rationale, '5 issues (#10, #12, #15, #18, #22) mention screen sharing in the last month with no matching roadmap coverage.');
-    assert.equal(ideas[0].current_state, 'No screen sharing capability exists in the application.');
-    assert.equal(ideas[0].proposed_state, 'Implement WebRTC-based screen sharing with host controls.');
-    assert.deepEqual(ideas[0].affected_files, ['src/media.js', 'src/ui/share-button.js', 'src/rtc/peer.js']);
+    assert.equal(ideas[0].currentState, 'No screen sharing capability exists in the application.');
+    assert.equal(ideas[0].proposedState, 'Implement WebRTC-based screen sharing with host controls.');
+    assert.deepEqual(ideas[0].affectedFiles, ['src/media.js', 'src/ui/share-button.js', 'src/rtc/peer.js']);
     assert.equal(ideas[0].scope, 'Add screen sharing initiation and receiving only; recording is out of scope.');
     assert.ok(ideas[0].body.includes('5 issues mention screen sharing'));
 
     assert.equal(ideas[1].title, 'Improve CI pipeline speed');
     assert.equal(ideas[1].priority, 'medium');
-    assert.deepEqual(ideas[1].affected_files, ['.github/workflows/ci.yml', 'package.json']);
+    assert.deepEqual(ideas[1].labels, ['ci', 'performance']);
+    assert.equal(ideas[1].rationale, 'CI pass rate dropped to 78% and average run time is 14 minutes per #33.');
+    assert.equal(ideas[1].currentState, 'CI runs all tests sequentially in a single job.');
+    assert.equal(ideas[1].proposedState, 'Split tests into parallel jobs grouped by module.');
+    assert.deepEqual(ideas[1].affectedFiles, ['.github/workflows/ci.yml', 'package.json']);
     assert.equal(ideas[1].scope, 'Parallelise existing test suite only; no new tests added.');
+    assert.ok(ideas[1].body.includes('CI pass rate dropped to 78%'));
   });
 
   it('handles old format without new fields (backward compatibility)', () => {
@@ -95,9 +100,9 @@ This would improve code quality.
     assert.equal(ideas[0].priority, 'low');
     assert.deepEqual(ideas[0].labels, ['tooling']);
     assert.equal(ideas[0].rationale, null);
-    assert.equal(ideas[0].current_state, null);
-    assert.equal(ideas[0].proposed_state, null);
-    assert.deepEqual(ideas[0].affected_files, []);
+    assert.equal(ideas[0].currentState, null);
+    assert.equal(ideas[0].proposedState, null);
+    assert.deepEqual(ideas[0].affectedFiles, []);
     assert.equal(ideas[0].scope, null);
     assert.ok(ideas[0].body.includes('ESLint'));
   });
@@ -114,13 +119,13 @@ BODY: Update outdated dependencies to fix security issues.
     const ideas = parseIdeas(raw);
     assert.equal(ideas.length, 1);
     assert.equal(ideas[0].rationale, '3 Dependabot alerts flagged in the last week.');
-    assert.equal(ideas[0].current_state, null);
-    assert.equal(ideas[0].proposed_state, null);
-    assert.deepEqual(ideas[0].affected_files, []);
+    assert.equal(ideas[0].currentState, null);
+    assert.equal(ideas[0].proposedState, null);
+    assert.deepEqual(ideas[0].affectedFiles, []);
     assert.equal(ideas[0].scope, null);
   });
 
-  it('parses AFFECTED_FILES with "unknown" value', () => {
+  it('normalizes AFFECTED_FILES "unknown" to empty array', () => {
     const raw = `---IDEA---
 TITLE: Improve error handling
 PRIORITY: high
@@ -131,7 +136,7 @@ BODY: Better error handling needed.
 
     const ideas = parseIdeas(raw);
     assert.equal(ideas.length, 1);
-    assert.deepEqual(ideas[0].affected_files, ['unknown']);
+    assert.deepEqual(ideas[0].affectedFiles, []);
   });
 
   it('returns empty array for empty input', () => {
