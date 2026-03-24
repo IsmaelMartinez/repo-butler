@@ -4,6 +4,77 @@ A continuous roadmap planner agent that runs on a schedule, analyses the state o
 
 **Live dashboards:** [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/)
 
+## Usage
+
+Add Repo Butler to any repository with a simple workflow file:
+
+```yaml
+name: Repo Butler
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Phase to run (observe, report, assess, all)'
+        default: 'report'
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  pages: write
+  id-token: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: IsmaelMartinez/repo-butler@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          phase: ${{ github.event.inputs.phase || 'report' }}
+          gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
+```
+
+The only required input is `github-token`. The `gemini-api-key` is needed for LLM-powered phases (assess, ideate, update) but not for observe or report.
+
+### Action inputs
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `github-token` | yes | `${{ github.token }}` | GitHub token with issues and pull-requests write access |
+| `phase` | no | `all` | Which phase to run: observe, assess, update, ideate, propose, report, or all |
+| `config-path` | no | `.github/roadmap.yml` | Path to the roadmap config file |
+| `gemini-api-key` | no | — | Gemini API key (free tier: 10 RPM, 250 RPD) |
+| `claude-api-key` | no | — | Claude API key (for deep reasoning in ideate phase) |
+| `dry-run` | no | `false` | If true, log what would happen but do not create issues or PRs |
+
+## Configuration
+
+Create a `.github/roadmap.yml` in your repository to customise Repo Butler's behaviour:
+
+```yaml
+roadmap:
+  path: ROADMAP.md
+
+schedule:
+  assess: daily
+  ideate: weekly
+
+providers:
+  default: gemini
+
+context: |
+  Describe your project, its goals, and what kind of ideas would be useful.
+
+limits:
+  max_issues_per_run: 3
+  require_approval: true
+```
+
+The `context` field tells the LLM about your project so it can generate relevant improvement ideas. The `providers.default` field selects the LLM provider (`gemini` for Gemini Flash free tier, `claude` for Claude Sonnet). Setting `require_approval: true` means proposed issues are created with a `needs-approval` label for human review before any action is taken.
+
+The `schedule` section controls how often each phase runs. Setting `assess: daily` and `ideate: weekly` means the butler checks project health every day but only generates new ideas once a week, keeping noise low.
+
 ## How it works
 
 Repo Butler follows a six-phase loop: **OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT**
@@ -33,68 +104,11 @@ When the bot is not available, nothing changes — no errors, no warnings, no de
 
 ## Quick start
 
-Add a `.github/roadmap.yml` to your repo:
+1. Add a `.github/roadmap.yml` to your repo (see [Configuration](#configuration) above).
+2. Add the workflow from the [Usage](#usage) section.
+3. Trigger manually: `gh workflow run "Repo Butler" --ref main`
 
-```yaml
-roadmap:
-  path: ROADMAP.md
-
-schedule:
-  assess: daily
-  ideate: weekly
-
-providers:
-  default: gemini
-
-context: |
-  Describe your project, its goals, and what kind of ideas would be useful.
-
-limits:
-  max_issues_per_run: 3
-  require_approval: true
-```
-
-Add a workflow:
-
-```yaml
-name: Repo Butler
-on:
-  schedule:
-    - cron: '0 2 * * *'
-  workflow_dispatch:
-    inputs:
-      phase:
-        description: 'Phase to run (observe, report, assess, all)'
-        default: 'report'
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Run Repo Butler
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_PHASE: ${{ github.event.inputs.phase || 'report' }}
-          REPORT_OUTPUT_DIR: reports
-        run: node src/index.js
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: reports
-  deploy:
-    needs: run
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-    steps:
-      - uses: actions/deploy-pages@v4
-```
+The butler will observe your repo, generate a health dashboard, and (if LLM keys are configured) propose improvements as GitHub issues.
 
 ## Running locally
 

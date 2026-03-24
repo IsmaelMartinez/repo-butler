@@ -72,9 +72,9 @@ Shipped 2026-03-24 (PR #39). Replaced the numeric health score with Gold/Silver/
 
 Shipped 2026-03-24 (PRs #41–#42). IDEATE now requests structured specs (current/proposed state, affected files, scope, signal rationale). PROPOSE builds rich markdown issue bodies and uses Jaccard similarity duplicate detection (threshold 0.6) before creating issues. Backward compatible with old-format LLM output. 27 new tests across ideate.test.js and propose.test.js.
 
-### Consumer Packaging
+### ~~Consumer Packaging~~ SHIPPED
 
-Bundle with `ncc` so other people can `uses: IsmaelMartinez/repo-butler@v1` without checking out the source. Currently the `action.yml` points at raw `src/index.js` which requires the consumer to have Node 22 and all source files in the action's directory. This is a prerequisite for other people actually using the butler.
+Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm dependencies, so GitHub Actions' native `node22` runtime runs `src/index.js` directly. The `action.yml` already declares `using: 'node22'` and `main: 'src/index.js'`, which is all that's required. Consumers reference the action as `uses: IsmaelMartinez/repo-butler@v1`. Dependabot is configured for the `github-actions` ecosystem to keep workflow dependencies current. README includes Usage, Quick Start, and Configuration sections for consumers.
 
 ---
 
