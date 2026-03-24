@@ -35,6 +35,16 @@ describe('generateHealthBadge', () => {
     assert.ok(svg.includes('#e05d44'));
   });
 
+  it('uses green color at exact threshold', () => {
+    const svg = generateHealthBadge('repo', 4, 6);
+    assert.ok(svg.includes('#4c1'));
+  });
+
+  it('uses red color at yellow boundary (score 2 is red)', () => {
+    const svg = generateHealthBadge('repo', 2, 6);
+    assert.ok(svg.includes('#e05d44'));
+  });
+
   it('escapes HTML in repo name', () => {
     const svg = generateHealthBadge('<script>xss</script>', 4, 6);
     assert.ok(!svg.includes('<script>'));

@@ -8,6 +8,9 @@ import { computeTrends } from './assess.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
+const SIX_MONTHS_AGO = new Date(Date.now() - 180 * 86400000);
+const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
@@ -163,23 +166,19 @@ export async function report(context) {
     const badgeDir = join(outDir, 'badges');
     await mkdir(badgeDir, { recursive: true });
 
-    const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
-    const oneYearAgo = new Date(Date.now() - 365 * 86400000);
     let totalScore = 0;
-    let totalMax = 0;
     let scoredCount = 0;
 
     for (const r of activeRepos) {
       const d = repoDetails?.[r.name] || {};
       const pushed = new Date(r.pushed_at);
-      const repoStatus = pushed < oneYearAgo ? 'archive' : pushed < sixMonthsAgo ? 'dormant' : 'active';
+      const repoStatus = pushed < ONE_YEAR_AGO ? 'archive' : pushed < SIX_MONTHS_AGO ? 'dormant' : 'active';
       const classified = { ...r, status: repoStatus, ...d };
       const { score, max } = computeRepoHealthScore(classified);
       const svg = generateHealthBadge(r.name, score, max);
       await writeFile(join(badgeDir, `${r.name}.svg`), svg);
       if (repoStatus === 'active') {
         totalScore += score;
-        totalMax += max;
         scoredCount++;
       }
     }
@@ -498,15 +497,13 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
   const totalIssues = repos.reduce((s, r) => s + (r.open_issues || 0), 0);
 
   const now = new Date().toISOString().split('T')[0];
-  const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
-  const oneYearAgo = new Date(Date.now() - 365 * 86400000);
 
   function status(r) {
     if (r.fork) return 'fork';
     if (r.name.includes('shadow') || r.name.includes('test-repo')) return 'test';
     const pushed = new Date(r.pushed_at);
-    if (pushed < oneYearAgo) return 'archive';
-    if (pushed < sixMonthsAgo) return 'dormant';
+    if (pushed < ONE_YEAR_AGO) return 'archive';
+    if (pushed < SIX_MONTHS_AGO) return 'dormant';
     return 'active';
   }
 
@@ -687,7 +684,7 @@ export function generateHealthBadge(repoName, healthScore, maxScore) {
   const label = 'health';
   const value = `${healthScore}/${maxScore}`;
   const color = healthScore >= Math.ceil(maxScore * 2 / 3) ? '#4c1'   // green: upper third
-    : healthScore >= Math.ceil(maxScore / 3) ? '#dfb317'              // yellow: middle third
+    : healthScore >= Math.floor(maxScore / 2) ? '#dfb317'              // yellow: 3
     : '#e05d44';                                                       // red: lower third
 
   // Approximate text widths using 6.5px per character (Verdana 11px).
