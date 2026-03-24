@@ -36,7 +36,9 @@ Assessing persists snapshots on a `repo-butler-data` orphan branch via the Git D
 
 Reporting generates per-repo HTML dashboards for every active portfolio repo, with full charts for active repos and lightweight cards for quieter ones. Report caching skips regeneration when the snapshot hash hasn't changed. Multi-repo trend charts store lightweight weekly snapshots per portfolio repo. A safety layer validates all LLM output before publishing. Triage bot integration is optional and auto-discovered. The ASSESS and IDEATE prompts include triage bot intelligence when available.
 
-Phase 1 (Richer Observation) shipped 2026-03-22 via PR #18. Added community health profile, Dependabot vulnerability alerts, CI pass rate, bus factor, and time-to-close median to both the OBSERVE phase and the REPORT phase. Portfolio table gained Community, Vulns, and CI% columns. Per-repo reports gained a Repository Health section with five cards. 74 tests, 18 merged PRs.
+Phase 1 (Richer Observation) shipped 2026-03-22 via PR #18. Added community health profile, Dependabot vulnerability alerts, CI pass rate, bus factor, and time-to-close median. Portfolio table gained Community, Vulns, and CI% columns. Per-repo reports gained a Repository Health section with five cards. Follow-up fixes: YAML issue template detection (PR #22), search API replaced with list endpoints halving runtime from 26 to 13 minutes (PR #23), open issue counts exclude PRs (PR #24).
+
+Phase 2 (Richer Reports) in progress since 2026-03-23. Open PR triage view (PR #26), issue staleness detection (PR #27), blocked issue context with upstream classification (PR #28). 74 tests, 28 merged PRs.
 
 The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 74 tests and secret-leak checks on every PR.
 
@@ -58,15 +60,19 @@ Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pas
 
 **Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.
 
-### Phase 2 — Richer Reports
+### Phase 2 — Richer Reports (in progress)
 
-**Bug fix: release cadence chart** — The "Days between releases" chart shows negative values because the subtraction order is reversed. Fix the date calculation to produce positive intervals.
+#### Shipped
 
-**Open PR triage view** — The single biggest gap identified from real-world usage. Add a section to per-repo reports showing all open PRs with age, CI status, review state, and actionability classification (merge candidate, needs CI fix, needs author rework, stale). Data available from `/repos/{owner}/{repo}/pulls?state=open`. This turns the report from a status dashboard into a triage tool. Three PRs on teams-for-linux were ready to merge with no review blockers — the report didn't surface this.
+~~**Bug fix: release cadence chart**~~ — Fixed in PR #23 (2026-03-22). Subtraction order reversed.
 
-**Issue staleness detection** — Flag "awaiting user feedback" issues by how long they've been waiting. Issues stale for 30+ days should be highlighted prominently. Real-world example: teams-for-linux had an issue at 561 days stale that should have been auto-closed long ago. Could also surface a "reporter responsiveness" metric — percentage of issues where the reporter replied after the first maintainer response.
+~~**Open PR triage view**~~ — Shipped in PR #26 (2026-03-23). Per-repo reports show all open PRs with age, author, labels, draft/bot indicators, stale flags (30d+), and "awaiting review" count. GitHub icon links on both per-repo and portfolio titles.
 
-**Blocked issue context** — Show what issues are blocked on, not just that they're blocked. Distinguish "blocked: upstream" (Electron/Chromium issues the maintainer cannot fix) from "blocked: internal dependency" (work that depends on other issues being resolved). Five of six blocked issues on teams-for-linux were upstream — this changes how a maintainer prioritises their backlog.
+~~**Issue staleness detection**~~ — Shipped in PR #27 (2026-03-23). "Issue Triage" section shows awaiting-feedback issues sorted by wait time (30d+ flagged red) and blocked issues sorted by age.
+
+~~**Blocked issue context**~~ — Shipped in PR #28 (2026-03-23). Blocked issues classified as upstream/dependency/unknown by scanning titles for keywords (electron, chromium, wayland, etc.). Summary shows upstream count.
+
+#### Remaining
 
 **Calendar heatmap** — Add a GitHub-style calendar heatmap (pure CSS grid, no library) to per-repo pages using the weekly participation data already fetched. This is the single most recognisable visualisation in developer tooling.
 
