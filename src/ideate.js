@@ -30,9 +30,10 @@ export async function ideate(context) {
   return { ideas, raw: rawResponse };
 }
 
-function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triageBotTrends) {
+export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triageBotTrends) {
   const parts = [
     'You are a technical advisor for an open-source project. Generate actionable improvement ideas based on the project state below.',
+    'Each idea must include a structured specification consumable by implementation agents (Copilot, Sweep, etc.).',
     '',
     projectContext ? `Project context: ${projectContext}` : '',
     '',
@@ -78,7 +79,12 @@ function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triag
   parts.push('TITLE: <concise title suitable as a GitHub issue title>');
   parts.push('PRIORITY: high|medium|low');
   parts.push('LABELS: <comma-separated labels>');
-  parts.push('BODY: <GitHub issue body in markdown, 2-4 paragraphs>');
+  parts.push('RATIONALE: <which signals from the data above triggered this idea — be specific about numbers and issue references>');
+  parts.push('CURRENT_STATE: <what exists now>');
+  parts.push('PROPOSED_STATE: <what should change>');
+  parts.push('AFFECTED_FILES: <comma-separated list of likely affected files/directories, or "unknown">');
+  parts.push('SCOPE: <one-sentence scope boundary>');
+  parts.push('BODY: <full GitHub issue body in markdown incorporating all the above sections>');
   parts.push('---END---');
   parts.push('');
   parts.push('Guidelines:');
@@ -87,6 +93,10 @@ function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triag
   parts.push('- Prioritise ideas that compound value: automation, testing, documentation.');
   parts.push('- Consider the contributor count — single-maintainer projects need different ideas than team projects.');
   parts.push('- Do not propose ideas that duplicate existing open issues.');
+  parts.push('- In RATIONALE, reference specific issue numbers (e.g. #42) and metrics from the data above.');
+  parts.push('- In AFFECTED_FILES, be concrete about which files or directories are likely to change.');
+  parts.push('- In SCOPE, keep statements bounded and actionable — describe exactly what is in and out of scope.');
+  parts.push('- The BODY should be a structured markdown document that includes Rationale, Current State, Proposed State, Affected Files, and Scope sections.');
   if (triageBotTrends) {
     parts.push('- Use the triage bot intelligence data to inform your ideas — patterns in triage activity, agent sessions, and synthesis findings are real signals.');
   }
@@ -94,7 +104,7 @@ function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triag
   return parts.join('\n');
 }
 
-function parseIdeas(raw) {
+export function parseIdeas(raw) {
   const ideas = [];
   const blocks = raw.split('---IDEA---').slice(1);
 
@@ -105,14 +115,28 @@ function parseIdeas(raw) {
     const title = content.match(/TITLE:\s*(.+)/)?.[1]?.trim();
     const priority = content.match(/PRIORITY:\s*(.+)/)?.[1]?.trim() || 'medium';
     const labelsRaw = content.match(/LABELS:\s*(.+)/)?.[1]?.trim() || '';
+    const rationale = content.match(/RATIONALE:\s*(.+)/)?.[1]?.trim() || null;
+    const currentState = content.match(/CURRENT_STATE:\s*(.+)/)?.[1]?.trim() || null;
+    const proposedState = content.match(/PROPOSED_STATE:\s*(.+)/)?.[1]?.trim() || null;
+    const affectedFilesRaw = content.match(/AFFECTED_FILES:\s*(.+)/)?.[1]?.trim() || null;
+    const scope = content.match(/SCOPE:\s*(.+)/)?.[1]?.trim() || null;
     const bodyMatch = content.match(/BODY:\s*([\s\S]+)/);
     const body = bodyMatch?.[1]?.trim() || '';
 
     if (title) {
+      const affectedFiles = affectedFilesRaw
+        ? affectedFilesRaw.split(',').map(f => f.trim()).filter(Boolean)
+        : [];
+
       ideas.push({
         title,
         priority,
         labels: labelsRaw.split(',').map(l => l.trim()).filter(Boolean),
+        rationale,
+        current_state: currentState,
+        proposed_state: proposedState,
+        affected_files: affectedFiles,
+        scope,
         body,
       });
     }
