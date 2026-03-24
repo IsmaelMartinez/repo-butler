@@ -131,6 +131,7 @@ export async function report(context) {
             tag: rel.tag_name, published_at: rel.published_at, prerelease: rel.prerelease,
           })),
           pushed_at: r.pushed_at,
+          license: meta?.license?.spdx_id || details?.license || null,
           community_profile: communityProfile,
           dependabot_alerts: details?.vulns || null,
           ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
@@ -320,7 +321,7 @@ async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate, openIssues, sbom] = await Promise.all([
+    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate, openIssues, sbom, releasedAt] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -366,8 +367,11 @@ async function fetchPortfolioDetails(gh, owner, repos) {
         .then(issues => issues.filter(i => !i.pull_request).length)
         .catch(() => r.open_issues || 0),
       fetchSBOM(gh, owner, r.name),
+      gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 1 })
+        .then(rels => rels[0]?.published_at ?? null)
+        .catch(() => null),
     ]);
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt };
   });
 
   await Promise.all(fetches);
@@ -962,12 +966,14 @@ export function computeHealthTier(r) {
   const now = Date.now();
   const pushedAt = r.pushed_at ? new Date(r.pushed_at).getTime() : 0;
   const daysSincePush = pushedAt ? Math.floor((now - pushedAt) / 86400000) : Infinity;
+  const releasedAt = r.released_at ? new Date(r.released_at).getTime() : 0;
+  const daysSinceRelease = releasedAt ? Math.floor((now - releasedAt) / 86400000) : Infinity;
 
   const checks = [
     { name: 'Has CI workflows (2+)', passed: (r.ci || 0) >= 2, required_for: 'gold' },
     { name: 'Has a license', passed: !!(r.license && r.license !== 'None'), required_for: 'silver' },
     { name: 'Fewer than 10 open issues', passed: (r.open_issues || 0) < 10, required_for: 'gold' },
-    { name: 'Release in the last 90 days', passed: daysSincePush <= 90, required_for: 'gold' },
+    { name: 'Release in the last 90 days', passed: daysSinceRelease <= 90, required_for: 'gold' },
     { name: 'Community health above 80%', passed: (r.communityHealth ?? -1) >= 80, required_for: 'gold' },
     { name: 'Dependabot/Renovate configured', passed: r.vulns != null, required_for: 'gold' },
     { name: 'Zero critical/high vulnerabilities', passed: r.vulns != null && r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high', required_for: 'gold' },
@@ -1180,12 +1186,13 @@ function snapshotToTierInput(snapshot) {
   const da = snapshot.dependabot_alerts;
   return {
     ci: snapshot.summary?.ci_workflows || 0,
-    license: cp?.files?.license ? 'present' : 'None',
+    license: snapshot.license ?? (cp?.files?.license ? 'present' : 'None'),
     open_issues: snapshot.summary?.open_issues || 0,
-    pushed_at: snapshot.pushed_at || snapshot.releases?.[0]?.published_at || new Date().toISOString(),
+    pushed_at: snapshot.pushed_at ?? null,
+    released_at: snapshot.releases?.[0]?.published_at ?? null,
     communityHealth: cp?.health_percentage ?? null,
     vulns: da,
-    commits: snapshot.summary?.recently_merged_prs || 1,
+    commits: snapshot.summary?.recently_merged_prs || 0,
   };
 }
 
@@ -1195,7 +1202,7 @@ function buildHealthTierSection(snapshot) {
   const color = TIER_COLORS[tier] || TIER_COLORS.none;
   const display = TIER_DISPLAY[tier] || 'Unranked';
 
-  const nextTier = tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
+  const nextTier = tier === 'none' ? 'bronze' : tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
   const failedForNext = nextTier
     ? checks.filter(c => !c.passed && (c.required_for === nextTier || (nextTier === 'gold' && c.required_for === 'silver')))
     : [];

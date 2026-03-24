@@ -158,7 +158,7 @@ describe('computeHealthTier', () => {
 
   it('assigns gold tier when all criteria are met', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
       communityHealth: 85, vulns: { count: 0, max_severity: null }, commits: 50,
     };
     const { tier, checks } = computeHealthTier(r);
@@ -195,7 +195,7 @@ describe('computeHealthTier', () => {
 
   it('returns checks array with name, passed, and required_for', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 10,
     };
     const { checks } = computeHealthTier(r);
@@ -210,7 +210,7 @@ describe('computeHealthTier', () => {
 
   it('fails gold when community health is below 80 but above 50', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
       communityHealth: 60, vulns: { count: 0, max_severity: null }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
@@ -219,7 +219,7 @@ describe('computeHealthTier', () => {
 
   it('fails gold when critical vulnerabilities exist', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 1, max_severity: 'critical' }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
@@ -228,7 +228,7 @@ describe('computeHealthTier', () => {
 
   it('fails gold when high vulnerabilities exist', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 1, max_severity: 'high' }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
@@ -237,7 +237,7 @@ describe('computeHealthTier', () => {
 
   it('gold allows medium/low vulnerabilities', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 2, max_severity: 'medium' }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
@@ -246,16 +246,25 @@ describe('computeHealthTier', () => {
 
   it('fails gold when open issues >= 10', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 10, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 10, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
     assert.equal(tier, 'silver');
   });
 
-  it('fails gold when pushed_at > 90 days ago', () => {
+  it('fails gold when released_at > 90 days ago', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 0, pushed_at: ninetyOneDaysAgo,
+      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now, released_at: ninetyOneDaysAgo,
+      communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('fails gold when pushed_at is recent but released_at is missing', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now, released_at: null,
       communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
@@ -301,7 +310,7 @@ describe('computeHealthTier', () => {
 
   it('gold requires dependabot configured (vulns != null)', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now,
+      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: null, commits: 50,
     };
     const { tier } = computeHealthTier(r);
@@ -310,7 +319,7 @@ describe('computeHealthTier', () => {
 
   it('gold requires CI workflows >= 2', () => {
     const r = {
-      ci: 1, license: 'MIT', open_issues: 0, pushed_at: now,
+      ci: 1, license: 'MIT', open_issues: 0, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
