@@ -64,12 +64,14 @@ export async function report(context) {
 
       if (commits >= 10) {
         // Full report with charts — fetch monthly data.
-        const [prActivity, issueActivity, prAuthors, openPRs] = await Promise.all([
+        const [prResult, issueActivity, prAuthors, openPRs] = await Promise.all([
           fetchMonthlyPRActivity(gh, owner, r.name),
           fetchMonthlyIssueActivity(gh, owner, r.name),
           fetchPRAuthors(gh, owner, r.name),
           fetchOpenPRs(gh, owner, r.name),
         ]);
+        const { monthly: prActivity, mergedPRs: mergedPRsRaw } = prResult;
+        const cycleTime = computePRCycleTime(mergedPRsRaw);
 
         // Fetch releases, open issues, closed issues, and Phase 1 health data.
         const [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
@@ -145,7 +147,7 @@ export async function report(context) {
           }
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs);
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime);
         await writeFile(join(outDir, `${r.name}.html`), html);
       } else {
         // Lightweight report — just metadata, no search API calls.
@@ -176,10 +178,12 @@ async function fetchMonthlyPRActivity(gh, owner, repo) {
   });
   const merged = prs.filter(pr => pr.merged_at && pr.merged_at >= since);
   const months = last12Months();
-  return months.map(({ label, start, end }) => ({
+  const monthly = months.map(({ label, start, end }) => ({
     month: label,
     count: merged.filter(pr => pr.merged_at >= start && pr.merged_at < end).length,
   }));
+  const mergedPRs = merged.map(pr => ({ created_at: pr.created_at, merged_at: pr.merged_at }));
+  return { monthly, mergedPRs };
 }
 
 async function fetchMonthlyIssueActivity(gh, owner, repo) {
@@ -321,9 +325,40 @@ async function fetchPortfolioDetails(gh, owner, repos) {
 }
 
 
+// --- Cycle time ---
+
+function computePRCycleTime(mergedPRs) {
+  if (!mergedPRs || mergedPRs.length === 0) return null;
+  const durations = mergedPRs
+    .map(pr => (new Date(pr.merged_at) - new Date(pr.created_at)) / (1000 * 60 * 60))
+    .filter(h => h >= 0)
+    .sort((a, b) => a - b);
+  if (durations.length === 0) return null;
+  const mid = Math.floor(durations.length / 2);
+  const median_hours = durations.length % 2 === 1
+    ? durations[mid]
+    : (durations[mid - 1] + durations[mid]) / 2;
+  const p90Index = Math.ceil(durations.length * 0.9) - 1;
+  const p90_hours = durations[Math.min(p90Index, durations.length - 1)];
+  return { median_hours, p90_hours, sample_size: durations.length };
+}
+
+function buildCycleTimeCard(cycleTime) {
+  if (!cycleTime) return '';
+  const h = cycleTime.median_hours;
+  const color = h < 24 ? '#7ee787' : h < 48 ? '#d29922' : '#f85149';
+  const label = h < 24 ? 'elite' : h < 48 ? 'good' : 'needs attention';
+  const display = h < 1 ? '<1h' : h < 24 ? `${Math.round(h)}h` : `${(h / 24).toFixed(1)}d`;
+  const p90 = cycleTime.p90_hours;
+  const p90Display = p90 < 1 ? '<1h' : p90 < 24 ? `${Math.round(p90)}h` : `${(p90 / 24).toFixed(1)}d`;
+  return `<div class="grid">
+  <div class="card"><h3>PR Cycle Time (median)</h3><div class="stat" style="color:${color}">${display}</div><div class="stat-label">${label} — p90: ${p90Display} — n=${cycleTime.sample_size}</div></div>
+</div>`;
+}
+
 // --- HTML generators ---
 
-function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = []) {
+function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null) {
   const s = snapshot.summary;
   const releases = snapshot.releases || [];
   const labels = snapshot.issues?.open
@@ -396,6 +431,7 @@ ${buildHealthSection(snapshot)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
 ${buildStalenessSection(snapshot)}
 <h2>Development Velocity</h2>
+${buildCycleTimeCard(cycleTime)}
 <div class="chart-container"><div class="chart-title">Merged PRs per Month</div><canvas id="prChart"></canvas></div>
 <div class="chart-container"><div class="chart-title">Issues Opened vs Closed per Month</div><canvas id="issueChart"></canvas></div>
 <h2>Release Cadence</h2>
