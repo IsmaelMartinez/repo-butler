@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       phase:
-        description: 'Phase to run (observe, report, assess, all)'
+        description: 'Phase to run (observe, assess, update, ideate, propose, report, or all)'
         default: 'report'
 permissions:
   contents: write
@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: IsmaelMartinez/repo-butler@v1
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
           phase: ${{ github.event.inputs.phase || 'report' }}
           gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
 ```
@@ -41,7 +41,7 @@ The only required input is `github-token`. The `gemini-api-key` is needed for LL
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `github-token` | yes | `${{ github.token }}` | GitHub token with issues and pull-requests write access |
+| `github-token` | yes | `${{ github.token }}` | GitHub token with `contents`, `issues`, `pull-requests`, and `pages` write access |
 | `phase` | no | `all` | Which phase to run: observe, assess, update, ideate, propose, report, or all |
 | `config-path` | no | `.github/roadmap.yml` | Path to the roadmap config file |
 | `gemini-api-key` | no | — | Gemini API key (free tier: 10 RPM, 250 RPD) |
