@@ -986,8 +986,7 @@ export function buildActionItems(snapshot, openPRs) {
 
   // 4. Stale awaiting-feedback issues (> 30 days since last update).
   const feedbackIssues = (snapshot.issues?.open || [])
-    .filter(i => i.labels.some(l => l.includes('feedback')))
-    .filter(i => Math.floor((now - new Date(i.updated_at).getTime()) / 86400000) > 30);
+    .filter(i => i.labels.some(l => l.includes('feedback')) && Math.floor((now - new Date(i.updated_at).getTime()) / 86400000) > 30);
   if (feedbackIssues.length > 0) {
     const refs = feedbackIssues.slice(0, 5).map(i =>
       `<a href="https://github.com/${repo}/issues/${i.number}">#${i.number}</a>`
