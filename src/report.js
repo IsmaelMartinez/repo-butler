@@ -64,11 +64,12 @@ export async function report(context) {
 
       if (commits >= 10) {
         // Full report with charts — fetch monthly data.
-        const [prResult, issueActivity, prAuthors, openPRs] = await Promise.all([
+        const [prResult, issueActivity, prAuthors, openPRs, weeklyCommits] = await Promise.all([
           fetchMonthlyPRActivity(gh, owner, r.name),
           fetchMonthlyIssueActivity(gh, owner, r.name),
           fetchPRAuthors(gh, owner, r.name),
           fetchOpenPRs(gh, owner, r.name),
+          fetchWeeklyCommits(gh, owner, r.name),
         ]);
         const { monthly: prActivity, mergedPRs: mergedPRsRaw } = prResult;
         const cycleTime = computePRCycleTime(mergedPRsRaw);
@@ -147,7 +148,7 @@ export async function report(context) {
           }
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime);
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits);
         await writeFile(join(outDir, `${r.name}.html`), html);
       } else {
         // Lightweight report — just metadata, no search API calls.
@@ -358,7 +359,7 @@ function buildCycleTimeCard(cycleTime) {
 
 // --- HTML generators ---
 
-function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null) {
+function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = []) {
   const s = snapshot.summary;
   const releases = snapshot.releases || [];
   const labels = snapshot.issues?.open
@@ -436,6 +437,7 @@ ${buildCycleTimeCard(cycleTime)}
 <div class="chart-container"><div class="chart-title">Issues Opened vs Closed per Month</div><canvas id="issueChart"></canvas></div>
 <h2>Release Cadence</h2>
 <div class="chart-container"><div class="chart-title">Days Between Releases</div><canvas id="releaseChart"></canvas></div>
+${buildCalendarHeatmap(weeklyCommits)}
 <h2>Contribution & Issues</h2>
 <div class="two-col">
   <div class="chart-container"><div class="chart-title">PR Authors (90d)</div><canvas id="authorChart"></canvas></div>
@@ -819,6 +821,32 @@ function buildStalenessSection(snapshot) {
   return html;
 }
 
+function buildCalendarHeatmap(weeklyCommits) {
+  if (!weeklyCommits || weeklyCommits.length === 0) return '';
+  const max = Math.max(...weeklyCommits);
+  function cellColor(count) {
+    if (count === 0) return '#161b22';
+    const ratio = count / max;
+    if (ratio <= 0.25) return '#0e4429';
+    if (ratio <= 0.5) return '#006d32';
+    if (ratio <= 0.75) return '#26a641';
+    return '#39d353';
+  }
+  const cells = weeklyCommits.map((count, i) =>
+    `<div class="heatmap-cell" style="background:${cellColor(count)}" title="Week ${i + 1}: ${count} commits"></div>`
+  ).join('');
+  const labels = weeklyCommits.map((_, i) => {
+    if (i % 4 !== 0) return '<span></span>';
+    const d = new Date(); d.setDate(d.getDate() - (weeklyCommits.length - 1 - i) * 7);
+    return `<span>${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}</span>`;
+  }).join('');
+  return `<h2>Commit Activity (${weeklyCommits.length} weeks)</h2>
+<div class="chart-container"><div class="chart-title">Weekly Commits</div>
+<div class="heatmap" style="grid-template-columns:repeat(${weeklyCommits.length},12px)">${cells}</div>
+<div class="heatmap-labels" style="grid-template-columns:repeat(${weeklyCommits.length},12px)">${labels}</div>
+</div>`;
+}
+
 const CSS = `<style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;background:#0d1117;color:#e6edf3;padding:2rem;max-width:1400px;margin:0 auto}
@@ -853,6 +881,10 @@ a{color:#58a6ff;text-decoration:none}
 .badge-test{background:#8957e5;color:#f0f6fc}
 .health-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 .health-good{background:#7ee787}.health-warn{background:#d29922}.health-bad{background:#f85149}.health-none{background:#6e7681}
+.heatmap{display:grid;gap:2px;grid-auto-rows:12px}
+.heatmap-cell{width:12px;height:12px;border-radius:2px}
+.heatmap-labels{display:grid;gap:2px;margin-top:4px;font-size:0.6rem;color:#8b949e}
+.heatmap-labels span{text-align:center;white-space:nowrap}
 .footer{text-align:center;color:#6e7681;font-size:0.8rem;margin-top:3rem;padding:1rem}
 .alert-banner{background:#161b22;border-left:4px solid #d29922;border-radius:0 8px 8px 0;padding:1rem 1.5rem;margin-bottom:1.5rem;color:#e6edf3;font-size:0.9rem}
 .alert-banner.alert-critical{border-color:#f85149}
