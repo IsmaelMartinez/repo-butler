@@ -28,9 +28,9 @@ Examples of unacceptable behavior:
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the project maintainer at the contact information available on
-their GitHub profile. All complaints will be reviewed and investigated promptly
-and fairly.
+reported by contacting the project maintainer at repo-butler@ismaelmartinez.com.
+All complaints will be reviewed and investigated promptly and fairly. Reports
+will be handled with discretion and confidentiality.
 
 ## Attribution
 

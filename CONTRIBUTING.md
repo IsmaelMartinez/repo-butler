@@ -10,7 +10,7 @@ To set up locally:
 
 1. Fork and clone the repository.
 2. Ensure you have Node.js 22 or later installed.
-3. Copy `.env.local.example` to `.env.local` and add your GitHub token (if running the pipeline locally).
+3. Copy `.env.example` to `.env.local` and add your GitHub token (if running the pipeline locally).
 
 ## Making Changes
 
