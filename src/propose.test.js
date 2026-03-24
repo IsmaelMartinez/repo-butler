@@ -97,6 +97,17 @@ describe('buildIssueBody', () => {
     assert.ok(result.includes('*Priority: low'));
   });
 
+  it('falls back to plain format when only affected_files is present but empty', () => {
+    const idea = {
+      body: 'Important content here.',
+      priority: 'medium',
+      affected_files: [],
+    };
+    const result = buildIssueBody(idea);
+    assert.ok(result.includes('Important content here.'));
+    assert.ok(!result.includes('## Affected Files'));
+  });
+
   it('omits affected_files section when array is empty', () => {
     const idea = {
       priority: 'medium',

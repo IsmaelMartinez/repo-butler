@@ -24,16 +24,13 @@ export function jaccardSimilarity(a, b) {
   const setA = wordsOf(a);
   const setB = wordsOf(b);
 
-  if (setA.size === 0 && setB.size === 0) return 1.0;
-  if (setA.size === 0 || setB.size === 0) return 0.0;
-
   let intersection = 0;
   for (const w of setA) {
     if (setB.has(w)) intersection++;
   }
 
   const union = setA.size + setB.size - intersection;
-  return union === 0 ? 0.0 : intersection / union;
+  return union === 0 ? 1.0 : intersection / union;
 }
 
 /**
@@ -45,10 +42,10 @@ export async function findDuplicates(gh, owner, repo, title, threshold = 0.6) {
   try {
     issues = await gh.paginate(`/repos/${owner}/${repo}/issues`, {
       params: { state: 'open', per_page: 100 },
-      max: 100,
     });
-  } catch {
+  } catch (error) {
     // If we can't fetch issues, don't block proposal creation.
+    console.warn(`Could not fetch issues for duplicate check: ${error.message}`);
     return [];
   }
 
@@ -63,7 +60,7 @@ export async function findDuplicates(gh, owner, repo, title, threshold = 0.6) {
     }
   }
 
-  return matches;
+  return matches.sort((a, b) => b.similarity - a.similarity);
 }
 
 /**
@@ -72,7 +69,7 @@ export async function findDuplicates(gh, owner, repo, title, threshold = 0.6) {
  */
 export function buildIssueBody(idea) {
   const hasStructuredFields = idea.rationale || idea.current_state ||
-    idea.proposed_state || idea.affected_files || idea.scope;
+    idea.proposed_state || (idea.affected_files?.length > 0) || idea.scope;
 
   if (!hasStructuredFields) {
     return [
