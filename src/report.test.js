@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateHealthBadge, buildActionItems } from './report.js';
+import { generateHealthBadge, buildActionItems, computeHealthTier } from './report.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -108,63 +108,213 @@ describe('generateDigestReport', () => {
 
 describe('generateHealthBadge', () => {
   it('returns a valid SVG string', () => {
-    const svg = generateHealthBadge('my-repo', 4, 6);
+    const svg = generateHealthBadge('my-repo', 'gold');
     assert.ok(svg.startsWith('<svg'));
     assert.ok(svg.includes('</svg>'));
     assert.ok(svg.includes('xmlns="http://www.w3.org/2000/svg"'));
   });
 
-  it('contains the score text', () => {
-    const svg = generateHealthBadge('test-repo', 3, 6);
-    assert.ok(svg.includes('3/6'));
+  it('contains the tier name for gold', () => {
+    const svg = generateHealthBadge('repo', 'gold');
+    assert.ok(svg.includes('Gold'));
+    assert.ok(svg.includes('#ffd700'));
+  });
+
+  it('contains the tier name for silver', () => {
+    const svg = generateHealthBadge('repo', 'silver');
+    assert.ok(svg.includes('Silver'));
+    assert.ok(svg.includes('#c0c0c0'));
+  });
+
+  it('contains the tier name for bronze', () => {
+    const svg = generateHealthBadge('repo', 'bronze');
+    assert.ok(svg.includes('Bronze'));
+    assert.ok(svg.includes('#cd7f32'));
+  });
+
+  it('shows Unranked for none tier', () => {
+    const svg = generateHealthBadge('repo', 'none');
+    assert.ok(svg.includes('Unranked'));
+    assert.ok(svg.includes('#6e7681'));
   });
 
   it('contains the label text', () => {
-    const svg = generateHealthBadge('test-repo', 5, 6);
+    const svg = generateHealthBadge('test-repo', 'silver');
     assert.ok(svg.includes('health'));
   });
 
-  it('uses green color for high scores', () => {
-    const svg = generateHealthBadge('repo', 5, 6);
-    assert.ok(svg.includes('#4c1'));
-  });
-
-  it('uses yellow color for mid scores', () => {
-    const svg = generateHealthBadge('repo', 3, 6);
-    assert.ok(svg.includes('#dfb317'));
-  });
-
-  it('uses red color for low scores', () => {
-    const svg = generateHealthBadge('repo', 1, 6);
-    assert.ok(svg.includes('#e05d44'));
-  });
-
-  it('uses green color at exact threshold', () => {
-    const svg = generateHealthBadge('repo', 4, 6);
-    assert.ok(svg.includes('#4c1'));
-  });
-
-  it('uses red color at yellow boundary (score 2 is red)', () => {
-    const svg = generateHealthBadge('repo', 2, 6);
-    assert.ok(svg.includes('#e05d44'));
-  });
-
   it('escapes HTML in repo name', () => {
-    const svg = generateHealthBadge('<script>xss</script>', 4, 6);
+    const svg = generateHealthBadge('<script>xss</script>', 'gold');
     assert.ok(!svg.includes('<script>'));
     assert.ok(svg.includes('&lt;script&gt;'));
   });
+});
 
-  it('handles zero score', () => {
-    const svg = generateHealthBadge('repo', 0, 6);
-    assert.ok(svg.includes('0/6'));
-    assert.ok(svg.includes('#e05d44'));
+describe('computeHealthTier', () => {
+  const now = new Date().toISOString();
+  const ninetyOneDaysAgo = new Date(Date.now() - 91 * 86400000).toISOString();
+  const sevenMonthsAgo = new Date(Date.now() - 210 * 86400000).toISOString();
+  const thirteenMonthsAgo = new Date(Date.now() - 400 * 86400000).toISOString();
+
+  it('assigns gold tier when all criteria are met', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      communityHealth: 85, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier, checks } = computeHealthTier(r);
+    assert.equal(tier, 'gold');
+    assert.ok(checks.every(c => c.passed), 'all checks should pass for gold');
   });
 
-  it('handles perfect score', () => {
-    const svg = generateHealthBadge('repo', 6, 6);
-    assert.ok(svg.includes('6/6'));
-    assert.ok(svg.includes('#4c1'));
+  it('assigns silver when gold criteria fail but silver pass', () => {
+    const r = {
+      ci: 1, license: 'MIT', open_issues: 15, pushed_at: now,
+      communityHealth: 60, vulns: null, commits: 10,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('assigns bronze when only basic activity exists', () => {
+    const r = {
+      ci: 0, license: 'None', open_issues: 0, pushed_at: sevenMonthsAgo,
+      communityHealth: 20, vulns: null, commits: 5,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'bronze');
+  });
+
+  it('assigns none when repo is completely inactive', () => {
+    const r = {
+      ci: 0, license: 'None', open_issues: 0, pushed_at: thirteenMonthsAgo,
+      communityHealth: null, vulns: null, commits: 0,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'none');
+  });
+
+  it('returns checks array with name, passed, and required_for', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now,
+      communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 10,
+    };
+    const { checks } = computeHealthTier(r);
+    assert.ok(checks.length > 0, 'should have checks');
+    for (const c of checks) {
+      assert.ok('name' in c, 'check should have name');
+      assert.ok('passed' in c, 'check should have passed');
+      assert.ok('required_for' in c, 'check should have required_for');
+      assert.ok(['gold', 'silver', 'bronze'].includes(c.required_for));
+    }
+  });
+
+  it('fails gold when community health is below 80 but above 50', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      communityHealth: 60, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('fails gold when critical vulnerabilities exist', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      communityHealth: 90, vulns: { count: 1, max_severity: 'critical' }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('fails gold when high vulnerabilities exist', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      communityHealth: 90, vulns: { count: 1, max_severity: 'high' }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold allows medium/low vulnerabilities', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now,
+      communityHealth: 90, vulns: { count: 2, max_severity: 'medium' }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'gold');
+  });
+
+  it('fails gold when open issues >= 10', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 10, pushed_at: now,
+      communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('fails gold when pushed_at > 90 days ago', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 0, pushed_at: ninetyOneDaysAgo,
+      communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('fails silver when no license', () => {
+    const r = {
+      ci: 1, license: 'None', open_issues: 0, pushed_at: now,
+      communityHealth: 60, vulns: null, commits: 10,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'bronze');
+  });
+
+  it('fails silver when community health below 50', () => {
+    const r = {
+      ci: 1, license: 'MIT', open_issues: 0, pushed_at: now,
+      communityHealth: 30, vulns: null, commits: 10,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'bronze');
+  });
+
+  it('fails silver when pushed_at > 180 days ago', () => {
+    const r = {
+      ci: 1, license: 'MIT', open_issues: 0, pushed_at: sevenMonthsAgo,
+      communityHealth: 60, vulns: null, commits: 10,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'bronze');
+  });
+
+  it('bronze with commits but old push date within a year', () => {
+    const elevenMonthsAgo = new Date(Date.now() - 330 * 86400000).toISOString();
+    const r = {
+      ci: 0, license: 'None', open_issues: 0, pushed_at: elevenMonthsAgo,
+      communityHealth: null, vulns: null, commits: 3,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'bronze');
+  });
+
+  it('gold requires dependabot configured (vulns != null)', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 0, pushed_at: now,
+      communityHealth: 90, vulns: null, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold requires CI workflows >= 2', () => {
+    const r = {
+      ci: 1, license: 'MIT', open_issues: 0, pushed_at: now,
+      communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
   });
 });
 

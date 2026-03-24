@@ -11,6 +11,9 @@ import { join } from 'node:path';
 const SIX_MONTHS_AGO = new Date(Date.now() - 180 * 86400000);
 const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
 
+const TIER_DISPLAY = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze', none: 'Unranked' };
+const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
@@ -127,6 +130,7 @@ export async function report(context) {
           releases: releases.map(rel => ({
             tag: rel.tag_name, published_at: rel.published_at, prerelease: rel.prerelease,
           })),
+          pushed_at: r.pushed_at,
           community_profile: communityProfile,
           dependabot_alerts: details?.vulns || null,
           ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
@@ -140,6 +144,7 @@ export async function report(context) {
             bot_prs: prAuthors.filter(a => a.author.includes('[bot]')).reduce((s, a) => s + a.count, 0),
             releases: releases.length,
             latest_release: releases[0]?.tag_name || 'none',
+            ci_workflows: details?.ci || 0,
             bus_factor: computeBusFactor(mergedPRsForBusFactor),
             time_to_close_median: computeTimeToCloseMedian(closedIssues),
           },
@@ -176,26 +181,28 @@ export async function report(context) {
     const badgeDir = join(outDir, 'badges');
     await mkdir(badgeDir, { recursive: true });
 
-    let totalScore = 0;
+    const tierOrder = { gold: 3, silver: 2, bronze: 1, none: 0 };
+    let tierSum = 0;
     let scoredCount = 0;
 
     for (const r of activeRepos) {
       const d = repoDetails?.[r.name] || {};
-      const pushed = new Date(r.pushed_at);
-      const repoStatus = pushed < ONE_YEAR_AGO ? 'archive' : pushed < SIX_MONTHS_AGO ? 'dormant' : 'active';
-      const classified = { ...r, status: repoStatus, ...d };
-      const { score, max } = computeRepoHealthScore(classified);
-      const svg = generateHealthBadge(r.name, score, max);
+      const classified = { ...r, ...d };
+      const { tier } = computeHealthTier(classified);
+      const svg = generateHealthBadge(r.name, tier);
       await writeFile(join(badgeDir, `${r.name}.svg`), svg);
-      if (repoStatus === 'active') {
-        totalScore += score;
+      const pushed = new Date(r.pushed_at);
+      const isActive = pushed >= SIX_MONTHS_AGO && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo');
+      if (isActive) {
+        tierSum += tierOrder[tier] || 0;
         scoredCount++;
       }
     }
 
-    // Portfolio-level badge: average health across active repos.
-    const avgScore = scoredCount > 0 ? Math.round(totalScore / scoredCount) : 0;
-    const portfolioSvg = generateHealthBadge('portfolio', avgScore, 6);
+    // Portfolio-level badge: best representative tier across active repos.
+    const avgTierNum = scoredCount > 0 ? Math.round(tierSum / scoredCount) : 0;
+    const portfolioTier = avgTierNum >= 3 ? 'gold' : avgTierNum >= 2 ? 'silver' : avgTierNum >= 1 ? 'bronze' : 'none';
+    const portfolioSvg = generateHealthBadge('portfolio', portfolioTier);
     await writeFile(join(badgeDir, 'portfolio.svg'), portfolioSvg);
 
     console.log(`Generated badges for ${activeRepos.length} repos + portfolio.`);
@@ -555,6 +562,7 @@ ${CSS}
   <div class="card"><h3>Releases</h3><div class="stat">${s.releases}</div><div class="stat-label">Latest: ${s.latest_release}</div></div>
 </div>
 ${buildActionabilitySection(snapshot, openPRs)}
+${buildHealthTierSection(snapshot)}
 ${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
 ${buildHealthSection(snapshot, depSummary)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
@@ -631,8 +639,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
 
   const tableRows = classified.map(r => {
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
-    const { score: healthScore } = computeRepoHealthScore(r);
-    const health = r.status !== 'active' ? (r.status === 'test' || r.status === 'fork' ? 'none' : 'bad') : healthScore >= 5 ? 'good' : healthScore >= 3 ? 'warn' : 'bad';
+    const { tier } = computeHealthTier(r);
     const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? '#7ee787' : r.communityHealth >= 50 ? '#d29922' : '#f85149';
     const vulnColor = r.vulns == null ? '#6e7681' : r.vulns.count === 0 ? '#7ee787' : r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : r.vulns.max_severity === 'medium' ? '#d29922' : '#7ee787';
     const ciPassColor = r.ciPassRate == null ? '#6e7681' : r.ciPassRate >= 0.9 ? '#7ee787' : r.ciPassRate >= 0.7 ? '#d29922' : '#f85149';
@@ -647,7 +654,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
       <td><span style="color:${ciPassColor}">${r.ciPassRate != null ? Math.round(r.ciPassRate * 100) + '%' : '—'}</span></td>
       <td>${r.sbom ? r.sbom.count : '—'}</td>
       <td><span class="badge ${badgeClass}">${r.status}</span></td>
-      <td><span class="health-dot health-${health}"></span></td></tr>`;
+      <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td></tr>`;
   }).join('');
 
   return `<!DOCTYPE html>
@@ -671,7 +678,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th></th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 <h2>Distribution</h2>
@@ -949,27 +956,52 @@ function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Compute health score for a classified repo object (same logic as the portfolio table).
-// Returns { score, max } where max is 6 (one point per check).
-function computeRepoHealthScore(r) {
-  if (r.status !== 'active') return { score: 0, max: 6 };
-  const score = (r.commits > 0 ? 1 : 0)
-    + ((r.ci || 0) >= 2 ? 1 : 0)
-    + (r.license && r.license !== 'None' ? 1 : 0)
-    + ((r.open_issues || 0) <= 5 ? 1 : 0)
-    + ((r.communityHealth ?? -1) >= 50 ? 1 : 0)
-    + (r.vulns != null && (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high') ? 1 : 0);
-  return { score, max: 6 };
+// Compute health tier for a classified repo object.
+// Returns { tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed, required_for }] }
+export function computeHealthTier(r) {
+  const now = Date.now();
+  const pushedAt = r.pushed_at ? new Date(r.pushed_at).getTime() : 0;
+  const daysSincePush = pushedAt ? Math.floor((now - pushedAt) / 86400000) : Infinity;
+
+  const checks = [
+    { name: 'Has CI workflows (2+)', passed: (r.ci || 0) >= 2, required_for: 'gold' },
+    { name: 'Has a license', passed: !!(r.license && r.license !== 'None'), required_for: 'silver' },
+    { name: 'Fewer than 10 open issues', passed: (r.open_issues || 0) < 10, required_for: 'gold' },
+    { name: 'Release in the last 90 days', passed: daysSincePush <= 90, required_for: 'gold' },
+    { name: 'Community health above 80%', passed: (r.communityHealth ?? -1) >= 80, required_for: 'gold' },
+    { name: 'Dependabot/Renovate configured', passed: r.vulns != null, required_for: 'gold' },
+    { name: 'Zero critical/high vulnerabilities', passed: r.vulns != null && r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high', required_for: 'gold' },
+    { name: 'Has CI workflows', passed: (r.ci || 0) >= 1, required_for: 'silver' },
+    { name: 'Community health above 50%', passed: (r.communityHealth ?? -1) >= 50, required_for: 'silver' },
+    { name: 'Activity in the last 6 months', passed: daysSincePush <= 180, required_for: 'silver' },
+    { name: 'Some activity (within 1 year)', passed: (r.commits || 0) > 0 || daysSincePush <= 365, required_for: 'bronze' },
+  ];
+
+  // Gold: all gold-required checks pass.
+  const goldChecks = checks.filter(c => c.required_for === 'gold');
+  const silverChecks = checks.filter(c => c.required_for === 'silver');
+  const bronzeChecks = checks.filter(c => c.required_for === 'bronze');
+
+  let tier;
+  if (goldChecks.every(c => c.passed) && silverChecks.every(c => c.passed)) {
+    tier = 'gold';
+  } else if (silverChecks.every(c => c.passed)) {
+    tier = 'silver';
+  } else if (bronzeChecks.some(c => c.passed)) {
+    tier = 'bronze';
+  } else {
+    tier = 'none';
+  }
+
+  return { tier, checks };
 }
 
-// Generate a shields.io-style flat SVG badge.
+// Generate a shields.io-style flat SVG badge showing the health tier.
 // Usage: ![health](https://ismaelmartinez.github.io/repo-butler/badges/{repo-name}.svg)
-export function generateHealthBadge(repoName, healthScore, maxScore) {
+export function generateHealthBadge(repoName, tier) {
   const label = 'health';
-  const value = `${healthScore}/${maxScore}`;
-  const color = healthScore >= Math.ceil(maxScore * 2 / 3) ? '#4c1'   // green: upper third
-    : healthScore >= Math.floor(maxScore / 2) ? '#dfb317'              // yellow: 3
-    : '#e05d44';                                                       // red: lower third
+  const value = TIER_DISPLAY[tier] || TIER_DISPLAY.none;
+  const color = TIER_COLORS[tier] || TIER_COLORS.none;
 
   // Approximate text widths using 6.5px per character (Verdana 11px).
   const labelWidth = Math.round(label.length * 6.5) + 10;
@@ -1140,6 +1172,57 @@ function buildActionabilitySection(snapshot, openPRs) {
 <div class="chart-container">
 <table><thead><tr><th>#</th><th>Action</th><th>Effort</th><th>Impact</th></tr></thead>
 <tbody>${rows}</tbody></table>
+</div>`;
+}
+
+function snapshotToTierInput(snapshot) {
+  const cp = snapshot.community_profile;
+  const da = snapshot.dependabot_alerts;
+  return {
+    ci: snapshot.summary?.ci_workflows || 0,
+    license: cp?.files?.license ? 'present' : 'None',
+    open_issues: snapshot.summary?.open_issues || 0,
+    pushed_at: snapshot.pushed_at || snapshot.releases?.[0]?.published_at || new Date().toISOString(),
+    communityHealth: cp?.health_percentage ?? null,
+    vulns: da,
+    commits: snapshot.summary?.recently_merged_prs || 1,
+  };
+}
+
+function buildHealthTierSection(snapshot) {
+  const input = snapshotToTierInput(snapshot);
+  const { tier, checks } = computeHealthTier(input);
+  const color = TIER_COLORS[tier] || TIER_COLORS.none;
+  const display = TIER_DISPLAY[tier] || 'Unranked';
+
+  const nextTier = tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
+  const failedForNext = nextTier
+    ? checks.filter(c => !c.passed && (c.required_for === nextTier || (nextTier === 'gold' && c.required_for === 'silver')))
+    : [];
+
+  const checkRows = checks.map(c => {
+    const icon = c.passed ? '\u2713' : '\u2717';
+    const iconColor = c.passed ? '#7ee787' : '#f85149';
+    const tierLabel = c.required_for === 'gold' ? 'Gold' : c.required_for === 'silver' ? 'Silver' : 'Bronze';
+    return `<tr>
+      <td style="color:${iconColor};font-weight:600;text-align:center">${icon}</td>
+      <td>${c.name}</td>
+      <td><span class="tier-badge tier-${c.required_for}">${tierLabel}</span></td></tr>`;
+  }).join('');
+
+  const nextTierHtml = nextTier && failedForNext.length > 0
+    ? `<div style="margin-top:1rem;padding:1rem;background:#0d1117;border-radius:6px;border:1px solid #21262d">
+<div style="font-size:0.85rem;color:#8b949e;margin-bottom:0.5rem">To reach <span class="tier-badge tier-${nextTier}">${TIER_DISPLAY[nextTier]}</span>:</div>
+${failedForNext.map(c => `<div style="color:#f85149;font-size:0.85rem;margin-left:0.5rem">\u2717 ${c.name}</div>`).join('')}
+</div>`
+    : tier === 'gold' ? '<div style="margin-top:1rem;color:#7ee787;font-size:0.85rem">All criteria met. This repo has achieved Gold tier.</div>' : '';
+
+  return `<h2>Health Tier</h2>
+<div class="chart-container" style="text-align:center;padding-bottom:0.5rem">
+<div style="font-size:3rem;font-weight:700;color:${color}">${display}</div>
+<table style="margin-top:1rem;text-align:left"><thead><tr><th></th><th>Criteria</th><th>Required</th></tr></thead>
+<tbody>${checkRows}</tbody></table>
+${nextTierHtml}
 </div>`;
 }
 
@@ -1415,8 +1498,8 @@ a{color:#58a6ff;text-decoration:none}
 .badge-archive{background:#6e7681;color:#f0f6fc}
 .badge-fork{background:#1f6feb;color:#f0f6fc}
 .badge-test{background:#8957e5;color:#f0f6fc}
-.health-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
-.health-good{background:#7ee787}.health-warn{background:#d29922}.health-bad{background:#f85149}.health-none{background:#6e7681}
+.tier-badge{display:inline-block;padding:0.15rem 0.5rem;border-radius:12px;font-size:0.7rem;font-weight:600}
+.tier-gold{background:#ffd700;color:#1a1a00}.tier-silver{background:#c0c0c0;color:#1a1a1a}.tier-bronze{background:#cd7f32;color:#1a0a00}.tier-none{background:#30363d;color:#8b949e}
 .heatmap{display:grid;gap:2px;grid-auto-rows:12px}
 .heatmap-cell{width:12px;height:12px;border-radius:2px}
 .heatmap-labels{display:grid;gap:2px;margin-top:4px;font-size:0.6rem;color:#8b949e}
