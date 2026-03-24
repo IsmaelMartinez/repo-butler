@@ -342,6 +342,7 @@ async function fetchSBOM(gh, owner, repo) {
     const deps = packages
       .filter(p => p.SPDXID !== 'SPDXRef-DOCUMENT' && !p.name?.startsWith(`com.github.${owner}`))
       .map(p => ({
+        id: p.SPDXID || p.externalRefs?.find(r => r.referenceType === 'purl')?.referenceLocator || `${p.name}@${p.versionInfo || 'unknown'}`,
         name: p.name,
         version: p.versionInfo || null,
         license: parseSBOMLicense(p.licenseConcluded, p.licenseDeclared),
@@ -369,21 +370,28 @@ const COPYLEFT_LICENSES = new Set([
 
 function isCopyleft(license) {
   if (!license) return false;
-  // SPDX expressions can use AND/OR — check each component.
-  return license.split(/\s+(?:AND|OR)\s+/).some(part => COPYLEFT_LICENSES.has(part.trim()));
+  // SPDX expressions can use AND/OR, parentheses, and WITH exceptions.
+  return license
+    .replace(/[()]/g, '')
+    .split(/\s+(?:AND|OR)\s+/)
+    .map(part => part.replace(/\s+WITH\s+.+$/, '').trim())
+    .some(part => COPYLEFT_LICENSES.has(part));
 }
 
 function analyzeDependencyInventory(details) {
-  const depUsage = {};   // depName -> { repos: Set, license }
+  const depUsage = {};   // id -> { name, repos: Set, licenses: Set }
   const repoSummaries = {};
 
   for (const [repoName, d] of Object.entries(details)) {
     if (!d.sbom) continue;
     const licenseFlags = [];
     for (const pkg of d.sbom.packages) {
-      const key = pkg.name;
-      if (!depUsage[key]) depUsage[key] = { repos: new Set(), license: pkg.license };
+      const key = pkg.id || pkg.name;
+      if (!depUsage[key]) {
+        depUsage[key] = { name: pkg.name, repos: new Set(), licenses: new Set() };
+      }
       depUsage[key].repos.add(repoName);
+      if (pkg.license) depUsage[key].licenses.add(pkg.license);
       if (isCopyleft(pkg.license) && d.license !== 'None' && !isCopyleft(d.license)) {
         licenseFlags.push({ name: pkg.name, license: pkg.license });
       }
@@ -391,23 +399,22 @@ function analyzeDependencyInventory(details) {
     repoSummaries[repoName] = { depCount: d.sbom.count, licenseFlags };
   }
 
-  const commonDeps = Object.entries(depUsage)
-    .filter(([, v]) => v.repos.size > 1)
+  const sharedEntries = Object.entries(depUsage).filter(([, v]) => v.repos.size > 1);
+  const sharedDepsTotal = sharedEntries.length;
+
+  const commonDeps = [...sharedEntries]
     .sort((a, b) => b[1].repos.size - a[1].repos.size)
     .slice(0, 20)
-    .map(([name, v]) => ({ name, repoCount: v.repos.size, license: v.license }));
+    .map(([, v]) => ({ name: v.name, repoCount: v.repos.size, licenses: [...v.licenses] }));
 
-  const allLicenseFlags = [];
-  for (const [repoName, summary] of Object.entries(repoSummaries)) {
-    for (const flag of summary.licenseFlags) {
-      allLicenseFlags.push({ repo: repoName, dep: flag.name, license: flag.license });
-    }
-  }
+  const allLicenseFlags = Object.entries(repoSummaries).flatMap(([repoName, summary]) =>
+    summary.licenseFlags.map(flag => ({ repo: repoName, dep: flag.name, license: flag.license }))
+  );
 
   const totalUnique = Object.keys(depUsage).length;
   const reposWithSBOM = Object.values(details).filter(d => d.sbom).length;
 
-  return { commonDeps, licenseFlags: allLicenseFlags, totalUnique, reposWithSBOM, repoSummaries };
+  return { commonDeps, sharedDepsTotal, licenseFlags: allLicenseFlags, totalUnique, reposWithSBOM, repoSummaries };
 }
 
 // --- Cycle time ---
@@ -920,14 +927,15 @@ function buildDependencyInventorySection(inventory) {
   let html = `<h2>Dependency Inventory</h2>
 <div class="grid">
   <div class="card"><h3>Total Unique Dependencies</h3><div class="stat">${fmt(inventory.totalUnique)}</div><div class="stat-label">across ${inventory.reposWithSBOM} repos with SBOM</div></div>
-  <div class="card"><h3>Shared Dependencies</h3><div class="stat">${inventory.commonDeps.length}</div><div class="stat-label">used in 2+ repos</div></div>
+  <div class="card"><h3>Shared Dependencies</h3><div class="stat">${inventory.sharedDepsTotal}</div><div class="stat-label">used in 2+ repos</div></div>
   <div class="card"><h3>License Concerns</h3><div class="stat" style="color:${inventory.licenseFlags.length > 0 ? '#f85149' : '#7ee787'}">${inventory.licenseFlags.length}</div><div class="stat-label">copyleft deps in permissive repos</div></div>
 </div>`;
 
   if (inventory.commonDeps.length > 0) {
     const rows = inventory.commonDeps.map(d => {
-      const licenseDisplay = d.license || 'unknown';
-      const licenseColor = isCopyleft(d.license) ? '#d29922' : '#8b949e';
+      const licenseDisplay = d.licenses.length > 0 ? d.licenses.join(', ') : 'unknown';
+      const hasCopyleft = d.licenses.some(l => isCopyleft(l));
+      const licenseColor = hasCopyleft ? '#d29922' : '#8b949e';
       return `<tr><td>${escHtml(d.name)}</td><td>${d.repoCount}</td><td><span style="color:${licenseColor}">${escHtml(licenseDisplay)}</span></td></tr>`;
     }).join('');
     html += `<div class="chart-container">
@@ -952,7 +960,7 @@ function buildDependencyInventorySection(inventory) {
 }
 
 function buildRepoDependencyCard(sbom, repoSummary) {
-  if (!sbom) return '';
+  if (!sbom) return `<div class="card"><h3>Dependencies (SBOM)</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
   const count = sbom.count;
   const flags = repoSummary?.licenseFlags || [];
   const flagColor = flags.length > 0 ? '#f85149' : '#7ee787';
