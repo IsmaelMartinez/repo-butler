@@ -64,17 +64,9 @@ Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pas
 
 Shipped 2026-03-24 (PRs #23–#37). All 10 items complete: release cadence bug fix, open PR triage view, issue staleness detection, blocked issue context, calendar heatmap, PR cycle time, issue velocity imbalance alert, narrative weekly digest, embeddable SVG health badges, SBOM dependency inventory, and AI agent actionability score. 105 tests.
 
-### Phase 3 — Tiered Health Model
+### ~~Phase 3 — Tiered Health Model~~ SHIPPED
 
-Replace the green/yellow/red health dot with a structured maturity model inspired by Backstage Soundcheck and Port.io scorecards.
-
-**Gold tier** — has CI workflows, a license, fewer than 10 open issues, a release in the last 90 days, community health profile above 80%, Dependabot or Renovate configured, zero critical/high vulnerability alerts. Gold repos are healthy and well-maintained.
-
-**Silver tier** — has CI and a license, community health profile above 50%, some activity in the last 6 months. Silver repos are maintained but have gaps.
-
-**Bronze tier** — has some activity. Bronze repos are alive but need attention.
-
-Each tier shows pass/fail criteria as a checklist on the per-repo report, telling the maintainer exactly what to do next. The portfolio page shows tier badges instead of dots.
+Shipped 2026-03-24 (PR #39). Replaced the numeric health score with Gold/Silver/Bronze tiers. Each tier has explicit pass/fail criteria shown as a checklist on per-repo reports. Portfolio table shows tier badges. SVG badges updated with tier names. 119 tests.
 
 ### Phase 4 — Structured Issue Specs
 
