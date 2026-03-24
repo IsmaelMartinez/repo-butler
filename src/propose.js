@@ -4,6 +4,107 @@
 import { createClient } from './github.js';
 import { validateIdeas } from './safety.js';
 
+// Common words stripped from titles before comparison to reduce false positives.
+const STOP_WORDS = new Set([
+  'add', 'fix', 'update', 'implement', 'remove', 'create', 'delete',
+  'the', 'a', 'an', 'to', 'for', 'in', 'of', 'and', 'or', 'is', 'with',
+]);
+
+/**
+ * Jaccard similarity between two strings based on word overlap.
+ * Words are lowercased and common stop words are stripped.
+ * Returns a value between 0 (no overlap) and 1 (identical word sets).
+ */
+export function jaccardSimilarity(a, b) {
+  const wordsOf = (s) => {
+    const words = (s || '').toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    return new Set(words.filter(w => !STOP_WORDS.has(w)));
+  };
+
+  const setA = wordsOf(a);
+  const setB = wordsOf(b);
+
+  let intersection = 0;
+  for (const w of setA) {
+    if (setB.has(w)) intersection++;
+  }
+
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 1.0 : intersection / union;
+}
+
+/**
+ * Fetch open issues and find any with titles similar to the proposed title.
+ * Returns an array of { number, title, similarity } for matches above threshold.
+ */
+export async function findDuplicates(gh, owner, repo, title, threshold = 0.6) {
+  let issues;
+  try {
+    issues = await gh.paginate(`/repos/${owner}/${repo}/issues`, {
+      params: { state: 'open', per_page: 100 },
+    });
+  } catch (error) {
+    // If we can't fetch issues, don't block proposal creation.
+    console.warn(`Could not fetch issues for duplicate check: ${error.message}`);
+    return [];
+  }
+
+  // Filter out PRs (GitHub includes them in the issues endpoint).
+  const realIssues = issues.filter(i => !i.pull_request);
+
+  const matches = [];
+  for (const issue of realIssues) {
+    const similarity = jaccardSimilarity(title, issue.title);
+    if (similarity > threshold) {
+      matches.push({ number: issue.number, title: issue.title, similarity });
+    }
+  }
+
+  return matches.sort((a, b) => b.similarity - a.similarity);
+}
+
+/**
+ * Build the issue body. Uses structured format when Phase 4 fields are present,
+ * otherwise falls back to the plain body for backward compatibility.
+ */
+export function buildIssueBody(idea) {
+  const hasStructuredFields = idea.rationale || idea.current_state ||
+    idea.proposed_state || (idea.affected_files?.length > 0) || idea.scope;
+
+  if (!hasStructuredFields) {
+    return [
+      idea.body,
+      '',
+      '---',
+      `*Priority: ${idea.priority} — proposed by [repo-butler](https://github.com/IsmaelMartinez/repo-butler)*`,
+    ].join('\n');
+  }
+
+  const sections = [];
+
+  if (idea.rationale) {
+    sections.push(`## Rationale\n${idea.rationale}`);
+  }
+  if (idea.current_state) {
+    sections.push(`## Current State\n${idea.current_state}`);
+  }
+  if (idea.proposed_state) {
+    sections.push(`## Proposed State\n${idea.proposed_state}`);
+  }
+  if (idea.scope) {
+    sections.push(`## Scope\n${idea.scope}`);
+  }
+  if (idea.affected_files && idea.affected_files.length > 0) {
+    const fileList = idea.affected_files.map(f => `- ${f}`).join('\n');
+    sections.push(`## Affected Files\n${fileList}`);
+  }
+
+  sections.push('---');
+  sections.push(`*Priority: ${idea.priority} — proposed by [repo-butler](https://github.com/IsmaelMartinez/repo-butler)*`);
+
+  return sections.join('\n\n');
+}
+
 export async function propose(context) {
   const { owner, repo, token, ideas, config, dryRun } = context;
 
@@ -53,15 +154,20 @@ export async function propose(context) {
 
   const toPropose = sorted.slice(0, maxIssues);
   const created = [];
+  const skippedDuplicates = [];
 
   for (const idea of toPropose) {
+    // Duplicate detection: skip if a similar open issue already exists.
+    const duplicates = await findDuplicates(gh, owner, repo, idea.title);
+    if (duplicates.length > 0) {
+      const best = duplicates[0];
+      console.log(`Skipping '${idea.title}' — similar to existing #${best.number}: '${best.title}' (similarity: ${best.similarity.toFixed(2)})`);
+      skippedDuplicates.push({ title: idea.title, duplicate: best });
+      continue;
+    }
+
     const labels = [proposalLabel, agentLabel, ...idea.labels];
-    const body = [
-      idea.body,
-      '',
-      '---',
-      `*Priority: ${idea.priority} — proposed by [repo-butler](https://github.com/IsmaelMartinez/repo-butler)*`,
-    ].join('\n');
+    const body = buildIssueBody(idea);
 
     if (dryRun) {
       console.log(`DRY RUN — would create issue: "${idea.title}" [${labels.join(', ')}]`);
@@ -82,7 +188,7 @@ export async function propose(context) {
     console.log(`Capped at ${maxIssues} issues. ${safeIdeas.length - maxIssues} ideas dropped.`);
   }
 
-  return { created, dropped: ideas.length - created.length };
+  return { created, dropped: ideas.length - created.length, skippedDuplicates };
 }
 
 async function ensureLabel(gh, owner, repo, name, description, color) {
