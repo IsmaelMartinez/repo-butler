@@ -463,6 +463,7 @@ ${CSS}
   <div class="card"><h3>PRs Merged (90d)</h3><div class="stat">${s.recently_merged_prs}</div><div class="stat-label">${s.human_prs} human, ${s.bot_prs} bot</div></div>
   <div class="card"><h3>Releases</h3><div class="stat">${s.releases}</div><div class="stat-label">Latest: ${s.latest_release}</div></div>
 </div>
+${buildActionabilitySection(snapshot, openPRs)}
 ${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
 ${buildHealthSection(snapshot)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
@@ -932,6 +933,122 @@ function buildVelocityAlert(imbalance) {
   const critical = imbalance.consecutive_months >= VELOCITY_CRITICAL_MONTHS || imbalance.total_deficit > VELOCITY_CRITICAL_DEFICIT;
   const cls = critical ? ' alert-critical' : '';
   return `<div class="alert-banner${cls}">\u26a0\ufe0f Backlog pressure: issues opened have exceeded issues closed for ${imbalance.consecutive_months} consecutive months (deficit: +${imbalance.total_deficit})</div>`;
+}
+
+export function buildActionItems(snapshot, openPRs) {
+  const items = [];
+  const repo = snapshot.repository;
+  const now = Date.now();
+
+  // 1. Merge-ready PRs: not draft, not bot, no review requested (implies approved or no blockers).
+  const mergeReady = (openPRs || []).filter(pr =>
+    !pr.draft && !pr.bot && !pr.review_requested && pr.age_days >= 1
+  );
+  if (mergeReady.length > 0) {
+    const refs = mergeReady.map(pr => `<a href="https://github.com/${repo}/pull/${pr.number}">#${pr.number}</a>`).join(', ');
+    items.push({
+      text: `Merge ${refs} — no review blockers`,
+      effort: 'quick win',
+      impact: 'high',
+      priority: 1,
+    });
+  }
+
+  // 2. Critical/high vulnerability alerts.
+  const da = snapshot.dependabot_alerts;
+  if (da && (da.critical > 0 || da.high > 0)) {
+    const parts = [];
+    if (da.critical > 0) parts.push(`${da.critical} critical`);
+    if (da.high > 0) parts.push(`${da.high} high`);
+    items.push({
+      text: `Fix ${parts.join(', ')} <a href="https://github.com/${repo}/security/dependabot">vulnerability alerts</a>`,
+      effort: 'moderate',
+      impact: 'high',
+      priority: 2,
+    });
+  }
+
+  // 3. PRs awaiting review for > 7 days.
+  const needsReview = (openPRs || []).filter(pr =>
+    pr.review_requested && !pr.draft && !pr.bot && pr.age_days > 7
+  );
+  if (needsReview.length > 0) {
+    const refs = needsReview.map(pr => {
+      return `<a href="https://github.com/${repo}/pull/${pr.number}">#${pr.number}</a> (${pr.age_days}d)`;
+    }).join(', ');
+    items.push({
+      text: `Review ${refs} — awaiting review`,
+      effort: 'quick win',
+      impact: 'medium',
+      priority: 3,
+    });
+  }
+
+  // 4. Stale awaiting-feedback issues (> 30 days since last update).
+  const feedbackIssues = (snapshot.issues?.open || [])
+    .filter(i => i.labels.some(l => l.includes('feedback')))
+    .filter(i => Math.floor((now - new Date(i.updated_at).getTime()) / 86400000) > 30);
+  if (feedbackIssues.length > 0) {
+    const refs = feedbackIssues.slice(0, 5).map(i =>
+      `<a href="https://github.com/${repo}/issues/${i.number}">#${i.number}</a>`
+    ).join(', ');
+    const extra = feedbackIssues.length > 5 ? ` and ${feedbackIssues.length - 5} more` : '';
+    items.push({
+      text: `Close stale awaiting-feedback issues: ${refs}${extra}`,
+      effort: 'quick win',
+      impact: 'medium',
+      priority: 4,
+    });
+  }
+
+  // 5. CI failures to investigate.
+  const cipr = snapshot.ci_pass_rate;
+  if (cipr && cipr.pass_rate != null && cipr.pass_rate < 0.8) {
+    const pct = Math.round(cipr.pass_rate * 100);
+    items.push({
+      text: `Investigate CI failures — pass rate at <a href="https://github.com/${repo}/actions">${pct}%</a>`,
+      effort: 'moderate',
+      impact: 'medium',
+      priority: 5,
+    });
+  }
+
+  // 6. PRs needing author rework (draft PRs that are not bot).
+  const needsRework = (openPRs || []).filter(pr => pr.draft && !pr.bot);
+  if (needsRework.length > 0) {
+    const refs = needsRework.map(pr =>
+      `<a href="https://github.com/${repo}/pull/${pr.number}">#${pr.number}</a>`
+    ).join(', ');
+    items.push({
+      text: `Complete draft PRs: ${refs}`,
+      effort: 'moderate',
+      impact: 'medium',
+      priority: 6,
+    });
+  }
+
+  return items.sort((a, b) => a.priority - b.priority);
+}
+
+function buildActionabilitySection(snapshot, openPRs) {
+  const items = buildActionItems(snapshot, openPRs);
+  if (items.length === 0) return '';
+
+  const effortColor = { 'quick win': '#7ee787', 'moderate': '#d29922', 'significant': '#f85149' };
+  const impactColor = { 'high': '#f85149', 'medium': '#d29922', 'low': '#8b949e' };
+
+  const rows = items.map((item, i) => `<tr>
+    <td style="color:#8b949e;font-weight:600">${i + 1}</td>
+    <td>${item.text}</td>
+    <td><span style="color:${effortColor[item.effort] || '#8b949e'}">${item.effort}</span></td>
+    <td><span style="color:${impactColor[item.impact] || '#8b949e'}">${item.impact} impact</span></td>
+  </tr>`).join('');
+
+  return `<h2>What To Do Next <span style="font-size:0.8rem;color:#8b949e">(${items.length} action${items.length !== 1 ? 's' : ''})</span></h2>
+<div class="chart-container">
+<table><thead><tr><th>#</th><th>Action</th><th>Effort</th><th>Impact</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`;
 }
 
 function buildHealthSection(snapshot) {
