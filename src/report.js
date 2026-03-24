@@ -8,6 +8,9 @@ import { computeTrends } from './assess.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
+const SIX_MONTHS_AGO = new Date(Date.now() - 180 * 86400000);
+const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
@@ -163,6 +166,34 @@ export async function report(context) {
     }
 
     console.log(`Generated reports for ${activeRepos.length} repos.`);
+
+    // Generate SVG health badges for each active repo and portfolio overall.
+    const badgeDir = join(outDir, 'badges');
+    await mkdir(badgeDir, { recursive: true });
+
+    let totalScore = 0;
+    let scoredCount = 0;
+
+    for (const r of activeRepos) {
+      const d = repoDetails?.[r.name] || {};
+      const pushed = new Date(r.pushed_at);
+      const repoStatus = pushed < ONE_YEAR_AGO ? 'archive' : pushed < SIX_MONTHS_AGO ? 'dormant' : 'active';
+      const classified = { ...r, status: repoStatus, ...d };
+      const { score, max } = computeRepoHealthScore(classified);
+      const svg = generateHealthBadge(r.name, score, max);
+      await writeFile(join(badgeDir, `${r.name}.svg`), svg);
+      if (repoStatus === 'active') {
+        totalScore += score;
+        scoredCount++;
+      }
+    }
+
+    // Portfolio-level badge: average health across active repos.
+    const avgScore = scoredCount > 0 ? Math.round(totalScore / scoredCount) : 0;
+    const portfolioSvg = generateHealthBadge('portfolio', avgScore, 6);
+    await writeFile(join(badgeDir, 'portfolio.svg'), portfolioSvg);
+
+    console.log(`Generated badges for ${activeRepos.length} repos + portfolio.`);
   }
 
   // Persist hash after successful generation.
@@ -471,15 +502,13 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
   const totalIssues = repos.reduce((s, r) => s + (r.open_issues || 0), 0);
 
   const now = new Date().toISOString().split('T')[0];
-  const sixMonthsAgo = daysAgo(180);
-  const oneYearAgo = daysAgo(365);
 
   function status(r) {
     if (r.fork) return 'fork';
     if (r.name.includes('shadow') || r.name.includes('test-repo')) return 'test';
     const pushed = new Date(r.pushed_at);
-    if (pushed < oneYearAgo) return 'archive';
-    if (pushed < sixMonthsAgo) return 'dormant';
+    if (pushed < ONE_YEAR_AGO) return 'archive';
+    if (pushed < SIX_MONTHS_AGO) return 'dormant';
     return 'active';
   }
 
@@ -510,7 +539,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
 
   const tableRows = classified.map(r => {
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
-    const healthScore = r.status === 'active' ? ((r.commits > 0 ? 1 : 0) + ((r.ci || 0) >= 2 ? 1 : 0) + (r.license && r.license !== 'None' ? 1 : 0) + ((r.open_issues || 0) <= 5 ? 1 : 0) + ((r.communityHealth ?? -1) >= 50 ? 1 : 0) + (r.vulns != null && (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high') ? 1 : 0)) : 0;
+    const { score: healthScore } = computeRepoHealthScore(r);
     const health = r.status !== 'active' ? (r.status === 'test' || r.status === 'fork' ? 'none' : 'bad') : healthScore >= 5 ? 'good' : healthScore >= 3 ? 'warn' : 'bad';
     const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? '#7ee787' : r.communityHealth >= 50 ? '#d29922' : '#f85149';
     const vulnColor = r.vulns == null ? '#6e7681' : r.vulns.count === 0 ? '#7ee787' : r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : r.vulns.max_severity === 'medium' ? '#d29922' : '#7ee787';
@@ -824,6 +853,56 @@ function fmt(n) {
 
 function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Compute health score for a classified repo object (same logic as the portfolio table).
+// Returns { score, max } where max is 6 (one point per check).
+function computeRepoHealthScore(r) {
+  if (r.status !== 'active') return { score: 0, max: 6 };
+  const score = (r.commits > 0 ? 1 : 0)
+    + ((r.ci || 0) >= 2 ? 1 : 0)
+    + (r.license && r.license !== 'None' ? 1 : 0)
+    + ((r.open_issues || 0) <= 5 ? 1 : 0)
+    + ((r.communityHealth ?? -1) >= 50 ? 1 : 0)
+    + (r.vulns != null && (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high') ? 1 : 0);
+  return { score, max: 6 };
+}
+
+// Generate a shields.io-style flat SVG badge.
+// Usage: ![health](https://ismaelmartinez.github.io/repo-butler/badges/{repo-name}.svg)
+export function generateHealthBadge(repoName, healthScore, maxScore) {
+  const label = 'health';
+  const value = `${healthScore}/${maxScore}`;
+  const color = healthScore >= Math.ceil(maxScore * 2 / 3) ? '#4c1'   // green: upper third
+    : healthScore >= Math.floor(maxScore / 2) ? '#dfb317'              // yellow: 3
+    : '#e05d44';                                                       // red: lower third
+
+  // Approximate text widths using 6.5px per character (Verdana 11px).
+  const labelWidth = Math.round(label.length * 6.5) + 10;
+  const valueWidth = Math.round(value.length * 6.5) + 10;
+  const totalWidth = labelWidth + valueWidth;
+  const labelX = labelWidth / 2;
+  const valueX = labelWidth + valueWidth / 2;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="20" role="img" aria-label="${escHtml(repoName)}: ${label} ${value}">
+  <title>${escHtml(repoName)}: ${label} ${value}</title>
+  <linearGradient id="s" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="r"><rect width="${totalWidth}" height="20" rx="3" fill="#fff"/></clipPath>
+  <g clip-path="url(#r)">
+    <rect width="${labelWidth}" height="20" fill="#555"/>
+    <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="${color}"/>
+    <rect width="${totalWidth}" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="11">
+    <text x="${labelX}" y="15" fill="#010101" fill-opacity=".3">${label}</text>
+    <text x="${labelX}" y="14">${label}</text>
+    <text x="${valueX}" y="15" fill="#010101" fill-opacity=".3">${value}</text>
+    <text x="${valueX}" y="14">${value}</text>
+  </g>
+</svg>`;
 }
 
 const VELOCITY_ALERT_MONTHS = 3;
