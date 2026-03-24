@@ -60,33 +60,9 @@ Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pas
 
 **Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.
 
-### Phase 2 — Richer Reports (in progress)
+### ~~Phase 2 — Richer Reports~~ SHIPPED
 
-#### Shipped
-
-~~**Bug fix: release cadence chart**~~ — Fixed in PR #23 (2026-03-22). Subtraction order reversed.
-
-~~**Open PR triage view**~~ — Shipped in PR #26 (2026-03-23). Per-repo reports show all open PRs with age, author, labels, draft/bot indicators, stale flags (30d+), and "awaiting review" count. GitHub icon links on both per-repo and portfolio titles.
-
-~~**Issue staleness detection**~~ — Shipped in PR #27 (2026-03-23). "Issue Triage" section shows awaiting-feedback issues sorted by wait time (30d+ flagged red) and blocked issues sorted by age.
-
-~~**Blocked issue context**~~ — Shipped in PR #28 (2026-03-23). Blocked issues classified as upstream/dependency/unknown by scanning titles for keywords (electron, chromium, wayland, etc.). Summary shows upstream count.
-
-#### Remaining
-
-**Calendar heatmap** — Add a GitHub-style calendar heatmap (pure CSS grid, no library) to per-repo pages using the weekly participation data already fetched. This is the single most recognisable visualisation in developer tooling.
-
-**PR cycle time** — Display median time from PR open to merge alongside the PR count chart, with benchmark indicators (under 2 hours = elite, under 24 hours = good, over 48 hours = needs attention). Data available from the search API.
-
-**Issue velocity imbalance alert** — When issues opened exceed issues closed for 3+ consecutive months, flag it prominently in the report as a backlog pressure warning. Data already collected.
-
-**Narrative weekly digest** — A "story mode" recap page that presents changes card-by-card: "This week: 3 repos had new releases, teams-for-linux closed 12 issues, 2 repos dropped below Silver." Inspired by GitHub Wrapped and Stepsize's data storytelling. Could optionally be posted as a GitHub Discussion.
-
-**Embeddable SVG health badge** (done) — Generate a standalone SVG badge showing the repo's health tier that can be embedded in README files. Extends repo-butler's reach beyond the Pages site. Badges are generated at `badges/{repo-name}.svg` and `badges/portfolio.svg` during report generation.
-
-**SBOM-based dependency inventory** — Use GitHub's SBOM endpoint (`/repos/{owner}/{repo}/dependency-graph/sbom`) to get the full dependency graph per repo, then cross-reference across the portfolio. Surface "lodash is used in 7/19 repos" and flag dependency license conflicts. No external tool needed.
-
-**AI agent actionability score** (done) — Adds a "What To Do Next" section to per-repo reports with concrete actions ranked by effort/impact. Analyzes open PRs, vulnerability alerts, stale issues, and CI data to generate prioritized action items with effort indicators (quick win, moderate) and impact levels (high, medium). Each action links to the relevant GitHub URL.
+Shipped 2026-03-24 (PRs #23–#37). All 10 items complete: release cadence bug fix, open PR triage view, issue staleness detection, blocked issue context, calendar heatmap, PR cycle time, issue velocity imbalance alert, narrative weekly digest, embeddable SVG health badges, SBOM dependency inventory, and AI agent actionability score. 105 tests.
 
 ### Phase 3 — Tiered Health Model
 
