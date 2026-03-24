@@ -86,7 +86,7 @@ Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pas
 
 **SBOM-based dependency inventory** — Use GitHub's SBOM endpoint (`/repos/{owner}/{repo}/dependency-graph/sbom`) to get the full dependency graph per repo, then cross-reference across the portfolio. Surface "lodash is used in 7/19 repos" and flag dependency license conflicts. No external tool needed.
 
-**AI agent actionability score** — Since repo-butler generates reports that AI agents consume, add a "what to do next" section with concrete actions ranked by effort/impact. Example output: "1. Merge #2193, #2319, #2331 — all CI green, no review blockers. 2. Investigate CI failures on #2329, #2357. 3. Close stale awaiting-feedback issues." This turns the report from a dashboard into a task list.
+**AI agent actionability score** (done) — Adds a "What To Do Next" section to per-repo reports with concrete actions ranked by effort/impact. Analyzes open PRs, vulnerability alerts, stale issues, and CI data to generate prioritized action items with effort indicators (quick win, moderate) and impact levels (high, medium). Each action links to the relevant GitHub URL.
 
 ### Phase 3 — Tiered Health Model
 
