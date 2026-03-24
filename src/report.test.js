@@ -73,6 +73,20 @@ describe('generateDigestReport', () => {
     assert.ok(html.includes('old-repo'), 'should mention dormant repo');
   });
 
+  it('shows repos with most open issues card', async () => {
+    const { generateDigestReport } = await import('./report.js');
+    const repos = [
+      { name: 'issue-heavy', stars: 1, forks: 0, open_issues: 15, pushed_at: new Date().toISOString(), archived: false, fork: false },
+    ];
+    const repoDetails = {
+      'issue-heavy': { commits: 10, weekly: [1], vulns: null, ciPassRate: 0.9, open_issues: 15 },
+    };
+
+    const html = generateDigestReport('owner', repos, repoDetails);
+    assert.ok(html.includes('Repos With Most Open Issues'), 'should have issues card');
+    assert.ok(html.includes('issue-heavy'), 'should mention repo');
+  });
+
   it('excludes archived and fork repos', async () => {
     const { generateDigestReport } = await import('./report.js');
     const repos = [

@@ -471,8 +471,8 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
   const totalIssues = repos.reduce((s, r) => s + (r.open_issues || 0), 0);
 
   const now = new Date().toISOString().split('T')[0];
-  const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
-  const oneYearAgo = new Date(Date.now() - 365 * 86400000);
+  const sixMonthsAgo = daysAgo(180);
+  const oneYearAgo = daysAgo(365);
 
   function status(r) {
     if (r.fork) return 'fork';
@@ -574,8 +574,13 @@ new Chart(document.getElementById('commitChart'),{type:'bar',data:{labels:commit
 
 export function generateDigestReport(owner, repos, repoDetails) {
   const now = new Date().toISOString().split('T')[0];
-  const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
-  const oneYearAgo = new Date(Date.now() - 365 * 86400000);
+  const sixMonthsAgo = daysAgo(180);
+  const oneYearAgo = daysAgo(365);
+
+  const CI_CONCERN_THRESHOLD = 0.8;
+  const CI_ALERT_THRESHOLD = 0.7;
+  const ISSUE_HEAVY_MIN = 5;
+  const TOP_N = 5;
 
   // Classify repos the same way as the portfolio report.
   const active = repos.filter(r => {
@@ -602,23 +607,23 @@ export function generateDigestReport(owner, repos, repoDetails) {
   const mostActive = enriched
     .filter(r => r.commits > 0)
     .sort((a, b) => b.commits - a.commits)
-    .slice(0, 5);
+    .slice(0, TOP_N);
 
   // Repos with vulnerability alerts.
   const vulnRepos = enriched
     .filter(r => r.vulns && r.vulns.count > 0)
     .sort((a, b) => b.vulns.count - a.vulns.count);
 
-  // Repos with CI concerns (pass rate below 80%).
+  // Repos with CI concerns (pass rate below threshold).
   const ciConcerns = enriched
-    .filter(r => r.ciPassRate != null && r.ciPassRate < 0.8)
+    .filter(r => r.ciPassRate != null && r.ciPassRate < CI_CONCERN_THRESHOLD)
     .sort((a, b) => a.ciPassRate - b.ciPassRate);
 
   // Repos with many open issues.
   const issueHeavy = enriched
-    .filter(r => r.open_issues > 5)
+    .filter(r => r.open_issues > ISSUE_HEAVY_MIN)
     .sort((a, b) => b.open_issues - a.open_issues)
-    .slice(0, 5);
+    .slice(0, TOP_N);
 
   // Dormant repos (pushed between 6mo and 1y ago, not archived).
   const dormant = repos.filter(r => {
@@ -661,9 +666,9 @@ export function generateDigestReport(owner, repos, repoDetails) {
   // Vulnerability alerts card.
   if (vulnRepos.length > 0) {
     const lines = vulnRepos.map(r => {
-      const sevColor = r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : '#d29922';
+      const sevClass = r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? 'text-alert' : 'text-warning';
       return `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td>` +
-        `<td style="color:${sevColor}">${r.vulns.count} (${r.vulns.max_severity || 'unknown'})</td></tr>`;
+        `<td class="${sevClass}">${r.vulns.count} (${r.vulns.max_severity || 'unknown'})</td></tr>`;
     }).join('');
     cards.push(buildDigestCard(
       'Vulnerability Alerts',
@@ -676,7 +681,7 @@ export function generateDigestReport(owner, repos, repoDetails) {
   if (ciConcerns.length > 0) {
     const lines = ciConcerns.map(r =>
       `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td>` +
-      `<td style="color:${r.ciPassRate < 0.7 ? '#f85149' : '#d29922'}">${Math.round(r.ciPassRate * 100)}%</td></tr>`
+      `<td class="${r.ciPassRate < CI_ALERT_THRESHOLD ? 'text-alert' : 'text-warning'}">${Math.round(r.ciPassRate * 100)}%</td></tr>`
     ).join('');
     cards.push(buildDigestCard(
       'CI Pass Rate Concerns',
@@ -728,6 +733,8 @@ ${CSS}
 .digest-card p{color:#c9d1d9;font-size:0.9rem;line-height:1.6}
 .digest-nav{display:flex;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
 .digest-nav a{color:#58a6ff;font-size:0.85rem}
+.text-alert{color:#f85149}
+.text-warning{color:#d29922}
 </style>
 </head>
 <body>
@@ -794,6 +801,10 @@ function last12Months() {
     });
   }
   return months;
+}
+
+function daysAgo(n) {
+  return new Date(Date.now() - n * 86400000);
 }
 
 function daysAgoISO(n) {
