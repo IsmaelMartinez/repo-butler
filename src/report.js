@@ -43,9 +43,12 @@ export async function report(context) {
     ? await fetchPortfolioDetails(gh, owner, portfolio.repos)
     : null;
 
+  // Analyze dependency inventory from SBOM data.
+  const depInventory = repoDetails ? analyzeDependencyInventory(repoDetails) : null;
+
   // Generate portfolio report as the landing page.
   if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null);
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 
@@ -127,6 +130,7 @@ export async function report(context) {
           community_profile: communityProfile,
           dependabot_alerts: details?.vulns || null,
           ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
+          sbom: details?.sbom || null,
           summary: {
             open_issues: openIssues.length,
             blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
@@ -156,7 +160,8 @@ export async function report(context) {
           }
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits);
+        const repoDepSummary = depInventory?.repoSummaries?.[r.name] || null;
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits, repoDepSummary);
         await writeFile(join(outDir, `${r.name}.html`), html);
       } else {
         // Lightweight report — just metadata, no search API calls.
@@ -308,7 +313,7 @@ async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate, openIssues] = await Promise.all([
+    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate, openIssues, sbom] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -353,14 +358,100 @@ async function fetchPortfolioDetails(gh, owner, repos) {
       gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 200 })
         .then(issues => issues.filter(i => !i.pull_request).length)
         .catch(() => r.open_issues || 0),
+      fetchSBOM(gh, owner, r.name),
     ]);
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom };
   });
 
   await Promise.all(fetches);
   return details;
 }
 
+
+// --- SBOM / dependency inventory ---
+
+async function fetchSBOM(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/dependency-graph/sbom`);
+    const packages = data.sbom?.packages || [];
+    // The first package is usually the root repo itself — skip it.
+    const deps = packages
+      .filter(p => p.SPDXID !== 'SPDXRef-DOCUMENT' && !p.name?.startsWith(`com.github.${owner}`))
+      .map(p => ({
+        id: p.SPDXID || p.externalRefs?.find(r => r.referenceType === 'purl')?.referenceLocator || `${p.name}@${p.versionInfo || 'unknown'}`,
+        name: p.name,
+        version: p.versionInfo || null,
+        license: parseSBOMLicense(p.licenseConcluded, p.licenseDeclared),
+      }));
+    return { count: deps.length, packages: deps };
+  } catch {
+    return null;
+  }
+}
+
+function parseSBOMLicense(concluded, declared) {
+  // SBOM uses SPDX expressions; pick the most specific non-NOASSERTION value.
+  const raw = (concluded && concluded !== 'NOASSERTION') ? concluded
+    : (declared && declared !== 'NOASSERTION') ? declared
+    : null;
+  return raw;
+}
+
+const COPYLEFT_LICENSES = new Set([
+  'GPL-2.0-only', 'GPL-2.0-or-later', 'GPL-3.0-only', 'GPL-3.0-or-later',
+  'AGPL-3.0-only', 'AGPL-3.0-or-later', 'LGPL-2.1-only', 'LGPL-2.1-or-later',
+  'LGPL-3.0-only', 'LGPL-3.0-or-later', 'MPL-2.0', 'EUPL-1.2',
+  'GPL-2.0', 'GPL-3.0', 'AGPL-3.0', 'LGPL-2.1', 'LGPL-3.0',
+]);
+
+function isCopyleft(license) {
+  if (!license) return false;
+  // SPDX expressions can use AND/OR, parentheses, and WITH exceptions.
+  return license
+    .replace(/[()]/g, '')
+    .split(/\s+(?:AND|OR)\s+/)
+    .map(part => part.replace(/\s+WITH\s+.+$/, '').trim())
+    .some(part => COPYLEFT_LICENSES.has(part));
+}
+
+function analyzeDependencyInventory(details) {
+  const depUsage = {};   // id -> { name, repos: Set, licenses: Set }
+  const repoSummaries = {};
+
+  for (const [repoName, d] of Object.entries(details)) {
+    if (!d.sbom) continue;
+    const licenseFlags = [];
+    for (const pkg of d.sbom.packages) {
+      const key = pkg.id || pkg.name;
+      if (!depUsage[key]) {
+        depUsage[key] = { name: pkg.name, repos: new Set(), licenses: new Set() };
+      }
+      depUsage[key].repos.add(repoName);
+      if (pkg.license) depUsage[key].licenses.add(pkg.license);
+      if (isCopyleft(pkg.license) && d.license !== 'None' && !isCopyleft(d.license)) {
+        licenseFlags.push({ name: pkg.name, license: pkg.license });
+      }
+    }
+    repoSummaries[repoName] = { depCount: d.sbom.count, licenseFlags };
+  }
+
+  const sharedEntries = Object.entries(depUsage).filter(([, v]) => v.repos.size > 1);
+  const sharedDepsTotal = sharedEntries.length;
+
+  const commonDeps = [...sharedEntries]
+    .sort((a, b) => b[1].repos.size - a[1].repos.size)
+    .slice(0, 20)
+    .map(([, v]) => ({ name: v.name, repoCount: v.repos.size, licenses: [...v.licenses] }));
+
+  const allLicenseFlags = Object.entries(repoSummaries).flatMap(([repoName, summary]) =>
+    summary.licenseFlags.map(flag => ({ repo: repoName, dep: flag.name, license: flag.license }))
+  );
+
+  const totalUnique = Object.keys(depUsage).length;
+  const reposWithSBOM = Object.values(details).filter(d => d.sbom).length;
+
+  return { commonDeps, sharedDepsTotal, licenseFlags: allLicenseFlags, totalUnique, reposWithSBOM, repoSummaries };
+}
 
 // --- Cycle time ---
 
@@ -395,7 +486,7 @@ function buildCycleTimeCard(cycleTime) {
 
 // --- HTML generators ---
 
-function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = []) {
+function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = [], depSummary = null) {
   const s = snapshot.summary;
   const releases = snapshot.releases || [];
   const labels = snapshot.issues?.open
@@ -465,7 +556,7 @@ ${CSS}
 </div>
 ${buildActionabilitySection(snapshot, openPRs)}
 ${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
-${buildHealthSection(snapshot)}
+${buildHealthSection(snapshot, depSummary)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
 ${buildStalenessSection(snapshot)}
 <h2>Development Velocity</h2>
@@ -492,7 +583,7 @@ new Chart(document.getElementById('labelChart'),{type:'bar',data:{labels:[${labe
 </script></body></html>`;
 }
 
-function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
+function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
@@ -554,6 +645,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly) {
       <td><span style="color:${communityColor}">${r.communityHealth != null ? r.communityHealth + '%' : '—'}</span></td>
       <td><span style="color:${vulnColor}">${r.vulns != null ? r.vulns.count : '—'}</span></td>
       <td><span style="color:${ciPassColor}">${r.ciPassRate != null ? Math.round(r.ciPassRate * 100) + '%' : '—'}</span></td>
+      <td>${r.sbom ? r.sbom.count : '—'}</td>
       <td><span class="badge ${badgeClass}">${r.status}</span></td>
       <td><span class="health-dot health-${health}"></span></td></tr>`;
   }).join('');
@@ -579,7 +671,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Status</th><th></th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th></th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 <h2>Distribution</h2>
@@ -588,6 +680,7 @@ ${CSS}
   <div class="chart-container"><div class="chart-title">By Status</div><canvas id="statusChart"></canvas></div>
   <div class="chart-container"><div class="chart-title">Commit Totals (6mo)</div><canvas id="commitChart"></canvas></div>
 </div>
+${buildDependencyInventorySection(depInventory)}
 <div class="footer">Generated by <a href="https://github.com/IsmaelMartinez/repo-butler">repo-butler</a></div>
 <script>
 Chart.defaults.color='#8b949e';Chart.defaults.borderColor='#21262d';Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,monospace';
@@ -1050,7 +1143,7 @@ function buildActionabilitySection(snapshot, openPRs) {
 </div>`;
 }
 
-function buildHealthSection(snapshot) {
+function buildHealthSection(snapshot, depSummary = null) {
   const cp = snapshot.community_profile;
   const da = snapshot.dependabot_alerts;
   const cipr = snapshot.ci_pass_rate;
@@ -1088,6 +1181,8 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
 <div class="stat" style="color:${ttc == null ? '#6e7681' : ttc.median_days <= 7 ? '#7ee787' : ttc.median_days <= 30 ? '#d29922' : '#f85149'}">${ttc != null ? ttc.median_days + 'd' : '\u2014'}</div>
 <div class="stat-label">${ttc != null ? 'median days (n=' + ttc.sample_size + ')' : 'unavailable'}</div></div>`;
 
+  const depHtml = buildRepoDependencyCard(snapshot.sbom, depSummary);
+
   return `<h2>Repository Health</h2>
 <div class="grid">
 ${communityHtml}
@@ -1095,6 +1190,7 @@ ${vulnHtml}
 ${ciHtml}
 ${busHtml}
 ${ttcHtml}
+${depHtml}
 </div>`;
 }
 
@@ -1208,6 +1304,57 @@ function buildStalenessSection(snapshot) {
   }
 
   return html;
+}
+
+function buildDependencyInventorySection(inventory) {
+  if (!inventory || inventory.reposWithSBOM === 0) return '';
+
+  let html = `<h2>Dependency Inventory</h2>
+<div class="grid">
+  <div class="card"><h3>Total Unique Dependencies</h3><div class="stat">${fmt(inventory.totalUnique)}</div><div class="stat-label">across ${inventory.reposWithSBOM} repos with SBOM</div></div>
+  <div class="card"><h3>Shared Dependencies</h3><div class="stat">${inventory.sharedDepsTotal}</div><div class="stat-label">used in 2+ repos</div></div>
+  <div class="card"><h3>License Concerns</h3><div class="stat" style="color:${inventory.licenseFlags.length > 0 ? '#f85149' : '#7ee787'}">${inventory.licenseFlags.length}</div><div class="stat-label">copyleft deps in permissive repos</div></div>
+</div>`;
+
+  if (inventory.commonDeps.length > 0) {
+    const rows = inventory.commonDeps.map(d => {
+      const licenseDisplay = d.licenses.length > 0 ? d.licenses.join(', ') : 'unknown';
+      const hasCopyleft = d.licenses.some(l => isCopyleft(l));
+      const licenseColor = hasCopyleft ? '#d29922' : '#8b949e';
+      return `<tr><td>${escHtml(d.name)}</td><td>${d.repoCount}</td><td><span style="color:${licenseColor}">${escHtml(licenseDisplay)}</span></td></tr>`;
+    }).join('');
+    html += `<div class="chart-container">
+<div class="chart-title">Most Common Dependencies (used in 2+ repos)</div>
+<table><thead><tr><th>Package</th><th>Repos</th><th>License</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`;
+  }
+
+  if (inventory.licenseFlags.length > 0) {
+    const flagRows = inventory.licenseFlags.map(f =>
+      `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td><td style="color:#f85149">${escHtml(f.license)}</td></tr>`
+    ).join('');
+    html += `<div class="chart-container">
+<div class="chart-title">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></div>
+<table><thead><tr><th>Repo</th><th>Dependency</th><th>License</th></tr></thead>
+<tbody>${flagRows}</tbody></table>
+</div>`;
+  }
+
+  return html;
+}
+
+function buildRepoDependencyCard(sbom, repoSummary) {
+  if (!sbom) return `<div class="card"><h3>Dependencies (SBOM)</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+  const count = sbom.count;
+  const flags = repoSummary?.licenseFlags || [];
+  const flagColor = flags.length > 0 ? '#f85149' : '#7ee787';
+  const flagLabel = flags.length > 0
+    ? `${flags.length} copyleft: ${flags.slice(0, 3).map(f => f.name).join(', ')}${flags.length > 3 ? '...' : ''}`
+    : 'no copyleft concerns';
+  return `<div class="card"><h3>Dependencies (SBOM)</h3>
+<div class="stat">${count}</div>
+<div class="stat-label" style="color:${flagColor}">${flagLabel}</div></div>`;
 }
 
 function buildCalendarHeatmap(weeklyCommits) {
