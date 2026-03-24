@@ -82,7 +82,7 @@ Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pas
 
 **Narrative weekly digest** — A "story mode" recap page that presents changes card-by-card: "This week: 3 repos had new releases, teams-for-linux closed 12 issues, 2 repos dropped below Silver." Inspired by GitHub Wrapped and Stepsize's data storytelling. Could optionally be posted as a GitHub Discussion.
 
-**Embeddable SVG health badge** — Generate a standalone SVG badge showing the repo's health tier that can be embedded in README files. Extends repo-butler's reach beyond the Pages site.
+**Embeddable SVG health badge** (done) — Generate a standalone SVG badge showing the repo's health tier that can be embedded in README files. Extends repo-butler's reach beyond the Pages site. Badges are generated at `badges/{repo-name}.svg` and `badges/portfolio.svg` during report generation.
 
 **SBOM-based dependency inventory** — Use GitHub's SBOM endpoint (`/repos/{owner}/{repo}/dependency-graph/sbom`) to get the full dependency graph per repo, then cross-reference across the portfolio. Surface "lodash is used in 7/19 repos" and flag dependency license conflicts. No external tool needed.
 
