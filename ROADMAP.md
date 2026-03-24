@@ -68,13 +68,9 @@ Shipped 2026-03-24 (PRs #23–#37). All 10 items complete: release cadence bug f
 
 Shipped 2026-03-24 (PR #39). Replaced the numeric health score with Gold/Silver/Bronze tiers. Each tier has explicit pass/fail criteria shown as a checklist on per-repo reports. Portfolio table shows tier badges. SVG badges updated with tier names. 119 tests.
 
-### Phase 4 — Structured Issue Specs
+### ~~Phase 4 — Structured Issue Specs~~ SHIPPED
 
-When the IDEATE/PROPOSE phases generate issues, format them with a "current state / proposed state" specification inspired by Copilot Workspace. Each issue includes which files are likely affected, what patterns exist, and a clear scope statement. This makes repo-butler's output directly consumable by implementation agents — Copilot Coding Agent, Sweep, or a human developer can pick up the issue and know exactly what to do.
-
-Include a rationale section in each proposed issue explaining which signals triggered the suggestion (e.g., "this idea was triggered by 5 issues mentioning screen sharing in the last month with no matching roadmap coverage"). Inspired by Linear's triage intelligence transparency.
-
-Check for existing similar issues before creating new ones (duplicate detection via title similarity) to prevent the butler from proposing work that already exists in the backlog.
+Shipped 2026-03-24 (PRs #41–#42). IDEATE now requests structured specs (current/proposed state, affected files, scope, signal rationale). PROPOSE builds rich markdown issue bodies and uses Jaccard similarity duplicate detection (threshold 0.6) before creating issues. Backward compatible with old-format LLM output. 27 new tests across ideate.test.js and propose.test.js.
 
 ### Consumer Packaging
 
