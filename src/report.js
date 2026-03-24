@@ -46,6 +46,11 @@ export async function report(context) {
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 
+    // Generate narrative weekly digest.
+    const digestHtml = generateDigestReport(owner, portfolio.repos, repoDetails);
+    await writeFile(join(outDir, 'digest.html'), digestHtml);
+    console.log('Weekly digest written to digest.html');
+
     // Persist weekly portfolio summaries for per-repo trend charts.
     if (store) {
       await store.writePortfolioWeekly(portfolio, repoDetails);
@@ -420,7 +425,7 @@ ${CSS}
 </head>
 <body>
 <h1><a href="https://github.com/${snapshot.repository}" class="repo-link">${snapshot.repository} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
-<div class="subtitle">Project Health Report — ${now} — <a href="index.html">portfolio view</a></div>
+<div class="subtitle">Project Health Report — ${now} — <a href="index.html">portfolio view</a> — <a href="digest.html">weekly digest</a></div>
 <div class="grid">
   <div class="card"><h3>Stars</h3><div class="stat">${fmt(snapshot.meta?.stars)}</div><div class="stat-label">${snapshot.meta?.forks} forks, ${snapshot.meta?.watchers} watchers</div></div>
   <div class="card"><h3>Open Issues</h3><div class="stat">${s.open_issues}</div><div class="stat-label">${s.blocked_issues} blocked, ${s.awaiting_feedback} awaiting feedback</div></div>
@@ -533,7 +538,7 @@ ${CSS}
 </head>
 <body>
 <h1><a href="https://github.com/${owner}" class="repo-link">@${owner} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
-<div class="subtitle">GitHub Portfolio Health Report — ${now} — click any repo name for details</div>
+<div class="subtitle">GitHub Portfolio Health Report — ${now} — click any repo name for details — <a href="digest.html">weekly digest</a></div>
 <div class="grid">
   <div class="card"><h3>Repos</h3><div class="stat">${repos.length}</div><div class="stat-label">${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div></div>
   <div class="card"><h3>Stars</h3><div class="stat">${fmt(totalStars)}</div></div>
@@ -562,6 +567,180 @@ new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels:[
 const commitRepos=${JSON.stringify(classified.filter(r => r.commits > 0).sort((a, b) => b.commits - a.commits).map(r => ({ name: r.name, commits: r.commits })))};
 new Chart(document.getElementById('commitChart'),{type:'bar',data:{labels:commitRepos.map(r=>r.name.length>18?r.name.slice(0,16)+'…':r.name),datasets:[{data:commitRepos.map(r=>r.commits),backgroundColor:commitRepos.map(r=>r.commits>300?'rgba(56,139,253,0.8)':r.commits>100?'rgba(126,231,135,0.7)':'rgba(139,148,158,0.5)'),borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:'#21262d'}},y:{grid:{display:false}}}}});
 </script></body></html>`;
+}
+
+
+// --- Narrative weekly digest ---
+
+export function generateDigestReport(owner, repos, repoDetails) {
+  const now = new Date().toISOString().split('T')[0];
+  const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
+  const oneYearAgo = new Date(Date.now() - 365 * 86400000);
+
+  // Classify repos the same way as the portfolio report.
+  const active = repos.filter(r => {
+    if (r.archived || r.fork) return false;
+    if (r.name.includes('shadow') || r.name.includes('test-repo')) return false;
+    return new Date(r.pushed_at) >= sixMonthsAgo;
+  });
+
+  const enriched = active.map(r => ({
+    ...r,
+    commits: repoDetails[r.name]?.commits || 0,
+    weekly: repoDetails[r.name]?.weekly || [],
+    vulns: repoDetails[r.name]?.vulns || null,
+    ciPassRate: repoDetails[r.name]?.ciPassRate ?? null,
+    open_issues: repoDetails[r.name]?.open_issues ?? r.open_issues ?? 0,
+  }));
+
+  // Compute recent week activity from the weekly participation array (last entry = most recent week).
+  const recentCommits = enriched
+    .filter(r => r.weekly.length > 0 && r.weekly[r.weekly.length - 1] > 0)
+    .sort((a, b) => b.weekly[b.weekly.length - 1] - a.weekly[a.weekly.length - 1]);
+
+  // Most active repos by 6-month commits.
+  const mostActive = enriched
+    .filter(r => r.commits > 0)
+    .sort((a, b) => b.commits - a.commits)
+    .slice(0, 5);
+
+  // Repos with vulnerability alerts.
+  const vulnRepos = enriched
+    .filter(r => r.vulns && r.vulns.count > 0)
+    .sort((a, b) => b.vulns.count - a.vulns.count);
+
+  // Repos with CI concerns (pass rate below 80%).
+  const ciConcerns = enriched
+    .filter(r => r.ciPassRate != null && r.ciPassRate < 0.8)
+    .sort((a, b) => a.ciPassRate - b.ciPassRate);
+
+  // Repos with many open issues.
+  const issueHeavy = enriched
+    .filter(r => r.open_issues > 5)
+    .sort((a, b) => b.open_issues - a.open_issues)
+    .slice(0, 5);
+
+  // Dormant repos (pushed between 6mo and 1y ago, not archived).
+  const dormant = repos.filter(r => {
+    if (r.archived || r.fork) return false;
+    const pushed = new Date(r.pushed_at);
+    return pushed < sixMonthsAgo && pushed >= oneYearAgo;
+  });
+
+  // Summary stats.
+  const totalCommits = enriched.reduce((s, r) => s + r.commits, 0);
+  const totalIssues = enriched.reduce((s, r) => s + r.open_issues, 0);
+  const totalVulns = vulnRepos.reduce((s, r) => s + r.vulns.count, 0);
+
+  // Build digest cards.
+  const cards = [];
+
+  // Opening summary card.
+  cards.push(buildDigestCard(
+    'This Week at a Glance',
+    `${active.length} active repos across your portfolio with ${fmt(totalCommits)} commits in the last 6 months ` +
+    `and ${totalIssues} open issues.` +
+    (recentCommits.length > 0 ? ` ${recentCommits.length} repos saw commits this week.` : '') +
+    (totalVulns > 0 ? ` ${totalVulns} vulnerability alerts need attention.` : ''),
+    'summary',
+  ));
+
+  // Most active repos card.
+  if (mostActive.length > 0) {
+    const lines = mostActive.map(r =>
+      `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td><td>${r.commits}</td>` +
+      `<td>${r.weekly.length > 0 ? r.weekly[r.weekly.length - 1] : 0}</td></tr>`
+    ).join('');
+    cards.push(buildDigestCard(
+      'Most Active Repos',
+      `<table><thead><tr><th>Repo</th><th>Commits (6mo)</th><th>This Week</th></tr></thead><tbody>${lines}</tbody></table>`,
+      'activity',
+    ));
+  }
+
+  // Vulnerability alerts card.
+  if (vulnRepos.length > 0) {
+    const lines = vulnRepos.map(r => {
+      const sevColor = r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : '#d29922';
+      return `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td>` +
+        `<td style="color:${sevColor}">${r.vulns.count} (${r.vulns.max_severity || 'unknown'})</td></tr>`;
+    }).join('');
+    cards.push(buildDigestCard(
+      'Vulnerability Alerts',
+      `<table><thead><tr><th>Repo</th><th>Open Alerts</th></tr></thead><tbody>${lines}</tbody></table>`,
+      'alert',
+    ));
+  }
+
+  // CI concerns card.
+  if (ciConcerns.length > 0) {
+    const lines = ciConcerns.map(r =>
+      `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td>` +
+      `<td style="color:${r.ciPassRate < 0.7 ? '#f85149' : '#d29922'}">${Math.round(r.ciPassRate * 100)}%</td></tr>`
+    ).join('');
+    cards.push(buildDigestCard(
+      'CI Pass Rate Concerns',
+      `<table><thead><tr><th>Repo</th><th>Pass Rate</th></tr></thead><tbody>${lines}</tbody></table>`,
+      'alert',
+    ));
+  }
+
+  // Open issues needing attention card.
+  if (issueHeavy.length > 0) {
+    const lines = issueHeavy.map(r =>
+      `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td><td>${r.open_issues}</td></tr>`
+    ).join('');
+    cards.push(buildDigestCard(
+      'Repos With Most Open Issues',
+      `<table><thead><tr><th>Repo</th><th>Open Issues</th></tr></thead><tbody>${lines}</tbody></table>`,
+      'issues',
+    ));
+  }
+
+  // Dormant repos card.
+  if (dormant.length > 0) {
+    const lines = dormant.map(r =>
+      `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td>` +
+      `<td>${r.pushed_at?.split('T')[0] || 'unknown'}</td></tr>`
+    ).join('');
+    cards.push(buildDigestCard(
+      'Dormant Repos',
+      `${dormant.length} repos haven't seen a push in over 6 months.` +
+      `<table style="margin-top:0.8rem"><thead><tr><th>Repo</th><th>Last Push</th></tr></thead><tbody>${lines}</tbody></table>`,
+      'dormant',
+    ));
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>@${owner} — Weekly Digest</title>
+${CSS}
+<style>
+.digest-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1.5rem;margin-bottom:1.5rem;border-left:4px solid #30363d}
+.digest-card.card-summary{border-left-color:#58a6ff}
+.digest-card.card-activity{border-left-color:#7ee787}
+.digest-card.card-alert{border-left-color:#f85149}
+.digest-card.card-issues{border-left-color:#d29922}
+.digest-card.card-dormant{border-left-color:#8b949e}
+.digest-card h3{font-size:1rem;color:#f0f6fc;margin-bottom:0.8rem}
+.digest-card p{color:#c9d1d9;font-size:0.9rem;line-height:1.6}
+.digest-nav{display:flex;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
+.digest-nav a{color:#58a6ff;font-size:0.85rem}
+</style>
+</head>
+<body>
+<h1>Weekly Digest</h1>
+<div class="subtitle">@${owner} portfolio recap — ${now}</div>
+<div class="digest-nav"><a href="index.html">Portfolio Dashboard</a></div>
+${cards.join('\n')}
+<div class="footer">Generated by <a href="https://github.com/IsmaelMartinez/repo-butler">repo-butler</a></div>
+</body></html>`;
+}
+
+function buildDigestCard(title, content, type) {
+  return `<div class="digest-card card-${type}"><h3>${title}</h3><div>${content}</div></div>`;
 }
 
 
