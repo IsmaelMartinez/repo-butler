@@ -1,7 +1,7 @@
 # ADR-001: Repo Butler and Triage Bot Boundary
 
 Date: 2026-03-20
-Status: Accepted
+Status: Accepted (partially updated by ADR-002)
 
 ## Context
 
