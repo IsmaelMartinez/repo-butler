@@ -36,11 +36,42 @@ Trend-based alerts — when portfolio-level trends suggest a systemic issue. For
 
 The triage bot should continue to own proposals that require deep per-repo context: suggesting code changes based on issue patterns, detecting duplicate issues via semantic similarity, flagging ADR drift against the actual codebase, recommending issue prioritisation based on reaction counts and comment velocity, and generating enhancement research reports. These all depend on the vector store, webhook-driven real-time data, and per-repo document embeddings that the butler doesn't have.
 
+### Scope-aware propagation
+
+Not every tool belongs in every repo. Standards propagation must account for three scopes:
+
+Universal standards apply regardless of language or repo type. These are safe to propagate across the entire portfolio: community health files (CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue templates, PR templates), branch protection settings, code review tools that work on any language (CodeRabbit, Gemini Code Assist), Dependabot for the `github-actions` ecosystem (every repo uses Actions), license consistency, and security policies.
+
+Ecosystem-specific standards only apply to repos that match a language or framework. A Renovate config for npm only applies to repos with a `package.json`. A Go linter workflow only applies to Go repos. A Python type-checking CI step only applies to Python repos. The butler already knows each repo's primary language from the GitHub API — propagation must filter by language before proposing ecosystem-specific tools.
+
+Opt-out exceptions allow individual repos to be excluded from specific standards. An archived repo shouldn't receive proposals. A fork that's intentionally minimal shouldn't get the full compliance treatment. A repo might have a deliberate reason for using a different license. The policy definition should support per-repo overrides.
+
+The portfolio policy definition in `.github/roadmap.yml` should model this explicitly. A `standards` section declares rules with scope:
+
+```yaml
+standards:
+  - tool: issue-form-templates
+    scope: universal
+  - tool: contributing-guide
+    scope: universal
+  - tool: dependabot-actions
+    scope: universal
+  - tool: renovate-npm
+    scope: { language: JavaScript }
+  - tool: golangci-lint
+    scope: { language: Go }
+  - tool: coderabbit
+    scope: universal
+    exclude: [archived-repo, experimental-fork]
+```
+
+Without explicit standards, the butler infers them conservatively. It only proposes universal tools (community health, branch protection, code review) based on majority adoption. It never auto-infers ecosystem-specific tooling — that requires explicit configuration to avoid proposing a Go linter for a Python repo.
+
 ### What changes in the codebase
 
 The current IDEATE prompt asks for generic improvement ideas for a single repo. It should be rewritten to focus on portfolio governance proposals. The input to IDEATE should include not just the current repo's snapshot but the full portfolio context: which tools are configured where, what configurations exist across repos, and what changed since the last run. The PROPOSE phase's duplicate detection remains valuable but should check for existing similar PRs (not just issues) since governance proposals often manifest as PRs.
 
-The CARE phase concept is absorbed into this new model. Instead of a separate phase with hardcoded templates, the IDEATE phase detects what's missing or drifted, and PROPOSE creates the issues or PRs. The "configurable tool preferences" and "rule engine" that CARE needed become a portfolio policy definition — a section in `.github/roadmap.yml` where the maintainer declares what every repo should have.
+The CARE phase concept is absorbed into this new model. Instead of a separate phase with hardcoded templates, the IDEATE phase detects what's missing or drifted, and PROPOSE creates the issues or PRs. The "configurable tool preferences" and "rule engine" that CARE needed become the scope-aware portfolio policy definition described above.
 
 ### Integration with the triage bot
 
