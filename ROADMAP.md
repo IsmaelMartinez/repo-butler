@@ -92,22 +92,32 @@ These are ideas for later evaluation, not commitments.
 
 **Campaign view** — Group improvement ideas and setup PRs into named campaigns on the portfolio dashboard: "License Compliance: 14/19 repos done, 5 need action." Transforms the dashboard from a status display into an active task tracker.
 
-### Phase 5 — The CARE Phase (setup PRs for missing tools)
+### Phase 5 — Portfolio Governance Engine
 
-Deferred from the original Phase 2 position. Needs a design pass to make it generic and configurable rather than opinionated about specific tools. The current design hardcodes Dependabot over Renovate, MIT license, specific issue template formats, and a specific workflow (PRs from a PAT). A generic version would need configurable tool preferences, pluggable templates, and a rule engine for "what's missing" rather than hardcoded checks.
+Replaces the original CARE phase with a broader portfolio governance model. See [ADR-002](docs/decisions/002-portfolio-governance-boundary.md) for the full rationale on why this replaces the generic IDEATE/PROPOSE approach.
 
-The core idea remains: detect what each repo is missing and open PRs to fix it. Every PR is deterministic (template-based, not LLM-generated), labelled `repo-butler` and `setup`, and never merged automatically. Targets include dependency management config, issue templates, CONTRIBUTING guide, CODEOWNERS, triage bot config, license files, and any other gap detected by the community health profile.
+The core insight: repo-butler's unique value is the cross-repo view. It sees which tools are configured where, what changed when, and which repos are out of alignment. The IDEATE/PROPOSE phases should generate proposals that only make sense with this portfolio context, not generic per-repo improvement ideas (which the triage bot does better with deeper context).
 
-Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. The CARE phase should be opt-in via config and always respect `require_approval` (PRs only, never auto-merge).
+**Portfolio policy definition** — Add a `standards` section to `.github/roadmap.yml` where the maintainer declares what every repo should have. Standards are scope-aware: universal standards apply to all repos (community health files, branch protection, language-agnostic code review tools, Dependabot for GitHub Actions), while ecosystem-specific standards filter by language (npm Renovate only for JavaScript repos, golangci-lint only for Go). Individual repos can be excluded. Without explicit standards, the butler infers conservatively from majority adoption — but only for universal tools, never for ecosystem-specific ones.
+
+**Standards propagation** — Detect when a tool or configuration is adopted in some repos but not all, respecting scope. Generate proposals only for repos where the tool is applicable. Examples: CodeRabbit configured in 5 repos but missing from 14 (universal, applies to all). Issue form templates in 3 repos but 16 using old markdown format (universal). A Go linter workflow adopted in 2 Go repos but missing from 3 others (ecosystem-specific, only targets Go repos).
+
+**Policy drift detection** — Detect when repos that should be aligned have diverged. Examples: 18 repos use MIT but one switched to Apache-2.0. A CI workflow template was updated in the base repo but downstream repos run the old version. A shared CONTRIBUTING.md was revised but copies in other repos are stale.
+
+**Health tier uplift proposals** — Generate concrete proposals to help repos reach the next tier. "repo-x is Silver. To reach Gold: needs a release, CONTRIBUTING.md, and Dependabot. Here are PRs for the latter two."
+
+**Rewrite IDEATE prompt** — Replace the generic "generate improvement ideas" prompt with a governance-focused prompt that receives full portfolio context (tool configs across repos, adoption rates, drift data) and produces standards propagation and drift correction proposals.
+
+Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
 
 Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, separate cross-repo PAT, contributor name sanitization for CODEOWNERS.
 
 ## What NOT to build
 
-Cross-platform identity resolution (GitHub + Slack + Discord) — that's Orbit/Common Room territory. File-level code ownership analysis — requires git cloning which breaks the API-only architecture. Natural-language data querying — cool but requires a database. Grafana dashboards — the static HTML approach is the right constraint. Anything that requires self-hosted infrastructure — the zero-cost, zero-dependency positioning is the moat.
+Cross-platform identity resolution (GitHub + Slack + Discord) — that's Orbit/Common Room territory. File-level code ownership analysis — requires git cloning which breaks the API-only architecture. Natural-language data querying — cool but requires a database. Grafana dashboards — the static HTML approach is the right constraint. Anything that requires self-hosted infrastructure — the zero-cost, zero-dependency positioning is the moat. Per-repo code improvement suggestions — that's the triage bot's domain (see ADR-002).
 
 ## Relationship to Other Tools
 
-The butler consumes, it doesn't compete. Renovate handles dependency updates — the butler installs Renovate. Dependabot handles security alerts — the butler reads them and surfaces them in the dashboard. The triage bot handles per-issue intelligence — the butler reads its trends and configures it on new repos. SonarCloud handles code quality — the butler reads its scores. GitHub's community health profile defines the checklist — the butler runs through it and fixes the gaps.
+The butler consumes, it doesn't compete. Renovate handles dependency updates — the butler installs Renovate across the portfolio. Dependabot handles security alerts — the butler reads them and propagates Dependabot config to repos that lack it. The triage bot handles per-issue intelligence and per-repo improvement proposals — the butler reads its trends, configures it on new repos, and focuses on portfolio-level governance. SonarCloud handles code quality — the butler reads its scores. GitHub's community health profile defines the checklist — the butler runs through it across every repo and fixes the gaps.
 
-The value is the unified view and the agency to act. No other tool sees the whole portfolio, understands what's missing, and opens PRs to fix it.
+The boundary is clear: the triage bot goes deep on one repo, the butler goes broad across the portfolio. The triage bot says "issue #47 is a duplicate of #12." The butler says "you adopted CodeRabbit in 5 repos — here are the 14 that should have it too."
