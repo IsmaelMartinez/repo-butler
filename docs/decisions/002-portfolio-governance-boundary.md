@@ -71,7 +71,7 @@ Without explicit standards, the butler infers them conservatively. It only propo
 
 The current IDEATE prompt asks for generic improvement ideas for a single repo. It should be rewritten to focus on portfolio governance proposals. The input to IDEATE should include not just the current repo's snapshot but the full portfolio context: which tools are configured where, what configurations exist across repos, and what changed since the last run. The PROPOSE phase's duplicate detection remains valuable but should check for existing similar PRs (not just issues) since governance proposals often manifest as PRs.
 
-The CARE phase concept is absorbed into this new model. Instead of a separate phase with hardcoded templates, the IDEATE phase detects what's missing or drifted, and PROPOSE creates the issues or PRs. The "configurable tool preferences" and "rule engine" that CARE needed become the scope-aware portfolio policy definition described above.
+The CARE phase concept is absorbed into this new model. Instead of a separate phase with hardcoded templates, the IDEATE phase detects what's missing or drifted, and PROPOSE creates the issues or PRs. The "configurable tool preferences" and "rule engine" that CARE needed to become the scope-aware portfolio policy definition described above.
 
 ### Integration with the triage bot
 
