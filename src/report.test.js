@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateHealthBadge, buildActionItems, computeHealthTier } from './report.js';
+import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats } from './report.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -490,5 +490,73 @@ describe('buildActionItems', () => {
     const items = buildActionItems(snapshot, []);
     const staleItem = items.find(i => i.priority === 4);
     assert.ok(staleItem.text.includes('and 3 more'), 'should indicate remaining issues');
+  });
+});
+
+describe('computeContributorStats', () => {
+  it('computes total unique human contributors', () => {
+    const prAuthors = [
+      { author: 'alice', count: 5, firstTime: false },
+      { author: 'bob', count: 2, firstTime: true },
+      { author: 'dependabot[bot]', count: 10, firstTime: false },
+    ];
+    const stats = computeContributorStats(prAuthors, 100);
+    assert.equal(stats.total, 2, 'should count only human authors');
+  });
+
+  it('identifies first-time contributors', () => {
+    const prAuthors = [
+      { author: 'alice', count: 5, firstTime: false },
+      { author: 'bob', count: 1, firstTime: true },
+      { author: 'carol', count: 1, firstTime: true },
+    ];
+    const stats = computeContributorStats(prAuthors, 50);
+    assert.equal(stats.firstTimers.length, 2);
+    assert.equal(stats.firstTimers[0].author, 'bob');
+    assert.equal(stats.firstTimers[1].author, 'carol');
+  });
+
+  it('excludes bots from first-time contributors', () => {
+    const prAuthors = [
+      { author: 'renovate[bot]', count: 3, firstTime: true },
+      { author: 'alice', count: 1, firstTime: true },
+    ];
+    const stats = computeContributorStats(prAuthors, 10);
+    assert.equal(stats.firstTimers.length, 1);
+    assert.equal(stats.firstTimers[0].author, 'alice');
+  });
+
+  it('computes contributor confidence ratio as percentage', () => {
+    const prAuthors = [
+      { author: 'alice', count: 3, firstTime: false },
+      { author: 'bob', count: 1, firstTime: false },
+    ];
+    const stats = computeContributorStats(prAuthors, 40);
+    assert.equal(stats.ratio, 5.0, '2/40 = 5%');
+  });
+
+  it('returns 0 ratio when stargazers is 0', () => {
+    const prAuthors = [
+      { author: 'alice', count: 3, firstTime: false },
+    ];
+    const stats = computeContributorStats(prAuthors, 0);
+    assert.equal(stats.ratio, 0);
+  });
+
+  it('handles empty prAuthors array', () => {
+    const stats = computeContributorStats([], 100);
+    assert.equal(stats.total, 0);
+    assert.equal(stats.firstTimers.length, 0);
+    assert.equal(stats.ratio, 0);
+  });
+
+  it('rounds ratio to one decimal place', () => {
+    const prAuthors = [
+      { author: 'alice', count: 1, firstTime: false },
+      { author: 'bob', count: 1, firstTime: false },
+      { author: 'carol', count: 1, firstTime: false },
+    ];
+    const stats = computeContributorStats(prAuthors, 7);
+    assert.equal(stats.ratio, 42.9, '3/7 ≈ 42.857 rounds to 42.9');
   });
 });
