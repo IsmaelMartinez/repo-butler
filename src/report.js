@@ -5,6 +5,7 @@ import { createClient } from './github.js';
 import { observe, observePortfolio, computeBusFactor, computeTimeToCloseMedian } from './observe.js';
 import { computeSnapshotHash } from './store.js';
 import { computeTrends } from './assess.js';
+import { computeLibyearWithTimeout } from './libyear.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -18,6 +19,15 @@ const COLOR_WARNING = '#d29922';
 const COLOR_DANGER = '#f85149';
 const REPO_EXCLUSION_PATTERNS = ['shadow', 'test-repo'];
 
+const LIBYEAR_THRESHOLDS = { GREEN: 5, YELLOW: 20 };
+
+function getLibyearColor(libyearVal) {
+  if (libyearVal == null) return '#6e7681';
+  if (libyearVal < LIBYEAR_THRESHOLDS.GREEN) return '#7ee787';
+  if (libyearVal < LIBYEAR_THRESHOLDS.YELLOW) return '#d29922';
+  return '#f85149';
+}
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
@@ -30,7 +40,10 @@ export async function report(context) {
   }
 
   // Cache check: skip regeneration if snapshot hasn't changed.
-  const currentHash = store ? computeSnapshotHash(context.snapshot) : null;
+  // Include today's date so the cache expires daily (libyear and other
+  // dynamic data like npm registry lookups need periodic refresh).
+  const dateBucket = new Date().toISOString().slice(0, 10);
+  const currentHash = store ? computeSnapshotHash({ ...context.snapshot, _dateBucket: dateBucket }) : null;
   if (store && !context.forceReport) {
     const lastHash = await store.readLastHash();
     if (currentHash === lastHash) {
@@ -155,6 +168,9 @@ export async function report(context) {
           },
         };
 
+        // Reuse libyear from portfolio details (already computed in fetchPortfolioDetails).
+        const libyear = details?.libyear || null;
+
         // Compute per-repo trends from portfolio weekly history.
         let repoTrends = null;
         if (r.name === context.repo && context.trends) {
@@ -171,7 +187,7 @@ export async function report(context) {
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
         const repoDepSummary = depInventory?.repoSummaries?.[r.name] || null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits, repoDepSummary);
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits, repoDepSummary, libyear);
         await writeFile(join(outDir, `${r.name}.html`), html);
       } else {
         // Lightweight report — just metadata, no search API calls.
@@ -389,10 +405,20 @@ async function fetchPortfolioDetails(gh, owner, repos) {
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null };
   });
 
   await Promise.all(fetches);
+
+  // Compute libyear freshness sequentially (one repo at a time) to avoid
+  // fanning out concurrent npm registry requests across all repos.
+  for (const r of activeRepos.slice(0, 15)) {
+    const sbom = details[r.name]?.sbom;
+    if (sbom) {
+      details[r.name].libyear = await computeLibyearWithTimeout(sbom.packages, 5000);
+    }
+  }
+
   return details;
 }
 
@@ -410,6 +436,7 @@ async function fetchSBOM(gh, owner, repo) {
         id: p.SPDXID || p.externalRefs?.find(r => r.referenceType === 'purl')?.referenceLocator || `${p.name}@${p.versionInfo || 'unknown'}`,
         name: p.name,
         version: p.versionInfo || null,
+        purl: p.externalRefs?.find(r => r.referenceType === 'purl')?.referenceLocator || null,
         license: parseSBOMLicense(p.licenseConcluded, p.licenseDeclared),
       }));
     return { count: deps.length, packages: deps };
@@ -515,7 +542,7 @@ function buildCycleTimeCard(cycleTime) {
 
 // --- HTML generators ---
 
-function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = [], depSummary = null) {
+function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = [], depSummary = null, libyear = null) {
   const s = snapshot.summary;
   const releases = snapshot.releases || [];
   const labels = snapshot.issues?.open
@@ -586,7 +613,7 @@ ${CSS}
 ${buildActionabilitySection(snapshot, openPRs)}
 ${buildHealthTierSection(snapshot)}
 ${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
-${buildHealthSection(snapshot, depSummary)}
+${buildHealthSection(snapshot, depSummary, libyear)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
 ${buildStalenessSection(snapshot)}
 <h2>Development Velocity</h2>
@@ -698,6 +725,8 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
     const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? '#7ee787' : r.communityHealth >= 50 ? '#d29922' : '#f85149';
     const vulnColor = r.vulns == null ? '#6e7681' : r.vulns.count === 0 ? '#7ee787' : r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : r.vulns.max_severity === 'medium' ? '#d29922' : '#7ee787';
     const ciPassColor = r.ciPassRate == null ? '#6e7681' : r.ciPassRate >= 0.9 ? '#7ee787' : r.ciPassRate >= 0.7 ? '#d29922' : '#f85149';
+    const libyearVal = r.libyear?.total_libyear;
+    const libyearColor = getLibyearColor(libyearVal);
     return `<tr>
       <td><a href="${r.name}.html">${r.name}</a></td>
       <td>${r.description ? escHtml(r.description).slice(0, 50) : '—'}</td>
@@ -708,6 +737,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
       <td><span style="color:${vulnColor}">${r.vulns != null ? r.vulns.count : '—'}</span></td>
       <td><span style="color:${ciPassColor}">${r.ciPassRate != null ? Math.round(r.ciPassRate * 100) + '%' : '—'}</span></td>
       <td>${r.sbom ? r.sbom.count : '—'}</td>
+      <td><span style="color:${libyearColor}">${libyearVal != null ? libyearVal.toFixed(1) : '—'}</span></td>
       <td><span class="badge ${badgeClass}">${r.status}</span></td>
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td></tr>`;
   }).join('');
@@ -733,7 +763,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>Trend</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>Trend</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Libyear</th><th>Status</th><th>Tier</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 ${buildCampaignSection(repos, details)}
@@ -1285,7 +1315,7 @@ ${nextTierHtml}
 </div>`;
 }
 
-function buildHealthSection(snapshot, depSummary = null) {
+function buildHealthSection(snapshot, depSummary = null, libyear = null) {
   const cp = snapshot.community_profile;
   const da = snapshot.dependabot_alerts;
   const cipr = snapshot.ci_pass_rate;
@@ -1324,6 +1354,7 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
 <div class="stat-label">${ttc != null ? 'median days (n=' + ttc.sample_size + ')' : 'unavailable'}</div></div>`;
 
   const depHtml = buildRepoDependencyCard(snapshot.sbom, depSummary);
+  const libyearHtml = buildLibyearCard(libyear);
 
   return `<h2>Repository Health</h2>
 <div class="grid">
@@ -1333,6 +1364,7 @@ ${ciHtml}
 ${busHtml}
 ${ttcHtml}
 ${depHtml}
+${libyearHtml}
 </div>`;
 }
 
@@ -1567,6 +1599,18 @@ function buildRepoDependencyCard(sbom, repoSummary) {
   return `<div class="card"><h3>Dependencies (SBOM)</h3>
 <div class="stat">${count}</div>
 <div class="stat-label" style="color:${flagColor}">${flagLabel}</div></div>`;
+}
+
+function buildLibyearCard(libyear) {
+  if (!libyear) return `<div class="card"><h3>Dep Freshness (Libyear)</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+  const total = libyear.total_libyear;
+  const color = getLibyearColor(total);
+  const oldestLabel = libyear.oldest
+    ? `oldest: ${escHtml(libyear.oldest.name)} (${libyear.oldest.years}y behind)`
+    : '';
+  return `<div class="card"><h3>Dep Freshness (Libyear)</h3>
+<div class="stat" style="color:${color}">${total.toFixed(1)}y</div>
+<div class="stat-label">${libyear.dependency_count} npm deps checked${oldestLabel ? '<br>' + oldestLabel : ''}</div></div>`;
 }
 
 function buildCalendarHeatmap(weeklyCommits) {
