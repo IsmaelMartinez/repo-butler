@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateHealthBadge, buildActionItems, computeHealthTier } from './report.js';
+import { generateHealthBadge, buildActionItems, computeHealthTier, generateSparklineSVG, buildCampaignSection } from './report.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -490,5 +490,168 @@ describe('buildActionItems', () => {
     const items = buildActionItems(snapshot, []);
     const staleItem = items.find(i => i.priority === 4);
     assert.ok(staleItem.text.includes('and 3 more'), 'should indicate remaining issues');
+  });
+});
+
+describe('buildCampaignSection', () => {
+  const makeRepo = (name, overrides = {}) => ({
+    name, archived: false, fork: false, pushed_at: new Date().toISOString(),
+    stars: 1, forks: 0, open_issues: 0, ...overrides,
+  });
+
+  it('returns empty string when no eligible repos', () => {
+    const html = buildCampaignSection([], {});
+    assert.equal(html, '');
+  });
+
+  it('returns empty string when all repos are archived or forks', () => {
+    const repos = [
+      makeRepo('archived-one', { archived: true }),
+      makeRepo('forked-one', { fork: true }),
+    ];
+    const details = {
+      'archived-one': { communityHealth: 90, vulns: null, ciPassRate: 0.95, license: 'MIT', hasIssueTemplate: true },
+      'forked-one': { communityHealth: 90, vulns: null, ciPassRate: 0.95, license: 'MIT', hasIssueTemplate: true },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.equal(html, '');
+  });
+
+  it('detects all five campaigns', () => {
+    const repos = [makeRepo('alpha'), makeRepo('beta')];
+    const details = {
+      alpha: { communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, license: 'MIT', hasIssueTemplate: true },
+      beta: { communityHealth: 50, vulns: { count: 1, max_severity: 'critical' }, ciPassRate: 0.7, license: 'None', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('Community Health'), 'should have community health campaign');
+    assert.ok(html.includes('Vulnerability Free'), 'should have vulnerability campaign');
+    assert.ok(html.includes('CI Reliability'), 'should have CI campaign');
+    assert.ok(html.includes('License Compliance'), 'should have license campaign');
+    assert.ok(html.includes('Issue Templates'), 'should have issue templates campaign');
+  });
+
+  it('shows correct progress ratio for community health', () => {
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('c')];
+    const details = {
+      a: { communityHealth: 90, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+      b: { communityHealth: 80, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+      c: { communityHealth: 50, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('2/3'), 'should show 2 out of 3 compliant for community health');
+  });
+
+  it('lists non-compliant repos with links', () => {
+    const repos = [makeRepo('good'), makeRepo('bad')];
+    const details = {
+      good: { communityHealth: 90, vulns: null, ciPassRate: null, license: 'MIT', hasIssueTemplate: false },
+      bad: { communityHealth: 30, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('bad.html'), 'should link to non-compliant repo report');
+  });
+
+  it('shows all repos compliant when 100%', () => {
+    const repos = [makeRepo('perfect')];
+    const details = {
+      perfect: { communityHealth: 95, vulns: { count: 0, max_severity: null }, ciPassRate: 0.99, license: 'MIT', hasIssueTemplate: true },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('All repos compliant'), 'should show all compliant message');
+  });
+
+  it('excludes shadow and test-repo repos', () => {
+    const repos = [makeRepo('real'), makeRepo('my-shadow'), makeRepo('test-repo-1')];
+    const details = {
+      real: { communityHealth: 90, vulns: null, ciPassRate: null, license: 'MIT', hasIssueTemplate: false },
+      'my-shadow': { communityHealth: 90, vulns: null, ciPassRate: null, license: 'MIT', hasIssueTemplate: false },
+      'test-repo-1': { communityHealth: 90, vulns: null, ciPassRate: null, license: 'MIT', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('1/1'), 'should only count the real repo');
+    assert.ok(!html.includes('my-shadow'), 'should not mention shadow repo');
+    assert.ok(!html.includes('test-repo-1'), 'should not mention test-repo');
+  });
+
+  it('treats vulns as non-compliant when null (unavailable)', () => {
+    const repos = [makeRepo('no-dependabot')];
+    const details = {
+      'no-dependabot': { communityHealth: null, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('0/1'), 'should show 0 compliant when vulns data is null');
+  });
+
+  it('treats CI pass rate as non-compliant when null', () => {
+    const repos = [makeRepo('no-ci')];
+    const details = {
+      'no-ci': { communityHealth: null, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    // All campaigns should show 0/1
+    const matches = html.match(/0\/1/g);
+    assert.ok(matches && matches.length === 5, 'all five campaigns should show 0/1');
+  });
+
+  it('generates valid HTML structure with campaign-grid', () => {
+    const repos = [makeRepo('repo1')];
+    const details = {
+      repo1: { communityHealth: 50, vulns: null, ciPassRate: 0.5, license: 'MIT', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('Improvement Campaigns'), 'should have section heading');
+    assert.ok(html.includes('campaign-grid'), 'should have campaign grid');
+    assert.ok(html.includes('campaign-card'), 'should have campaign cards');
+    assert.ok(html.includes('campaign-bar'), 'should have progress bars');
+  });
+
+  it('includes repos without details in denominator as non-compliant', () => {
+    const repos = [makeRepo('with-data'), makeRepo('no-data')];
+    const details = {
+      'with-data': { communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, license: 'MIT', hasIssueTemplate: true },
+    };
+    const html = buildCampaignSection(repos, details);
+    assert.ok(html.includes('1/2'), 'should count both repos in total');
+    assert.ok(html.includes('no-data'), 'should list repo without details as non-compliant');
+  });
+});
+
+describe('generateSparklineSVG', () => {
+  it('returns a valid SVG polyline for normal weekly data', () => {
+    const data = [0, 2, 5, 3, 1, 4, 7, 2, 0, 3, 6, 8, 4, 1, 0, 2, 5, 3, 7, 9, 4, 2, 1, 3, 6, 5];
+    const svg = generateSparklineSVG(data);
+    assert.ok(svg.startsWith('<svg'), 'should be an SVG element');
+    assert.ok(svg.includes('</svg>'), 'should close the SVG');
+    assert.ok(svg.includes('polyline'), 'should contain a polyline');
+    assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
+    assert.ok(svg.includes('width="80"'), 'should be 80px wide');
+    assert.ok(svg.includes('height="20"'), 'should be 20px tall');
+  });
+
+  it('returns empty string for null data', () => {
+    assert.equal(generateSparklineSVG(null), '');
+  });
+
+  it('returns empty string for empty array', () => {
+    assert.equal(generateSparklineSVG([]), '');
+  });
+
+  it('returns empty string for undefined', () => {
+    assert.equal(generateSparklineSVG(undefined), '');
+  });
+
+  it('returns a dot for single data point', () => {
+    const svg = generateSparklineSVG([5]);
+    assert.ok(svg.includes('<circle'), 'single point should render as a circle');
+    assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
+  });
+
+  it('returns a flat line for all zeros', () => {
+    const data = [0, 0, 0, 0, 0, 0];
+    const svg = generateSparklineSVG(data);
+    assert.ok(svg.includes('<line'), 'all zeros should render as a flat line');
+    assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
+    assert.ok(svg.includes('opacity="0.4"'), 'flat line should be muted');
   });
 });
