@@ -13,6 +13,10 @@ const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
 
 const TIER_DISPLAY = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze', none: 'Unranked' };
 const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
+const COLOR_SUCCESS = '#7ee787';
+const COLOR_WARNING = '#d29922';
+const COLOR_DANGER = '#f85149';
+const REPO_EXCLUSION_PATTERNS = ['shadow', 'test-repo'];
 
 export async function report(context) {
   const { owner, token, config, store } = context;
@@ -335,10 +339,19 @@ async function fetchPortfolioDetails(gh, owner, repos) {
         .then(d => d.total_count || 0)
         .catch(() => 0),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
-        .then(d => ({
-          health_percentage: d.health_percentage ?? null,
-          has_issue_template: !!d.files?.issue_template,
-        }))
+        .then(async d => {
+          let hasIssueTemplate = !!d.files?.issue_template;
+          if (!hasIssueTemplate) {
+            try {
+              const dir = await gh.request(`/repos/${owner}/${r.name}/contents/.github/ISSUE_TEMPLATE`);
+              hasIssueTemplate = Array.isArray(dir) && dir.length > 0;
+            } catch { /* directory doesn't exist */ }
+          }
+          return {
+            health_percentage: d.health_percentage ?? null,
+            has_issue_template: hasIssueTemplate,
+          };
+        })
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/dependabot/alerts?state=open&per_page=100`)
         .then(alerts => {
@@ -1403,10 +1416,9 @@ function buildStalenessSection(snapshot) {
 }
 
 export function buildCampaignSection(repos, details) {
-  // Filter to active, non-fork, non-test repos that have portfolio details.
+  // Filter to active, non-fork, non-test repos.
   const eligible = repos
-    .filter(r => !r.archived && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo'))
-    .filter(r => details[r.name]);
+    .filter(r => !r.archived && !r.fork && !REPO_EXCLUSION_PATTERNS.some(p => r.name.includes(p)));
 
   if (eligible.length === 0) return '';
 
@@ -1414,46 +1426,49 @@ export function buildCampaignSection(repos, details) {
     {
       name: 'Community Health',
       description: 'Repos with community health score >= 80%',
-      test: r => (details[r.name].communityHealth ?? -1) >= 80,
+      test: r => (details[r.name]?.communityHealth ?? -1) >= 80,
     },
     {
       name: 'Vulnerability Free',
       description: 'Repos with zero critical/high vulnerabilities',
       test: r => {
-        const v = details[r.name].vulns;
+        const v = details[r.name]?.vulns;
         return v != null && v.max_severity !== 'critical' && v.max_severity !== 'high';
       },
     },
     {
       name: 'CI Reliability',
       description: 'Repos with CI pass rate >= 90%',
-      test: r => (details[r.name].ciPassRate ?? -1) >= 0.9,
+      test: r => (details[r.name]?.ciPassRate ?? -1) >= 0.9,
     },
     {
       name: 'License Compliance',
       description: 'Repos with a license configured',
       test: r => {
-        const lic = details[r.name].license;
+        const lic = details[r.name]?.license;
         return !!lic && lic !== 'None';
       },
     },
     {
       name: 'Issue Templates',
       description: 'Repos with issue templates configured',
-      test: r => !!details[r.name].hasIssueTemplate,
+      test: r => !!details[r.name]?.hasIssueTemplate,
     },
   ];
 
   const cards = campaigns.map(campaign => {
-    const compliant = eligible.filter(r => campaign.test(r));
-    const nonCompliant = eligible.filter(r => !campaign.test(r));
+    const { compliant, nonCompliant } = eligible.reduce((acc, r) => {
+      if (campaign.test(r)) acc.compliant.push(r);
+      else acc.nonCompliant.push(r);
+      return acc;
+    }, { compliant: [], nonCompliant: [] });
     const total = eligible.length;
     const count = compliant.length;
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-    const barColor = pct >= 80 ? '#7ee787' : pct >= 50 ? '#d29922' : '#f85149';
+    const barColor = pct >= 80 ? COLOR_SUCCESS : pct >= 50 ? COLOR_WARNING : COLOR_DANGER;
     const nonCompliantList = nonCompliant.length > 0
       ? `<div class="campaign-repos">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div>`
-      : '<div class="campaign-repos" style="color:#7ee787">All repos compliant</div>';
+      : `<div class="campaign-repos" style="color:${COLOR_SUCCESS}">All repos compliant</div>`;
 
     return `<div class="campaign-card">
 <div class="campaign-header"><h3>${escHtml(campaign.name)}</h3><span class="campaign-ratio">${count}/${total}</span></div>

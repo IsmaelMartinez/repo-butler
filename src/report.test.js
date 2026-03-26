@@ -606,13 +606,13 @@ describe('buildCampaignSection', () => {
     assert.ok(html.includes('campaign-bar'), 'should have progress bars');
   });
 
-  it('skips repos without details', () => {
+  it('includes repos without details in denominator as non-compliant', () => {
     const repos = [makeRepo('with-data'), makeRepo('no-data')];
     const details = {
       'with-data': { communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, license: 'MIT', hasIssueTemplate: true },
     };
     const html = buildCampaignSection(repos, details);
-    assert.ok(html.includes('1/1'), 'should only count repo with details');
-    assert.ok(!html.includes('no-data'), 'should not reference repo without details');
+    assert.ok(html.includes('1/2'), 'should count both repos in total');
+    assert.ok(html.includes('no-data'), 'should list repo without details as non-compliant');
   });
 });
