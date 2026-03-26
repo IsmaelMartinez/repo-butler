@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterNpmDeps, computeDepAge } from './libyear.js';
+import { filterNpmDeps, computeDepAge, aggregateLibyear, computeLibyearWithTimeout } from './libyear.js';
 
 describe('filterNpmDeps', () => {
   it('filters to only npm packages with purl and version', () => {
@@ -81,30 +81,29 @@ describe('computeDepAge', () => {
   });
 });
 
-describe('libyear aggregation logic', () => {
-  it('identifies the oldest dependency from a set of results', () => {
+describe('aggregateLibyear', () => {
+  it('aggregates multiple deps with correct total, count, and oldest', () => {
     const deps = [
       { name: 'express', current: '4.17.0', latest: '4.18.2', years: 1.5 },
       { name: 'lodash', current: '4.15.0', latest: '4.17.21', years: 3.2 },
       { name: 'chalk', current: '5.2.0', latest: '5.3.0', years: 0.3 },
     ];
-    const totalLibyear = deps.reduce((sum, d) => sum + d.years, 0);
-    const oldest = deps.reduce((max, d) => (d.years > max.years ? d : max), deps[0]);
-
-    assert.equal(Math.round(totalLibyear * 100) / 100, 5);
-    assert.equal(oldest.name, 'lodash');
-    assert.equal(oldest.years, 3.2);
+    const result = aggregateLibyear(deps);
+    assert.equal(result.total_libyear, 5);
+    assert.equal(result.dependency_count, 3);
+    assert.equal(result.oldest.name, 'lodash');
+    assert.equal(result.oldest.years, 3.2);
+    assert.equal(result.deps.length, 3);
   });
 
   it('handles single dependency', () => {
     const deps = [
       { name: 'express', current: '4.17.0', latest: '4.18.2', years: 0.8 },
     ];
-    const totalLibyear = deps.reduce((sum, d) => sum + d.years, 0);
-    const oldest = deps.reduce((max, d) => (d.years > max.years ? d : max), deps[0]);
-
-    assert.equal(totalLibyear, 0.8);
-    assert.equal(oldest.name, 'express');
+    const result = aggregateLibyear(deps);
+    assert.equal(result.total_libyear, 0.8);
+    assert.equal(result.dependency_count, 1);
+    assert.equal(result.oldest.name, 'express');
   });
 
   it('sums to zero when all deps are up to date', () => {
@@ -112,7 +111,68 @@ describe('libyear aggregation logic', () => {
       { name: 'express', current: '4.18.2', latest: '4.18.2', years: 0 },
       { name: 'lodash', current: '4.17.21', latest: '4.17.21', years: 0 },
     ];
-    const totalLibyear = deps.reduce((sum, d) => sum + d.years, 0);
-    assert.equal(totalLibyear, 0);
+    const result = aggregateLibyear(deps);
+    assert.equal(result.total_libyear, 0);
+    assert.equal(result.dependency_count, 2);
+  });
+
+  it('returns null for empty or null input', () => {
+    assert.equal(aggregateLibyear([]), null);
+    assert.equal(aggregateLibyear(null), null);
+  });
+});
+
+describe('computeLibyearWithTimeout', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('returns result for successful registry lookups', async () => {
+    globalThis.fetch = mock.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        'dist-tags': { latest: '4.19.0' },
+        time: {
+          '4.18.2': '2023-06-01T00:00:00Z',
+          '4.19.0': '2024-06-01T00:00:00Z',
+        },
+      }),
+    }));
+    const packages = [
+      { name: 'express', version: '4.18.2', purl: 'pkg:npm/express@4.18.2' },
+    ];
+    const result = await computeLibyearWithTimeout(packages, 5000);
+    assert.ok(result);
+    assert.equal(result.dependency_count, 1);
+    assert.ok(result.total_libyear > 0.9 && result.total_libyear < 1.1);
+    assert.equal(result.oldest.name, 'express');
+  });
+
+  it('returns null when timeout expires', async () => {
+    // Mock fetch that respects AbortSignal (like real fetch does).
+    globalThis.fetch = mock.fn((url, opts) => new Promise((_, reject) => {
+      const onAbort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+      if (opts?.signal?.aborted) { onAbort(); return; }
+      opts?.signal?.addEventListener('abort', onAbort);
+    }));
+    const packages = [
+      { name: 'slow-pkg', version: '1.0.0', purl: 'pkg:npm/slow-pkg@1.0.0' },
+    ];
+    const result = await computeLibyearWithTimeout(packages, 50);
+    assert.equal(result, null);
+  });
+
+  it('returns null for non-npm packages', async () => {
+    const packages = [
+      { name: 'go-pkg', version: '1.0.0', purl: 'pkg:golang/example.com@1.0.0' },
+    ];
+    const result = await computeLibyearWithTimeout(packages, 5000);
+    assert.equal(result, null);
   });
 });

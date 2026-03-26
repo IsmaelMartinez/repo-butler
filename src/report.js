@@ -15,6 +15,15 @@ const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
 const TIER_DISPLAY = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze', none: 'Unranked' };
 const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
 
+const LIBYEAR_THRESHOLDS = { GREEN: 5, YELLOW: 20 };
+
+function getLibyearColor(libyearVal) {
+  if (libyearVal == null) return '#6e7681';
+  if (libyearVal < LIBYEAR_THRESHOLDS.GREEN) return '#7ee787';
+  if (libyearVal < LIBYEAR_THRESHOLDS.YELLOW) return '#d29922';
+  return '#f85149';
+}
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
@@ -27,7 +36,10 @@ export async function report(context) {
   }
 
   // Cache check: skip regeneration if snapshot hasn't changed.
-  const currentHash = store ? computeSnapshotHash(context.snapshot) : null;
+  // Include today's date so the cache expires daily (libyear and other
+  // dynamic data like npm registry lookups need periodic refresh).
+  const dateBucket = new Date().toISOString().slice(0, 10);
+  const currentHash = store ? computeSnapshotHash({ ...context.snapshot, _dateBucket: dateBucket }) : null;
   if (store && !context.forceReport) {
     const lastHash = await store.readLastHash();
     if (currentHash === lastHash) {
@@ -375,12 +387,20 @@ async function fetchPortfolioDetails(gh, owner, repos) {
         .then(rels => rels[0]?.published_at ?? null)
         .catch(() => null),
     ]);
-    // Compute libyear freshness for repos with npm SBOM data (5s timeout).
-    const libyear = sbom ? await computeLibyearWithTimeout(sbom.packages, 5000) : null;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, libyear };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, libyear: null };
   });
 
   await Promise.all(fetches);
+
+  // Compute libyear freshness sequentially (one repo at a time) to avoid
+  // fanning out concurrent npm registry requests across all repos.
+  for (const r of activeRepos.slice(0, 15)) {
+    const sbom = details[r.name]?.sbom;
+    if (sbom) {
+      details[r.name].libyear = await computeLibyearWithTimeout(sbom.packages, 5000);
+    }
+  }
+
   return details;
 }
 
@@ -655,7 +675,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
     const vulnColor = r.vulns == null ? '#6e7681' : r.vulns.count === 0 ? '#7ee787' : r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : r.vulns.max_severity === 'medium' ? '#d29922' : '#7ee787';
     const ciPassColor = r.ciPassRate == null ? '#6e7681' : r.ciPassRate >= 0.9 ? '#7ee787' : r.ciPassRate >= 0.7 ? '#d29922' : '#f85149';
     const libyearVal = r.libyear?.total_libyear;
-    const libyearColor = libyearVal == null ? '#6e7681' : libyearVal < 5 ? '#7ee787' : libyearVal < 20 ? '#d29922' : '#f85149';
+    const libyearColor = getLibyearColor(libyearVal);
     return `<tr>
       <td><a href="${r.name}.html">${r.name}</a></td>
       <td>${r.description ? escHtml(r.description).slice(0, 50) : '—'}</td>
@@ -1462,7 +1482,7 @@ function buildRepoDependencyCard(sbom, repoSummary) {
 function buildLibyearCard(libyear) {
   if (!libyear) return `<div class="card"><h3>Dep Freshness (Libyear)</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
   const total = libyear.total_libyear;
-  const color = total < 5 ? '#7ee787' : total < 20 ? '#d29922' : '#f85149';
+  const color = getLibyearColor(total);
   const oldestLabel = libyear.oldest
     ? `oldest: ${escHtml(libyear.oldest.name)} (${libyear.oldest.years}y behind)`
     : '';
