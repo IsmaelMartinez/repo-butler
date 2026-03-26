@@ -321,7 +321,7 @@ async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityHealth, vulns, ciPassRate, openIssues, sbom, releasedAt] = await Promise.all([
+    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -335,7 +335,10 @@ async function fetchPortfolioDetails(gh, owner, repos) {
         .then(d => d.total_count || 0)
         .catch(() => 0),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
-        .then(d => d.health_percentage ?? null)
+        .then(d => ({
+          health_percentage: d.health_percentage ?? null,
+          has_issue_template: !!d.files?.issue_template,
+        }))
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/dependabot/alerts?state=open&per_page=100`)
         .then(alerts => {
@@ -371,7 +374,9 @@ async function fetchPortfolioDetails(gh, owner, repos) {
         .then(rels => rels[0]?.published_at ?? null)
         .catch(() => null),
     ]);
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt };
+    const communityHealth = communityProfile?.health_percentage ?? null;
+    const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate };
   });
 
   await Promise.all(fetches);
@@ -685,6 +690,7 @@ ${CSS}
 <table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
+${buildCampaignSection(repos, details)}
 <h2>Distribution</h2>
 <div class="three-col">
   <div class="chart-container"><div class="chart-title">By Language</div><canvas id="langChart"></canvas></div>
@@ -1396,6 +1402,74 @@ function buildStalenessSection(snapshot) {
   return html;
 }
 
+export function buildCampaignSection(repos, details) {
+  // Filter to active, non-fork, non-test repos that have portfolio details.
+  const eligible = repos
+    .filter(r => !r.archived && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo'))
+    .filter(r => details[r.name]);
+
+  if (eligible.length === 0) return '';
+
+  const campaigns = [
+    {
+      name: 'Community Health',
+      description: 'Repos with community health score >= 80%',
+      test: r => (details[r.name].communityHealth ?? -1) >= 80,
+    },
+    {
+      name: 'Vulnerability Free',
+      description: 'Repos with zero critical/high vulnerabilities',
+      test: r => {
+        const v = details[r.name].vulns;
+        return v != null && v.max_severity !== 'critical' && v.max_severity !== 'high';
+      },
+    },
+    {
+      name: 'CI Reliability',
+      description: 'Repos with CI pass rate >= 90%',
+      test: r => (details[r.name].ciPassRate ?? -1) >= 0.9,
+    },
+    {
+      name: 'License Compliance',
+      description: 'Repos with a license configured',
+      test: r => {
+        const lic = details[r.name].license;
+        return !!lic && lic !== 'None';
+      },
+    },
+    {
+      name: 'Issue Templates',
+      description: 'Repos with issue templates configured',
+      test: r => !!details[r.name].hasIssueTemplate,
+    },
+  ];
+
+  const cards = campaigns.map(campaign => {
+    const compliant = eligible.filter(r => campaign.test(r));
+    const nonCompliant = eligible.filter(r => !campaign.test(r));
+    const total = eligible.length;
+    const count = compliant.length;
+    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    const barColor = pct >= 80 ? '#7ee787' : pct >= 50 ? '#d29922' : '#f85149';
+    const nonCompliantList = nonCompliant.length > 0
+      ? `<div class="campaign-repos">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div>`
+      : '<div class="campaign-repos" style="color:#7ee787">All repos compliant</div>';
+
+    return `<div class="campaign-card">
+<div class="campaign-header"><h3>${escHtml(campaign.name)}</h3><span class="campaign-ratio">${count}/${total}</span></div>
+<div class="campaign-desc">${escHtml(campaign.description)}</div>
+<div class="campaign-bar"><div class="campaign-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+<div class="campaign-pct">${pct}% complete</div>
+${nonCompliantList}
+</div>`;
+  }).join('\n');
+
+  return `<h2>Improvement Campaigns</h2>
+<div class="campaign-grid">
+${cards}
+</div>`;
+}
+
 function buildDependencyInventorySection(inventory) {
   if (!inventory || inventory.reposWithSBOM === 0) return '';
 
@@ -1514,5 +1588,16 @@ a{color:#58a6ff;text-decoration:none}
 .footer{text-align:center;color:#6e7681;font-size:0.8rem;margin-top:3rem;padding:1rem}
 .alert-banner{background:#161b22;border-left:4px solid #d29922;border-radius:0 8px 8px 0;padding:1rem 1.5rem;margin-bottom:1.5rem;color:#e6edf3;font-size:0.9rem}
 .alert-banner.alert-critical{border-color:#f85149}
-@media(max-width:900px){.two-col,.three-col{grid-template-columns:1fr}}
+.campaign-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;margin-bottom:2rem}
+.campaign-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1.2rem}
+.campaign-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem}
+.campaign-header h3{font-size:0.9rem;color:#f0f6fc;margin:0}
+.campaign-ratio{font-size:0.9rem;font-weight:700;color:#8b949e}
+.campaign-desc{font-size:0.75rem;color:#8b949e;margin-bottom:0.6rem}
+.campaign-bar{background:#21262d;border-radius:4px;height:8px;overflow:hidden;margin-bottom:0.4rem}
+.campaign-bar-fill{height:100%;border-radius:4px;transition:width 0.3s}
+.campaign-pct{font-size:0.75rem;color:#8b949e;margin-bottom:0.5rem}
+.campaign-repos{font-size:0.75rem;color:#8b949e}
+.campaign-repos a{margin-right:0.4rem}
+@media(max-width:900px){.two-col,.three-col,.campaign-grid{grid-template-columns:1fr}}
 </style>`;
