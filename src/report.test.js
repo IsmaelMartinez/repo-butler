@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateHealthBadge, buildActionItems, computeHealthTier, buildCampaignSection } from './report.js';
+import { generateHealthBadge, buildActionItems, computeHealthTier, generateSparklineSVG, buildCampaignSection } from './report.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -614,5 +614,44 @@ describe('buildCampaignSection', () => {
     const html = buildCampaignSection(repos, details);
     assert.ok(html.includes('1/2'), 'should count both repos in total');
     assert.ok(html.includes('no-data'), 'should list repo without details as non-compliant');
+  });
+});
+
+describe('generateSparklineSVG', () => {
+  it('returns a valid SVG polyline for normal weekly data', () => {
+    const data = [0, 2, 5, 3, 1, 4, 7, 2, 0, 3, 6, 8, 4, 1, 0, 2, 5, 3, 7, 9, 4, 2, 1, 3, 6, 5];
+    const svg = generateSparklineSVG(data);
+    assert.ok(svg.startsWith('<svg'), 'should be an SVG element');
+    assert.ok(svg.includes('</svg>'), 'should close the SVG');
+    assert.ok(svg.includes('polyline'), 'should contain a polyline');
+    assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
+    assert.ok(svg.includes('width="80"'), 'should be 80px wide');
+    assert.ok(svg.includes('height="20"'), 'should be 20px tall');
+  });
+
+  it('returns empty string for null data', () => {
+    assert.equal(generateSparklineSVG(null), '');
+  });
+
+  it('returns empty string for empty array', () => {
+    assert.equal(generateSparklineSVG([]), '');
+  });
+
+  it('returns empty string for undefined', () => {
+    assert.equal(generateSparklineSVG(undefined), '');
+  });
+
+  it('returns a dot for single data point', () => {
+    const svg = generateSparklineSVG([5]);
+    assert.ok(svg.includes('<circle'), 'single point should render as a circle');
+    assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
+  });
+
+  it('returns a flat line for all zeros', () => {
+    const data = [0, 0, 0, 0, 0, 0];
+    const svg = generateSparklineSVG(data);
+    assert.ok(svg.includes('<line'), 'all zeros should render as a flat line');
+    assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
+    assert.ok(svg.includes('opacity="0.4"'), 'flat line should be muted');
   });
 });
