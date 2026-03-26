@@ -49,24 +49,7 @@ export async function report(context) {
   // Analyze dependency inventory from SBOM data.
   const depInventory = repoDetails ? analyzeDependencyInventory(repoDetails) : null;
 
-  // Generate portfolio report as the landing page.
-  if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory);
-    await writeFile(join(outDir, 'index.html'), portfolioHtml);
-    console.log('Portfolio report written to index.html');
-
-    // Generate narrative weekly digest.
-    const digestHtml = generateDigestReport(owner, portfolio.repos, repoDetails);
-    await writeFile(join(outDir, 'digest.html'), digestHtml);
-    console.log('Weekly digest written to digest.html');
-
-    // Persist weekly portfolio summaries for per-repo trend charts.
-    if (store) {
-      await store.writePortfolioWeekly(portfolio, repoDetails);
-    }
-  }
-
-  // Generate per-repo reports for active repos with meaningful activity.
+  // Generate per-repo reports first to collect contributor data for portfolio table.
   if (portfolio) {
     const activeRepos = portfolio.repos
       .filter(r => !r.archived && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo'))
@@ -87,6 +70,12 @@ export async function report(context) {
         ]);
         const { monthly: prActivity, mergedPRs: mergedPRsRaw } = prResult;
         const cycleTime = computePRCycleTime(mergedPRsRaw);
+
+        // Store contributor count in repoDetails for the portfolio table.
+        if (repoDetails?.[r.name]) {
+          const humanAuthors = prAuthors.filter(a => !a.author.includes('[bot]'));
+          repoDetails[r.name].contributors = humanAuthors.length;
+        }
 
         // Fetch releases, open issues, closed issues, and Phase 1 health data.
         const [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
@@ -177,6 +166,30 @@ export async function report(context) {
     }
 
     console.log(`Generated reports for ${activeRepos.length} repos.`);
+  }
+
+  // Generate portfolio report (after per-repo reports so contributor data is available).
+  if (portfolio && repoDetails) {
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory);
+    await writeFile(join(outDir, 'index.html'), portfolioHtml);
+    console.log('Portfolio report written to index.html');
+
+    // Generate narrative weekly digest.
+    const digestHtml = generateDigestReport(owner, portfolio.repos, repoDetails);
+    await writeFile(join(outDir, 'digest.html'), digestHtml);
+    console.log('Weekly digest written to digest.html');
+
+    // Persist weekly portfolio summaries for per-repo trend charts.
+    if (store) {
+      await store.writePortfolioWeekly(portfolio, repoDetails);
+    }
+  }
+
+  // Generate SVG health badges for each active repo and portfolio overall.
+  if (portfolio) {
+    const activeRepos = portfolio.repos
+      .filter(r => !r.archived && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo'))
+      .sort((a, b) => (repoDetails?.[b.name]?.commits || 0) - (repoDetails?.[a.name]?.commits || 0));
 
     // Generate SVG health badges for each active repo and portfolio overall.
     const badgeDir = join(outDir, 'badges');
@@ -264,12 +277,16 @@ async function fetchPRAuthors(gh, owner, repo) {
   });
   const merged = prs.filter(pr => pr.merged_at && pr.merged_at >= since);
   const counts = {};
+  const firstTimers = new Set();
   for (const pr of merged) {
     const author = pr.user?.login || 'unknown';
     counts[author] = (counts[author] || 0) + 1;
+    if (pr.author_association === 'FIRST_TIME_CONTRIBUTOR') {
+      firstTimers.add(author);
+    }
   }
   return Object.entries(counts)
-    .map(([author, count]) => ({ author, count }))
+    .map(([author, count]) => ({ author, count, firstTime: firstTimers.has(author) }))
     .sort((a, b) => b.count - a.count);
 }
 
@@ -578,6 +595,7 @@ ${buildCycleTimeCard(cycleTime)}
 <h2>Release Cadence</h2>
 <div class="chart-container"><div class="chart-title">Days Between Releases</div><canvas id="releaseChart"></canvas></div>
 ${buildCalendarHeatmap(weeklyCommits)}
+${buildContributorCard(prAuthors, snapshot.meta?.stars || 0)}
 <h2>Contribution & Issues</h2>
 <div class="two-col">
   <div class="chart-container"><div class="chart-title">PR Authors (90d)</div><canvas id="authorChart"></canvas></div>
@@ -657,6 +675,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
       <td><span style="color:${vulnColor}">${r.vulns != null ? r.vulns.count : '—'}</span></td>
       <td><span style="color:${ciPassColor}">${r.ciPassRate != null ? Math.round(r.ciPassRate * 100) + '%' : '—'}</span></td>
       <td>${r.sbom ? r.sbom.count : '—'}</td>
+      <td>${r.contributors != null ? r.contributors : '—'}</td>
       <td><span class="badge ${badgeClass}">${r.status}</span></td>
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td></tr>`;
   }).join('');
@@ -682,7 +701,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Contributors</th><th>Status</th><th>Tier</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 <h2>Distribution</h2>
@@ -935,6 +954,30 @@ function last12Months() {
     });
   }
   return months;
+}
+
+// --- Contributor funnel ---
+
+export function computeContributorStats(prAuthors, stargazers) {
+  const humans = prAuthors.filter(a => !a.author.includes('[bot]'));
+  const total = humans.length;
+  const firstTimers = humans.filter(a => a.firstTime);
+  const ratio = stargazers > 0 ? (total / stargazers) * 100 : 0;
+  return { total, firstTimers, ratio: Math.round(ratio * 10) / 10 };
+}
+
+function buildContributorCard(prAuthors, stargazers) {
+  const stats = computeContributorStats(prAuthors, stargazers);
+  const authorList = stats.firstTimers.length > 0
+    ? stats.firstTimers.map(a => `<span class="badge badge-active" style="font-size:0.75rem;margin:2px">${escHtml(a.author)} <span style="background:#7ee787;color:#161b22;border-radius:4px;padding:0 4px;font-size:0.65rem;margin-left:2px">new</span></span>`).join(' ')
+    : '<span style="color:#8b949e">none in this period</span>';
+  const ratioColor = stats.ratio >= 5 ? '#7ee787' : stats.ratio >= 1 ? '#d29922' : '#8b949e';
+  return `<h2>Contributors</h2>
+<div class="grid">
+  <div class="card"><h3>Unique Contributors (90d)</h3><div class="stat">${stats.total}</div><div class="stat-label">${prAuthors.filter(a => a.author.includes('[bot]')).length} bots excluded</div></div>
+  <div class="card"><h3>First-Time Contributors</h3><div class="stat">${stats.firstTimers.length}</div><div class="stat-label">${authorList}</div></div>
+  <div class="card"><h3>Contributor Confidence</h3><div class="stat" style="color:${ratioColor}">${stats.ratio}%</div><div class="stat-label">unique contributors / stargazers</div></div>
+</div>`;
 }
 
 function daysAgo(n) {
