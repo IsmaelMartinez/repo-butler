@@ -1,22 +1,17 @@
 {
-  "ismaelmartinez.me.uk": {
-    "open_issues": 1,
-    "commits_6mo": 66,
-    "stars": 0
-  },
-  "teams-for-linux": {
-    "open_issues": 17,
-    "commits_6mo": 333,
-    "stars": 4538
+  "repo-butler": {
+    "open_issues": 0,
+    "commits_6mo": 135,
+    "stars": 1
   },
   "github-issue-triage-bot": {
     "open_issues": 0,
-    "commits_6mo": 175,
+    "commits_6mo": 176,
     "stars": 1
   },
-  "repo-butler": {
+  "betis-escocia": {
     "open_issues": 0,
-    "commits_6mo": 112,
+    "commits_6mo": 147,
     "stars": 1
   },
   "generator-atlassian-compass-event-catalog": {
@@ -24,14 +19,19 @@
     "commits_6mo": 160,
     "stars": 4
   },
+  "ismaelmartinez.me.uk": {
+    "open_issues": 1,
+    "commits_6mo": 66,
+    "stars": 0
+  },
+  "teams-for-linux": {
+    "open_issues": 18,
+    "commits_6mo": 333,
+    "stars": 4538
+  },
   "bonnie-wee-plot": {
     "open_issues": 0,
     "commits_6mo": 372,
-    "stars": 1
-  },
-  "betis-escocia": {
-    "open_issues": 0,
-    "commits_6mo": 147,
     "stars": 1
   },
   "ai-model-advisor": {
