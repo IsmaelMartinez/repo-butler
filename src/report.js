@@ -63,23 +63,23 @@ export async function report(context) {
       const commits = repoDetails?.[r.name]?.commits || 0;
       console.log(`Generating report for ${r.name} (${commits} commits)...`);
 
+      // Fetch PR authors for all repos (lightweight — only closed PRs in 90 days).
+      const prAuthors = await fetchPRAuthors(gh, owner, r.name);
+      if (repoDetails?.[r.name]) {
+        const humanAuthors = prAuthors.filter(a => !isBotAuthor(a.author));
+        repoDetails[r.name].contributors = humanAuthors.length;
+      }
+
       if (commits >= 10) {
         // Full report with charts — fetch monthly data.
-        const [prResult, issueActivity, prAuthors, openPRs, weeklyCommits] = await Promise.all([
+        const [prResult, issueActivity, openPRs, weeklyCommits] = await Promise.all([
           fetchMonthlyPRActivity(gh, owner, r.name),
           fetchMonthlyIssueActivity(gh, owner, r.name),
-          fetchPRAuthors(gh, owner, r.name),
           fetchOpenPRs(gh, owner, r.name),
           fetchWeeklyCommits(gh, owner, r.name),
         ]);
         const { monthly: prActivity, mergedPRs: mergedPRsRaw } = prResult;
         const cycleTime = computePRCycleTime(mergedPRsRaw);
-
-        // Store contributor count in repoDetails for the portfolio table.
-        if (repoDetails?.[r.name]) {
-          const humanAuthors = prAuthors.filter(a => !isBotAuthor(a.author));
-          repoDetails[r.name].contributors = humanAuthors.length;
-        }
 
         // Fetch releases, open issues, closed issues, and Phase 1 health data.
         const [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
