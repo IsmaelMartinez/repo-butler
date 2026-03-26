@@ -596,25 +596,36 @@ new Chart(document.getElementById('labelChart'),{type:'bar',data:{labels:[${labe
 }
 
 export function generateSparklineSVG(weeklyData) {
+  const WIDTH = 80;
+  const HEIGHT = 20;
+  const PADDING = 2;
+  const STROKE_COLOR = '#388bfd';
+  const STROKE_WIDTH = 1.5;
+  const MUTED_OPACITY = 0.4;
+
   if (!weeklyData || !Array.isArray(weeklyData) || weeklyData.length === 0) return '';
+
+  const svgOpen = `<svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">`;
+  const svgClose = '</svg>';
+
   if (weeklyData.length === 1) {
     // Single point — draw a dot in the center.
-    return '<svg width="80" height="20" viewBox="0 0 80 20" xmlns="http://www.w3.org/2000/svg"><circle cx="40" cy="10" r="2" fill="#388bfd"/></svg>';
+    return `${svgOpen}<circle cx="${WIDTH / 2}" cy="${HEIGHT / 2}" r="2" fill="${STROKE_COLOR}"/>${svgClose}`;
   }
   const max = Math.max(...weeklyData);
   if (max === 0) {
     // All zeros — flat line at the bottom.
-    return '<svg width="80" height="20" viewBox="0 0 80 20" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="18" x2="80" y2="18" stroke="#388bfd" stroke-width="1.5" opacity="0.4"/></svg>';
+    const y = HEIGHT - PADDING;
+    return `${svgOpen}<line x1="0" y1="${y}" x2="${WIDTH}" y2="${y}" stroke="${STROKE_COLOR}" stroke-width="${STROKE_WIDTH}" opacity="${MUTED_OPACITY}"/>${svgClose}`;
   }
-  const padding = 2;
-  const h = 20 - padding * 2;
-  const step = 80 / (weeklyData.length - 1);
+  const h = HEIGHT - PADDING * 2;
+  const step = WIDTH / (weeklyData.length - 1);
   const points = weeklyData.map((v, i) => {
     const x = Math.round(i * step * 100) / 100;
-    const y = Math.round((padding + h - (v / max) * h) * 100) / 100;
+    const y = Math.round((PADDING + h - (v / max) * h) * 100) / 100;
     return `${x},${y}`;
   }).join(' ');
-  return `<svg width="80" height="20" viewBox="0 0 80 20" xmlns="http://www.w3.org/2000/svg"><polyline points="${points}" fill="none" stroke="#388bfd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  return `${svgOpen}<polyline points="${points}" fill="none" stroke="${STROKE_COLOR}" stroke-width="${STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round"/>${svgClose}`;
 }
 
 function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null) {
