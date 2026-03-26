@@ -595,6 +595,39 @@ new Chart(document.getElementById('labelChart'),{type:'bar',data:{labels:[${labe
 </script></body></html>`;
 }
 
+export function generateSparklineSVG(weeklyData) {
+  const WIDTH = 80;
+  const HEIGHT = 20;
+  const PADDING = 2;
+  const STROKE_COLOR = '#388bfd';
+  const STROKE_WIDTH = 1.5;
+  const MUTED_OPACITY = 0.4;
+
+  if (!weeklyData || !Array.isArray(weeklyData) || weeklyData.length === 0) return '';
+
+  const svgOpen = `<svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">`;
+  const svgClose = '</svg>';
+
+  if (weeklyData.length === 1) {
+    // Single point — draw a dot in the center.
+    return `${svgOpen}<circle cx="${WIDTH / 2}" cy="${HEIGHT / 2}" r="2" fill="${STROKE_COLOR}"/>${svgClose}`;
+  }
+  const max = Math.max(...weeklyData);
+  if (max === 0) {
+    // All zeros — flat line at the bottom.
+    const y = HEIGHT - PADDING;
+    return `${svgOpen}<line x1="0" y1="${y}" x2="${WIDTH}" y2="${y}" stroke="${STROKE_COLOR}" stroke-width="${STROKE_WIDTH}" opacity="${MUTED_OPACITY}"/>${svgClose}`;
+  }
+  const h = HEIGHT - PADDING * 2;
+  const step = WIDTH / (weeklyData.length - 1);
+  const points = weeklyData.map((v, i) => {
+    const x = Math.round(i * step * 100) / 100;
+    const y = Math.round((PADDING + h - (v / max) * h) * 100) / 100;
+    return `${x},${y}`;
+  }).join(' ');
+  return `${svgOpen}<polyline points="${points}" fill="none" stroke="${STROKE_COLOR}" stroke-width="${STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round"/>${svgClose}`;
+}
+
 function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived)
@@ -651,7 +684,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
       <td><a href="${r.name}.html">${r.name}</a></td>
       <td>${r.description ? escHtml(r.description).slice(0, 50) : '—'}</td>
       <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
-      <td>${r.commits || 0}</td><td>${(r.ci || 0) > 0 ? r.ci : '<span style="color:#f85149">0</span>'}</td>
+      <td>${r.commits || 0}</td><td>${generateSparklineSVG(details[r.name]?.weekly)}</td><td>${(r.ci || 0) > 0 ? r.ci : '<span style="color:#f85149">0</span>'}</td>
       <td>${!r.license || r.license === 'None' ? '<span style="color:#d29922">none</span>' : r.license}</td>
       <td><span style="color:${communityColor}">${r.communityHealth != null ? r.communityHealth + '%' : '—'}</span></td>
       <td><span style="color:${vulnColor}">${r.vulns != null ? r.vulns.count : '—'}</span></td>
@@ -682,7 +715,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>Trend</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 <h2>Distribution</h2>
