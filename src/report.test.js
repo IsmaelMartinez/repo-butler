@@ -642,24 +642,26 @@ describe('buildCampaignSection', () => {
     assert.ok(!html.includes('test-repo-1'), 'should not mention test-repo');
   });
 
-  it('treats vulns as non-compliant when null (unavailable)', () => {
+  it('excludes repos from campaign when data is unavailable (null)', () => {
     const repos = [makeRepo('no-dependabot')];
     const details = {
       'no-dependabot': { communityHealth: null, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
     };
     const html = buildCampaignSection(repos, details);
-    assert.ok(html.includes('0/1'), 'should show 0 compliant when vulns data is null');
+    assert.ok(html.includes('data unavailable'), 'should note excluded repos');
+    // License and issue templates still count (no applicable filter) => 0/1
+    assert.ok(html.includes('0/1'), 'license and templates should still show 0/1');
   });
 
-  it('treats CI pass rate as non-compliant when null', () => {
-    const repos = [makeRepo('no-ci')];
+  it('only counts repos with available data in campaign denominator', () => {
+    const repos = [makeRepo('has-data'), makeRepo('no-data')];
     const details = {
-      'no-ci': { communityHealth: null, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+      'has-data': { communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, license: 'MIT', hasIssueTemplate: true },
+      'no-data': { communityHealth: null, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
     };
     const html = buildCampaignSection(repos, details);
-    // All campaigns should show 0/1
-    const matches = html.match(/0\/1/g);
-    assert.ok(matches && matches.length === 5, 'all five campaigns should show 0/1');
+    assert.ok(html.includes('1/1'), 'vuln/CI/community campaigns should show 1/1 for the repo with data');
+    assert.ok(html.includes('data unavailable'), 'should note excluded repo');
   });
 
   it('generates valid HTML structure with campaign-grid', () => {
