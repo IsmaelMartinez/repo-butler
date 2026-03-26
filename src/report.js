@@ -595,6 +595,28 @@ new Chart(document.getElementById('labelChart'),{type:'bar',data:{labels:[${labe
 </script></body></html>`;
 }
 
+export function generateSparklineSVG(weeklyData) {
+  if (!weeklyData || !Array.isArray(weeklyData) || weeklyData.length === 0) return '';
+  if (weeklyData.length === 1) {
+    // Single point — draw a dot in the center.
+    return '<svg width="80" height="20" viewBox="0 0 80 20" xmlns="http://www.w3.org/2000/svg"><circle cx="40" cy="10" r="2" fill="#388bfd"/></svg>';
+  }
+  const max = Math.max(...weeklyData);
+  if (max === 0) {
+    // All zeros — flat line at the bottom.
+    return '<svg width="80" height="20" viewBox="0 0 80 20" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="18" x2="80" y2="18" stroke="#388bfd" stroke-width="1.5" opacity="0.4"/></svg>';
+  }
+  const padding = 2;
+  const h = 20 - padding * 2;
+  const step = 80 / (weeklyData.length - 1);
+  const points = weeklyData.map((v, i) => {
+    const x = Math.round(i * step * 100) / 100;
+    const y = Math.round((padding + h - (v / max) * h) * 100) / 100;
+    return `${x},${y}`;
+  }).join(' ');
+  return `<svg width="80" height="20" viewBox="0 0 80 20" xmlns="http://www.w3.org/2000/svg"><polyline points="${points}" fill="none" stroke="#388bfd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
 function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived)
@@ -651,7 +673,7 @@ function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInven
       <td><a href="${r.name}.html">${r.name}</a></td>
       <td>${r.description ? escHtml(r.description).slice(0, 50) : '—'}</td>
       <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
-      <td>${r.commits || 0}</td><td>${(r.ci || 0) > 0 ? r.ci : '<span style="color:#f85149">0</span>'}</td>
+      <td>${r.commits || 0}</td><td>${generateSparklineSVG(details[r.name]?.weekly)}</td><td>${(r.ci || 0) > 0 ? r.ci : '<span style="color:#f85149">0</span>'}</td>
       <td>${!r.license || r.license === 'None' ? '<span style="color:#d29922">none</span>' : r.license}</td>
       <td><span style="color:${communityColor}">${r.communityHealth != null ? r.communityHealth + '%' : '—'}</span></td>
       <td><span style="color:${vulnColor}">${r.vulns != null ? r.vulns.count : '—'}</span></td>
@@ -682,7 +704,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>Trend</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Status</th><th>Tier</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 <h2>Distribution</h2>
