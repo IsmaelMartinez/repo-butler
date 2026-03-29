@@ -237,20 +237,23 @@ export function buildCampaignSection(repos, details) {
     {
       name: 'Community Health',
       description: 'Repos with community health score >= 80%',
-      test: r => (details[r.name]?.communityHealth ?? -1) >= 80,
+      applicable: r => details[r.name]?.communityHealth != null,
+      test: r => details[r.name].communityHealth >= 80,
     },
     {
       name: 'Vulnerability Free',
       description: 'Repos with zero critical/high vulnerabilities',
+      applicable: r => details[r.name]?.vulns != null,
       test: r => {
-        const v = details[r.name]?.vulns;
-        return v != null && v.max_severity !== 'critical' && v.max_severity !== 'high';
+        const v = details[r.name].vulns;
+        return v.max_severity !== 'critical' && v.max_severity !== 'high';
       },
     },
     {
       name: 'CI Reliability',
       description: 'Repos with CI pass rate >= 90%',
-      test: r => (details[r.name]?.ciPassRate ?? -1) >= 0.9,
+      applicable: r => details[r.name]?.ciPassRate != null,
+      test: r => details[r.name].ciPassRate >= 0.9,
     },
     {
       name: 'License Compliance',
@@ -268,12 +271,13 @@ export function buildCampaignSection(repos, details) {
   ];
 
   const cards = campaigns.map(campaign => {
-    const { compliant, nonCompliant } = eligible.reduce((acc, r) => {
+    const pool = campaign.applicable ? eligible.filter(campaign.applicable) : eligible;
+    const { compliant, nonCompliant } = pool.reduce((acc, r) => {
       if (campaign.test(r)) acc.compliant.push(r);
       else acc.nonCompliant.push(r);
       return acc;
     }, { compliant: [], nonCompliant: [] });
-    const total = eligible.length;
+    const total = pool.length;
     const count = compliant.length;
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
     const barColor = pct >= 80 ? COLOR_SUCCESS : pct >= 50 ? COLOR_WARNING : COLOR_DANGER;
@@ -285,7 +289,7 @@ export function buildCampaignSection(repos, details) {
 <div class="campaign-header"><h3>${escHtml(campaign.name)}</h3><span class="campaign-ratio">${count}/${total}</span></div>
 <div class="campaign-desc">${escHtml(campaign.description)}</div>
 <div class="campaign-bar"><div class="campaign-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
-<div class="campaign-pct">${pct}% complete</div>
+<div class="campaign-pct">${pct}% complete${campaign.applicable && pool.length < eligible.length ? ` <span style="color:#6e7681">(${eligible.length - pool.length} repos excluded — data unavailable)</span>` : ''}</div>
 ${nonCompliantList}
 </div>`;
   }).join('\n');

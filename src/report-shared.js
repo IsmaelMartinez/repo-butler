@@ -138,3 +138,4 @@ export function generateHealthBadge(repoName, tier) {
   </g>
 </svg>`;
 }
+// refactored from report.js
