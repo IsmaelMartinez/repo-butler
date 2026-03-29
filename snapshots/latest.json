@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-03-20T03:00:42.203Z",
+  "timestamp": "2026-03-29T11:17:03.865Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
     "language": "JavaScript",
-    "stars": 0,
+    "stars": 1,
     "forks": 0,
     "watchers": 0,
     "open_issues_count": 0,
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-03-19T23:19:05Z",
+    "pushed_at": "2026-03-29T10:56:49Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,410 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 58,
+        "title": "refactor: split report.js into focused modules",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-29T10:55:49Z"
+      },
+      {
+        "number": 57,
+        "title": "fix: camelCase mismatch between ideate and propose",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-29T10:51:10Z"
+      },
+      {
+        "number": 56,
+        "title": "fix: exclude repos with unavailable data from campaigns",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-28T08:34:27Z"
+      },
+      {
+        "number": 55,
+        "title": "feat: contributor funnel for per-repo and portfolio reports",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:32:40Z"
+      },
+      {
+        "number": 52,
+        "title": "feat: add libyear dependency freshness metric",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:28:08Z"
+      },
+      {
+        "number": 54,
+        "title": "feat: campaign view on portfolio dashboard",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:24:25Z"
+      },
+      {
+        "number": 53,
+        "title": "feat: sparkline mini-charts in portfolio table",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:21:37Z"
+      },
+      {
+        "number": 51,
+        "title": "build(deps): Bump actions/deploy-pages from 4 to 5",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-26T12:30:40Z"
+      },
+      {
+        "number": 48,
+        "title": "build(deps): Bump actions/setup-node from 4 to 6",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-26T12:29:18Z"
+      },
+      {
+        "number": 47,
+        "title": "build(deps): Bump actions/checkout from 4 to 6",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-26T12:27:12Z"
+      },
+      {
+        "number": 50,
+        "title": "fix: group Dependabot minor/patch updates",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-25T18:30:28Z"
+      },
+      {
+        "number": 46,
+        "title": "build(deps): Bump actions/upload-pages-artifact from 3 to 4",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-25T18:28:41Z"
+      },
+      {
+        "number": 49,
+        "title": "docs: ADR-002 portfolio governance boundary",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-25T11:04:30Z"
+      },
+      {
+        "number": 45,
+        "title": "feat: add Dependabot config and prepare v1 release packaging",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T21:55:16Z"
+      },
+      {
+        "number": 44,
+        "title": "feat: add community health files for 80%+ profile score",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T21:55:03Z"
+      },
+      {
+        "number": 42,
+        "title": "feat: duplicate detection and structured issue body",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T21:29:50Z"
+      },
+      {
+        "number": 43,
+        "title": "docs: mark Phase 4 as shipped",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T21:30:47Z"
+      },
+      {
+        "number": 41,
+        "title": "feat: structured issue specs with signal rationale",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T21:29:37Z"
+      },
+      {
+        "number": 40,
+        "title": "docs: mark Phase 3 as shipped",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T17:03:56Z"
+      },
+      {
+        "number": 39,
+        "title": "feat: tiered health model (Gold/Silver/Bronze)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T17:01:02Z"
+      },
+      {
+        "number": 38,
+        "title": "docs: mark Phase 2 as shipped",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T13:35:47Z"
+      },
+      {
+        "number": 37,
+        "title": "feat: add actionability score to per-repo reports",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T13:34:42Z"
+      },
+      {
+        "number": 36,
+        "title": "feat: SBOM-based dependency inventory",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T13:18:22Z"
+      },
+      {
+        "number": 35,
+        "title": "feat: add narrative weekly digest page",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T13:18:08Z"
+      },
+      {
+        "number": 34,
+        "title": "feat: embeddable SVG health badges",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T13:16:03Z"
+      },
+      {
+        "number": 33,
+        "title": "feat: issue velocity imbalance alert",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T01:00:24Z"
+      },
+      {
+        "number": 32,
+        "title": "feat: calendar heatmap",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T00:58:23Z"
+      },
+      {
+        "number": 30,
+        "title": "feat: PR cycle time metrics",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T00:57:08Z"
+      },
+      {
+        "number": 31,
+        "title": "feat: issue velocity imbalance alert",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T22:53:29Z"
+      },
+      {
+        "number": 29,
+        "title": "docs: Phase 2 progress update",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T22:53:26Z"
+      },
+      {
+        "number": 28,
+        "title": "feat: blocked issue context (upstream vs dependency)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T20:07:39Z"
+      },
+      {
+        "number": 27,
+        "title": "feat: issue staleness detection",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T15:45:34Z"
+      },
+      {
+        "number": 26,
+        "title": "feat: open PR triage view + GitHub links",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T15:40:03Z"
+      },
+      {
+        "number": 25,
+        "title": "docs: reorder roadmap, add CLAUDE.md",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T12:01:24Z"
+      },
+      {
+        "number": 24,
+        "title": "fix: exclude PRs from open issue counts",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T08:58:40Z"
+      },
+      {
+        "number": 23,
+        "title": "perf: replace search API with list endpoints",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T08:06:02Z"
+      },
+      {
+        "number": 22,
+        "title": "fix: YAML issue templates + empty merged PR trends",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-23T07:51:34Z"
+      },
+      {
+        "number": 21,
+        "title": "fix: per-repo health cards + release cadence chart",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T23:29:32Z"
+      },
+      {
+        "number": 20,
+        "title": "docs: Phase 1 shipped, Phase 4 feedback from teams-for-linux",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T23:24:35Z"
+      },
+      {
+        "number": 18,
+        "title": "feat: Phase 1 richer observation",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T22:30:10Z"
+      },
+      {
+        "number": 17,
+        "title": "docs: Phase 1 implementation plan",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T21:30:49Z"
+      },
+      {
+        "number": 16,
+        "title": "docs: roadmap v2 — the butler that cares",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T21:14:43Z"
+      },
+      {
+        "number": 15,
+        "title": "docs: update roadmap — multi-repo trends shipped",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T17:13:41Z"
+      },
+      {
+        "number": 14,
+        "title": "feat: multi-repo trend charts",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T17:07:57Z"
+      },
+      {
+        "number": 13,
+        "title": "docs: update roadmap after triage trends shipped",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T11:45:24Z"
+      },
+      {
+        "number": 12,
+        "title": "feat: feed triage bot trends into LLM prompts",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-22T11:41:50Z"
+      },
+      {
+        "number": 11,
+        "title": "docs: update README and ROADMAP after all features shipped",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-21T00:17:31Z"
+      },
+      {
+        "number": 10,
+        "title": "feat: optional triage bot integration with auto-discovery",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-21T00:14:52Z"
+      },
+      {
+        "number": 9,
+        "title": "feat: report caching via snapshot hashing",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T20:46:56Z"
+      },
+      {
+        "number": 8,
+        "title": "feat: historical trend charts with weekly snapshots",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T20:44:28Z"
+      },
+      {
+        "number": 7,
+        "title": "feat: safety layer for LLM output validation",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T16:27:15Z"
+      },
+      {
+        "number": 6,
+        "title": "docs: ADR-001 triage bot boundary + roadmap update",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T15:11:38Z"
+      },
+      {
+        "number": 5,
+        "title": "docs: update README and ROADMAP",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T10:55:23Z"
+      },
+      {
+        "number": 4,
+        "title": "feat: per-repo reports for every portfolio repo",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T10:17:56Z"
+      },
+      {
+        "number": 3,
+        "title": "fix: report phase auto-runs observe when standalone",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T09:55:07Z"
+      },
+      {
+        "number": 2,
+        "title": "feat: auto-generated HTML reports with GitHub Pages",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-20T09:51:40Z"
+      },
       {
         "number": 1,
         "title": "fix: security and quality issues from code review",
@@ -37,6 +441,11 @@
       "color": "d73a4a"
     },
     {
+      "name": "dependencies",
+      "description": "Pull requests that update a dependency file",
+      "color": "0366d6"
+    },
+    {
       "name": "documentation",
       "description": "Improvements or additions to documentation",
       "color": "0075ca"
@@ -50,6 +459,11 @@
       "name": "enhancement",
       "description": "New feature or request",
       "color": "a2eeef"
+    },
+    {
+      "name": "github_actions",
+      "description": "Pull requests that update GitHub Actions code",
+      "color": "000000"
     },
     {
       "name": "good first issue",
@@ -89,31 +503,60 @@
       "name": "Repo Butler",
       "path": ".github/workflows/self-test.yml",
       "state": "active"
+    },
+    {
+      "name": "Dependabot Updates",
+      "path": "dynamic/dependabot/dependabot-updates",
+      "state": "active"
     }
   ],
   "roadmap": {
     "path": "ROADMAP.md",
-    "content": "# Repo Butler — Roadmap\n\n**Last Updated:** 2026-03-19\n**Status:** All five phases implemented, tested against teams-for-linux\n\n---\n\n## Architecture\n\nThe agent follows a five-phase loop:\n\n```\nOBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE\n```\n\n1. **OBSERVE** — Gather project state via GitHub API. No LLM needed.\n2. **ASSESS** — Diff current snapshot against previous run. Optionally summarise with Gemini Flash.\n3. **UPDATE** — Generate an updated roadmap document and open a PR. Uses Gemini Flash.\n4. **IDEATE** — Generate improvement ideas. Uses Claude for deeper reasoning (falls back to Gemini).\n5. **PROPOSE** — Create GitHub issues from ideas, capped and labelled for human review.\n\n## Current State\n\n### Implemented\n\n- **OBSERVE**: open/closed issues, merged PRs, labels, milestones, releases, workflows, repo metadata, roadmap content, package.json parsing, portfolio-level repo classification\n- **ASSESS**: snapshot persistence via GitHub Contents API on a data branch, diff computation (new/resolved issues, merged PRs, new releases, label changes), LLM-powered change summarisation\n- **UPDATE**: generates updated roadmap from observation + assessment data, creates a PR on a feature branch\n- **IDEATE**: structured idea generation with priority/labels/body, parsed from LLM output\n- **PROPOSE**: creates GitHub issues from ideas, respects `max_issues_per_run`, ensures labels exist, sorts by priority\n- **Providers**: Gemini Flash (free tier REST API) and Claude (Anthropic Messages API), both zero-dependency\n- **Store**: snapshot persistence on a `repo-butler-data` orphan branch via Git Data API\n- **Self-dogfooding**: `.github/roadmap.yml` config and daily workflow with manual dispatch\n\n### Next Up\n\n- End-to-end test with a Gemini API key (OBSERVE and ASSESS work without one)\n- Consumer documentation for using this on other repos\n- Tests for core modules (observe, assess, store, idea parsing)\n- Rate limiting / retry logic for the GitHub and LLM APIs\n- Richer portfolio observation: CI status, README presence, open issue details per repo\n\n### Future\n\n- Electron release watcher (monitor Electron releases for fixes to blocked issues)\n- Multi-repo mode (observe several repos in a single run, cross-reference)\n- Configurable assessment templates per project type\n- Weekly digest email/notification option\n"
+    "content": "# Repo Butler — Roadmap\n\n**Last Updated:** 2026-03-23\n**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/)\n\n---\n\n## Vision\n\nRepo Butler is evolving from a reporting tool into a genuine butler — one that not only tells you what your repos need but takes care of it. The positioning is deliberate: don't replicate what Renovate, Dependabot, SonarCloud, or the triage bot already do well. Instead, consume their data, present a unified view, and open PRs to install the tools that are missing. The butler orchestrates; the specialist tools execute.\n\nThe competitive landscape confirms this is a unique niche. Implementation agents (Copilot Coding Agent, Sweep, Devin) take known issues and write code. Planning tools (CodeRabbit Issue Planner) produce implementation plans. Project intelligence platforms (Linear AI, OSSInsight, GrimoireLab) either require infrastructure or are SaaS. No tool does the full loop of observe → assess → propose → act across an entire portfolio from a zero-dependency GitHub Action.\n\n## Architecture\n\n```text\nOBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT\n```\n\n1. **OBSERVE** — Gather project state via GitHub API. Portfolio-level classification. Consume data from installed tools. No LLM needed.\n2. **ASSESS** — Diff snapshots, compute trends, detect health gaps. Optionally summarise with Gemini Flash.\n3. **UPDATE** — Generate an updated roadmap document and open a PR. Safety-validated.\n4. **IDEATE** — Generate improvement ideas informed by triage bot intelligence and health signals.\n5. **PROPOSE** — Create GitHub issues from ideas, safety-filtered, capped and labelled.\n6. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.\n\nSee [ADR-001](docs/decisions/001-repo-butler-vs-triage-bot.md) for the boundary between this project and the triage bot.\n\n## Implemented\n\nAll six original phases are working end-to-end with real Gemini API calls validated. The system runs daily at 2am UTC via GitHub Actions cron, generating fresh reports and deploying them to GitHub Pages.\n\nObserving covers open/closed issues, merged PRs, labels, milestones, releases, workflows, repo metadata, roadmap content, and package.json parsing. Portfolio observation classifies all repos by activity level (active, dormant, archive candidate, fork, test).\n\nAssessing persists snapshots on a `repo-butler-data` orphan branch via the Git Data API, computes diffs between runs, and tracks weekly snapshot history for trend analysis. The `computeTrends` function produces a direction signal (growing/shrinking/stable) from up to 12 weeks of data.\n\nReporting generates per-repo HTML dashboards for every active portfolio repo, with full charts for active repos and lightweight cards for quieter ones. Report caching skips regeneration when the snapshot hash hasn't changed. Multi-repo trend charts store lightweight weekly snapshots per portfolio repo. A safety layer validates all LLM output before publishing. Triage bot integration is optional and auto-discovered. The ASSESS and IDEATE prompts include triage bot intelligence when available.\n\nPhase 1 (Richer Observation) shipped 2026-03-22 via PR #18. Added community health profile, Dependabot vulnerability alerts, CI pass rate, bus factor, and time-to-close median. Portfolio table gained Community, Vulns, and CI% columns. Per-repo reports gained a Repository Health section with five cards. Follow-up fixes: YAML issue template detection (PR #22), search API replaced with list endpoints halving runtime from 26 to 13 minutes (PR #23), open issue counts exclude PRs (PR #24).\n\nPhase 2 (Richer Reports) in progress since 2026-03-23. Open PR triage view (PR #26), issue staleness detection (PR #27), blocked issue context with upstream classification (PR #28). 74 tests, 28 merged PRs.\n\nThe GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 74 tests and secret-leak checks on every PR.\n\n---\n\n## Roadmap\n\n### ~~Phase 1 — Richer Observation (consume, don't replicate)~~ SHIPPED\n\nShipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pass rate, bus factor, time-to-close median. Portfolio table + per-repo health cards.\n\n**GitHub Community Health Profile** — Call `/repos/{owner}/{repo}/community/profile` (one unauthenticated call per public repo) to get a health percentage and presence/absence of README, CODE_OF_CONDUCT, CONTRIBUTING, issue templates, PR template, and LICENSE. Add to the portfolio health matrix as a \"Community\" column. The API returns structured data that directly maps to a gap checklist for the CARE phase.\n\n**Dependabot Vulnerability Alerts** — Call `/repos/{owner}/{repo}/dependabot/alerts?state=open` to get open security alerts with severity (critical/high/medium/low), affected package, and patched version. Add a \"Vulns\" column to the health matrix, colour-coded by maximum severity. Requires `vulnerability_alerts: read` scope on the token for cross-repo access.\n\n**CI Workflow Pass Rate** — Call `/repos/{owner}/{repo}/actions/runs?status=completed&per_page=100` and compute `success / (success + failure + cancelled + timed_out)`, excluding skipped runs. Display as a percentage in the health matrix and flag repos below 90% as having flaky CI.\n\n**Time to First Response** — From existing issue data (already fetched), compute the median time between issue creation and the first comment by someone other than the author. This is a CHAOSS standard metric and a key community health signal.\n\n**Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.\n\n### ~~Phase 2 — Richer Reports~~ SHIPPED\n\nShipped 2026-03-24 (PRs #23–#37). All 10 items complete: release cadence bug fix, open PR triage view, issue staleness detection, blocked issue context, calendar heatmap, PR cycle time, issue velocity imbalance alert, narrative weekly digest, embeddable SVG health badges, SBOM dependency inventory, and AI agent actionability score. 105 tests.\n\n### ~~Phase 3 — Tiered Health Model~~ SHIPPED\n\nShipped 2026-03-24 (PR #39). Replaced the numeric health score with Gold/Silver/Bronze tiers. Each tier has explicit pass/fail criteria shown as a checklist on per-repo reports. Portfolio table shows tier badges. SVG badges updated with tier names. 119 tests.\n\n### ~~Phase 4 — Structured Issue Specs~~ SHIPPED\n\nShipped 2026-03-24 (PRs #41–#42). IDEATE now requests structured specs (current/proposed state, affected files, scope, signal rationale). PROPOSE builds rich markdown issue bodies and uses Jaccard similarity duplicate detection (threshold 0.6) before creating issues. Backward compatible with old-format LLM output. 27 new tests across ideate.test.js and propose.test.js.\n\n### ~~Consumer Packaging~~ SHIPPED\n\nShipped 2026-03-24. No `ncc` bundling needed — the project has zero npm dependencies, so GitHub Actions' native `node22` runtime runs `src/index.js` directly. The `action.yml` already declares `using: 'node22'` and `main: 'src/index.js'`, which is all that's required. Consumers reference the action as `uses: IsmaelMartinez/repo-butler@v1`. Dependabot is configured for the `github-actions` ecosystem to keep workflow dependencies current. README includes Usage, Quick Start, and Configuration sections for consumers.\n\n---\n\n## Future\n\nThese are ideas for later evaluation, not commitments.\n\n**Libyear dependency freshness** — Using SBOM data plus npm/PyPI registry lookups, compute the cumulative age of each repo's dependencies versus their latest versions. A single number per repo answering \"how stale are the dependencies?\"\n\n**External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern.\n\n**Contributor funnel** — Flag first-time contributors (PR authors whose first-ever merged PR in the repo falls within the observation window). Compute contributor confidence ratio (contributors / stargazers) as a lightweight sustainability indicator.\n\n**Sparkline mini-charts** — Add tiny inline trend lines in the portfolio table rows (26-week activity sparkline per repo) instead of just a number. Implementable with pure SVG, no library.\n\n**Campaign view** — Group improvement ideas and setup PRs into named campaigns on the portfolio dashboard: \"License Compliance: 14/19 repos done, 5 need action.\" Transforms the dashboard from a status display into an active task tracker.\n\n### Phase 5 — Portfolio Governance Engine\n\nReplaces the original CARE phase with a broader portfolio governance model. See [ADR-002](docs/decisions/002-portfolio-governance-boundary.md) for the full rationale on why this replaces the generic IDEATE/PROPOSE approach.\n\nThe core insight: repo-butler's unique value is the cross-repo view. It sees which tools are configured where, what changed when, and which repos are out of alignment. The IDEATE/PROPOSE phases should generate proposals that only make sense with this portfolio context, not generic per-repo improvement ideas (which the triage bot does better with deeper context).\n\n**Portfolio policy definition** — Add a `standards` section to `.github/roadmap.yml` where the maintainer declares what every repo should have. Standards are scope-aware: universal standards apply to all repos (community health files, branch protection, language-agnostic code review tools, Dependabot for GitHub Actions), while ecosystem-specific standards filter by language (npm Renovate only for JavaScript repos, golangci-lint only for Go). Individual repos can be excluded. Without explicit standards, the butler infers conservatively from majority adoption — but only for universal tools, never for ecosystem-specific ones.\n\n**Standards propagation** — Detect when a tool or configuration is adopted in some repos but not all, respecting scope. Generate proposals only for repos where the tool is applicable. Examples: CodeRabbit configured in 5 repos but missing from 14 (universal, applies to all). Issue form templates in 3 repos but 16 using old markdown format (universal). A Go linter workflow adopted in 2 Go repos but missing from 3 others (ecosystem-specific, only targets Go repos).\n\n**Policy drift detection** — Detect when repos that should be aligned have diverged. Examples: 18 repos use MIT but one switched to Apache-2.0. A CI workflow template was updated in the base repo but downstream repos run the old version. A shared CONTRIBUTING.md was revised but copies in other repos are stale.\n\n**Health tier uplift proposals** — Generate concrete proposals to help repos reach the next tier. \"repo-x is Silver. To reach Gold: needs a release, CONTRIBUTING.md, and Dependabot. Here are PRs for the latter two.\"\n\n**Rewrite IDEATE prompt** — Replace the generic \"generate improvement ideas\" prompt with a governance-focused prompt that receives full portfolio context (tool configs across repos, adoption rates, drift data) and produces standards propagation and drift correction proposals.\n\nCross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).\n\nSecurity prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, separate cross-repo PAT, contributor name sanitization for CODEOWNERS.\n\n## What NOT to build\n\nCross-platform identity resolution (GitHub + Slack + Discord) — that's Orbit/Common Room territory. File-level code ownership analysis — requires git cloning which breaks the API-only architecture. Natural-language data querying — cool but requires a database. Grafana dashboards — the static HTML approach is the right constraint. Anything that requires self-hosted infrastructure — the zero-cost, zero-dependency positioning is the moat. Per-repo code improvement suggestions — that's the triage bot's domain (see ADR-002).\n\n## Relationship to Other Tools\n\nThe butler consumes, it doesn't compete. Renovate handles dependency updates — the butler installs Renovate across the portfolio. Dependabot handles security alerts — the butler reads them and propagates Dependabot config to repos that lack it. The triage bot handles per-issue intelligence and per-repo improvement proposals — the butler reads its trends, configures it on new repos, and focuses on portfolio-level governance. SonarCloud handles code quality — the butler reads its scores. GitHub's community health profile defines the checklist — the butler runs through it across every repo and fixes the gaps.\n\nThe boundary is clear: the triage bot goes deep on one repo, the butler goes broad across the portfolio. The triage bot says \"issue #47 is a duplicate of #12.\" The butler says \"you adopted CodeRabbit in 5 repos — here are the 14 that should have it too.\"\n"
   },
   "package": {
     "version": "0.1.0",
     "dependencies": [],
     "devDependencies": []
   },
+  "community_profile": {
+    "health_percentage": 85,
+    "files": {
+      "readme": true,
+      "license": true,
+      "contributing": true,
+      "code_of_conduct": true,
+      "issue_template": true,
+      "pull_request_template": true
+    }
+  },
+  "dependabot_alerts": null,
+  "ci_pass_rate": {
+    "pass_rate": 1,
+    "total_runs": 99,
+    "passed": 99,
+    "failed": 0
+  },
   "summary": {
-    "repo": "0 stars, 0 forks",
+    "repo": "1 stars, 0 forks",
     "open_issues": 0,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 1,
-    "bot_prs": 0,
-    "human_prs": 1,
-    "unique_contributors": 1,
+    "recently_merged_prs": 57,
+    "bot_prs": 4,
+    "human_prs": 53,
+    "unique_contributors": 2,
     "releases": 0,
     "latest_release": "none",
     "top_open_labels": [],
     "high_reaction_issues": [],
-    "stale_awaiting_feedback": []
+    "stale_awaiting_feedback": [],
+    "community_health": 85,
+    "dependabot_alert_count": null,
+    "dependabot_max_severity": null,
+    "ci_pass_rate": 1,
+    "bus_factor": 1,
+    "time_to_close_median": null
   }
 }
