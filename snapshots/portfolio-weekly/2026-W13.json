@@ -1,23 +1,28 @@
 {
-  "github-issue-triage-bot": {
-    "open_issues": 0,
-    "commits_6mo": 177,
-    "stars": 1
+  "teams-for-linux": {
+    "open_issues": 16,
+    "commits_6mo": 338,
+    "stars": 4543
   },
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 137,
+    "commits_6mo": 139,
+    "stars": 1
+  },
+  "github-issue-triage-bot": {
+    "open_issues": 0,
+    "commits_6mo": 180,
+    "stars": 1
+  },
+  "ai-model-advisor": {
+    "open_issues": 0,
+    "commits_6mo": 147,
     "stars": 1
   },
   "generator-atlassian-compass-event-catalog": {
     "open_issues": 0,
     "commits_6mo": 162,
     "stars": 4
-  },
-  "teams-for-linux": {
-    "open_issues": 16,
-    "commits_6mo": 337,
-    "stars": 4543
   },
   "betis-escocia": {
     "open_issues": 0,
@@ -32,11 +37,6 @@
   "bonnie-wee-plot": {
     "open_issues": 0,
     "commits_6mo": 372,
-    "stars": 1
-  },
-  "ai-model-advisor": {
-    "open_issues": 0,
-    "commits_6mo": 146,
     "stars": 1
   },
   "sound3fy": {
