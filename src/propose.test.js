@@ -68,10 +68,10 @@ describe('buildIssueBody', () => {
       body: 'ignored in structured mode',
       priority: 'high',
       rationale: 'CI is slow and flaky.',
-      current_state: 'Tests run sequentially in 12 minutes.',
-      proposed_state: 'Tests run in parallel in 3 minutes.',
+      currentState: 'Tests run sequentially in 12 minutes.',
+      proposedState: 'Tests run in parallel in 3 minutes.',
       scope: 'CI configuration only',
-      affected_files: ['.github/workflows/ci.yml', 'jest.config.js'],
+      affectedFiles: ['.github/workflows/ci.yml', 'jest.config.js'],
     };
     const result = buildIssueBody(idea);
     assert.ok(result.includes('## Rationale\nCI is slow and flaky.'));
@@ -101,7 +101,7 @@ describe('buildIssueBody', () => {
     const idea = {
       body: 'Important content here.',
       priority: 'medium',
-      affected_files: [],
+      affectedFiles: [],
     };
     const result = buildIssueBody(idea);
     assert.ok(result.includes('Important content here.'));
@@ -112,10 +112,10 @@ describe('buildIssueBody', () => {
     const idea = {
       priority: 'medium',
       rationale: 'Needs improvement.',
-      current_state: 'Current behavior.',
-      proposed_state: 'Better behavior.',
+      currentState: 'Current behavior.',
+      proposedState: 'Better behavior.',
       scope: 'Small scope',
-      affected_files: [],
+      affectedFiles: [],
     };
     const result = buildIssueBody(idea);
     assert.ok(result.includes('## Rationale'));

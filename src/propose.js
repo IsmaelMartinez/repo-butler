@@ -68,8 +68,8 @@ export async function findDuplicates(gh, owner, repo, title, threshold = 0.6) {
  * otherwise falls back to the plain body for backward compatibility.
  */
 export function buildIssueBody(idea) {
-  const hasStructuredFields = idea.rationale || idea.current_state ||
-    idea.proposed_state || (idea.affected_files?.length > 0) || idea.scope;
+  const hasStructuredFields = idea.rationale || idea.currentState ||
+    idea.proposedState || (idea.affectedFiles?.length > 0) || idea.scope;
 
   if (!hasStructuredFields) {
     return [
@@ -85,17 +85,17 @@ export function buildIssueBody(idea) {
   if (idea.rationale) {
     sections.push(`## Rationale\n${idea.rationale}`);
   }
-  if (idea.current_state) {
-    sections.push(`## Current State\n${idea.current_state}`);
+  if (idea.currentState) {
+    sections.push(`## Current State\n${idea.currentState}`);
   }
-  if (idea.proposed_state) {
-    sections.push(`## Proposed State\n${idea.proposed_state}`);
+  if (idea.proposedState) {
+    sections.push(`## Proposed State\n${idea.proposedState}`);
   }
   if (idea.scope) {
     sections.push(`## Scope\n${idea.scope}`);
   }
-  if (idea.affected_files && idea.affected_files.length > 0) {
-    const fileList = idea.affected_files.map(f => `- ${f}`).join('\n');
+  if (idea.affectedFiles && idea.affectedFiles.length > 0) {
+    const fileList = idea.affectedFiles.map(f => `- ${f}`).join('\n');
     sections.push(`## Affected Files\n${fileList}`);
   }
 
