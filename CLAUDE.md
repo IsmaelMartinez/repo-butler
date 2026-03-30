@@ -33,7 +33,7 @@ OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
 
 `src/observe.js` gathers data via GitHub REST API. It runs ~11 API calls in parallel via `Promise.all`, including community health profile, Dependabot alerts, CI pass rate, and computes derived metrics (bus factor, time-to-close median). `observePortfolio()` classifies all repos by activity level.
 
-`src/report.js` is the largest module (~600 lines). It generates per-repo HTML dashboards with Chart.js and a portfolio landing page. `fetchPortfolioDetails()` enriches each repo with commits, community health, vulnerability data, CI pass rate, and real open issue counts (excluding PRs). `generateRepoReport()` and `generatePortfolioReport()` produce self-contained HTML files.
+The report module is split into five files. `src/report.js` is the entry point that orchestrates the REPORT phase. `src/report-shared.js` has shared constants and `computeHealthTier()`. `src/report-portfolio.js` has `fetchPortfolioDetails()`, `generatePortfolioReport()`, and `buildCampaignSection()`. `src/report-repo.js` has `generateRepoReport()` and per-repo chart data fetchers. `src/report-styles.js` has the CSS template.
 
 `src/store.js` persists JSON snapshots to a `repo-butler-data` orphan branch using the Git Data API (blobs → trees → commits → ref updates). Weekly portfolio snapshots are stored for trend analysis (max 12 weeks).
 
@@ -42,6 +42,10 @@ OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
 `src/assess.js` diffs snapshots and computes trends. `computeTrends()` produces a direction signal (growing/shrinking/stable) from weekly historical data.
 
 `src/providers/` contains LLM provider implementations (Gemini Flash, Claude Sonnet) with a shared base interface (`async generate(prompt)`). Providers are validated before use with a simple "respond with OK" test.
+
+`src/mcp.js` is a zero-dependency MCP server (JSON-RPC 2.0 over stdio) that exposes portfolio health data to AI agents. Run with `claude mcp add repo-butler node src/mcp.js`. Only starts the readline listener when run directly, not when imported for tests.
+
+`schemas/v1/` contains JSON Schema 2020-12 definitions for all data structures. `docs/skill.md` is a Claude Code skill teaching AI agents how to work with repo-butler.
 
 ## Project conventions
 
@@ -66,3 +70,7 @@ OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
 - Report caching uses a SHA-256 hash of the snapshot summary. Adding new fields to the summary object will trigger regeneration.
 - Per-repo reports get a full dashboard (charts, health section) for repos with 10+ commits, or a lightweight card for quieter ones.
 - The per-repo `repoSnapshot` in report.js is assembled inline — when adding new observation data, remember to populate it both in observe.js (for the OBSERVE→REPORT pipeline) and in the inline repoSnapshot construction in report.js (for the portfolio→per-repo path).
+
+## MCP server
+
+`src/mcp.js` is a zero-dependency MCP server over stdio. It reads data from the `repo-butler-data` branch via `git show`. The readline listener only starts when run directly (`node src/mcp.js`), not when imported for testing. Tools use `computeHealthTier()` from `report-shared.js`. Campaign logic mirrors `buildCampaignSection()` in `report-portfolio.js` — keep them aligned when adding new campaigns.
