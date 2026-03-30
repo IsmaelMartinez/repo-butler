@@ -214,6 +214,13 @@ export function createStore(context) {
         open_issues: details?.open_issues ?? r.open_issues ?? 0,
         commits_6mo: details?.commits || 0,
         stars: r.stars || 0,
+        license: details?.license ?? null,
+        communityHealth: details?.communityHealth ?? null,
+        ciPassRate: details?.ciPassRate ?? null,
+        vulns: details?.vulns ? { count: details.vulns.count, max_severity: details.vulns.max_severity } : null,
+        ci: details?.ci ?? 0,
+        released_at: details?.released_at ?? null,
+        pushed_at: r.pushed_at ?? null,
       };
     }
 
