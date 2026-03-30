@@ -125,22 +125,32 @@ Zero external dependencies. Uses Node 22's built-in `fetch` for all API calls. T
 
 ```
 src/
-├── index.js          # Entry point, phase router
-├── observe.js        # OBSERVE: GitHub API data gathering + portfolio classification
-├── assess.js         # ASSESS: snapshot diffing, trend computation, LLM summarisation
-├── update.js         # UPDATE: roadmap PR generation with safety validation
-├── ideate.js         # IDEATE: LLM idea generation with structured parsing
-├── propose.js        # PROPOSE: GitHub issue creation with safety filtering + approval gate
-├── report.js         # REPORT: HTML dashboard generation with caching
-├── safety.js         # Output validators: URLs, @mentions, secrets, XSS, lengths
-├── triage-bot.js     # Optional triage bot integration (auto-discovered)
-├── store.js          # Snapshot + weekly history + hash persistence via Git Data API
-├── config.js         # YAML config loader with defaults
-├── github.js         # GitHub REST API client with rate limit handling
+├── index.js              # Entry point, phase router
+├── observe.js            # OBSERVE: GitHub API data gathering + portfolio classification
+├── assess.js             # ASSESS: snapshot diffing, trend computation, LLM summarisation
+├── update.js             # UPDATE: roadmap PR generation with safety validation
+├── ideate.js             # IDEATE: LLM idea generation with structured parsing
+├── propose.js            # PROPOSE: GitHub issue creation with safety filtering + approval gate
+├── report.js             # REPORT: entry point, orchestrates report generation
+├── report-shared.js      # Shared constants, computeHealthTier(), helpers
+├── report-portfolio.js   # Portfolio reports, campaigns, dependency inventory
+├── report-repo.js        # Per-repo charts, health sections, data fetchers
+├── report-styles.js      # CSS template
+├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
+├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths
+├── triage-bot.js         # Optional triage bot integration (auto-discovered)
+├── store.js              # Snapshot + weekly history + hash persistence via Git Data API
+├── config.js             # YAML config loader with defaults
+├── github.js             # GitHub REST API client with rate limit handling
+├── libyear.js            # Dependency freshness (libyear metric via npm registry)
 └── providers/
-    ├── base.js       # LLM provider interface
-    ├── gemini.js     # Gemini Flash (free tier, API key via header)
-    └── claude.js     # Claude (Anthropic Messages API)
+    ├── base.js           # LLM provider interface
+    ├── gemini.js         # Gemini Flash (free tier, API key via header)
+    └── claude.js         # Claude (Anthropic Messages API)
+schemas/v1/               # JSON Schema definitions for all data structures
+docs/
+├── skill.md              # Claude Code skill for AI agent consumption
+└── decisions/            # Architecture Decision Records (ADR-001 through ADR-003)
 ```
 
 ## MCP Server (AI agent access)
