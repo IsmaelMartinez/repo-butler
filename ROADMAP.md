@@ -108,9 +108,9 @@ The core insight: repo-butler's unique value is the cross-repo view. It sees whi
 
 **Rewrite IDEATE prompt** — Replace the generic "generate improvement ideas" prompt with a governance-focused prompt that receives full portfolio context (tool configs across repos, adoption rates, drift data) and produces standards propagation and drift correction proposals.
 
-Cross-repo PR creation uses a GitHub App (preferred over fine-grained PATs for auto-expiring 8-hour tokens, 15K req/hr rate limits, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
+Cross-repo PR creation uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
 
-Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, GitHub App for cross-repo auth, contributor name sanitization for CODEOWNERS.
+Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, GitHub App for cross-repo auth, contributor name sanitisation for CODEOWNERS.
 
 ### ~~Phase 6 — Data Contracts + AI Skill~~ SHIPPED
 
@@ -128,7 +128,7 @@ A2A v0.3 Agent Card published at `/.well-known/agent.json` for capability discov
 
 **Triage bot contract** — Replace the current implicit auto-discovery with an explicit typed contract. Define `TriageBotEvent` schemas for health summaries and issue signals. Both sides validate against the schema, preventing silent breakage when the triage bot changes its output format.
 
-**Security prerequisites** — Bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in `safety.js`, GitHub App for cross-repo auth (8-hour auto-expiring tokens via `actions/create-github-app-token`), contributor name sanitisation for CODEOWNERS. These gate Phase 5 governance proposals as well.
+**Security prerequisites** — Bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in `safety.js`, GitHub App for cross-repo auth (1-hour auto-expiring tokens via `actions/create-github-app-token`), contributor name sanitisation for CODEOWNERS. These gate Phase 5 governance proposals as well.
 
 ### Phase 9 — AsyncAPI Events
 
