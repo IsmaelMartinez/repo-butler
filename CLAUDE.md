@@ -37,7 +37,7 @@ The report module is split into five files. `src/report.js` is the entry point t
 
 `src/store.js` persists JSON snapshots to a `repo-butler-data` orphan branch using the Git Data API (blobs → trees → commits → ref updates). Weekly portfolio snapshots are stored for trend analysis (max 12 weeks).
 
-`src/safety.js` validates all LLM output before publishing. URL allowlist, @mention blocking, API key detection, XSS prevention, length limits. Every phase that writes to GitHub must pass output through these validators.
+`src/safety.js` is the security boundary for all external inputs and outputs. Output validators: context-aware URL allowlist (core hosts always, docs hosts in roadmap context only), @mention blocking, API key detection, XSS prevention, length limits. Input validators: `sanitizeForPrompt()` strips injection patterns from user-controlled data before LLM ingestion, `validateBotUrl()` prevents SSRF via host allowlist (requires `TRIAGE_BOT_ALLOWED_HOSTS` for butler.json URLs), `validateTriageBotTrends()` validates triage bot response shape before prompt injection, `detectEcosystem()` requires 2-of-3 signals for repo classification. All prompt-building functions (`buildIdeatePrompt`, `buildAssessPrompt`, `buildUpdatePrompt`) wrap external data in `BEGIN/END REPOSITORY DATA` delimiters with a defence preamble. Every phase that writes to GitHub must pass output through these validators.
 
 `src/assess.js` diffs snapshots and computes trends. `computeTrends()` produces a direction signal (growing/shrinking/stable) from weekly historical data.
 
