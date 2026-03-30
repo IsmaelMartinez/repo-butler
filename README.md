@@ -143,6 +143,27 @@ src/
     └── claude.js     # Claude (Anthropic Messages API)
 ```
 
+## MCP Server (AI agent access)
+
+Repo Butler includes an MCP (Model Context Protocol) server that lets AI agents query portfolio health data directly. Any MCP-compatible client (Claude Code, Claude Desktop, Cursor, VS Code) can connect.
+
+```bash
+# Add to Claude Code
+claude mcp add repo-butler node src/mcp.js
+
+# Or add to Claude Desktop (~/.claude/claude_desktop_config.json)
+{
+  "mcpServers": {
+    "repo-butler": {
+      "command": "node",
+      "args": ["/path/to/repo-butler/src/mcp.js"]
+    }
+  }
+}
+```
+
+Once connected, the AI gets four tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier/language), and `get_snapshot_diff` (what changed since last run). It also gets three resources: the latest snapshot, portfolio health summary, and campaign status.
+
 ## Design principles
 
 - Zero dependencies. No `npm install` needed.
