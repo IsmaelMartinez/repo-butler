@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-03-23
+**Last Updated:** 2026-03-29
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/)
 
 ---
@@ -84,7 +84,7 @@ These are ideas for later evaluation, not commitments.
 
 **Libyear dependency freshness** — Using SBOM data plus npm/PyPI registry lookups, compute the cumulative age of each repo's dependencies versus their latest versions. A single number per repo answering "how stale are the dependencies?"
 
-**External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern.
+**External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern. Phase 6 schemas lay the groundwork for structured consumption of these external signals.
 
 **Contributor funnel** — Flag first-time contributors (PR authors whose first-ever merged PR in the repo falls within the observation window). Compute contributor confidence ratio (contributors / stargazers) as a lightweight sustainability indicator.
 
@@ -111,6 +111,48 @@ The core insight: repo-butler's unique value is the cross-repo view. It sees whi
 Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
 
 Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, separate cross-repo PAT, contributor name sanitization for CODEOWNERS.
+
+### Phase 6 — Data Contracts + AI Skill
+
+JSON Schema definitions for all core data structures: snapshot, portfolio, health tiers, and config. A Claude Code skill at `docs/skill.md` for AI agent consumption of the portfolio API. Schema validation tests run in CI. Weekly portfolio snapshots enriched with health tier computation fields. Six schemas live under `schemas/v1/`.
+
+**JSON Schema definitions** — Define schemas for `snapshot.json`, `portfolio.json`, `health-tiers.json`, and `config.json`. Schemas enforce structure, enable editor autocomplete, and act as a machine-readable API contract for downstream consumers.
+
+**Claude Code skill** — Publish `docs/skill.md` describing how an AI agent can query the portfolio: which endpoints to call, what fields to expect, and how to interpret health tiers and campaigns. Follows the Claude Code skill format so agents can import it directly.
+
+**Schema validation in CI** — Add a test pass that validates real snapshot output against the v1 schemas on every PR. Prevents silent regressions in the observe/report pipeline.
+
+**Enriched portfolio snapshots** — Extend weekly snapshots stored on `repo-butler-data` to include health tier, campaign membership, and governance drift signals — the fields consumers need for health tier computation.
+
+### Phase 7 — MCP Server
+
+Zero-dependency MCP server (`src/mcp.js`) exposing snapshot data as resources and tools via JSON-RPC 2.0 over stdio. Consumers (Claude Desktop, Claude Code, other agents) connect to the server to query portfolio health without parsing raw JSON themselves.
+
+**Resources** — `latest_snapshot`, `portfolio_health`, `active_campaigns`, `trend_history`. Each resource maps directly to data already stored on the `repo-butler-data` branch.
+
+**Tools** — `get_health_tier(repo)` returns the current Gold/Silver/Bronze classification with pass/fail criteria. `get_campaign_status(campaign)` returns progress across the portfolio. `query_portfolio(filter)` returns repos matching a health or activity predicate. `get_snapshot_diff(repo, weeks)` returns the delta between two snapshots.
+
+**Transport** — stdio JSON-RPC 2.0 with no npm dependencies, consistent with the zero-dependency constraint. The server reads snapshot data via the GitHub API using the same `src/github.js` client.
+
+### Phase 8 — A2A Agent Card + Triage Bot Contract
+
+A2A v0.3 Agent Card published at `/.well-known/agent.json` for capability discovery by other agents. A formalised integration contract with the triage bot, defining typed event schemas for the signals the butler consumes (issue intelligence, per-repo health summaries).
+
+**Agent Card** — Declares the butler's capabilities (portfolio observation, governance proposals, health tier classification), authentication requirements, and the MCP server endpoint from Phase 7. Follows the A2A v0.3 spec.
+
+**Triage bot contract** — Replace the current implicit auto-discovery with an explicit typed contract. Define `TriageBotEvent` schemas for health summaries and issue signals. Both sides validate against the schema, preventing silent breakage when the triage bot changes its output format.
+
+**Security prerequisites** — Bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in `safety.js`, separate cross-repo PAT, contributor name sanitisation for CODEOWNERS. These gate Phase 5 governance proposals as well.
+
+### Phase 9 — AsyncAPI Events
+
+AsyncAPI 3.0 spec describing the event-driven interface for consumers that want push rather than pull. Health-change events and governance-proposal events are published via GitHub `repository_dispatch`, allowing external systems to react without polling the snapshot branch.
+
+**Health-change channel** — Emitted when a repo's health tier changes (Bronze → Silver, etc.). Payload matches the Phase 6 `health-tiers` schema.
+
+**Governance-proposal channel** — Emitted when the butler opens a cross-repo PR or creates a governance issue. Payload includes the proposal type, affected repos, and campaign membership.
+
+**Spec file** — `docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI. Documents message shapes, channel bindings, and the `repository_dispatch` event type used as the transport.
 
 ## What NOT to build
 

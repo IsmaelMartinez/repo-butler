@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/health-tier.v1.schema.json",
+  "title": "HealthTier",
+  "description": "Output of computeHealthTier() in src/report-shared.js. Classifies a repository into a health tier and provides a list of individual checks with pass/fail status. The function consumes a RepoDetails object (from PortfolioDetails) merged with the PortfolioRepo entry.",
+  "type": "object",
+  "required": ["tier", "checks"],
+  "properties": {
+    "tier": {
+      "type": "string",
+      "enum": ["gold", "silver", "bronze", "none"],
+      "description": "Computed health tier. gold requires all gold and silver checks to pass; silver requires all silver checks; bronze requires at least one bronze check; none otherwise."
+    },
+    "checks": {
+      "type": "array",
+      "description": "Evaluated health checks in the order computeHealthTier() defines them",
+      "items": {
+        "$ref": "#/$defs/HealthCheck"
+      }
+    }
+  },
+  "$defs": {
+    "HealthCheck": {
+      "title": "HealthCheck",
+      "type": "object",
+      "required": ["name", "passed", "required_for"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable check name",
+          "enum": [
+            "Has CI workflows (2+)",
+            "Has a license",
+            "Fewer than 10 open issues",
+            "Release in the last 90 days",
+            "Community health above 80%",
+            "Dependabot/Renovate configured",
+            "Zero critical/high vulnerabilities",
+            "Has CI workflows",
+            "Community health above 50%",
+            "Activity in the last 6 months",
+            "Some activity (within 1 year)"
+          ]
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "Whether this check passed for the evaluated repository"
+        },
+        "required_for": {
+          "type": "string",
+          "enum": ["gold", "silver", "bronze"],
+          "description": "The minimum tier this check must pass to achieve. A check required_for 'gold' must pass for both gold tier (directly) and is implicitly evaluated for silver as well when gold is attempted."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/portfolio-details.v1.schema.json",
+  "title": "PortfolioDetails",
+  "description": "Map of repo name → per-repo enrichment data produced by fetchPortfolioDetails() in src/report-portfolio.js. This is the shape consumed by computeHealthTier() and the portfolio HTML report. All fields are camelCase (fetchPortfolioDetails internal convention), except open_issues which keeps its snake_case name.",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/$defs/RepoDetails"
+  },
+  "$defs": {
+    "RepoDetails": {
+      "title": "RepoDetails",
+      "description": "Enrichment data for a single active, non-fork repository",
+      "type": "object",
+      "required": [
+        "commits",
+        "weekly",
+        "license",
+        "ci",
+        "communityHealth",
+        "vulns",
+        "ciPassRate",
+        "open_issues",
+        "sbom",
+        "released_at",
+        "hasIssueTemplate",
+        "libyear"
+      ],
+      "properties": {
+        "commits": {
+          "type": "integer",
+          "description": "Number of commits in the last 180 days via the commit search API"
+        },
+        "weekly": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "description": "Owner's weekly commit counts for the last 26 weeks from the participation stats endpoint (owner slice, not all contributors)"
+        },
+        "license": {
+          "type": "string",
+          "description": "SPDX license identifier, or 'None' when unlicensed"
+        },
+        "ci": {
+          "type": "integer",
+          "description": "Total number of GitHub Actions workflows (total_count from /actions/workflows)"
+        },
+        "communityHealth": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Community health percentage from /community/profile; null when unavailable"
+        },
+        "vulns": {
+          "oneOf": [
+            { "$ref": "#/$defs/VulnSummary" },
+            { "type": "null" }
+          ],
+          "description": "Dependabot vulnerability summary; null when the token lacks vulnerability_alerts:read"
+        },
+        "ciPassRate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of the last 100 completed workflow runs that succeeded; null when no runs exist or fetch fails"
+        },
+        "open_issues": {
+          "type": "integer",
+          "description": "True open issue count excluding PRs (fetched via paginate, not open_issues_count)"
+        },
+        "sbom": {
+          "oneOf": [
+            { "$ref": "#/$defs/SBOMSummary" },
+            { "type": "null" }
+          ],
+          "description": "SBOM dependency summary from /dependency-graph/sbom; null when unavailable"
+        },
+        "released_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "published_at of the most recent release; null when no releases exist"
+        },
+        "hasIssueTemplate": {
+          "type": "boolean",
+          "description": "True if any issue template was found (API or .github/ISSUE_TEMPLATE/ directory fallback)"
+        },
+        "libyear": {
+          "oneOf": [
+            { "$ref": "#/$defs/LibyearResult" },
+            { "type": "null" }
+          ],
+          "description": "Dependency freshness score; null when SBOM is absent or libyear computation times out"
+        },
+        "contributors": {
+          "type": ["integer", "null"],
+          "description": "Count of unique human PR authors; populated later in src/report.js from the contributor funnel analysis, not by fetchPortfolioDetails() itself"
+        }
+      }
+    },
+    "VulnSummary": {
+      "title": "VulnSummary",
+      "description": "Trimmed vulnerability summary from the Dependabot alerts endpoint",
+      "type": "object",
+      "required": ["count"],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "description": "Total open Dependabot alerts"
+        },
+        "max_severity": {
+          "type": ["string", "null"],
+          "enum": ["critical", "high", "medium", "low", null],
+          "description": "Highest severity level among open alerts; null when count is 0"
+        }
+      }
+    },
+    "SBOMSummary": {
+      "title": "SBOMSummary",
+      "description": "Dependency inventory extracted from the GitHub SBOM endpoint",
+      "type": "object",
+      "required": ["count", "packages"],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "description": "Total number of dependency packages (root repo entry excluded)"
+        },
+        "packages": {
+          "type": "array",
+          "description": "Trimmed package entries",
+          "items": {
+            "$ref": "#/$defs/SBOMPackage"
+          }
+        }
+      }
+    },
+    "SBOMPackage": {
+      "title": "SBOMPackage",
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "SPDXID, purl, or name@version fallback identifier"
+        },
+        "name": {
+          "type": ["string", "null"],
+          "description": "Package name"
+        },
+        "version": {
+          "type": ["string", "null"],
+          "description": "Installed version; null when absent from SBOM"
+        },
+        "purl": {
+          "type": ["string", "null"],
+          "description": "Package URL (purl) from SBOM externalRefs; null when not present"
+        },
+        "license": {
+          "type": ["string", "null"],
+          "description": "SPDX expression from SBOM licenseConcluded / licenseDeclared; null when NOASSERTION or absent"
+        }
+      }
+    },
+    "LibyearResult": {
+      "title": "LibyearResult",
+      "description": "Dependency freshness metrics from src/libyear.js",
+      "type": "object",
+      "required": ["total_libyear"],
+      "properties": {
+        "total_libyear": {
+          "type": "number",
+          "description": "Sum of years each dependency lags behind its latest release. Lower is fresher. Thresholds: <5 green, <20 yellow, ≥20 red."
+        }
+      }
+    }
+  }
+}

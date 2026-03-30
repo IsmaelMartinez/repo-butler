@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/weekly-trend.v1.schema.json",
+  "title": "WeeklyPortfolioSnapshot",
+  "description": "Lightweight weekly snapshot stored at snapshots/portfolio-weekly/{YYYY-WNN}.json on the repo-butler-data orphan branch. Keys are repository names; values are trimmed metric objects. computeTrends() in src/assess.js attaches a _week label to each entry at runtime — this field is never written to disk.",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/$defs/WeeklyRepoEntry"
+  },
+  "$defs": {
+    "WeeklyRepoEntry": {
+      "title": "WeeklyRepoEntry",
+      "description": "Trimmed metrics snapshot for a single repository at one point in time",
+      "type": "object",
+      "required": ["open_issues", "commits_6mo", "stars"],
+      "properties": {
+        "open_issues": {
+          "type": "integer",
+          "description": "Open issue count at snapshot time (includes PRs — GitHub open_issues_count API quirk)"
+        },
+        "commits_6mo": {
+          "type": "integer",
+          "description": "Total commits in the previous 180 days at snapshot time"
+        },
+        "stars": {
+          "type": "integer",
+          "description": "stargazers_count at snapshot time"
+        },
+        "_week": {
+          "type": "string",
+          "description": "ISO week label attached by computeTrends() at runtime; never stored on disk",
+          "examples": ["2026-W13"],
+          "pattern": "^\\d{4}-W\\d{2}$"
+        }
+      }
+    }
+  }
+}

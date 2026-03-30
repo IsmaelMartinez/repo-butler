@@ -1,0 +1,592 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/repository-snapshot.v1.schema.json",
+  "title": "RepositorySnapshot",
+  "description": "Full observation snapshot for a single GitHub repository, produced by the OBSERVE phase (src/observe.js).",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "repository",
+    "meta",
+    "issues",
+    "pull_requests",
+    "labels",
+    "milestones",
+    "releases",
+    "workflows",
+    "ci_pass_rate",
+    "summary"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the snapshot was taken"
+    },
+    "repository": {
+      "type": "string",
+      "description": "Full repository slug in owner/repo format",
+      "examples": ["IsmaelMartinez/repo-butler"]
+    },
+    "meta": {
+      "$ref": "#/$defs/RepositoryMeta"
+    },
+    "issues": {
+      "$ref": "#/$defs/IssueSet"
+    },
+    "pull_requests": {
+      "type": "object",
+      "required": ["recently_merged"],
+      "properties": {
+        "recently_merged": {
+          "type": "array",
+          "description": "PRs merged within the configured lookback window (prs_merged_days, default 90d)",
+          "items": {
+            "$ref": "#/$defs/MergedPR"
+          }
+        }
+      }
+    },
+    "labels": {
+      "type": "array",
+      "description": "All labels defined on the repository",
+      "items": {
+        "$ref": "#/$defs/Label"
+      }
+    },
+    "milestones": {
+      "type": "array",
+      "description": "All milestones (open and closed) on the repository",
+      "items": {
+        "$ref": "#/$defs/Milestone"
+      }
+    },
+    "releases": {
+      "type": "array",
+      "description": "Most recent releases, up to releases_count (default 10)",
+      "items": {
+        "$ref": "#/$defs/Release"
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "description": "GitHub Actions workflows defined in the repository",
+      "items": {
+        "$ref": "#/$defs/Workflow"
+      }
+    },
+    "roadmap": {
+      "oneOf": [
+        { "$ref": "#/$defs/RoadmapFile" },
+        { "type": "null" }
+      ],
+      "description": "Contents of the roadmap file, or null if not found"
+    },
+    "package": {
+      "oneOf": [
+        { "$ref": "#/$defs/PackageInfo" },
+        { "type": "null" }
+      ],
+      "description": "Parsed package.json dependency info, or null when package.json is absent or malformed"
+    },
+    "community_profile": {
+      "oneOf": [
+        { "$ref": "#/$defs/CommunityProfile" },
+        { "type": "null" }
+      ],
+      "description": "GitHub community health profile; null when the API is unavailable or returns an error"
+    },
+    "dependabot_alerts": {
+      "oneOf": [
+        { "$ref": "#/$defs/DependabotAlerts" },
+        { "type": "null" }
+      ],
+      "description": "Open Dependabot alert counts by severity; null when vulnerability_alerts:read permission is absent"
+    },
+    "ci_pass_rate": {
+      "$ref": "#/$defs/CIPassRate"
+    },
+    "summary": {
+      "$ref": "#/$defs/SnapshotSummary"
+    }
+  },
+  "$defs": {
+    "RepositoryMeta": {
+      "title": "RepositoryMeta",
+      "description": "Core GitHub repository metadata from GET /repos/{owner}/{repo}",
+      "type": "object",
+      "required": [
+        "language",
+        "stars",
+        "forks",
+        "watchers",
+        "open_issues_count",
+        "default_branch",
+        "topics",
+        "created_at",
+        "pushed_at",
+        "archived"
+      ],
+      "properties": {
+        "description": {
+          "type": ["string", "null"],
+          "description": "Repository description text; null when unset"
+        },
+        "language": {
+          "type": ["string", "null"],
+          "description": "Primary programming language detected by GitHub; null for non-code repos"
+        },
+        "stars": {
+          "type": "integer",
+          "description": "stargazers_count"
+        },
+        "forks": {
+          "type": "integer",
+          "description": "forks_count"
+        },
+        "watchers": {
+          "type": "integer",
+          "description": "subscribers_count (not watchers_count — GitHub API quirk)"
+        },
+        "open_issues_count": {
+          "type": "integer",
+          "description": "Total open issues + PRs as reported by GitHub (includes PRs)"
+        },
+        "default_branch": {
+          "type": "string"
+        },
+        "license": {
+          "type": ["string", "null"],
+          "description": "SPDX license identifier; null when unlicensed"
+        },
+        "topics": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "pushed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of the last push to any branch"
+        },
+        "archived": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Issue": {
+      "title": "Issue",
+      "description": "A GitHub issue (PRs are filtered out before storage)",
+      "type": "object",
+      "required": ["number", "title", "author", "labels", "reactions", "comments", "created_at", "updated_at"],
+      "properties": {
+        "number": { "type": "integer" },
+        "title": { "type": "string" },
+        "author": {
+          "type": ["string", "null"],
+          "description": "GitHub login of the issue author; null if the account was deleted"
+        },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Label names attached to the issue"
+        },
+        "reactions": {
+          "type": "integer",
+          "description": "Total reaction count (reactions.total_count)"
+        },
+        "comments": { "type": "integer" },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "assignees": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "GitHub logins of assigned users"
+        },
+        "milestone": {
+          "type": ["string", "null"],
+          "description": "Milestone title; null when no milestone is set"
+        }
+      }
+    },
+    "ClosedIssue": {
+      "title": "ClosedIssue",
+      "description": "A recently-closed GitHub issue",
+      "type": "object",
+      "required": ["number", "title", "author", "labels", "closed_at", "created_at"],
+      "properties": {
+        "number": { "type": "integer" },
+        "title": { "type": "string" },
+        "author": {
+          "type": ["string", "null"],
+          "description": "GitHub login of the issue author; null if the account was deleted"
+        },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "closed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "IssueSet": {
+      "title": "IssueSet",
+      "type": "object",
+      "required": ["open", "recently_closed"],
+      "properties": {
+        "open": {
+          "type": "array",
+          "description": "All currently open issues (PRs excluded)",
+          "items": { "$ref": "#/$defs/Issue" }
+        },
+        "recently_closed": {
+          "type": "array",
+          "description": "Issues closed within the configured lookback window (issues_closed_days, default 90d)",
+          "items": { "$ref": "#/$defs/ClosedIssue" }
+        }
+      }
+    },
+    "MergedPR": {
+      "title": "MergedPR",
+      "type": "object",
+      "required": ["number", "title", "author", "labels", "merged_at"],
+      "properties": {
+        "number": { "type": "integer" },
+        "title": { "type": "string" },
+        "author": {
+          "type": ["string", "null"],
+          "description": "GitHub login of the PR author"
+        },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "merged_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 merge timestamp; falls back to closed_at when pull_request.merged_at is absent"
+        }
+      }
+    },
+    "Label": {
+      "title": "Label",
+      "type": "object",
+      "required": ["name", "color"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": {
+          "type": ["string", "null"]
+        },
+        "color": {
+          "type": "string",
+          "description": "6-character hex color without leading #"
+        }
+      }
+    },
+    "Milestone": {
+      "title": "Milestone",
+      "type": "object",
+      "required": ["title", "state", "open_issues", "closed_issues"],
+      "properties": {
+        "title": { "type": "string" },
+        "state": {
+          "type": "string",
+          "enum": ["open", "closed"]
+        },
+        "open_issues": { "type": "integer" },
+        "closed_issues": { "type": "integer" },
+        "due_on": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Due date; null when no due date is set"
+        }
+      }
+    },
+    "Release": {
+      "title": "Release",
+      "type": "object",
+      "required": ["tag", "published_at", "prerelease", "draft"],
+      "properties": {
+        "tag": {
+          "type": "string",
+          "description": "tag_name of the release"
+        },
+        "name": {
+          "type": ["string", "null"],
+          "description": "Human-readable release name; null when not set"
+        },
+        "published_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "null for unpublished drafts"
+        },
+        "prerelease": { "type": "boolean" },
+        "draft": { "type": "boolean" }
+      }
+    },
+    "Workflow": {
+      "title": "Workflow",
+      "type": "object",
+      "required": ["name", "path", "state"],
+      "properties": {
+        "name": { "type": "string" },
+        "path": {
+          "type": "string",
+          "description": "Path to the workflow YAML file, e.g. .github/workflows/ci.yml"
+        },
+        "state": {
+          "type": "string",
+          "description": "Workflow state: active, disabled_manually, disabled_inactivity, etc."
+        }
+      }
+    },
+    "RoadmapFile": {
+      "title": "RoadmapFile",
+      "type": "object",
+      "required": ["path", "content"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the roadmap file within the repository"
+        },
+        "content": {
+          "type": "string",
+          "description": "Raw text content of the roadmap file"
+        }
+      }
+    },
+    "PackageInfo": {
+      "title": "PackageInfo",
+      "description": "Trimmed dependency info extracted from package.json",
+      "type": "object",
+      "required": ["version", "dependencies", "devDependencies"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Package version string"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Names of production dependencies (keys of dependencies object)"
+        },
+        "devDependencies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Names of dev dependencies (keys of devDependencies object)"
+        }
+      }
+    },
+    "CommunityProfile": {
+      "title": "CommunityProfile",
+      "description": "GitHub community health profile from GET /repos/{owner}/{repo}/community/profile. Note: the API does not detect YAML-based issue templates; the code falls back to checking .github/ISSUE_TEMPLATE/ directory.",
+      "type": "object",
+      "required": ["health_percentage", "files"],
+      "properties": {
+        "health_percentage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "files": {
+          "type": "object",
+          "required": ["readme", "license", "contributing", "code_of_conduct", "issue_template", "pull_request_template"],
+          "properties": {
+            "readme": { "type": "boolean" },
+            "license": { "type": "boolean" },
+            "contributing": { "type": "boolean" },
+            "code_of_conduct": { "type": "boolean" },
+            "issue_template": {
+              "type": "boolean",
+              "description": "True if any issue template exists (either .md format via API or .yml files in .github/ISSUE_TEMPLATE/)"
+            },
+            "pull_request_template": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "DependabotAlerts": {
+      "title": "DependabotAlerts",
+      "description": "Open Dependabot alert counts, grouped by severity",
+      "type": "object",
+      "required": ["count", "critical", "high", "medium", "low"],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "description": "Total number of open alerts"
+        },
+        "critical": { "type": "integer" },
+        "high": { "type": "integer" },
+        "medium": { "type": "integer" },
+        "low": { "type": "integer" },
+        "max_severity": {
+          "type": ["string", "null"],
+          "enum": ["critical", "high", "medium", "low", null],
+          "description": "Highest severity level present; null when there are no open alerts"
+        }
+      }
+    },
+    "CIPassRate": {
+      "title": "CIPassRate",
+      "description": "Pass-rate metrics computed from the last 100 completed workflow runs",
+      "type": "object",
+      "required": ["total_runs", "passed", "failed"],
+      "properties": {
+        "pass_rate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of runs that succeeded (passed / total); null when total_runs is 0"
+        },
+        "total_runs": {
+          "type": "integer",
+          "description": "Total completed runs counted (success + failure/cancelled/timed_out)"
+        },
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" }
+      }
+    },
+    "TimeToCloseMedian": {
+      "title": "TimeToCloseMedian",
+      "type": "object",
+      "required": ["median_days", "sample_size"],
+      "properties": {
+        "median_days": {
+          "type": "number",
+          "description": "Median days from issue creation to close, rounded to 1 decimal place"
+        },
+        "sample_size": {
+          "type": "integer",
+          "description": "Number of issues used in the calculation"
+        }
+      }
+    },
+    "SnapshotSummary": {
+      "title": "SnapshotSummary",
+      "description": "Derived metrics used for report caching (SHA-256 hash) and LLM prompts",
+      "type": "object",
+      "required": [
+        "repo",
+        "open_issues",
+        "blocked_issues",
+        "awaiting_feedback",
+        "recently_closed",
+        "recently_merged_prs",
+        "bot_prs",
+        "human_prs",
+        "unique_contributors",
+        "releases",
+        "latest_release",
+        "top_open_labels",
+        "high_reaction_issues",
+        "stale_awaiting_feedback",
+        "bus_factor"
+      ],
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "Human-readable summary string, e.g. '42 stars, 3 forks'"
+        },
+        "open_issues": {
+          "type": "integer",
+          "description": "Count of currently open issues (PRs excluded)"
+        },
+        "blocked_issues": {
+          "type": "integer",
+          "description": "Open issues labelled 'blocked'"
+        },
+        "awaiting_feedback": {
+          "type": "integer",
+          "description": "Open issues labelled 'awaiting user feedback'"
+        },
+        "recently_closed": {
+          "type": "integer",
+          "description": "Issues closed within the lookback window"
+        },
+        "recently_merged_prs": {
+          "type": "integer"
+        },
+        "bot_prs": {
+          "type": "integer",
+          "description": "Merged PRs authored by bots (dependabot[bot], github-actions[bot], app/...)"
+        },
+        "human_prs": {
+          "type": "integer",
+          "description": "recently_merged_prs minus bot_prs"
+        },
+        "unique_contributors": {
+          "type": "integer",
+          "description": "Number of distinct PR authors (including bots) in the merged PRs window"
+        },
+        "releases": {
+          "type": "integer",
+          "description": "Count of releases fetched (capped by releases_count config)"
+        },
+        "latest_release": {
+          "type": "string",
+          "description": "tag_name of the most recent release, or 'none'"
+        },
+        "top_open_labels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Top 5 label names by open-issue frequency, formatted as 'name (count)'"
+        },
+        "high_reaction_issues": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Open issues with 2+ reactions, formatted as '#N: title (count)', sorted by reaction count desc"
+        },
+        "stale_awaiting_feedback": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "awaiting-feedback issues not updated in 14+ days, formatted as '#N: title (Xd)'"
+        },
+        "community_health": {
+          "type": ["integer", "null"],
+          "description": "community_profile.health_percentage; null when community_profile is null"
+        },
+        "dependabot_alert_count": {
+          "type": ["integer", "null"],
+          "description": "Total open Dependabot alerts; null when dependabot_alerts is null"
+        },
+        "dependabot_max_severity": {
+          "type": ["string", "null"],
+          "enum": ["critical", "high", "medium", "low", null],
+          "description": "Highest Dependabot severity present; null when no alerts or permission absent"
+        },
+        "ci_pass_rate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "CI pass fraction; null when no runs exist"
+        },
+        "bus_factor": {
+          "type": ["integer", "null"],
+          "description": "Minimum number of contributors responsible for 50% of merged PRs; null when fewer than 5 human PRs exist"
+        },
+        "time_to_close_median": {
+          "oneOf": [
+            { "$ref": "#/$defs/TimeToCloseMedian" },
+            { "type": "null" }
+          ],
+          "description": "Median time-to-close for recently-closed issues; null when no closed issues have both created_at and closed_at"
+        }
+      }
+    }
+  }
+}

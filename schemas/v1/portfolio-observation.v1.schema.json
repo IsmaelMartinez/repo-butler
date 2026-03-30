@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/portfolio-observation.v1.schema.json",
+  "title": "PortfolioObservation",
+  "description": "Top-level portfolio snapshot returned by observePortfolio() in src/observe.js. Contains all repos for an owner/org plus activity-based classification.",
+  "type": "object",
+  "required": ["timestamp", "owner", "repos", "classification"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the portfolio observation was taken"
+    },
+    "owner": {
+      "type": "string",
+      "description": "GitHub user or organisation login"
+    },
+    "repos": {
+      "type": "array",
+      "description": "All repositories for the owner (up to 200, sorted by pushed_at desc)",
+      "items": {
+        "$ref": "#/$defs/PortfolioRepo"
+      }
+    },
+    "classification": {
+      "$ref": "#/$defs/RepoClassification"
+    }
+  },
+  "$defs": {
+    "PortfolioRepo": {
+      "title": "PortfolioRepo",
+      "description": "Trimmed repository entry sourced from the GitHub list-repos API",
+      "type": "object",
+      "required": [
+        "name",
+        "language",
+        "stars",
+        "forks",
+        "open_issues",
+        "pushed_at",
+        "archived",
+        "fork",
+        "has_issues",
+        "default_branch",
+        "topics"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Repository name without owner prefix"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Repository description; null when unset"
+        },
+        "language": {
+          "type": ["string", "null"],
+          "description": "Primary language detected by GitHub; null for non-code repos"
+        },
+        "stars": {
+          "type": "integer",
+          "description": "stargazers_count"
+        },
+        "forks": {
+          "type": "integer",
+          "description": "forks_count"
+        },
+        "open_issues": {
+          "type": "integer",
+          "description": "open_issues_count — includes PRs due to GitHub API behaviour"
+        },
+        "pushed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of the last push to any branch"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "fork": {
+          "type": "boolean"
+        },
+        "license": {
+          "type": ["string", "null"],
+          "description": "SPDX license identifier; null when unlicensed"
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "default_branch": {
+          "type": "string"
+        },
+        "topics": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "RepoClassification": {
+      "title": "RepoClassification",
+      "description": "Repos grouped by activity level based on pushed_at recency. Buckets are mutually exclusive. Archived and fork repos are placed in their own buckets regardless of recency.",
+      "type": "object",
+      "required": ["active", "maintained", "dormant", "archive_candidates", "forks", "archived"],
+      "properties": {
+        "active": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Non-archived, non-fork repos pushed within 180 days"
+        },
+        "maintained": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Non-archived, non-fork repos pushed 180d–1y ago"
+        },
+        "dormant": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Non-archived, non-fork repos pushed 1y–2y ago"
+        },
+        "archive_candidates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Non-archived, non-fork repos not pushed in 2+ years"
+        },
+        "forks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Forked repositories (fork=true), regardless of activity"
+        },
+        "archived": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Archived repositories (archived=true)"
+        }
+      }
+    }
+  }
+}

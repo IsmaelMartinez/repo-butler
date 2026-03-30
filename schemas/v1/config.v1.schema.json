@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/config.v1.schema.json",
+  "title": "Config",
+  "description": "Repo Butler runtime configuration. Read from .github/roadmap.yml in the target repository and deep-merged with defaults from src/config.js. The YAML parser is hand-rolled and supports flat and one-level-nested keys only.",
+  "type": "object",
+  "properties": {
+    "repository": {
+      "type": "string",
+      "description": "Target repository in owner/repo format. Set at the top level of the YAML file.",
+      "examples": ["IsmaelMartinez/repo-butler"]
+    },
+    "roadmap": {
+      "type": "object",
+      "description": "Settings for the roadmap file",
+      "properties": {
+        "path": {
+          "type": "string",
+          "default": "ROADMAP.md",
+          "description": "Path to the roadmap file within the target repository"
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "description": "Frequency settings for pipeline phases",
+      "properties": {
+        "assess": {
+          "type": "string",
+          "default": "daily",
+          "description": "How often the ASSESS phase runs"
+        },
+        "ideate": {
+          "type": "string",
+          "default": "weekly",
+          "description": "How often the IDEATE phase runs"
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "description": "LLM provider settings",
+      "properties": {
+        "default": {
+          "type": "string",
+          "default": "gemini",
+          "enum": ["gemini", "claude"],
+          "description": "Default LLM provider to use when no phase-specific override is set"
+        }
+      }
+    },
+    "context": {
+      "type": "string",
+      "default": "",
+      "description": "Project context string injected verbatim into LLM prompts. Supports YAML block scalar (|) for multi-line content."
+    },
+    "limits": {
+      "type": "object",
+      "description": "Resource and policy limits for the PROPOSE phase",
+      "properties": {
+        "max_issues_per_run": {
+          "type": "integer",
+          "default": 3,
+          "description": "Maximum number of GitHub issues the PROPOSE phase creates per pipeline run"
+        },
+        "require_approval": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, proposed issues are created with an approval label and require human confirmation before further action"
+        },
+        "labels": {
+          "type": "object",
+          "description": "Label names used by the agent",
+          "properties": {
+            "proposal": {
+              "type": "string",
+              "default": "roadmap-proposal",
+              "description": "Label applied to AI-proposed issues awaiting approval"
+            },
+            "agent": {
+              "type": "string",
+              "default": "agent-generated",
+              "description": "Label applied to all issues created by the agent"
+            }
+          }
+        }
+      }
+    },
+    "observe": {
+      "type": "object",
+      "description": "Lookback window and fetch-count settings for the OBSERVE phase",
+      "properties": {
+        "issues_closed_days": {
+          "type": "integer",
+          "default": 90,
+          "description": "Number of days to look back when fetching recently-closed issues"
+        },
+        "prs_merged_days": {
+          "type": "integer",
+          "default": 90,
+          "description": "Number of days to look back when fetching recently-merged PRs"
+        },
+        "releases_count": {
+          "type": "integer",
+          "default": 10,
+          "description": "Maximum number of recent releases to fetch"
+        }
+      }
+    }
+  }
+}
