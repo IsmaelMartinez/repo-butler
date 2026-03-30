@@ -117,7 +117,16 @@ async function main() {
       case 'assess': {
         // Fetch triage bot synthesis findings if available.
         if (triageBot) {
-          context.triageBotTrends = await triageBot.fetchTrends();
+          const rawTrends = await triageBot.fetchTrends();
+          if (rawTrends) {
+            const { validateTriageBotTrends } = await import('./safety.js');
+            const validation = validateTriageBotTrends(rawTrends);
+            if (!validation.valid) {
+              console.warn(`Triage bot trends failed validation: ${validation.error} — ignoring.`);
+            } else {
+              context.triageBotTrends = validation.sanitized;
+            }
+          }
         }
 
         context.provider = defaultProvider;

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jaccardSimilarity, buildIssueBody } from './propose.js';
+import { jaccardSimilarity, buildIssueBody, findDuplicatePRs, isGovernanceDeclined } from './propose.js';
 
 describe('jaccardSimilarity', () => {
   it('returns 1.0 for identical strings', () => {
@@ -134,5 +134,95 @@ describe('buildIssueBody', () => {
     assert.ok(!result.includes('## Scope'));
     assert.ok(!result.includes('## Affected Files'));
     assert.ok(result.includes('*Priority: medium'));
+  });
+});
+
+describe('isGovernanceDeclined', () => {
+  it('returns true when governance-declined label is present', () => {
+    assert.equal(isGovernanceDeclined([{ name: 'governance-declined' }]), true);
+  });
+
+  it('returns false when label is absent', () => {
+    assert.equal(isGovernanceDeclined([{ name: 'bug' }, { name: 'enhancement' }]), false);
+    assert.equal(isGovernanceDeclined([]), false);
+  });
+
+  it('handles non-array input', () => {
+    assert.equal(isGovernanceDeclined(null), false);
+    assert.equal(isGovernanceDeclined(undefined), false);
+  });
+
+  it('handles string labels', () => {
+    assert.equal(isGovernanceDeclined(['governance-declined']), true);
+    assert.equal(isGovernanceDeclined(['bug']), false);
+  });
+});
+
+describe('findDuplicatePRs', () => {
+  it('detects similar open PRs', async () => {
+    const mockGh = {
+      paginate: async () => [
+        { number: 10, title: 'Dependabot scanning pipeline', state: 'open' },
+      ],
+    };
+    // "Dependabot scanning pipeline" vs "Dependabot scanning pipeline"
+    // After stop words: {configure, dependabot, scanning, pipeline} vs {dependabot, scanning, pipeline, setup}
+    // Intersection: 3, Union: 5, Jaccard: 0.6
+    const matches = await findDuplicatePRs(mockGh, 'owner', 'repo', 'Dependabot scanning pipeline');
+    assert.ok(matches.length > 0);
+    assert.equal(matches[0].number, 10);
+    assert.equal(matches[0].state, 'open');
+  });
+
+  it('detects recently closed PRs within window', async () => {
+    const recentDate = new Date(Date.now() - 30 * 86400000).toISOString();
+    const mockGh = {
+      paginate: async (path, opts) => {
+        if (opts?.params?.state === 'closed') {
+          return [{ number: 11, title: 'Dependabot scanning pipeline', state: 'closed', closed_at: recentDate, labels: [] }];
+        }
+        return [];
+      },
+    };
+    const matches = await findDuplicatePRs(mockGh, 'owner', 'repo', 'Dependabot scanning pipeline', { includeClosedDays: 90 });
+    assert.ok(matches.length > 0);
+    assert.equal(matches[0].state, 'closed');
+  });
+
+  it('ignores closed PRs outside the window', async () => {
+    const oldDate = new Date(Date.now() - 180 * 86400000).toISOString();
+    const mockGh = {
+      paginate: async (path, opts) => {
+        if (opts?.params?.state === 'closed') {
+          return [{ number: 11, title: 'Dependabot scanning pipeline', state: 'closed', closed_at: oldDate, labels: [] }];
+        }
+        return [];
+      },
+    };
+    const matches = await findDuplicatePRs(mockGh, 'owner', 'repo', 'Dependabot scanning pipeline', { includeClosedDays: 90 });
+    assert.equal(matches.length, 0);
+  });
+
+  it('marks declined PRs with governance-declined label', async () => {
+    const recentDate = new Date(Date.now() - 10 * 86400000).toISOString();
+    const mockGh = {
+      paginate: async (path, opts) => {
+        if (opts?.params?.state === 'closed') {
+          return [{ number: 12, title: 'Dependabot scanning pipeline', state: 'closed', closed_at: recentDate, labels: [{ name: 'governance-declined' }] }];
+        }
+        return [];
+      },
+    };
+    const matches = await findDuplicatePRs(mockGh, 'owner', 'repo', 'Dependabot scanning pipeline', { includeClosedDays: 90 });
+    assert.ok(matches.length > 0);
+    assert.equal(matches[0].declined, true);
+  });
+
+  it('handles API errors gracefully', async () => {
+    const mockGh = {
+      paginate: async () => { throw new Error('API error'); },
+    };
+    const matches = await findDuplicatePRs(mockGh, 'owner', 'repo', 'Some title');
+    assert.deepEqual(matches, []);
   });
 });
