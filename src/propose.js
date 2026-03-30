@@ -139,11 +139,14 @@ export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6
   }
 
   // Check recently closed PRs if requested.
+  // Uses sort=updated to get most recent first, capped at 100 to avoid excessive
+  // API calls on repos with thousands of PRs. The date cutoff below filters further.
   if (includeClosedDays > 0) {
     let closedPRs;
     try {
       closedPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
-        params: { state: 'closed', per_page: 100 },
+        params: { state: 'closed', sort: 'updated', direction: 'desc', per_page: 100 },
+        max: 100,
       });
     } catch {
       closedPRs = [];

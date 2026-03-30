@@ -340,17 +340,32 @@ describe('validateTriageBotTrends', () => {
 
   it('rejects triage entries with non-numeric total', () => {
     const data = { triage: [{ total: 'inject this', promoted: 0 }] };
-    const result = validateTriageBotTrends(data);
-    assert.equal(result.valid, false);
+    assert.equal(validateTriageBotTrends(data).valid, false);
   });
 
   it('rejects agents entries with non-numeric total', () => {
-    const data = { agents: [{ total: null }] };
+    const data = { agents: [{ total: null, approved: 0, rejected: 0 }] };
+    assert.equal(validateTriageBotTrends(data).valid, false);
+  });
+
+  it('rejects agents entries with non-numeric approved', () => {
+    const data = { agents: [{ total: 5, approved: 'inject', rejected: 0 }] };
+    assert.equal(validateTriageBotTrends(data).valid, false);
+  });
+
+  it('rejects triage entries with non-numeric promoted', () => {
+    const data = { triage: [{ total: 5, promoted: 'inject' }] };
+    assert.equal(validateTriageBotTrends(data).valid, false);
+  });
+
+  it('rejects synthesis entries with non-numeric briefings', () => {
+    const data = { synthesis: [{ findings: 3, briefings: 'inject' }] };
     assert.equal(validateTriageBotTrends(data).valid, false);
   });
 
   it('strips unexpected top-level fields', () => {
     const data = { triage: [{ total: 5, promoted: 1 }], malicious: 'payload' };
+    // promoted is validated alongside total now
     const result = validateTriageBotTrends(data);
     assert.equal(result.valid, true);
     assert.equal(result.sanitized.malicious, undefined);
@@ -365,6 +380,11 @@ describe('validateTriageBotTrends', () => {
   it('rejects synthesis entries with non-numeric findings', () => {
     const data = { synthesis: [{ findings: 'bad', briefings: 0 }] };
     assert.equal(validateTriageBotTrends(data).valid, false);
+  });
+
+  it('accepts synthesis entries with all numeric fields', () => {
+    const data = { synthesis: [{ findings: 3, briefings: 2 }] };
+    assert.equal(validateTriageBotTrends(data).valid, true);
   });
 
   it('rejects response_time entries with non-numeric avg_seconds', () => {

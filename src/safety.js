@@ -296,15 +296,15 @@ export function validateTriageBotTrends(data) {
       if (typeof entry !== 'object' || entry === null) {
         return { valid: false, error: `trends.${key} entries must be objects`, sanitized: null };
       }
-      // Check key numeric fields per section type.
-      if (key === 'triage' && typeof entry.total !== 'number') {
-        return { valid: false, error: `trends.triage.total must be a number`, sanitized: null };
+      // Validate all numeric fields consumed by appendTriageBotContext.
+      if (key === 'triage' && (typeof entry.total !== 'number' || typeof entry.promoted !== 'number')) {
+        return { valid: false, error: `trends.triage entries must have numeric total and promoted`, sanitized: null };
       }
-      if (key === 'agents' && typeof entry.total !== 'number') {
-        return { valid: false, error: `trends.agents.total must be a number`, sanitized: null };
+      if (key === 'agents' && (typeof entry.total !== 'number' || typeof entry.approved !== 'number' || typeof entry.rejected !== 'number')) {
+        return { valid: false, error: `trends.agents entries must have numeric total, approved, and rejected`, sanitized: null };
       }
-      if (key === 'synthesis' && typeof entry.findings !== 'number') {
-        return { valid: false, error: `trends.synthesis.findings must be a number`, sanitized: null };
+      if (key === 'synthesis' && (typeof entry.findings !== 'number' || typeof entry.briefings !== 'number')) {
+        return { valid: false, error: `trends.synthesis entries must have numeric findings and briefings`, sanitized: null };
       }
       if (key === 'response_time' && typeof entry.avg_seconds !== 'number') {
         return { valid: false, error: `trends.response_time.avg_seconds must be a number`, sanitized: null };
