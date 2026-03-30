@@ -8,7 +8,6 @@
 
 import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS } from './report-shared.js';
@@ -47,11 +46,16 @@ function loadSnapshot() {
 function loadPortfolioWeekly() {
   // Find the latest weekly file by listing the directory.
   try {
-    const listing = execFileSync('git', ['ls-tree', '--name-only', 'origin/repo-butler-data', 'snapshots/portfolio-weekly/'], {
-      encoding: 'utf8',
-      cwd: join(__dirname, '..'),
-      timeout: 5000,
-    }).trim();
+    let listing;
+    try {
+      listing = execFileSync('git', ['ls-tree', '--name-only', 'origin/repo-butler-data', 'snapshots/portfolio-weekly/'], {
+        encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000,
+      }).trim();
+    } catch {
+      listing = execFileSync('git', ['ls-tree', '--name-only', 'repo-butler-data', 'snapshots/portfolio-weekly/'], {
+        encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000,
+      }).trim();
+    }
     if (!listing) return null;
     const files = listing.split('\n').filter(f => f.endsWith('.json')).sort();
     if (files.length === 0) return null;
@@ -63,13 +67,6 @@ function loadPortfolioWeekly() {
   }
 }
 
-function loadSchema(name) {
-  try {
-    return JSON.parse(readFileSync(join(__dirname, '..', 'schemas', 'v1', name), 'utf8'));
-  } catch {
-    return null;
-  }
-}
 
 // --- Resource definitions ---
 
@@ -138,7 +135,6 @@ const TOOLS = [
       type: 'object',
       properties: {
         tier: { type: 'string', enum: ['gold', 'silver', 'bronze', 'none'], description: 'Filter by health tier' },
-        language: { type: 'string', description: 'Filter by primary language' },
       },
     },
   },
@@ -207,17 +203,6 @@ function toolQueryPortfolio(filters) {
 
   if (filters.tier) {
     repos = repos.filter(r => r.tier === filters.tier);
-  }
-  // Language filtering requires the snapshot which has repo metadata.
-  // Weekly data doesn't store language, so we check the snapshot.
-  if (filters.language) {
-    const snapshot = loadSnapshot();
-    // The snapshot only covers the config repo. For portfolio, we'd need
-    // the observation data which isn't persisted per-repo. Skip language filter
-    // if data unavailable rather than returning wrong results.
-    if (snapshot?.meta?.language) {
-      // Can only filter the config repo itself.
-    }
   }
 
   return { week: weekly.week, count: repos.length, repos };
@@ -297,12 +282,21 @@ function computeCampaigns() {
       test: d => !!d.license && d.license !== 'None',
       applicable: () => true,
     },
+    {
+      name: 'Issue Templates',
+      description: 'Repos with issue templates configured',
+      test: d => !!d.hasIssueTemplate,
+      applicable: () => true,
+    },
   ];
+
+  // Filter out exclusion patterns (shadow, test-repo) to match dashboard logic.
+  const filtered = entries.filter(([name]) => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)));
 
   return {
     week: weekly.week,
     campaigns: campaigns.map(c => {
-      const pool = entries.filter(([, d]) => c.applicable(d));
+      const pool = filtered.filter(([, d]) => c.applicable(d));
       const compliant = pool.filter(([, d]) => c.test(d));
       const nonCompliant = pool.filter(([, d]) => !c.test(d));
       return {
@@ -346,7 +340,7 @@ function handleMessage(line) {
   switch (method) {
     case 'initialize':
       respond(id, {
-        protocolVersion: params?.protocolVersion || PROTOCOL_VERSION,
+        protocolVersion: PROTOCOL_VERSION,
         capabilities: { resources: {}, tools: {} },
         serverInfo: { name: 'repo-butler', version: '1.0.0' },
       });
