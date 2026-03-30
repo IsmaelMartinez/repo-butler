@@ -3,6 +3,7 @@
 // All calls fail gracefully — a missing or unreachable bot never blocks the pipeline.
 
 import { createClient } from './github.js';
+import { validateBotUrl } from './safety.js';
 
 export async function createTriageBotClient(context) {
   const { owner, repo, token } = context;
@@ -85,28 +86,58 @@ export async function createTriageBotClient(context) {
   };
 }
 
+// Parse the TRIAGE_BOT_ALLOWED_HOSTS env var into an array of hostnames.
+function getAllowedBotHosts() {
+  const raw = process.env.TRIAGE_BOT_ALLOWED_HOSTS;
+  if (!raw) return [];
+  return raw.split(',').map(h => h.trim()).filter(Boolean);
+}
+
 // Discover the bot config from the target repo's .github/butler.json.
 async function discoverBotConfig(gh, owner, repo) {
-  // Check for explicit env var first.
+  // Check for explicit env var first (trusted — set by maintainer).
   if (process.env.TRIAGE_BOT_URL) {
     const url = process.env.TRIAGE_BOT_URL.replace(/\/+$/, '');
-    if (!url.startsWith('https://')) {
-      console.warn('TRIAGE_BOT_URL must start with https:// — ignoring.');
+    // Env var URLs are trusted input: validate structure but self-trust the host.
+    const allowedHosts = getAllowedBotHosts();
+    if (allowedHosts.length > 0) {
+      // Explicit allowlist — use it with subdomain matching.
+      const check = validateBotUrl(url, allowedHosts);
+      if (!check.valid) {
+        console.warn(`TRIAGE_BOT_URL validation failed: ${check.error} — ignoring.`);
+        return null;
+      }
+      return { bot_url: url };
+    }
+    // No explicit allowlist — self-trust with exact hostname match only
+    // (no subdomain expansion to prevent evil.example.com bypass).
+    const selfHost = (() => { try { return new URL(url).hostname; } catch { return null; } })();
+    const check = validateBotUrl(url, selfHost ? [selfHost] : []);
+    if (!check.valid) {
+      console.warn(`TRIAGE_BOT_URL validation failed: ${check.error} — ignoring.`);
       return null;
     }
     return { bot_url: url };
   }
 
   // Try reading .github/butler.json from the repo.
+  // SECURITY: butler.json is untrusted input — requires TRIAGE_BOT_ALLOWED_HOSTS.
   const content = await gh.getFileContent(owner, repo, '.github/butler.json');
   if (!content) return null;
+
+  const allowedHosts = getAllowedBotHosts();
+  if (allowedHosts.length === 0) {
+    console.warn('butler.json found but TRIAGE_BOT_ALLOWED_HOSTS not set — ignoring for SSRF prevention.');
+    return null;
+  }
 
   try {
     const config = JSON.parse(content);
     if (config.bot_url) {
       const url = config.bot_url.replace(/\/+$/, '');
-      if (!url.startsWith('https://')) {
-        console.warn(`butler.json bot_url must start with https:// — got "${url.slice(0, 50)}", ignoring.`);
+      const check = validateBotUrl(url, allowedHosts);
+      if (!check.valid) {
+        console.warn(`butler.json bot_url rejected: ${check.error}`);
         return null;
       }
       return { bot_url: url };
@@ -144,4 +175,4 @@ function snapshotToEvents(snapshot, repoKey) {
 }
 
 // Export for testing.
-export { snapshotToEvents, discoverBotConfig };
+export { snapshotToEvents, discoverBotConfig, getAllowedBotHosts };

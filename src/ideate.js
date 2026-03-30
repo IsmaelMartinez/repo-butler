@@ -2,6 +2,7 @@
 // Uses a deeper-reasoning LLM (Claude by default) for creative suggestions.
 
 import { appendTriageBotContext } from './assess.js';
+import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
 
 export async function ideate(context) {
   const { snapshot, assessment, provider, config, dryRun, triageBotTrends } = context;
@@ -35,8 +36,11 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     'You are a technical advisor for an open-source project. Generate actionable improvement ideas based on the project state below.',
     'Each idea must include a structured specification consumable by implementation agents (Copilot, Sweep, etc.).',
     '',
+    PROMPT_DEFENCE,
+    '',
     projectContext ? `Project context: ${projectContext}` : '',
     '',
+    DATA_BOUNDARY_START,
     `Repository: ${snapshot.repository}`,
     `Stars: ${snapshot.meta?.stars || 'unknown'}`,
     `Open issues: ${snapshot.summary.open_issues} (${snapshot.summary.blocked_issues} blocked, ${snapshot.summary.awaiting_feedback} awaiting feedback)`,
@@ -47,32 +51,34 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
   ];
 
   if (assessment?.assessment) {
-    parts.push('Assessment:', assessment.assessment, '');
+    parts.push('Assessment:', sanitizeForPrompt(assessment.assessment), '');
   }
 
   parts.push('Open issues:');
   for (const i of snapshot.issues.open.slice(0, 20)) {
-    parts.push(`  #${i.number}: ${i.title} [${i.labels.join(', ')}] (${i.reactions} reactions, ${i.comments} comments)`);
+    parts.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}] (${i.reactions} reactions, ${i.comments} comments)`);
   }
   parts.push('');
 
   if (snapshot.summary.high_reaction_issues.length > 0) {
-    parts.push('Most-requested features/fixes:', ...snapshot.summary.high_reaction_issues.map(i => `  ${i}`), '');
+    parts.push('Most-requested features/fixes:', ...snapshot.summary.high_reaction_issues.map(i => `  ${sanitizeForPrompt(i)}`), '');
   }
 
   if (snapshot.summary.stale_awaiting_feedback.length > 0) {
-    parts.push('Stale issues (>14d no response):', ...snapshot.summary.stale_awaiting_feedback.map(i => `  ${i}`), '');
+    parts.push('Stale issues (>14d no response):', ...snapshot.summary.stale_awaiting_feedback.map(i => `  ${sanitizeForPrompt(i)}`), '');
   }
 
   if (snapshot.roadmap?.content) {
     // Include a summary rather than the full roadmap to stay within token limits.
     const roadmapPreview = snapshot.roadmap.content.slice(0, 2000);
-    parts.push('Roadmap (truncated):', roadmapPreview, '');
+    parts.push('Roadmap (truncated):', sanitizeForPrompt(roadmapPreview), '');
   }
 
   if (triageBotTrends) {
     appendTriageBotContext(parts, triageBotTrends);
   }
+
+  parts.push(DATA_BOUNDARY_END);
 
   parts.push(`Generate exactly ${maxIdeas} improvement ideas. For each idea, output this exact format:`, '');
   parts.push('---IDEA---');

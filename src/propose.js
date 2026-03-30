@@ -105,6 +105,70 @@ export function buildIssueBody(idea) {
   return sections.join('\n\n');
 }
 
+/**
+ * Check if a set of labels includes the governance-declined marker.
+ * Labels can be objects with .name or plain strings.
+ */
+export function isGovernanceDeclined(labels) {
+  if (!Array.isArray(labels)) return false;
+  return labels.some(l => (l.name || l) === 'governance-declined');
+}
+
+/**
+ * Find open or recently closed PRs with titles similar to the proposed title.
+ * Used by governance proposals to avoid re-proposing declined changes.
+ */
+export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6, includeClosedDays = 0 } = {}) {
+  const matches = [];
+
+  // Check open PRs.
+  let openPRs;
+  try {
+    openPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'open', per_page: 100 },
+    });
+  } catch {
+    return [];
+  }
+
+  for (const pr of openPRs) {
+    const similarity = jaccardSimilarity(title, pr.title);
+    if (similarity > threshold) {
+      matches.push({ number: pr.number, title: pr.title, similarity, state: 'open' });
+    }
+  }
+
+  // Check recently closed PRs if requested.
+  // Uses sort=updated to get most recent first, capped at 100 to avoid excessive
+  // API calls on repos with thousands of PRs. The date cutoff below filters further.
+  if (includeClosedDays > 0) {
+    let closedPRs;
+    try {
+      closedPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+        params: { state: 'closed', sort: 'updated', direction: 'desc', per_page: 100 },
+        max: 100,
+      });
+    } catch {
+      closedPRs = [];
+    }
+
+    const cutoff = Date.now() - includeClosedDays * 86400000;
+    for (const pr of closedPRs) {
+      if (!pr.closed_at || new Date(pr.closed_at).getTime() < cutoff) continue;
+      const similarity = jaccardSimilarity(title, pr.title);
+      if (similarity > threshold) {
+        matches.push({
+          number: pr.number, title: pr.title, similarity,
+          state: 'closed',
+          declined: isGovernanceDeclined(pr.labels || []),
+        });
+      }
+    }
+  }
+
+  return matches.sort((a, b) => b.similarity - a.similarity);
+}
+
 export async function propose(context) {
   const { owner, repo, token, ideas, config, dryRun } = context;
 
@@ -163,6 +227,16 @@ export async function propose(context) {
       const best = duplicates[0];
       console.log(`Skipping '${idea.title}' — similar to existing #${best.number}: '${best.title}' (similarity: ${best.similarity.toFixed(2)})`);
       skippedDuplicates.push({ title: idea.title, duplicate: best });
+      continue;
+    }
+
+    // PR duplicate detection: skip if a similar open or recently declined PR exists.
+    const prDuplicates = await findDuplicatePRs(gh, owner, repo, idea.title, { includeClosedDays: 90 });
+    if (prDuplicates.length > 0) {
+      const best = prDuplicates[0];
+      const reason = best.declined ? 'governance-declined' : `similar ${best.state} PR`;
+      console.log(`Skipping '${idea.title}' — ${reason} #${best.number}: '${best.title}' (similarity: ${best.similarity.toFixed(2)})`);
+      skippedDuplicates.push({ title: idea.title, duplicate: best, reason });
       continue;
     }
 

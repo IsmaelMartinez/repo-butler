@@ -1,6 +1,8 @@
 // ASSESS phase: compare current snapshot against previous, identify what changed.
 // No LLM needed for the diff itself — the LLM summarises the changes.
 
+import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
+
 export async function assess(context) {
   const { snapshot, previousSnapshot, provider, triageBotTrends } = context;
 
@@ -127,8 +129,11 @@ function buildAssessPrompt(snapshot, diff, projectContext, triageBotTrends) {
   const parts = [
     `You are a project health analyst. Assess the changes in ${snapshot.repository} since the last observation.`,
     '',
+    PROMPT_DEFENCE,
+    '',
     projectContext ? `Project context: ${projectContext}` : '',
     '',
+    DATA_BOUNDARY_START,
     `Current state: ${snapshot.summary.open_issues} open issues, ${snapshot.summary.recently_merged_prs} merged PRs (${snapshot.summary.recently_closed} issues closed) in the last 90 days.`,
     `Latest release: ${snapshot.summary.latest_release}`,
     '',
@@ -147,14 +152,14 @@ function buildAssessPrompt(snapshot, diff, projectContext, triageBotTrends) {
     if (diff.new_issues.length > 0) {
       parts.push('', 'New issues:');
       for (const i of diff.new_issues.slice(0, 10)) {
-        parts.push(`  #${i.number}: ${i.title} [${i.labels.join(', ')}]`);
+        parts.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
       }
     }
 
     if (diff.new_merged_prs.length > 0) {
       parts.push('', 'Newly merged PRs:');
       for (const p of diff.new_merged_prs.slice(0, 10)) {
-        parts.push(`  #${p.number}: ${p.title}`);
+        parts.push(`  #${p.number}: ${sanitizeForPrompt(p.title)}`);
       }
     }
 
@@ -169,13 +174,15 @@ function buildAssessPrompt(snapshot, diff, projectContext, triageBotTrends) {
   if (diff.stale_awaiting_feedback?.length > 0) {
     parts.push('', 'Stale issues awaiting feedback (>14 days):');
     for (const s of diff.stale_awaiting_feedback) {
-      parts.push(`  ${s}`);
+      parts.push(`  ${sanitizeForPrompt(s)}`);
     }
   }
 
   if (triageBotTrends) {
     appendTriageBotContext(parts, triageBotTrends);
   }
+
+  parts.push(DATA_BOUNDARY_END);
 
   parts.push('', 'Provide a concise assessment (3-5 paragraphs) covering:');
   parts.push('1. What themes or patterns emerge from the changes?');

@@ -1,7 +1,7 @@
 // UPDATE phase: generate an updated roadmap document and open a PR.
 
 import { createClient } from './github.js';
-import { validateRoadmap } from './safety.js';
+import { validateRoadmap, sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
 
 export async function update(context) {
   const { owner, repo, token, snapshot, assessment, provider, config, dryRun } = context;
@@ -97,8 +97,11 @@ function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext)
   const parts = [
     'You are a roadmap writer for an open-source project. Update the roadmap document below based on the current project state.',
     '',
+    PROMPT_DEFENCE,
+    '',
     projectContext ? `Project context: ${projectContext}` : '',
     '',
+    DATA_BOUNDARY_START,
     `Repository: ${snapshot.repository}`,
     `Current version: ${snapshot.package?.version || snapshot.summary.latest_release || 'unknown'}`,
     `Open issues: ${snapshot.summary.open_issues}`,
@@ -109,13 +112,13 @@ function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext)
   ];
 
   if (assessment?.assessment) {
-    parts.push('Recent assessment:', assessment.assessment, '');
+    parts.push('Recent assessment:', sanitizeForPrompt(assessment.assessment), '');
   }
 
   if (assessment?.diff?.new_issues?.length > 0) {
     parts.push('New issues since last update:');
     for (const i of assessment.diff.new_issues.slice(0, 15)) {
-      parts.push(`  #${i.number}: ${i.title} [${i.labels.join(', ')}]`);
+      parts.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
     }
     parts.push('');
   }
@@ -123,7 +126,7 @@ function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext)
   if (assessment?.diff?.resolved_issues?.length > 0) {
     parts.push('Resolved issues:');
     for (const i of assessment.diff.resolved_issues.slice(0, 15)) {
-      parts.push(`  #${i.number}: ${i.title}`);
+      parts.push(`  #${i.number}: ${sanitizeForPrompt(i.title)}`);
     }
     parts.push('');
   }
@@ -136,13 +139,14 @@ function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext)
     parts.push('');
   }
 
-  parts.push('High-reaction issues:', ...(snapshot.summary.high_reaction_issues.map(i => `  ${i}`)), '');
+  parts.push('High-reaction issues:', ...(snapshot.summary.high_reaction_issues.map(i => `  ${sanitizeForPrompt(i)}`)), '');
   parts.push('Top labels:', ...(snapshot.summary.top_open_labels.map(l => `  ${l}`)), '');
 
   if (currentRoadmap) {
-    parts.push('--- CURRENT ROADMAP ---', currentRoadmap, '--- END CURRENT ROADMAP ---', '');
+    parts.push('--- CURRENT ROADMAP ---', sanitizeForPrompt(currentRoadmap), '--- END CURRENT ROADMAP ---', '');
   }
 
+  parts.push(DATA_BOUNDARY_END, '');
   parts.push('Instructions:');
   parts.push('- Update the roadmap to reflect the current state. Keep the same structure and tone.');
   parts.push('- Move completed items to a "done" section if applicable.');
