@@ -23,7 +23,7 @@ Phase 1 (Data Contracts + AI Skill) uses JSON Schema 2020-12 for data structure 
 
 Phase 2 (MCP Server) will wrap the schemas into a queryable MCP server at `src/mcp.js`. The spike proved the protocol fits within the zero-dependency constraint at ~367 lines. Resources expose snapshot and portfolio data; tools expose health tier queries and campaign status.
 
-Phase 3 (A2A Agent Card + Triage Bot Contract) will publish capability discovery metadata following the A2A v0.3 spec and formalise the triage bot's `/ingest` and `/report/trends` endpoints with typed schemas. The security prerequisites from the Phase 1 architecture review (bot URL validation, ecosystem allowlists, PR deduplication, URL allowlist splitting, separate PAT, contributor name sanitisation) must be addressed before enabling cross-agent communication.
+Phase 3 (A2A Agent Card + Triage Bot Contract) will publish capability discovery metadata following the A2A v0.3 spec and formalise the triage bot's `/ingest` and `/report/trends` endpoints with typed schemas. The security prerequisites from the Phase 1 architecture review (bot URL validation, ecosystem allowlists, PR deduplication, URL allowlist splitting, GitHub App for cross-repo auth, contributor name sanitisation) must be addressed before enabling cross-agent communication.
 
 Phase 4 (AsyncAPI Events) will define event contracts for health-change and governance-proposal notifications, implemented via GitHub `repository_dispatch` rather than a message broker.
 

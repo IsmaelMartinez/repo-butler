@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-03-29
+**Last Updated:** 2026-03-30
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/)
 
 ---
@@ -108,31 +108,17 @@ The core insight: repo-butler's unique value is the cross-repo view. It sees whi
 
 **Rewrite IDEATE prompt** — Replace the generic "generate improvement ideas" prompt with a governance-focused prompt that receives full portfolio context (tool configs across repos, adoption rates, drift data) and produces standards propagation and drift correction proposals.
 
-Cross-repo PR creation requires either a fine-grained PAT with `contents: write` and `pull_requests: write` scoped to the target repos, or a GitHub App. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
+Cross-repo PR creation uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
 
-Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, separate cross-repo PAT, contributor name sanitization for CODEOWNERS.
+Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, GitHub App for cross-repo auth, contributor name sanitisation for CODEOWNERS.
 
-### Phase 6 — Data Contracts + AI Skill
+### ~~Phase 6 — Data Contracts + AI Skill~~ SHIPPED
 
-JSON Schema definitions for all core data structures: snapshot, portfolio, health tiers, and config. A Claude Code skill at `docs/skill.md` for AI agent consumption of the portfolio API. Schema validation tests run in CI. Weekly portfolio snapshots enriched with health tier computation fields. Six schemas live under `schemas/v1/`.
+Shipped 2026-03-29 (PR #59). Six JSON Schema 2020-12 definitions in `schemas/v1/` covering snapshot, portfolio, health tiers, config, weekly trends, and enriched portfolio details. Claude Code skill at `docs/skill.md` with 11 eval tests. Schema validation tests in CI. Weekly portfolio snapshots enriched with health tier computation fields. ADR-003 documenting standards choices. 208 tests.
 
-**JSON Schema definitions** — Define schemas for `snapshot.json`, `portfolio.json`, `health-tiers.json`, and `config.json`. Schemas enforce structure, enable editor autocomplete, and act as a machine-readable API contract for downstream consumers.
+### ~~Phase 7 — MCP Server~~ SHIPPED
 
-**Claude Code skill** — Publish `docs/skill.md` describing how an AI agent can query the portfolio: which endpoints to call, what fields to expect, and how to interpret health tiers and campaigns. Follows the Claude Code skill format so agents can import it directly.
-
-**Schema validation in CI** — Add a test pass that validates real snapshot output against the v1 schemas on every PR. Prevents silent regressions in the observe/report pipeline.
-
-**Enriched portfolio snapshots** — Extend weekly snapshots stored on `repo-butler-data` to include health tier, campaign membership, and governance drift signals — the fields consumers need for health tier computation.
-
-### Phase 7 — MCP Server
-
-Zero-dependency MCP server (`src/mcp.js`) exposing snapshot data as resources and tools via JSON-RPC 2.0 over stdio. Consumers (Claude Desktop, Claude Code, other agents) connect to the server to query portfolio health without parsing raw JSON themselves.
-
-**Resources** — `latest_snapshot`, `portfolio_health`, `active_campaigns`, `trend_history`. Each resource maps directly to data already stored on the `repo-butler-data` branch.
-
-**Tools** — `get_health_tier(repo)` returns the current Gold/Silver/Bronze classification with pass/fail criteria. `get_campaign_status(campaign)` returns progress across the portfolio. `query_portfolio(filter)` returns repos matching a health or activity predicate. `get_snapshot_diff(repo, weeks)` returns the delta between two snapshots.
-
-**Transport** — stdio JSON-RPC 2.0 with no npm dependencies, consistent with the zero-dependency constraint. The server reads snapshot data via the GitHub API using the same `src/github.js` client.
+Shipped 2026-03-30 (PR #60). Zero-dependency MCP server at `src/mcp.js` (JSON-RPC 2.0 over stdio). Three resources (latest snapshot, portfolio health, campaign status) and four tools (`get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`). 15 MCP-specific tests. Connect with `claude mcp add repo-butler node src/mcp.js`. 223 tests.
 
 ### Phase 8 — A2A Agent Card + Triage Bot Contract
 
@@ -142,7 +128,7 @@ A2A v0.3 Agent Card published at `/.well-known/agent.json` for capability discov
 
 **Triage bot contract** — Replace the current implicit auto-discovery with an explicit typed contract. Define `TriageBotEvent` schemas for health summaries and issue signals. Both sides validate against the schema, preventing silent breakage when the triage bot changes its output format.
 
-**Security prerequisites** — Bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in `safety.js`, separate cross-repo PAT, contributor name sanitisation for CODEOWNERS. These gate Phase 5 governance proposals as well.
+**Security prerequisites** — Bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in `safety.js`, GitHub App for cross-repo auth (1-hour auto-expiring tokens via `actions/create-github-app-token`), contributor name sanitisation for CODEOWNERS. These gate Phase 5 governance proposals as well.
 
 ### Phase 9 — AsyncAPI Events
 
