@@ -217,7 +217,7 @@ export function createStore(context) {
         license: details?.license ?? null,
         communityHealth: details?.communityHealth ?? null,
         ciPassRate: details?.ciPassRate ?? null,
-        vulns: details?.vulns ? { count: details.vulns.count, max_severity: details.vulns.max_severity } : null,
+        vulns: details?.vulns ?? null,
         ci: details?.ci ?? 0,
         released_at: details?.released_at ?? null,
         pushed_at: r.pushed_at ?? null,
