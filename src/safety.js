@@ -200,7 +200,9 @@ export const DATA_BOUNDARY_END = '=== END REPOSITORY DATA ===';
 
 // Validate a bot URL against an allowlist. Prevents SSRF via butler.json.
 const IP_PATTERN = /^(\d{1,3}\.){3}\d{1,3}$/;
-const IPV6_PATTERN = /^\[.*\]$/;
+// URL.hostname returns IPv6 without brackets (e.g., '::1' not '[::1]').
+// IPv6 addresses contain colons; valid hostnames cannot.
+const IPV6_PATTERN = /:/;
 
 export function validateBotUrl(url, allowedHosts) {
   if (!url || typeof url !== 'string') {
@@ -311,7 +313,8 @@ export function validateTriageBotTrends(data) {
       }
     }
 
-    sanitized[key] = data[key];
+    // Shallow-copy entries to prevent post-validation mutation of the sanitized output.
+    sanitized[key] = data[key].map(entry => ({ ...entry }));
   }
 
   return { valid: true, sanitized };

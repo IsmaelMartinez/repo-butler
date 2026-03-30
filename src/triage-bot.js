@@ -100,9 +100,19 @@ async function discoverBotConfig(gh, owner, repo) {
     const url = process.env.TRIAGE_BOT_URL.replace(/\/+$/, '');
     // Env var URLs are trusted input: validate structure but self-trust the host.
     const allowedHosts = getAllowedBotHosts();
+    if (allowedHosts.length > 0) {
+      // Explicit allowlist — use it with subdomain matching.
+      const check = validateBotUrl(url, allowedHosts);
+      if (!check.valid) {
+        console.warn(`TRIAGE_BOT_URL validation failed: ${check.error} — ignoring.`);
+        return null;
+      }
+      return { bot_url: url };
+    }
+    // No explicit allowlist — self-trust with exact hostname match only
+    // (no subdomain expansion to prevent evil.example.com bypass).
     const selfHost = (() => { try { return new URL(url).hostname; } catch { return null; } })();
-    const hosts = allowedHosts.length > 0 ? allowedHosts : (selfHost ? [selfHost] : []);
-    const check = validateBotUrl(url, hosts);
+    const check = validateBotUrl(url, selfHost ? [selfHost] : []);
     if (!check.valid) {
       console.warn(`TRIAGE_BOT_URL validation failed: ${check.error} — ignoring.`);
       return null;
