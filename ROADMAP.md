@@ -110,7 +110,9 @@ The core insight: repo-butler's unique value is the cross-repo view. It sees whi
 
 Cross-repo PR creation uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
 
-Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, GitHub App for cross-repo auth, contributor name sanitisation for CODEOWNERS. Four of six shipped in PR #63 (283 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation.
+**Auto-onboarding via GitHub App** — When the App is installed on a repo, the `installation` webhook triggers the butler to open a welcome PR that adds the consumer guide reference to the repo's CLAUDE.md and configures the MCP server connection. This is the first cross-repo PR use case and serves as the onboarding mechanism for the agent ecosystem. Every repo gets the skill automatically on App installation.
+
+Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
 
 ### ~~Phase 6 — Data Contracts + AI Skill~~ SHIPPED
 
@@ -139,6 +141,22 @@ AsyncAPI 3.0 spec describing the event-driven interface for consumers that want 
 **Governance-proposal channel** — Emitted when the butler opens a cross-repo PR or creates a governance issue. Payload includes the proposal type, affected repos, and campaign membership.
 
 **Spec file** — `docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI. Documents message shapes, channel bindings, and the `repository_dispatch` event type used as the transport.
+
+### Phase 10 — Specialised Agent Swarm
+
+The butler evolves from reporter/detector into an orchestrator that dispatches specialised agents for specific portfolio tasks. Each agent handles a distinct domain and can be assigned to repos autonomously.
+
+**Dependency management agent** — Adds Dependabot/Renovate configs, handles dependency update PRs, monitors vulnerability remediation across the portfolio.
+
+**Tool installation agent** — Propagates CodeRabbit, SonarQube, or other tooling configs to repos that lack them.
+
+**Migration agent** — Handles framework upgrades, API version bumps, CI workflow template updates across multiple repos.
+
+**Security review agent** — Runs standardised security checks, opens issues for findings, tracks remediation.
+
+**Community health agent** — Adds CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue templates, PR templates to repos that need them.
+
+The butler provides cross-repo context (governance findings from Phase 5), each agent reads from the MCP server and executes within its domain. The GitHub App provides cross-repo auth for all agents. Consumer guide at `docs/consumer-guide.md` teaches AI agents in portfolio repos how to understand and act on findings.
 
 ## What NOT to build
 
