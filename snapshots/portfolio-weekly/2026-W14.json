@@ -1,7 +1,7 @@
 {
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 146,
+    "commits_6mo": 147,
     "stars": 1,
     "license": "MIT",
     "communityHealth": 85,
@@ -9,7 +9,7 @@
     "vulns": null,
     "ci": 3,
     "released_at": null,
-    "pushed_at": "2026-03-31T07:08:13Z"
+    "pushed_at": "2026-03-31T09:38:39Z"
   },
   "generator-atlassian-compass-event-catalog": {
     "open_issues": 0,
@@ -41,7 +41,7 @@
     "stars": 4546,
     "license": "GPL-3.0",
     "communityHealth": 85,
-    "ciPassRate": 0.9354838709677419,
+    "ciPassRate": 0.9344262295081968,
     "vulns": null,
     "ci": 14,
     "released_at": "2026-03-29T11:24:34Z",
@@ -76,7 +76,7 @@
     "commits_6mo": 148,
     "stars": 1,
     "license": "None",
-    "communityHealth": null,
+    "communityHealth": 28,
     "ciPassRate": null,
     "vulns": null,
     "ci": 6,
