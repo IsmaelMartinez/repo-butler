@@ -184,7 +184,14 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
           }
           return { count, max_severity: maxSeverity };
         })
-        .catch(() => null),
+        .catch(async () => {
+          // Alerts API returned 403 (token lacks scope). Fall back to checking
+          // if dependabot.yml exists — if so, Dependabot IS configured even
+          // though we can't read the alerts.
+          const configContent = await gh.getFileContent(owner, r.name, '.github/dependabot.yml');
+          if (configContent) return { count: 0, max_severity: null, config_only: true };
+          return null;
+        }),
       gh.request(`/repos/${owner}/${r.name}/actions/runs?status=completed&per_page=100`)
         .then(d => {
           const runs = d.workflow_runs || [];
