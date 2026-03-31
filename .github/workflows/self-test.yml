@@ -25,6 +25,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  security-events: read
 
 jobs:
   run:
