@@ -1,7 +1,7 @@
 {
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 145,
+    "commits_6mo": 146,
     "stars": 1,
     "license": "MIT",
     "communityHealth": 85,
@@ -9,7 +9,19 @@
     "vulns": null,
     "ci": 3,
     "released_at": null,
-    "pushed_at": "2026-03-30T22:29:46Z"
+    "pushed_at": "2026-03-31T07:08:13Z"
+  },
+  "generator-atlassian-compass-event-catalog": {
+    "open_issues": 0,
+    "commits_6mo": 164,
+    "stars": 4,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 1,
+    "vulns": null,
+    "ci": 7,
+    "released_at": "2026-03-16T22:15:11Z",
+    "pushed_at": "2026-03-31T06:16:32Z"
   },
   "wifisentinel": {
     "open_issues": 0,
@@ -24,28 +36,16 @@
     "pushed_at": "2026-03-30T21:32:33Z"
   },
   "teams-for-linux": {
-    "open_issues": 12,
+    "open_issues": 11,
     "commits_6mo": 339,
-    "stars": 4545,
+    "stars": 4546,
     "license": "GPL-3.0",
     "communityHealth": 85,
-    "ciPassRate": 0.9384615384615385,
+    "ciPassRate": 0.9354838709677419,
     "vulns": null,
     "ci": 14,
     "released_at": "2026-03-29T11:24:34Z",
     "pushed_at": "2026-03-30T21:27:52Z"
-  },
-  "generator-atlassian-compass-event-catalog": {
-    "open_issues": 0,
-    "commits_6mo": 163,
-    "stars": 4,
-    "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": 1,
-    "vulns": null,
-    "ci": 7,
-    "released_at": "2026-03-16T22:15:11Z",
-    "pushed_at": "2026-03-30T20:37:27Z"
   },
   "github-issue-triage-bot": {
     "open_issues": 0,
@@ -76,8 +76,8 @@
     "commits_6mo": 148,
     "stars": 1,
     "license": "None",
-    "communityHealth": 28,
-    "ciPassRate": 1,
+    "communityHealth": null,
+    "ciPassRate": null,
     "vulns": null,
     "ci": 6,
     "released_at": null,
@@ -125,7 +125,7 @@
     "stars": 0,
     "license": "MIT",
     "communityHealth": 42,
-    "ciPassRate": 0.82,
+    "ciPassRate": 0.83,
     "vulns": null,
     "ci": 5,
     "released_at": "2026-01-10T10:13:32Z",
