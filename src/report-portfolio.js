@@ -48,6 +48,38 @@ const COPYLEFT_LICENSES = new Set([
   'GPL-2.0', 'GPL-3.0', 'AGPL-3.0', 'LGPL-2.1', 'LGPL-3.0',
 ]);
 
+// Explain why a copyleft license in a permissive-licensed repo is a concern.
+const LICENSE_CONCERNS = {
+  'GPL-2.0': 'Requires derivative works to be GPL-licensed. May force your project to adopt GPL.',
+  'GPL-2.0-only': 'Requires derivative works to be GPL-licensed. May force your project to adopt GPL.',
+  'GPL-2.0-or-later': 'Requires derivative works to be GPL-licensed. May force your project to adopt GPL.',
+  'GPL-3.0': 'Strong copyleft: derived works must use GPL-3.0. Incompatible with most permissive licenses.',
+  'GPL-3.0-only': 'Strong copyleft: derived works must use GPL-3.0. Incompatible with most permissive licenses.',
+  'GPL-3.0-or-later': 'Strong copyleft: derived works must use GPL-3.0+. Incompatible with most permissive licenses.',
+  'AGPL-3.0': 'Network copyleft: even SaaS use triggers source disclosure. Strongest copyleft obligation.',
+  'AGPL-3.0-only': 'Network copyleft: even SaaS use triggers source disclosure. Strongest copyleft obligation.',
+  'AGPL-3.0-or-later': 'Network copyleft: even SaaS use triggers source disclosure. Strongest copyleft obligation.',
+  'LGPL-2.1': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
+  'LGPL-2.1-only': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
+  'LGPL-2.1-or-later': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
+  'LGPL-3.0': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
+  'LGPL-3.0-only': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
+  'LGPL-3.0-or-later': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
+  'MPL-2.0': 'File-level copyleft: modified files must remain MPL-2.0 but can combine with other licenses.',
+  'EUPL-1.2': 'EU copyleft: similar to LGPL but with EU-specific provisions.',
+};
+
+function describeLicenseConcern(license) {
+  if (!license) return 'Unknown license terms.';
+  // Check each component of a compound SPDX expression.
+  const parts = license.replace(/[()]/g, '').split(/\s+(?:AND|OR)\s+/);
+  for (const part of parts) {
+    const clean = part.replace(/\s+WITH\s+.+$/, '').trim();
+    if (LICENSE_CONCERNS[clean]) return LICENSE_CONCERNS[clean];
+  }
+  return 'Copyleft license may impose obligations on your permissive-licensed project.';
+}
+
 export function isCopyleft(license) {
   if (!license) return false;
   // SPDX expressions can use AND/OR, parentheses, and WITH exceptions.
@@ -82,7 +114,10 @@ export function analyzeDependencyInventory(details) {
   const sharedEntries = Object.entries(depUsage).filter(([, v]) => v.repos.size > 1);
   const sharedDepsTotal = sharedEntries.length;
 
+  // Filter out GitHub Actions from the "common dependencies" display — they are
+  // workflow dependencies, not application code dependencies.
   const commonDeps = [...sharedEntries]
+    .filter(([, v]) => !v.name?.startsWith('actions/') && !v.name?.startsWith('actions:'))
     .sort((a, b) => b[1].repos.size - a[1].repos.size)
     .slice(0, 20)
     .map(([, v]) => ({ name: v.name, repoCount: v.repos.size, licenses: [...v.licenses] }));
@@ -328,12 +363,13 @@ export function buildDependencyInventorySection(inventory) {
   }
 
   if (inventory.licenseFlags.length > 0) {
-    const flagRows = inventory.licenseFlags.map(f =>
-      `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td><td style="color:#f85149">${escHtml(f.license)}</td></tr>`
-    ).join('');
+    const flagRows = inventory.licenseFlags.map(f => {
+      const concern = describeLicenseConcern(f.license);
+      return `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td><td style="color:#f85149">${escHtml(f.license)}</td><td style="color:#8b949e;font-size:0.9em">${concern}</td></tr>`;
+    }).join('');
     html += `<div class="chart-container">
 <div class="chart-title">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></div>
-<table><thead><tr><th>Repo</th><th>Dependency</th><th>License</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Dependency</th><th>License</th><th>Why</th></tr></thead>
 <tbody>${flagRows}</tbody></table>
 </div>`;
   }
@@ -346,7 +382,7 @@ export function buildDependencyInventorySection(inventory) {
 
 export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null) {
   const repos = portfolio.repos
-    .filter(r => !r.archived)
+    .filter(r => !r.archived && !r.fork)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
 
   const totalStars = repos.reduce((s, r) => s + r.stars, 0);
@@ -357,7 +393,6 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const now = new Date().toISOString().split('T')[0];
 
   function status(r) {
-    if (r.fork) return 'fork';
     if (r.name.includes('shadow') || r.name.includes('test-repo')) return 'test';
     const pushed = new Date(r.pushed_at);
     if (pushed < ONE_YEAR_AGO) return 'archive';
@@ -394,21 +429,36 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
     const { tier } = computeHealthTier(r);
     const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? '#7ee787' : r.communityHealth >= 50 ? '#d29922' : '#f85149';
-    const vulnColor = r.vulns == null ? '#6e7681' : r.vulns.count === 0 ? '#7ee787' : r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : r.vulns.max_severity === 'medium' ? '#d29922' : '#7ee787';
-    const ciPassColor = r.ciPassRate == null ? '#6e7681' : r.ciPassRate >= 0.9 ? '#7ee787' : r.ciPassRate >= 0.7 ? '#d29922' : '#f85149';
+    // CI: merge workflow count + pass rate into one cell
+    const ciCount = r.ci || 0;
+    const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
+    const ciPassColor = ciPassPct == null ? '#6e7681' : ciPassPct >= 90 ? '#7ee787' : ciPassPct >= 70 ? '#d29922' : '#f85149';
+    const ciDisplay = ciCount === 0
+      ? '<span style="color:#f85149">none</span>'
+      : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:#6e7681;font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
+    // Vulns: show context when unavailable
+    const vulnDisplay = r.vulns == null
+      ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:#6e7681;cursor:help">n/a</span>'
+      : r.vulns.count === 0
+        ? '<span style="color:#7ee787">0</span>'
+        : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : '#d29922'}">${r.vulns.count}</span>`;
+    // Deps: merge count + libyear into one cell
     const libyearVal = r.libyear?.total_libyear;
     const libyearColor = getLibyearColor(libyearVal);
+    const depDisplay = r.sbom
+      ? `${r.sbom.count}${libyearVal != null ? ` <span style="color:${libyearColor};font-size:0.8em" title="Libyear: dependency freshness">(${libyearVal.toFixed(1)}y)</span>` : ''}`
+      : '—';
+    // Description as tooltip on repo name
+    const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
     return `<tr>
-      <td><a href="${r.name}.html">${r.name}</a></td>
-      <td>${r.description ? escHtml(r.description).slice(0, 50) : '—'}</td>
+      <td><a href="${r.name}.html"${descTooltip}>${r.name}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
       <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
-      <td>${r.commits || 0}</td><td>${generateSparklineSVG(details[r.name]?.weekly)}</td><td>${(r.ci || 0) > 0 ? r.ci : '<span style="color:#f85149">0</span>'}</td>
+      <td>${r.commits || 0}</td>
+      <td>${ciDisplay}</td>
       <td>${!r.license || r.license === 'None' ? '<span style="color:#d29922">none</span>' : r.license}</td>
       <td><span style="color:${communityColor}">${r.communityHealth != null ? r.communityHealth + '%' : '—'}</span></td>
-      <td><span style="color:${vulnColor}">${r.vulns != null ? r.vulns.count : '—'}</span></td>
-      <td><span style="color:${ciPassColor}">${r.ciPassRate != null ? Math.round(r.ciPassRate * 100) + '%' : '—'}</span></td>
-      <td>${r.sbom ? r.sbom.count : '—'}</td>
-      <td><span style="color:${libyearColor}">${libyearVal != null ? libyearVal.toFixed(1) : '—'}</span></td>
+      <td>${vulnDisplay}</td>
+      <td>${depDisplay}</td>
       <td>${r.contributors != null ? r.contributors : '—'}</td>
       <td><span class="badge ${badgeClass}">${r.status}</span></td>
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td></tr>`;
@@ -435,7 +485,7 @@ ${CSS}
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Description</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>Trend</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>CI%</th><th>Deps</th><th>Libyear</th><th>Contributors</th><th>Status</th><th>Tier</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>Deps</th><th>Contributors</th><th>Status</th><th>Tier</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 </div>
 ${buildCampaignSection(repos, details)}
