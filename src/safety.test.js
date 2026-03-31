@@ -4,7 +4,7 @@ import {
   validateIssueTitle, validateIssueBody,
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, validateBotUrl, detectEcosystem,
-  validateTriageBotTrends,
+  validateTriageBotTrends, sanitizeContributorName, validateGitHubUsername,
 } from './safety.js';
 
 describe('validateIssueTitle', () => {
@@ -390,6 +390,68 @@ describe('validateTriageBotTrends', () => {
   it('rejects response_time entries with non-numeric avg_seconds', () => {
     const data = { response_time: [{ avg_seconds: 'fast' }] };
     assert.equal(validateTriageBotTrends(data).valid, false);
+  });
+});
+
+describe('sanitizeContributorName', () => {
+  it('passes valid names through', () => {
+    assert.equal(sanitizeContributorName('Alice Smith'), 'Alice Smith');
+    assert.equal(sanitizeContributorName('bob'), 'bob');
+  });
+
+  it('rejects null/undefined/empty', () => {
+    assert.equal(sanitizeContributorName(null), null);
+    assert.equal(sanitizeContributorName(undefined), null);
+    assert.equal(sanitizeContributorName(''), null);
+  });
+
+  it('strips CODEOWNERS-unsafe characters', () => {
+    assert.equal(sanitizeContributorName('user*name'), 'username');
+    assert.equal(sanitizeContributorName('user[0]'), 'user0');
+    assert.equal(sanitizeContributorName('user!'), 'user');
+    assert.equal(sanitizeContributorName('path\\to'), 'pathto');
+  });
+
+  it('strips control characters and newlines', () => {
+    assert.equal(sanitizeContributorName('user\nname'), 'username');
+    assert.equal(sanitizeContributorName('user\x00name'), 'username');
+  });
+
+  it('rejects names that become empty after sanitisation', () => {
+    assert.equal(sanitizeContributorName('***'), null);
+    assert.equal(sanitizeContributorName('[!]'), null);
+  });
+
+  it('rejects names over 100 characters', () => {
+    assert.equal(sanitizeContributorName('A'.repeat(101)), null);
+    assert.equal(sanitizeContributorName('A'.repeat(100)), 'A'.repeat(100));
+  });
+
+  it('trims whitespace', () => {
+    assert.equal(sanitizeContributorName('  alice  '), 'alice');
+  });
+});
+
+describe('validateGitHubUsername', () => {
+  it('accepts valid usernames', () => {
+    assert.equal(validateGitHubUsername('alice'), true);
+    assert.equal(validateGitHubUsername('bob-smith'), true);
+    assert.equal(validateGitHubUsername('A1'), true);
+    assert.equal(validateGitHubUsername('a'), true);
+  });
+
+  it('rejects invalid usernames', () => {
+    assert.equal(validateGitHubUsername('-starts-with-hyphen'), false);
+    assert.equal(validateGitHubUsername('ends-with-'), false);
+    assert.equal(validateGitHubUsername('has spaces'), false);
+    assert.equal(validateGitHubUsername('has_underscore'), false);
+    assert.equal(validateGitHubUsername(''), false);
+    assert.equal(validateGitHubUsername(null), false);
+  });
+
+  it('rejects usernames over 39 characters', () => {
+    assert.equal(validateGitHubUsername('a'.repeat(39)), true);
+    assert.equal(validateGitHubUsername('a'.repeat(40)), false);
   });
 });
 

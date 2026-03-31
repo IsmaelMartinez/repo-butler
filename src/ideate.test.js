@@ -239,6 +239,35 @@ describe('buildIdeatePrompt', () => {
     assert.ok(prompt.includes('The project is growing rapidly.'));
   });
 
+  it('includes governance context when findings provided', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: ['a', 'b'], nonCompliant: ['c'], adoptionRate: 0.67, priority: 'medium' },
+      { type: 'policy-drift', category: 'license', repo: 'd', expected: 'MIT', actual: 'Apache-2.0', priority: 'medium' },
+      { type: 'tier-uplift', repo: 'e', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Release in the last 90 days', required_for: 'gold' }], priority: 'high' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null, findings);
+    assert.ok(prompt.includes('Portfolio Governance Findings'));
+    assert.ok(prompt.includes('license (universal)'));
+    assert.ok(prompt.includes('2/3 repos compliant'));
+    assert.ok(prompt.includes('Drift: d uses Apache-2.0'));
+    assert.ok(prompt.includes('Uplift: e is silver'));
+    assert.ok(prompt.includes('portfolio governance advisor'));
+    assert.ok(prompt.includes('portfolio-level concern'));
+  });
+
+  it('preserves existing behaviour when no governance findings', () => {
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null, null);
+    assert.ok(prompt.includes('technical advisor'));
+    assert.ok(!prompt.includes('Portfolio Governance Findings'));
+    assert.ok(!prompt.includes('portfolio-level concern'));
+  });
+
+  it('preserves existing behaviour when governance findings are empty', () => {
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null, []);
+    assert.ok(prompt.includes('technical advisor'));
+    assert.ok(!prompt.includes('Portfolio Governance Findings'));
+  });
+
   it('includes open issues in the prompt', () => {
     const snapshot = {
       ...minimalSnapshot,

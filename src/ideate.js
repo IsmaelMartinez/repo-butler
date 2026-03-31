@@ -5,7 +5,7 @@ import { appendTriageBotContext } from './assess.js';
 import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
 
 export async function ideate(context) {
-  const { snapshot, assessment, provider, config, dryRun, triageBotTrends } = context;
+  const { snapshot, assessment, provider, config, dryRun, triageBotTrends, governanceFindings } = context;
 
   if (!provider) {
     console.log('No LLM provider configured — skipping IDEATE phase.');
@@ -18,7 +18,7 @@ export async function ideate(context) {
   }
 
   const maxIdeas = config.limits?.max_issues_per_run || 3;
-  const prompt = buildIdeatePrompt(snapshot, assessment, config.context, maxIdeas, triageBotTrends);
+  const prompt = buildIdeatePrompt(snapshot, assessment, config.context, maxIdeas, triageBotTrends, governanceFindings);
   const rawResponse = await provider.generate(prompt);
 
   const ideas = parseIdeas(rawResponse);
@@ -31,9 +31,15 @@ export async function ideate(context) {
   return { ideas, raw: rawResponse };
 }
 
-export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triageBotTrends) {
+export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triageBotTrends, governanceFindings) {
+  const hasGovernance = governanceFindings && governanceFindings.length > 0;
+
+  const preamble = hasGovernance
+    ? 'You are a portfolio governance advisor for a GitHub portfolio. Generate proposals to improve standards compliance, fix policy drift, and uplift health tiers across the portfolio.'
+    : 'You are a technical advisor for an open-source project. Generate actionable improvement ideas based on the project state below.';
+
   const parts = [
-    'You are a technical advisor for an open-source project. Generate actionable improvement ideas based on the project state below.',
+    preamble,
     'Each idea must include a structured specification consumable by implementation agents (Copilot, Sweep, etc.).',
     '',
     PROMPT_DEFENCE,
@@ -78,6 +84,10 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     appendTriageBotContext(parts, triageBotTrends);
   }
 
+  if (hasGovernance) {
+    appendGovernanceContext(parts, governanceFindings);
+  }
+
   parts.push(DATA_BOUNDARY_END);
 
   parts.push(`Generate exactly ${maxIdeas} improvement ideas. For each idea, output this exact format:`, '');
@@ -106,8 +116,31 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
   if (triageBotTrends) {
     parts.push('- Use the triage bot intelligence data to inform your ideas — patterns in triage activity, agent sessions, and synthesis findings are real signals.');
   }
+  if (hasGovernance) {
+    parts.push('- Prioritise standards propagation and policy drift correction proposals over generic improvements.');
+    parts.push('- Each idea should reference specific repos and cross-repo statistics (e.g. "configured in 14/19 repos").');
+    parts.push('- Rationale must explain why this is a portfolio-level concern, not a per-repo issue.');
+  }
 
   return parts.join('\n');
+}
+
+// Append governance findings to the LLM prompt data section.
+function appendGovernanceContext(parts, findings) {
+  parts.push('', '--- Portfolio Governance Findings ---');
+
+  for (const f of findings) {
+    if (f.type === 'standards-gap') {
+      const total = f.compliant.length + f.nonCompliant.length;
+      parts.push(`Standard: ${f.tool} (${f.scope.type}) — ${f.compliant.length}/${total} repos compliant. Missing: ${f.nonCompliant.join(', ')}`);
+    } else if (f.type === 'policy-drift') {
+      parts.push(`Drift: ${f.repo} uses ${f.actual} (expected: ${f.expected}, category: ${f.category})`);
+    } else if (f.type === 'tier-uplift') {
+      parts.push(`Uplift: ${f.repo} is ${f.currentTier}, needs [${f.failingChecks.map(c => c.name).join(', ')}] for ${f.targetTier}`);
+    }
+  }
+
+  parts.push('--- End Portfolio Governance Findings ---', '');
 }
 
 export function parseIdeas(raw) {

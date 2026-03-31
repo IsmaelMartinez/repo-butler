@@ -97,6 +97,8 @@ describe('config schema matches DEFAULTS', () => {
         prs_merged_days: 90,
         releases_count: 10,
       },
+      standards: {},
+      'standards-exclude': {},
     };
 
     // The schema also has a `repository` property (runtime-injected, not in DEFAULTS) — skip it

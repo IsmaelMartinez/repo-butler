@@ -5,6 +5,7 @@ import { createClient } from './github.js';
 import { createHash } from 'node:crypto';
 
 const HASH_PATH = 'snapshots/hash.txt';
+const GOVERNANCE_PATH = 'snapshots/governance.json';
 
 export function computeSnapshotHash(snapshot) {
   const summary = snapshot?.summary ?? null;
@@ -284,7 +285,23 @@ export function createStore(context) {
     await writeFile(HASH_PATH, hash);
   }
 
-  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLastHash, writeHash };
+  async function writeGovernanceFindings(findings) {
+    if (!findings || findings.length === 0) return;
+    await ensureDataBranch();
+    await writeFile(GOVERNANCE_PATH, JSON.stringify(findings, null, 2));
+    console.log(`Governance findings saved (${findings.length} findings).`);
+  }
+
+  async function readGovernanceFindings() {
+    try {
+      const content = await readFile(GOVERNANCE_PATH);
+      return content ? JSON.parse(content) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLastHash, writeHash, writeGovernanceFindings, readGovernanceFindings };
 }
 
 // Return ISO week key as YYYY-WNN (e.g. "2026-W12").

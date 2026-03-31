@@ -109,6 +109,14 @@ async function main() {
         context.weeklyHistory = await store.readWeeklyHistory();
         console.log(`Loaded ${context.weeklyHistory.length} weekly snapshots for trends.`);
 
+        // Fetch enriched portfolio details early when IDEATE will run (for governance).
+        if (portfolio && phasesToRun.includes('ideate')) {
+          const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+          const gh = (await import('./github.js')).createClient(token);
+          context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos);
+          console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
+        }
+
         console.log('Repo summary:', JSON.stringify(snapshot.summary, null, 2));
         console.log('Portfolio classification:', JSON.stringify(portfolio.classification, null, 2));
         break;
@@ -153,8 +161,28 @@ async function main() {
 
       case 'ideate': {
         context.provider = deepProvider;
+
+        // Run governance detection if portfolio data is available.
+        if (context.portfolio && context.repoDetails) {
+          const { parseStandardsConfig } = await import('./config.js');
+          const { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals } = await import('./governance.js');
+
+          const standards = parseStandardsConfig(config);
+          const gaps = detectStandardsGaps(standards, context.portfolio.repos, context.repoDetails);
+          const drift = detectPolicyDrift(context.portfolio.repos, context.repoDetails);
+          const uplift = generateUpliftProposals(context.portfolio.repos, context.repoDetails);
+
+          context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
+          console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);
+        }
+
         const result = await ideate(context);
         context.ideas = result?.ideas || [];
+
+        // Persist governance findings for MCP consumption.
+        if (context.governanceFindings?.length > 0 && store) {
+          await store.writeGovernanceFindings(context.governanceFindings);
+        }
         break;
       }
 

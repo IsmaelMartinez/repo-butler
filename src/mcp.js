@@ -143,6 +143,11 @@ const TOOLS = [
     description: 'Compare current snapshot against the previous one. Shows what changed since the last pipeline run.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'get_governance_findings',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, and tier uplift opportunities from the latest pipeline run.',
+    inputSchema: { type: 'object', properties: {} },
+  },
 ];
 
 function callTool(name, args) {
@@ -157,6 +162,9 @@ function callTool(name, args) {
   }
   if (name === 'get_snapshot_diff') {
     return toolGetSnapshotDiff();
+  }
+  if (name === 'get_governance_findings') {
+    return toolGetGovernanceFindings();
   }
   return null;
 }
@@ -233,6 +241,25 @@ function toolGetSnapshotDiff() {
       bus_factor: { was: ps.bus_factor, now: cs.bus_factor },
     },
   };
+}
+
+function toolGetGovernanceFindings() {
+  const raw = loadFromDataBranch('snapshots/governance.json');
+  if (!raw) return { findings: [], message: 'No governance findings available — run the full pipeline first' };
+  try {
+    const findings = JSON.parse(raw);
+    return {
+      findings,
+      summary: {
+        total: findings.length,
+        gaps: findings.filter(f => f.type === 'standards-gap').length,
+        drift: findings.filter(f => f.type === 'policy-drift').length,
+        uplift: findings.filter(f => f.type === 'tier-uplift').length,
+      },
+    };
+  } catch {
+    return { findings: [], error: 'Failed to parse governance findings' };
+  }
 }
 
 // --- Portfolio computation helpers ---
