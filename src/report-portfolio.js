@@ -376,16 +376,16 @@ export function buildDependencyInventorySection(inventory) {
     const licenseCards = Object.entries(byLicense).map(([license, flags]) => {
       const concern = describeLicenseConcern(license);
       const depRows = flags.map(f =>
-        `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td></tr>`
+        `<tr><td>${escHtml(f.repo || 'unknown')}</td><td>${escHtml(f.dep || 'unknown')}</td></tr>`
       ).join('');
       return `<div class="chart-container" style="margin-bottom:1rem">
-<div class="chart-title"><span style="color:${COLOR_DANGER}">${escHtml(license)}</span> <span style="font-size:0.85rem;color:#8b949e">— ${concern}</span></div>
+<div class="chart-title"><span style="color:${COLOR_DANGER}">${escHtml(license)}</span> <span style="font-size:0.85rem;color:#8b949e">— ${escHtml(concern)}</span></div>
 <table><thead><tr><th>Repo</th><th>Dependency</th></tr></thead>
 <tbody>${depRows}</tbody></table>
 </div>`;
     }).join('');
 
-    html += `<h3 style="margin-top:1.5rem">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></h3>
+    html += `<h3 style="margin-top:1.5rem;color:#e6edf3">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></h3>
 ${licenseCards}`;
   }
 
