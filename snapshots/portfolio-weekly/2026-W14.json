@@ -1,27 +1,31 @@
 {
   "wifisentinel": {
     "open_issues": 0,
-    "commits_6mo": 80,
+    "commits_6mo": 114,
     "stars": 0,
     "license": "MIT",
-    "communityHealth": 42,
-    "ciPassRate": 0.42857142857142855,
+    "communityHealth": 57,
+    "ciPassRate": 0.8095238095238095,
     "vulns": null,
     "ci": 1,
     "released_at": null,
-    "pushed_at": "2026-03-31T19:59:33Z"
+    "pushed_at": "2026-03-31T22:58:51Z"
   },
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 150,
+    "commits_6mo": 153,
     "stars": 1,
     "license": "MIT",
     "communityHealth": 85,
     "ciPassRate": 1,
-    "vulns": null,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
     "ci": 3,
-    "released_at": null,
-    "pushed_at": "2026-03-31T19:49:11Z"
+    "released_at": "2026-03-31T22:55:25Z",
+    "pushed_at": "2026-03-31T22:57:06Z"
   },
   "generator-atlassian-compass-event-catalog": {
     "open_issues": 0,
@@ -30,7 +34,11 @@
     "license": "MIT",
     "communityHealth": 85,
     "ciPassRate": 1,
-    "vulns": null,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
     "ci": 7,
     "released_at": "2026-03-16T22:15:11Z",
     "pushed_at": "2026-03-31T06:16:32Z"
@@ -38,11 +46,15 @@
   "teams-for-linux": {
     "open_issues": 13,
     "commits_6mo": 339,
-    "stars": 4550,
+    "stars": 4551,
     "license": "GPL-3.0",
     "communityHealth": 85,
     "ciPassRate": 0.9344262295081968,
-    "vulns": null,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
     "ci": 14,
     "released_at": "2026-03-29T11:24:34Z",
     "pushed_at": "2026-03-30T21:27:52Z"
@@ -66,7 +78,11 @@
     "license": "None",
     "communityHealth": 28,
     "ciPassRate": 0.65,
-    "vulns": null,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
     "ci": 6,
     "released_at": null,
     "pushed_at": "2026-03-30T07:45:40Z"
@@ -90,7 +106,11 @@
     "license": "MIT",
     "communityHealth": 71,
     "ciPassRate": 0.826530612244898,
-    "vulns": null,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
     "ci": 6,
     "released_at": null,
     "pushed_at": "2026-03-26T20:14:07Z"
@@ -137,7 +157,7 @@
     "stars": 1,
     "license": "MIT",
     "communityHealth": 57,
-    "ciPassRate": null,
+    "ciPassRate": 0.9213483146067416,
     "vulns": null,
     "ci": 4,
     "released_at": null,
@@ -162,7 +182,11 @@
     "license": "MPL-2.0",
     "communityHealth": 85,
     "ciPassRate": null,
-    "vulns": null,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
     "ci": 0,
     "released_at": null,
     "pushed_at": "2024-09-10T01:27:51Z"
