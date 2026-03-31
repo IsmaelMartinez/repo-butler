@@ -69,25 +69,27 @@ const LICENSE_CONCERNS = {
   'EUPL-1.2': 'EU copyleft: similar to LGPL but with EU-specific provisions.',
 };
 
+// Parse SPDX expression into individual license identifiers.
+// Handles AND/OR, parentheses, and WITH exceptions.
+function parseSpdxParts(license) {
+  if (!license) return [];
+  return license
+    .replace(/[()]/g, '')
+    .split(/\s+(?:AND|OR)\s+/)
+    .map(part => part.replace(/\s+WITH\s+.+$/, '').trim())
+    .filter(Boolean);
+}
+
 function describeLicenseConcern(license) {
   if (!license) return 'Unknown license terms.';
-  // Check each component of a compound SPDX expression.
-  const parts = license.replace(/[()]/g, '').split(/\s+(?:AND|OR)\s+/);
-  for (const part of parts) {
-    const clean = part.replace(/\s+WITH\s+.+$/, '').trim();
-    if (LICENSE_CONCERNS[clean]) return LICENSE_CONCERNS[clean];
+  for (const part of parseSpdxParts(license)) {
+    if (LICENSE_CONCERNS[part]) return LICENSE_CONCERNS[part];
   }
   return 'Copyleft license may impose obligations on your permissive-licensed project.';
 }
 
 export function isCopyleft(license) {
-  if (!license) return false;
-  // SPDX expressions can use AND/OR, parentheses, and WITH exceptions.
-  return license
-    .replace(/[()]/g, '')
-    .split(/\s+(?:AND|OR)\s+/)
-    .map(part => part.replace(/\s+WITH\s+.+$/, '').trim())
-    .some(part => COPYLEFT_LICENSES.has(part));
+  return parseSpdxParts(license).some(part => COPYLEFT_LICENSES.has(part));
 }
 
 export function analyzeDependencyInventory(details) {
@@ -365,7 +367,7 @@ export function buildDependencyInventorySection(inventory) {
   if (inventory.licenseFlags.length > 0) {
     const flagRows = inventory.licenseFlags.map(f => {
       const concern = describeLicenseConcern(f.license);
-      return `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td><td style="color:#f85149">${escHtml(f.license)}</td><td style="color:#8b949e;font-size:0.9em">${concern}</td></tr>`;
+      return `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td><td style="color:${COLOR_DANGER}">${escHtml(f.license)}</td><td style="color:#8b949e;font-size:0.9em">${concern}</td></tr>`;
     }).join('');
     html += `<div class="chart-container">
 <div class="chart-title">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></div>
@@ -428,20 +430,20 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const tableRows = classified.map(r => {
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
     const { tier } = computeHealthTier(r);
-    const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? '#7ee787' : r.communityHealth >= 50 ? '#d29922' : '#f85149';
+    const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? COLOR_SUCCESS : r.communityHealth >= 50 ? COLOR_WARNING : COLOR_DANGER;
     // CI: merge workflow count + pass rate into one cell
     const ciCount = r.ci || 0;
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
-    const ciPassColor = ciPassPct == null ? '#6e7681' : ciPassPct >= 90 ? '#7ee787' : ciPassPct >= 70 ? '#d29922' : '#f85149';
+    const ciPassColor = ciPassPct == null ? '#6e7681' : ciPassPct >= 90 ? COLOR_SUCCESS : ciPassPct >= 70 ? COLOR_WARNING : COLOR_DANGER;
     const ciDisplay = ciCount === 0
-      ? '<span style="color:#f85149">none</span>'
+      ? `<span style="color:${COLOR_DANGER}">none</span>`
       : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:#6e7681;font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
     // Vulns: show context when unavailable
     const vulnDisplay = r.vulns == null
       ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:#6e7681;cursor:help">n/a</span>'
       : r.vulns.count === 0
-        ? '<span style="color:#7ee787">0</span>'
-        : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? '#f85149' : '#d29922'}">${r.vulns.count}</span>`;
+        ? `<span style="color:${COLOR_SUCCESS}">0</span>`
+        : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
     // Deps: merge count + libyear into one cell
     const libyearVal = r.libyear?.total_libyear;
     const libyearColor = getLibyearColor(libyearVal);
@@ -455,7 +457,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
       <td>${r.commits || 0}</td>
       <td>${ciDisplay}</td>
-      <td>${!r.license || r.license === 'None' ? '<span style="color:#d29922">none</span>' : r.license}</td>
+      <td>${!r.license || r.license === 'None' ? `<span style="color:${COLOR_WARNING}">none</span>` : r.license}</td>
       <td><span style="color:${communityColor}">${r.communityHealth != null ? r.communityHealth + '%' : '—'}</span></td>
       <td>${vulnDisplay}</td>
       <td>${depDisplay}</td>
