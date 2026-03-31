@@ -365,15 +365,28 @@ export function buildDependencyInventorySection(inventory) {
   }
 
   if (inventory.licenseFlags.length > 0) {
-    const flagRows = inventory.licenseFlags.map(f => {
-      const concern = describeLicenseConcern(f.license);
-      return `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td><td style="color:${COLOR_DANGER}">${escHtml(f.license)}</td><td style="color:#8b949e;font-size:0.9em">${concern}</td></tr>`;
-    }).join('');
-    html += `<div class="chart-container">
-<div class="chart-title">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></div>
-<table><thead><tr><th>Repo</th><th>Dependency</th><th>License</th><th>Why</th></tr></thead>
-<tbody>${flagRows}</tbody></table>
+    // Group by license so the concern explanation appears once per license type,
+    // with affected repos and dependencies listed underneath.
+    const byLicense = {};
+    for (const f of inventory.licenseFlags) {
+      if (!byLicense[f.license]) byLicense[f.license] = [];
+      byLicense[f.license].push(f);
+    }
+
+    const licenseCards = Object.entries(byLicense).map(([license, flags]) => {
+      const concern = describeLicenseConcern(license);
+      const depRows = flags.map(f =>
+        `<tr><td>${escHtml(f.repo)}</td><td>${escHtml(f.dep)}</td></tr>`
+      ).join('');
+      return `<div class="chart-container" style="margin-bottom:1rem">
+<div class="chart-title"><span style="color:${COLOR_DANGER}">${escHtml(license)}</span> <span style="font-size:0.85rem;color:#8b949e">— ${concern}</span></div>
+<table><thead><tr><th>Repo</th><th>Dependency</th></tr></thead>
+<tbody>${depRows}</tbody></table>
 </div>`;
+    }).join('');
+
+    html += `<h3 style="margin-top:1.5rem">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></h3>
+${licenseCards}`;
   }
 
   return html;
