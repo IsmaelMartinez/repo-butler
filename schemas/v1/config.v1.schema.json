@@ -106,6 +106,18 @@
           "description": "Maximum number of recent releases to fetch"
         }
       }
+    },
+    "standards": {
+      "type": "object",
+      "description": "Portfolio governance standards. Keys are tool names, values are scope: 'universal' or a language name (e.g., 'javascript', 'go'). Repos are checked for compliance during the IDEATE phase.",
+      "additionalProperties": { "type": "string" },
+      "examples": [{ "issue-form-templates": "universal", "renovate-npm": "javascript" }]
+    },
+    "standards-exclude": {
+      "type": "object",
+      "description": "Per-tool exclusion lists for governance standards. Keys are tool names from the standards section, values are comma-separated repo names to exclude from that standard.",
+      "additionalProperties": { "type": "string" },
+      "examples": [{ "coderabbit": "archived-repo,experimental-fork" }]
     }
   }
 }

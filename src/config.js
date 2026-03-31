@@ -19,6 +19,8 @@ const DEFAULTS = {
     prs_merged_days: 90,
     releases_count: 10,
   },
+  standards: {},
+  'standards-exclude': {},
 };
 
 export async function loadConfig(path) {
@@ -72,6 +74,24 @@ function parseValue(v) {
   if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1);
   if (trimmed.startsWith('|')) return '';
   return trimmed;
+}
+
+// Transform flat standards config into structured array for governance.
+// Input: { standards: { 'issue-form-templates': 'universal', ... }, 'standards-exclude': { ... } }
+// Output: [{ tool, scope: { type, language? }, exclude: string[] }]
+export function parseStandardsConfig(config) {
+  const standards = config?.standards || {};
+  const excludes = config?.['standards-exclude'] || {};
+
+  return Object.entries(standards).map(([tool, scope]) => ({
+    tool,
+    scope: scope === 'universal'
+      ? { type: 'universal' }
+      : { type: 'ecosystem', language: String(scope) },
+    exclude: excludes[tool]
+      ? String(excludes[tool]).split(',').map(s => s.trim()).filter(Boolean)
+      : [],
+  }));
 }
 
 function deepMerge(target, source) {

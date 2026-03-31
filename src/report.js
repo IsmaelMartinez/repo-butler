@@ -62,10 +62,9 @@ export async function report(context) {
 
   const gh = createClient(token);
 
-  // Gather portfolio-level data.
-  const repoDetails = portfolio
-    ? await fetchPortfolioDetails(gh, owner, portfolio.repos)
-    : null;
+  // Gather portfolio-level data (reuse from OBSERVE if already fetched for governance).
+  const repoDetails = context.repoDetails
+    || (portfolio ? await fetchPortfolioDetails(gh, owner, portfolio.repos) : null);
 
   // Analyze dependency inventory from SBOM data.
   const depInventory = repoDetails ? analyzeDependencyInventory(repoDetails) : null;

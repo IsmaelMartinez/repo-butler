@@ -127,13 +127,14 @@ describe('MCP server', async () => {
       assert.equal(responses.length, 1);
       const tools = responses[0].result.tools;
       assert.ok(Array.isArray(tools));
-      assert.equal(tools.length, 4);
+      assert.equal(tools.length, 5);
 
       const names = tools.map(t => t.name);
       assert.ok(names.includes('get_health_tier'));
       assert.ok(names.includes('get_campaign_status'));
       assert.ok(names.includes('query_portfolio'));
       assert.ok(names.includes('get_snapshot_diff'));
+      assert.ok(names.includes('get_governance_findings'));
 
       // Every tool must have an inputSchema.
       for (const tool of tools) {
@@ -231,6 +232,20 @@ describe('MCP server', async () => {
       assert.ok(r.result?.content);
       const data = JSON.parse(r.result.content[0].text);
       assert.ok(data.changes || data.message || data.error);
+    });
+
+    it('get_governance_findings returns findings or empty message', () => {
+      handleMessage(JSON.stringify({
+        jsonrpc: '2.0', id: 27, method: 'tools/call',
+        params: { name: 'get_governance_findings', arguments: {} },
+      }));
+      restoreStdout();
+
+      assert.equal(responses.length, 1);
+      const r = responses[0];
+      assert.ok(r.result?.content);
+      const data = JSON.parse(r.result.content[0].text);
+      assert.ok(Array.isArray(data.findings));
     });
   });
 });
