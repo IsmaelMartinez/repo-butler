@@ -18,6 +18,15 @@ const STANDARD_DETECTORS = {
 // Minimum adoption rate to infer an implicit universal standard.
 const MAJORITY_THRESHOLD = 0.6;
 
+// Proper median: averages the two middle elements for even-length arrays.
+function median(sorted) {
+  const n = sorted.length;
+  if (n === 0) return 0;
+  return n % 2 === 0
+    ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+    : sorted[Math.floor(n / 2)];
+}
+
 /**
  * Filter repos to governance-eligible ones (not archived, not fork, not test/shadow).
  */
@@ -123,7 +132,7 @@ export function detectPolicyDrift(repos, details) {
     licenseCounts[lic] = (licenseCounts[lic] || 0) + 1;
   }
   const majorityLicense = Object.entries(licenseCounts)
-    .sort((a, b) => b[1] - a[1])[0];
+    .sort((a, b) => b[1] - a[1])[0] || null;
 
   if (majorityLicense && majorityLicense[1] / eligible.length >= 0.8) {
     for (const r of eligible) {
@@ -148,16 +157,16 @@ export function detectPolicyDrift(repos, details) {
 
   if (passRates.length >= 3) {
     const sorted = [...passRates].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
+    const med = median(sorted);
 
     for (const r of eligible) {
       const rate = details?.[r.name]?.ciPassRate;
-      if (rate != null && median - rate > 0.2) {
+      if (rate != null && med - rate > 0.2) {
         findings.push({
           type: 'policy-drift',
           category: 'ci-reliability',
           repo: r.name,
-          expected: `${Math.round(median * 100)}%`,
+          expected: `${Math.round(med * 100)}%`,
           actual: `${Math.round(rate * 100)}%`,
           priority: 'medium',
         });
@@ -172,16 +181,16 @@ export function detectPolicyDrift(repos, details) {
 
   if (healthScores.length >= 3) {
     const sorted = [...healthScores].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
+    const med = median(sorted);
 
     for (const r of eligible) {
       const health = details?.[r.name]?.communityHealth;
-      if (health != null && median - health > 20) {
+      if (health != null && med - health > 20) {
         findings.push({
           type: 'policy-drift',
           category: 'community-health',
           repo: r.name,
-          expected: `${median}%`,
+          expected: `${med}%`,
           actual: `${health}%`,
           priority: 'medium',
         });
