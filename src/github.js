@@ -26,9 +26,20 @@ export function createClient(token) {
       });
 
       // Handle rate limiting with retry.
-      if (res.status === 403 || res.status === 429) {
+      // 429 is always a rate limit. 403 is only a rate limit if it has
+      // rate-limit headers — otherwise it's a permission error (e.g.,
+      // Dependabot alerts without vulnerability_alerts scope).
+      if (res.status === 429 || res.status === 403) {
         const retryAfter = res.headers.get('retry-after');
         const resetTime = res.headers.get('x-ratelimit-reset');
+        const remaining = res.headers.get('x-ratelimit-remaining');
+
+        // 403 without rate-limit headers = permission denied, not rate limited.
+        if (res.status === 403 && !retryAfter && !resetTime && remaining !== '0') {
+          const text = await res.text();
+          throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+        }
+
         let waitMs;
         if (retryAfter) {
           waitMs = parseInt(retryAfter, 10) * 1000;
