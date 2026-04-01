@@ -31,7 +31,7 @@ export function createClient(token) {
         const retryAfter = res.headers.get('retry-after');
         const resetTime = res.headers.get('x-ratelimit-reset');
 
-        // 403: read body to distinguish permission errors from rate limits.
+        // 403: check headers to distinguish permission errors from rate limits.
         // GitHub returns rate-limit headers on ALL responses (even 403 permission
         // errors), so we can't rely on header absence. Instead, check if
         // x-ratelimit-remaining is '0' (actual rate limit) or if retry-after
