@@ -114,6 +114,8 @@ Cross-repo PR creation uses a GitHub App (preferred over fine-grained PATs for a
 
 Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
 
+**Landscape evaluation** — Before building custom cross-repo enforcement, evaluate existing tools for the execution layer. For file-based standards propagation (community health files, CI templates), evaluate `repo-file-sync-action` and `actions-template-sync`. For repo settings propagation (branch protection, labels, teams), evaluate `github/safe-settings` and GitHub org rulesets. For bulk remediation of governance findings, evaluate `multi-gitter` or `git-xargs` as the execution mechanism — the butler detects what needs to change, these tools apply it. See the Landscape section for details.
+
 ### ~~Phase 6 — Data Contracts + AI Skill~~ SHIPPED
 
 Shipped 2026-03-29 (PR #59). Six JSON Schema 2020-12 definitions in `schemas/v1/` covering snapshot, portfolio, health tiers, config, weekly trends, and enriched portfolio details. Claude Code skill at `docs/skill.md` with 11 eval tests. Schema validation tests in CI. Weekly portfolio snapshots enriched with health tier computation fields. ADR-003 documenting standards choices. 208 tests.
