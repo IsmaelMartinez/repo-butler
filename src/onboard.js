@@ -27,7 +27,7 @@ To query your repo's health tier, governance findings, and portfolio data from a
 claude mcp add repo-butler node /path/to/repo-butler/src/mcp.js
 \`\`\`
 
-Available tools: \`get_health_tier\`, \`get_campaign_status\`, \`query_portfolio\`, \`get_snapshot_diff\`, \`get_governance_findings\`.
+Available tools: \`get_health_tier\`, \`get_campaign_status\`, \`query_portfolio\`, \`get_snapshot_diff\`, \`get_governance_findings\`, \`trigger_refresh\`.
 
 When working on health improvements, check the per-repo report for the current tier checklist and use the consumer guide for fix instructions.
 `;
