@@ -1,0 +1,34 @@
+name: Onboard Repos
+
+on:
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: 'Comma-separated list of owner/repo to onboard'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  onboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Onboard repos
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ONBOARD_REPOS: ${{ github.event.inputs.repos }}
+        run: |
+          if [ -z "$ONBOARD_REPOS" ]; then
+            echo "No repos to onboard."
+            exit 0
+          fi
+          echo "Onboarding: $ONBOARD_REPOS"
+          node src/onboard.js
