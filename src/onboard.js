@@ -6,7 +6,7 @@
 // If no repos are specified, reads ONBOARD_REPOS env var (comma-separated).
 
 import { createClient } from './github.js';
-import { sanitizeContributorName } from './safety.js';
+import { sanitizeContributorName, validateGitHubUsername } from './safety.js';
 
 const BRANCH_NAME = 'repo-butler/onboard';
 const MARKER = 'repo-butler';
@@ -21,10 +21,10 @@ This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-b
 
 ### Querying Reginald (the butler MCP server)
 
-To query your repo's health tier, governance findings, and portfolio data from any Claude Code session, add the MCP server once:
+To query your repo's health tier, governance findings, and portfolio data from any Claude Code session, add the MCP server once (adjust the path to your local repo-butler checkout):
 
 \`\`\`bash
-claude mcp add repo-butler node ~/projects/github/repo-butler/src/mcp.js
+claude mcp add repo-butler node /path/to/repo-butler/src/mcp.js
 \`\`\`
 
 Available tools: \`get_health_tier\`, \`get_campaign_status\`, \`query_portfolio\`, \`get_snapshot_diff\`, \`get_governance_findings\`.
@@ -59,6 +59,10 @@ export async function onboard(token, repos) {
       continue;
     }
 
+    if (!validateGitHubUsername(owner)) {
+      console.warn(`Skipping repo with invalid owner: ${repoFullName}`);
+      continue;
+    }
     const safeName = sanitizeContributorName(repo);
     if (!safeName) {
       console.warn(`Skipping repo with unsafe name: ${repoFullName}`);
@@ -112,22 +116,22 @@ async function onboardRepo(gh, owner, repo) {
     ? existing + '\n' + section
     : `# CLAUDE.md\n\n${section}`;
 
-  // Create a branch from the default branch.
+  // Create a branch from the default branch. If it already exists (from a
+  // previous failed attempt), update it to point at the current HEAD.
   const ref = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
 
-  // Check if branch already exists (from a previous failed attempt).
   try {
-    await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${BRANCH_NAME}`);
-    // Branch exists — delete it to start fresh.
-    await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${BRANCH_NAME}`, { method: 'DELETE' });
+    await gh.request(`/repos/${owner}/${repo}/git/refs`, {
+      method: 'POST',
+      body: { ref: `refs/heads/${BRANCH_NAME}`, sha: ref.object.sha },
+    });
   } catch {
-    // Branch doesn't exist — that's fine.
+    // Branch already exists — update it instead.
+    await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${BRANCH_NAME}`, {
+      method: 'PATCH',
+      body: { sha: ref.object.sha, force: true },
+    });
   }
-
-  await gh.request(`/repos/${owner}/${repo}/git/refs`, {
-    method: 'POST',
-    body: { ref: `refs/heads/${BRANCH_NAME}`, sha: ref.object.sha },
-  });
 
   // Write the CLAUDE.md file.
   let fileSha;
@@ -186,10 +190,15 @@ if (isMain) {
     process.exit(1);
   }
 
-  onboard(token, repos).then(results => {
-    console.log('\nOnboarding results:');
-    for (const r of results) {
-      console.log(`  ${r.repo}: ${r.status}${r.pr ? ` — ${r.pr}` : ''}${r.error ? ` — ${r.error}` : ''}`);
-    }
-  });
+  onboard(token, repos)
+    .then(results => {
+      console.log('\nOnboarding results:');
+      for (const r of results) {
+        console.log(`  ${r.repo}: ${r.status}${r.pr ? ` — ${r.pr}` : ''}${r.error ? ` — ${r.error}` : ''}`);
+      }
+    })
+    .catch(err => {
+      console.error(`Onboarding failed: ${err.message}`);
+      process.exit(1);
+    });
 }

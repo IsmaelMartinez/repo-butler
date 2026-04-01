@@ -7,10 +7,6 @@ on:
         description: 'Comma-separated list of owner/repo to onboard'
         required: true
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   onboard:
     runs-on: ubuntu-latest
@@ -21,9 +17,16 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Onboard repos
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           ONBOARD_REPOS: ${{ github.event.inputs.repos }}
         run: |
           if [ -z "$ONBOARD_REPOS" ]; then
