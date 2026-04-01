@@ -158,6 +158,8 @@ The butler evolves from reporter/detector into an orchestrator that dispatches s
 
 The butler provides cross-repo context (governance findings from Phase 5), each agent reads from the MCP server and executes within its domain. The GitHub App provides cross-repo auth for all agents. Consumer guide at `docs/consumer-guide.md` teaches AI agents in portfolio repos how to understand and act on findings.
 
+**Landscape evaluation** — Before building custom agents, evaluate existing bulk change tools as the execution layer. `multi-gitter` and `git-xargs` can propagate configs, install tools, and apply migrations across repos by running scripts and opening PRs. `octoherd`'s model of pre-built composable scripts is worth studying as an alternative to full custom agents. The butler's unique contribution is deciding what needs to change (governance findings from Phase 5); the execution of that change may not need custom agents. See the Landscape section for details.
+
 ## What NOT to build
 
 Cross-platform identity resolution (GitHub + Slack + Discord) — that's Orbit/Common Room territory. File-level code ownership analysis — requires git cloning which breaks the API-only architecture. Natural-language data querying — cool but requires a database. Grafana dashboards — the static HTML approach is the right constraint. Anything that requires self-hosted infrastructure — the zero-cost, zero-dependency positioning is the moat. Per-repo code improvement suggestions — that's the triage bot's domain (see ADR-002).
