@@ -1,0 +1,37 @@
+name: Onboard Repos
+
+on:
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: 'Comma-separated list of owner/repo to onboard'
+        required: true
+
+jobs:
+  onboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Onboard repos
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          ONBOARD_REPOS: ${{ github.event.inputs.repos }}
+        run: |
+          if [ -z "$ONBOARD_REPOS" ]; then
+            echo "No repos to onboard."
+            exit 0
+          fi
+          echo "Onboarding: $ONBOARD_REPOS"
+          node src/onboard.js
