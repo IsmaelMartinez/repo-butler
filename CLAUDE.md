@@ -73,4 +73,4 @@ The report module is split into five files. `src/report.js` is the entry point t
 
 ## MCP server
 
-`src/mcp.js` is a zero-dependency MCP server over stdio. It reads data from the `repo-butler-data` branch via `git show`. The readline listener only starts when run directly (`node src/mcp.js`), not when imported for testing. Tools use `computeHealthTier()` from `report-shared.js`. Campaign logic mirrors `buildCampaignSection()` in `report-portfolio.js` — keep them aligned when adding new campaigns.
+`src/mcp.js` is a zero-dependency MCP server over stdio. It reads data from the `repo-butler-data` branch via `git show`. The readline listener only starts when run directly (`node src/mcp.js`), not when imported for testing. Tools: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`, `get_governance_findings`, `trigger_refresh`. The `trigger_refresh` tool uses `gh` CLI to dispatch the workflow. Campaign logic mirrors `buildCampaignSection()` in `report-portfolio.js` — keep them aligned when adding new campaigns.

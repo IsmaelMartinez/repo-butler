@@ -148,6 +148,16 @@ const TOOLS = [
     description: 'Get portfolio governance findings: standards gaps, policy drift, and tier uplift opportunities from the latest pipeline run.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'trigger_refresh',
+    description: 'Trigger a fresh report regeneration via the GitHub Actions workflow. The report runs asynchronously and takes ~7 minutes. Returns a status message with a link to the Actions page.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phase: { type: 'string', enum: ['report', 'all'], default: 'report', description: 'Pipeline phase to run. "report" regenerates dashboards only, "all" runs the full pipeline.' },
+      },
+    },
+  },
 ];
 
 function callTool(name, args) {
@@ -165,6 +175,9 @@ function callTool(name, args) {
   }
   if (name === 'get_governance_findings') {
     return toolGetGovernanceFindings();
+  }
+  if (name === 'trigger_refresh') {
+    return toolTriggerRefresh(args?.phase || 'report');
   }
   return null;
 }
@@ -259,6 +272,53 @@ function toolGetGovernanceFindings() {
     };
   } catch {
     return { findings: [], error: 'Failed to parse governance findings' };
+  }
+}
+
+function getRepoSlug() {
+  try {
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000,
+    }).trim();
+    const match = url.match(/github\.com[/:]([^/]+\/[^/.]+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+function toolTriggerRefresh(phase) {
+  const validPhases = ['report', 'all'];
+  if (!validPhases.includes(phase)) {
+    return { error: `Invalid phase "${phase}". Use "report" or "all".` };
+  }
+
+  const repo = getRepoSlug();
+  if (!repo) {
+    return { error: 'Could not determine repository from git remote.' };
+  }
+
+  try {
+    const output = execFileSync('gh', [
+      'workflow', 'run', 'Repo Butler',
+      '--repo', repo,
+      '--ref', 'main',
+      '-f', `phase=${phase}`,
+      '-f', 'dry-run=false',
+      '-f', 'force-report=true',
+    ], { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 10000 });
+
+    return {
+      status: 'triggered',
+      phase,
+      message: `Report regeneration triggered (phase: ${phase}). Takes ~7 minutes. Check status at https://github.com/${repo}/actions`,
+      output: output.trim() || undefined,
+    };
+  } catch (err) {
+    return {
+      error: `Failed to trigger refresh: ${err.message?.slice(0, 200)}`,
+      hint: 'Ensure the gh CLI is installed and authenticated.',
+    };
   }
 }
 

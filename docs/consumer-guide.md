@@ -43,6 +43,8 @@ Available tools:
 
 `get_governance_findings` — Get the latest governance findings: standards gaps, policy drift, and tier uplift opportunities.
 
+`trigger_refresh` — Trigger a fresh report regeneration. Runs the GitHub Actions workflow asynchronously (~7 minutes). Use after making health improvements to see updated results. Pass `phase: "report"` for dashboards only or `phase: "all"` for the full pipeline.
+
 ---
 
 ## Health Tiers
