@@ -84,7 +84,7 @@ These are ideas for later evaluation, not commitments.
 
 **Libyear dependency freshness** — Using SBOM data plus npm/PyPI registry lookups, compute the cumulative age of each repo's dependencies versus their latest versions. A single number per repo answering "how stale are the dependencies?"
 
-**External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern. Phase 6 schemas lay the groundwork for structured consumption of these external signals.
+**External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern. Phase 6 schemas lay the groundwork for structured consumption of these external signals. Also evaluate `ossf/scorecard` as a security health signal — its 0-10 score across 18 dimensions could feed into or complement the health tier model rather than the butler computing its own security metrics.
 
 **Contributor funnel** — Flag first-time contributors (PR authors whose first-ever merged PR in the repo falls within the observation window). Compute contributor confidence ratio (contributors / stargazers) as a lightweight sustainability indicator.
 
