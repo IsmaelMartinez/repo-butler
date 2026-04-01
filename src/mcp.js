@@ -150,7 +150,7 @@ const TOOLS = [
   },
   {
     name: 'trigger_refresh',
-    description: 'Trigger a fresh report regeneration via the GitHub Actions workflow. The report runs asynchronously and takes ~7 minutes. Returns the workflow run URL.',
+    description: 'Trigger a fresh report regeneration via the GitHub Actions workflow. The report runs asynchronously and takes ~7 minutes. Returns a status message with a link to the Actions page.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -275,16 +275,33 @@ function toolGetGovernanceFindings() {
   }
 }
 
+function getRepoSlug() {
+  try {
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000,
+    }).trim();
+    const match = url.match(/github\.com[/:]([^/]+\/[^/.]+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 function toolTriggerRefresh(phase) {
   const validPhases = ['report', 'all'];
   if (!validPhases.includes(phase)) {
     return { error: `Invalid phase "${phase}". Use "report" or "all".` };
   }
 
+  const repo = getRepoSlug();
+  if (!repo) {
+    return { error: 'Could not determine repository from git remote.' };
+  }
+
   try {
     const output = execFileSync('gh', [
       'workflow', 'run', 'Repo Butler',
-      '--repo', 'IsmaelMartinez/repo-butler',
+      '--repo', repo,
       '--ref', 'main',
       '-f', `phase=${phase}`,
       '-f', 'dry-run=false',
@@ -294,7 +311,7 @@ function toolTriggerRefresh(phase) {
     return {
       status: 'triggered',
       phase,
-      message: `Report regeneration triggered (phase: ${phase}). Takes ~7 minutes. Check status at https://github.com/IsmaelMartinez/repo-butler/actions`,
+      message: `Report regeneration triggered (phase: ${phase}). Takes ~7 minutes. Check status at https://github.com/${repo}/actions`,
       output: output.trim() || undefined,
     };
   } catch (err) {
