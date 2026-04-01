@@ -25,19 +25,23 @@ export function createClient(token) {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      // Handle rate limiting with retry.
-      // 429 is always a rate limit. 403 is only a rate limit if it has
-      // rate-limit headers — otherwise it's a permission error (e.g.,
-      // Dependabot alerts without vulnerability_alerts scope).
+      // Handle rate limiting (429) and distinguish from permission errors (403).
       if (res.status === 429 || res.status === 403) {
+        const remaining = res.headers.get('x-ratelimit-remaining');
         const retryAfter = res.headers.get('retry-after');
         const resetTime = res.headers.get('x-ratelimit-reset');
-        const remaining = res.headers.get('x-ratelimit-remaining');
 
-        // 403 without rate-limit headers = permission denied, not rate limited.
-        if (res.status === 403 && !retryAfter && !resetTime && remaining !== '0') {
-          const text = await res.text();
-          throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+        // 403: check headers to distinguish permission errors from rate limits.
+        // GitHub returns rate-limit headers on ALL responses (even 403 permission
+        // errors), so we can't rely on header absence. Instead, check if
+        // x-ratelimit-remaining is '0' (actual rate limit) or if retry-after
+        // is present (secondary rate limit). Anything else is a permission error.
+        if (res.status === 403) {
+          const isRateLimit = remaining === '0' || retryAfter;
+          if (!isRateLimit) {
+            const text = await res.text();
+            throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+          }
         }
 
         let waitMs;
