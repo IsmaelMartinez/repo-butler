@@ -1,11 +1,11 @@
 {
   "wifisentinel": {
     "open_issues": 0,
-    "commits_6mo": 145,
+    "commits_6mo": 163,
     "stars": 0,
     "license": "MIT",
     "communityHealth": 100,
-    "ciPassRate": 0.8208955223880597,
+    "ciPassRate": 0.8202247191011236,
     "vulns": {
       "count": 0,
       "max_severity": null,
@@ -13,27 +13,11 @@
     },
     "ci": 3,
     "released_at": "2026-04-01T08:19:52Z",
-    "pushed_at": "2026-04-01T12:33:20Z"
-  },
-  "github-issue-triage-bot": {
-    "open_issues": 0,
-    "commits_6mo": 187,
-    "stars": 1,
-    "license": "MIT",
-    "communityHealth": 100,
-    "ciPassRate": 0.95,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "ci": 9,
-    "released_at": "2026-04-01T12:26:05Z",
-    "pushed_at": "2026-04-01T12:26:41Z"
+    "pushed_at": "2026-04-01T23:12:27Z"
   },
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 156,
+    "commits_6mo": 158,
     "stars": 2,
     "license": "MIT",
     "communityHealth": 85,
@@ -45,15 +29,31 @@
     },
     "ci": 4,
     "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-01T11:34:45Z"
+    "pushed_at": "2026-04-01T22:20:50Z"
+  },
+  "github-issue-triage-bot": {
+    "open_issues": 0,
+    "commits_6mo": 198,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 100,
+    "ciPassRate": 0.97,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "ci": 9,
+    "released_at": "2026-04-01T12:26:05Z",
+    "pushed_at": "2026-04-01T22:01:03Z"
   },
   "teams-for-linux": {
     "open_issues": 12,
-    "commits_6mo": 341,
-    "stars": 4554,
+    "commits_6mo": 340,
+    "stars": 4556,
     "license": "GPL-3.0",
     "communityHealth": 85,
-    "ciPassRate": 0.9090909090909091,
+    "ciPassRate": 0.9722222222222222,
     "vulns": {
       "count": 0,
       "max_severity": null,
@@ -61,7 +61,127 @@
     },
     "ci": 14,
     "released_at": "2026-03-29T11:24:34Z",
-    "pushed_at": "2026-04-01T11:28:17Z"
+    "pushed_at": "2026-04-01T21:31:43Z"
+  },
+  "sound3fy": {
+    "open_issues": 0,
+    "commits_6mo": 57,
+    "stars": 3,
+    "license": "MIT",
+    "communityHealth": 100,
+    "ciPassRate": 0.9,
+    "vulns": null,
+    "ci": 5,
+    "released_at": "2025-12-20T09:59:52Z",
+    "pushed_at": "2026-04-01T20:11:19Z"
+  },
+  "ismaelmartinez.me.uk": {
+    "open_issues": 1,
+    "commits_6mo": 67,
+    "stars": 0,
+    "license": "MIT",
+    "communityHealth": 71,
+    "ciPassRate": 0.826530612244898,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-01T19:02:45Z"
+  },
+  "logger-to-kibana": {
+    "open_issues": 3,
+    "commits_6mo": 1,
+    "stars": 0,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": null,
+    "vulns": null,
+    "ci": 1,
+    "released_at": null,
+    "pushed_at": "2026-04-01T19:00:28Z"
+  },
+  "yourear": {
+    "open_issues": 0,
+    "commits_6mo": 38,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 57,
+    "ciPassRate": 0.9239130434782609,
+    "vulns": null,
+    "ci": 4,
+    "released_at": null,
+    "pushed_at": "2026-04-01T19:00:13Z"
+  },
+  "gridfs-storage-engine": {
+    "open_issues": 2,
+    "commits_6mo": 1,
+    "stars": 8,
+    "license": "None",
+    "communityHealth": 28,
+    "ciPassRate": null,
+    "vulns": null,
+    "ci": 0,
+    "released_at": "2016-05-09T10:18:37Z",
+    "pushed_at": "2026-04-01T19:00:13Z"
+  },
+  "leapp-codeartifact-login-plugin": {
+    "open_issues": 1,
+    "commits_6mo": 1,
+    "stars": 0,
+    "license": "MPL-2.0",
+    "communityHealth": 85,
+    "ciPassRate": null,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "ci": 0,
+    "released_at": null,
+    "pushed_at": "2026-04-01T19:00:12Z"
+  },
+  "bonnie-wee-plot": {
+    "open_issues": 0,
+    "commits_6mo": 373,
+    "stars": 1,
+    "license": "NOASSERTION",
+    "communityHealth": 57,
+    "ciPassRate": 0.94,
+    "vulns": null,
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-01T19:00:08Z"
+  },
+  "seagate-photos": {
+    "open_issues": 1,
+    "commits_6mo": 1,
+    "stars": 3,
+    "license": "None",
+    "communityHealth": 0,
+    "ciPassRate": 1,
+    "vulns": null,
+    "ci": 1,
+    "released_at": null,
+    "pushed_at": "2026-04-01T19:00:06Z"
+  },
+  "generator-atlassian-compass-event-catalog": {
+    "open_issues": 0,
+    "commits_6mo": 165,
+    "stars": 4,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 1,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "ci": 7,
+    "released_at": "2026-03-16T22:15:11Z",
+    "pushed_at": "2026-04-01T18:59:57Z"
   },
   "betis-escocia": {
     "open_issues": 0,
@@ -92,135 +212,15 @@
     "pushed_at": "2026-04-01T08:05:51Z"
   },
   "local-brain": {
-    "open_issues": 0,
-    "commits_6mo": 213,
-    "stars": 0,
-    "license": "MIT",
-    "communityHealth": 42,
-    "ciPassRate": 0.85,
-    "vulns": null,
-    "ci": 5,
-    "released_at": "2026-01-10T10:13:32Z",
-    "pushed_at": "2026-04-01T08:05:46Z"
-  },
-  "generator-atlassian-compass-event-catalog": {
-    "open_issues": 0,
-    "commits_6mo": 164,
-    "stars": 4,
-    "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": 1,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "ci": 7,
-    "released_at": "2026-03-16T22:15:11Z",
-    "pushed_at": "2026-03-31T06:16:32Z"
-  },
-  "ismaelmartinez.me.uk": {
-    "open_issues": 1,
-    "commits_6mo": 66,
-    "stars": 0,
-    "license": "MIT",
-    "communityHealth": 71,
-    "ciPassRate": 0.826530612244898,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-03-26T20:14:07Z"
-  },
-  "bonnie-wee-plot": {
-    "open_issues": 0,
-    "commits_6mo": 372,
-    "stars": 1,
-    "license": "NOASSERTION",
-    "communityHealth": 57,
-    "ciPassRate": 0.96,
-    "vulns": null,
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-03-23T10:17:51Z"
-  },
-  "sound3fy": {
-    "open_issues": 0,
-    "commits_6mo": 56,
-    "stars": 3,
-    "license": "MIT",
-    "communityHealth": 100,
-    "ciPassRate": 0.83,
-    "vulns": null,
-    "ci": 5,
-    "released_at": "2025-12-20T09:59:52Z",
-    "pushed_at": "2026-02-28T03:29:42Z"
-  },
-  "yourear": {
-    "open_issues": 0,
-    "commits_6mo": 37,
-    "stars": 1,
-    "license": "MIT",
-    "communityHealth": 57,
-    "ciPassRate": 0.9213483146067416,
-    "vulns": null,
-    "ci": 4,
-    "released_at": null,
-    "pushed_at": "2026-02-13T07:03:35Z"
-  },
-  "seagate-photos": {
-    "open_issues": 1,
-    "commits_6mo": 0,
-    "stars": 3,
-    "license": "None",
-    "communityHealth": 0,
-    "ciPassRate": 1,
-    "vulns": null,
-    "ci": 1,
-    "released_at": null,
-    "pushed_at": "2025-12-31T17:54:41Z"
-  },
-  "leapp-codeartifact-login-plugin": {
-    "open_issues": 1,
+    "open_issues": 2,
     "commits_6mo": 0,
     "stars": 0,
-    "license": "MPL-2.0",
-    "communityHealth": 85,
-    "ciPassRate": null,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "ci": 0,
-    "released_at": null,
-    "pushed_at": "2024-09-10T01:27:51Z"
-  },
-  "logger-to-kibana": {
-    "open_issues": 3,
-    "commits_6mo": 0,
-    "stars": 0,
-    "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": null,
-    "vulns": null,
-    "ci": 1,
-    "released_at": null,
-    "pushed_at": "2024-07-09T18:11:39Z"
-  },
-  "gridfs-storage-engine": {
-    "open_issues": 3,
-    "commits_6mo": 0,
-    "stars": 8,
     "license": null,
     "communityHealth": null,
     "ciPassRate": null,
     "vulns": null,
     "ci": 0,
     "released_at": null,
-    "pushed_at": "2023-08-28T23:02:30Z"
+    "pushed_at": "2026-04-01T08:05:46Z"
   }
 }
