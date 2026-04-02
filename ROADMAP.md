@@ -144,23 +144,11 @@ AsyncAPI 3.0 spec describing the event-driven interface for consumers that want 
 
 **Spec file** — `docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI. Documents message shapes, channel bindings, and the `repository_dispatch` event type used as the transport.
 
-### Phase 10 — Specialised Agent Swarm
+### Phase 10 — Agents and Execution (revised 2026-04-02)
 
-The butler evolves from reporter/detector into an orchestrator that dispatches specialised agents for specific portfolio tasks. Each agent handles a distinct domain and can be assigned to repos autonomously.
+Rather than building a phased agent swarm, agents are CLAUDE.md files created as needed. The butler's MCP server (Phase 7) is the integration surface — any Claude Code agent can call it. Agents that need cross-portfolio context (enriching synthesis briefings, executing governance proposals, monitoring health across both systems) live here. Agents that do per-repo deep intelligence (triage review, ADR revision, research synthesis) live in the triage bot repo, where the data is.
 
-**Dependency management agent** — Adds Dependabot/Renovate configs, handles dependency update PRs, monitors vulnerability remediation across the portfolio.
-
-**Tool installation agent** — Propagates CodeRabbit, SonarQube, or other tooling configs to repos that lack them.
-
-**Migration agent** — Handles framework upgrades, API version bumps, CI workflow template updates across multiple repos.
-
-**Security review agent** — Runs standardised security checks, opens issues for findings, tracks remediation.
-
-**Community health agent** — Adds CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue templates, PR templates to repos that need them.
-
-The butler provides cross-repo context (governance findings from Phase 5), each agent reads from the MCP server and executes within its domain. The GitHub App provides cross-repo auth for all agents. Consumer guide at `docs/consumer-guide.md` teaches AI agents in portfolio repos how to understand and act on findings.
-
-**Landscape evaluation** — Before building custom agents, evaluate existing bulk change tools as the execution layer. `multi-gitter` and `git-xargs` can propagate configs, install tools, and apply migrations across repos by running scripts and opening PRs. `octoherd`'s model of pre-built composable scripts is worth studying as an alternative to full custom agents. The butler's unique contribution is deciding what needs to change (governance findings from Phase 5); the execution of that change may not need custom agents. See the Landscape section for details.
+For the execution layer — propagating configs, installing tools, applying migrations across repos — evaluate existing bulk change tools before building custom solutions. `multi-gitter` and `git-xargs` can run scripts and open PRs across repos. `repo-file-sync-action` can keep files in sync declaratively. `github/safe-settings` can manage repo settings via policy-as-code. `octoherd`'s composable script model is worth studying. The butler's unique contribution is deciding what needs to change (governance findings from Phase 5); the execution of that change should use existing tools where possible. See the Landscape section for details.
 
 ## What NOT to build
 
