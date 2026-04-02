@@ -146,7 +146,7 @@ AsyncAPI 3.0 spec describing the event-driven interface for consumers that want 
 
 ### Phase 10 — Agents and Execution (revised 2026-04-02)
 
-Rather than building a phased agent swarm, agents are CLAUDE.md files created as needed. The butler's MCP server (Phase 7) is the integration surface — any Claude Code agent can call it. Agents that need cross-portfolio context (enriching synthesis briefings, executing governance proposals, monitoring health across both systems) live here. Agents that do per-repo deep intelligence (triage review, ADR revision, research synthesis) live in the triage bot repo, where the data is.
+Rather than building a phased agent swarm, agent behaviors are defined via CLAUDE.md files created as needed. The butler's MCP server (Phase 7) is the integration surface — any Claude Code agent can call it. Agents that need cross-portfolio context (enriching synthesis briefings, executing governance proposals, monitoring health across both systems) live here. Agents that do per-repo deep intelligence (triage review, ADR revision, research synthesis) live in the triage bot repo, where the data is.
 
 For the execution layer — propagating configs, installing tools, applying migrations across repos — evaluate existing bulk change tools before building custom solutions. `multi-gitter` and `git-xargs` can run scripts and open PRs across repos. `repo-file-sync-action` can keep files in sync declaratively. `github/safe-settings` can manage repo settings via policy-as-code. `octoherd`'s composable script model is worth studying. The butler's unique contribution is deciding what needs to change (governance findings from Phase 5); the execution of that change should use existing tools where possible. See the Landscape section for details.
 
