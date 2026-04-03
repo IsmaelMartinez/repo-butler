@@ -308,7 +308,7 @@ describe('computeHealthTier', () => {
     assert.equal(tier, 'bronze');
   });
 
-  it('gold requires dependabot configured (vulns != null)', () => {
+  it('gold requires at least one security scanner configured', () => {
     const r = {
       ci: 2, license: 'MIT', open_issues: 0, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: null, commits: 50,
