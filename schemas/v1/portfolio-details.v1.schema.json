@@ -93,18 +93,54 @@
         "contributors": {
           "type": ["integer", "null"],
           "description": "Count of unique human PR authors; populated later in src/report.js from the contributor funnel analysis, not by fetchPortfolioDetails() itself"
+        },
+        "codeScanning": {
+          "oneOf": [
+            { "$ref": "#/$defs/VulnSummary" },
+            { "type": "null" }
+          ],
+          "description": "Code scanning alert summary from /code-scanning/alerts; null when unavailable (403/404)"
+        },
+        "secretScanning": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["count"],
+              "properties": {
+                "count": { "type": "integer", "description": "Number of open secret scanning alerts" }
+              }
+            },
+            { "type": "null" }
+          ],
+          "description": "Secret scanning alert summary from /secret-scanning/alerts; null when unavailable (403/404)"
         }
       }
     },
     "VulnSummary": {
       "title": "VulnSummary",
-      "description": "Trimmed vulnerability summary from the Dependabot alerts endpoint",
+      "description": "Trimmed vulnerability/alert summary with optional severity breakdown",
       "type": "object",
       "required": ["count"],
       "properties": {
         "count": {
           "type": "integer",
-          "description": "Total open Dependabot alerts"
+          "description": "Total open alerts"
+        },
+        "critical": {
+          "type": "integer",
+          "description": "Number of critical-severity alerts"
+        },
+        "high": {
+          "type": "integer",
+          "description": "Number of high-severity alerts"
+        },
+        "medium": {
+          "type": "integer",
+          "description": "Number of medium-severity alerts"
+        },
+        "low": {
+          "type": "integer",
+          "description": "Number of low-severity alerts"
         },
         "max_severity": {
           "type": ["string", "null"],

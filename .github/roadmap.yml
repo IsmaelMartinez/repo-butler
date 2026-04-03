@@ -24,3 +24,5 @@ observe:
   issues_closed_days: 90
   prs_merged_days: 90
   releases_count: 10
+
+release_exempt: sound3fy

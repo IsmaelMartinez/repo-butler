@@ -20,6 +20,8 @@ export async function observe(context) {
     repoMeta,
     communityProfile,
     dependabotAlerts,
+    codeScanningAlerts,
+    secretScanningAlerts,
     ciPassRate,
   ] = await Promise.all([
     fetchOpenIssues(gh, owner, repo),
@@ -32,6 +34,8 @@ export async function observe(context) {
     fetchRepoMeta(gh, owner, repo),
     fetchCommunityProfile(gh, owner, repo),
     fetchDependabotAlerts(gh, owner, repo),
+    fetchCodeScanningAlerts(gh, owner, repo),
+    fetchSecretScanningAlerts(gh, owner, repo),
     fetchCIPassRate(gh, owner, repo),
   ]);
 
@@ -69,10 +73,12 @@ export async function observe(context) {
     } : null,
     community_profile: communityProfile,
     dependabot_alerts: dependabotAlerts,
+    code_scanning_alerts: codeScanningAlerts,
+    secret_scanning_alerts: secretScanningAlerts,
     ci_pass_rate: ciPassRate,
     summary: buildSummary({
       openIssues, closedIssues, mergedPRs, releases, repoMeta, labels,
-      communityProfile, dependabotAlerts, ciPassRate,
+      communityProfile, dependabotAlerts, codeScanningAlerts, secretScanningAlerts, ciPassRate,
     }),
   };
 
@@ -320,6 +326,57 @@ async function fetchDependabotAlerts(gh, owner, repo) {
   }
 }
 
+export async function fetchCodeScanningAlerts(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/code-scanning/alerts`, {
+      params: { state: 'open', per_page: 100 },
+    });
+    const alerts = Array.isArray(data) ? data : [];
+    const severityOrder = ['critical', 'high', 'medium', 'low'];
+    let critical = 0, high = 0, medium = 0, low = 0;
+    let maxSeverityIndex = severityOrder.length;
+
+    for (const alert of alerts) {
+      const severity = alert.rule?.security_severity_level;
+      if (severity === 'critical') { critical++; }
+      else if (severity === 'high') { high++; }
+      else if (severity === 'medium') { medium++; }
+      else if (severity === 'low') { low++; }
+      const idx = severityOrder.indexOf(severity);
+      if (idx !== -1 && idx < maxSeverityIndex) { maxSeverityIndex = idx; }
+    }
+
+    return {
+      count: alerts.length,
+      critical,
+      high,
+      medium,
+      low,
+      max_severity: maxSeverityIndex < severityOrder.length ? severityOrder[maxSeverityIndex] : null,
+    };
+  } catch (err) {
+    if (err.message?.includes('403') || err.message?.includes('404')) {
+      console.log(`Note: Code scanning alerts not available for ${owner}/${repo} (${err.message})`);
+    }
+    return null;
+  }
+}
+
+export async function fetchSecretScanningAlerts(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/secret-scanning/alerts`, {
+      params: { state: 'open', per_page: 100 },
+    });
+    const alerts = Array.isArray(data) ? data : [];
+    return { count: alerts.length };
+  } catch (err) {
+    if (err.message?.includes('403') || err.message?.includes('404')) {
+      console.log(`Note: Secret scanning alerts not available for ${owner}/${repo} (${err.message})`);
+    }
+    return null;
+  }
+}
+
 async function fetchCIPassRate(gh, owner, repo) {
   try {
     const data = await gh.request(`/repos/${owner}/${repo}/actions/runs`, {
@@ -348,7 +405,7 @@ async function fetchCIPassRate(gh, owner, repo) {
 
 // --- Analysis helpers ---
 
-function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta, labels, communityProfile, dependabotAlerts, ciPassRate }) {
+function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta, labels, communityProfile, dependabotAlerts, codeScanningAlerts, secretScanningAlerts, ciPassRate }) {
   const labelCounts = {};
   for (const issue of openIssues) {
     for (const label of issue.labels) {
@@ -391,6 +448,9 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
     community_health: communityProfile?.health_percentage ?? null,
     dependabot_alert_count: dependabotAlerts ? dependabotAlerts.count : null,
     dependabot_max_severity: dependabotAlerts?.max_severity ?? null,
+    code_scanning_alert_count: codeScanningAlerts ? codeScanningAlerts.count : null,
+    code_scanning_max_severity: codeScanningAlerts?.max_severity ?? null,
+    secret_scanning_alert_count: secretScanningAlerts ? secretScanningAlerts.count : null,
     ci_pass_rate: ciPassRate?.pass_rate ?? null,
     bus_factor: computeBusFactor(mergedPRs),
     time_to_close_median: computeTimeToCloseMedian(closedIssues),

@@ -65,4 +65,9 @@ describe('loadConfig', () => {
     assert.deepEqual(config.standards, {});
     assert.deepEqual(config['standards-exclude'], {});
   });
+
+  it('defaults release_exempt to empty string', async () => {
+    const config = await loadConfig('/nonexistent/path/roadmap.yml');
+    assert.equal(config.release_exempt, '');
+  });
 });

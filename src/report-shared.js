@@ -19,6 +19,24 @@ export function getLibyearColor(libyearVal) {
   return '#f85149';
 }
 
+export function getAlertSummary(alerts, getSeverity) {
+  const count = alerts.length;
+  let maxSeverity = null;
+  const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+  for (const a of alerts) {
+    const sev = getSeverity(a);
+    if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
+      maxSeverity = sev;
+    }
+  }
+  return { count, max_severity: maxSeverity };
+}
+
+export function isReleaseExempt(repoName, config) {
+  const exempt = config?.release_exempt || '';
+  return exempt.split(',').map(s => s.trim()).filter(Boolean).includes(repoName);
+}
+
 export function isBotAuthor(author = '') {
   return author.includes('[bot]') || author.startsWith('app/');
 }
@@ -64,21 +82,33 @@ export function last12Months() {
 
 // Compute health tier for a classified repo object.
 // Returns { tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed, required_for }] }
-export function computeHealthTier(r) {
+export function computeHealthTier(r, options = {}) {
   const now = Date.now();
   const pushedAt = r.pushed_at ? new Date(r.pushed_at).getTime() : 0;
   const daysSincePush = pushedAt ? Math.floor((now - pushedAt) / 86400000) : Infinity;
   const releasedAt = r.released_at ? new Date(r.released_at).getTime() : 0;
   const daysSinceRelease = releasedAt ? Math.floor((now - releasedAt) / 86400000) : Infinity;
 
+  const anyScannerConfigured = r.vulns != null || r.codeScanning != null || r.secretScanning != null;
+
+  let noSecurityFindings;
+  if (!anyScannerConfigured) {
+    noSecurityFindings = false;
+  } else {
+    const dependabotOk = r.vulns == null || (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high');
+    const codeScanningOk = r.codeScanning == null || (r.codeScanning.max_severity !== 'critical' && r.codeScanning.max_severity !== 'high');
+    const secretScanningOk = r.secretScanning == null || r.secretScanning.count === 0;
+    noSecurityFindings = dependabotOk && codeScanningOk && secretScanningOk;
+  }
+
   const checks = [
     { name: 'Has CI workflows (2+)', passed: (r.ci || 0) >= 2, required_for: 'gold' },
     { name: 'Has a license', passed: !!(r.license && r.license !== 'None'), required_for: 'silver' },
     { name: 'Fewer than 20 open issues', passed: (r.open_issues || 0) < 20, required_for: 'gold' },
-    { name: 'Release in the last 90 days', passed: daysSinceRelease <= 90, required_for: 'gold' },
+    { name: 'Release in the last 90 days', passed: options.releaseExempt || daysSinceRelease <= 90, required_for: 'gold' },
     { name: 'Community health above 80%', passed: (r.communityHealth ?? -1) >= 80, required_for: 'gold' },
-    { name: 'Dependabot/Renovate configured', passed: r.vulns != null, required_for: 'gold' },
-    { name: 'Zero critical/high vulnerabilities', passed: r.vulns != null && r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high', required_for: 'gold' },
+    { name: 'Security scanning configured', passed: anyScannerConfigured, required_for: 'gold' },
+    { name: 'Zero critical/high security findings', passed: noSecurityFindings, required_for: 'gold' },
     { name: 'Has CI workflows', passed: (r.ci || 0) >= 1, required_for: 'silver' },
     { name: 'Community health above 50%', passed: (r.communityHealth ?? -1) >= 50, required_for: 'silver' },
     { name: 'Activity in the last 6 months', passed: daysSincePush <= 180, required_for: 'silver' },

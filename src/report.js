@@ -14,7 +14,7 @@ import { computeTrends } from './assess.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO } from './report-shared.js';
+import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt } from './report-shared.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
   fetchWeeklyCommits, fetchPRAuthors, computePRCycleTime,
@@ -143,6 +143,8 @@ export async function report(context) {
           license: meta?.license?.spdx_id || details?.license || null,
           community_profile: communityProfile,
           dependabot_alerts: details?.vulns || null,
+          code_scanning_alerts: details?.codeScanning ?? null,
+          secret_scanning_alerts: details?.secretScanning ?? null,
           ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
           sbom: details?.sbom || null,
           summary: {
@@ -179,7 +181,7 @@ export async function report(context) {
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
         const repoDepSummary = depInventory?.repoSummaries?.[r.name] || null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits, repoDepSummary, libyear);
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits, repoDepSummary, libyear, config);
         await writeFile(join(outDir, `${r.name}.html`), html);
       } else {
         // Lightweight report — just metadata, no search API calls.
@@ -193,7 +195,7 @@ export async function report(context) {
 
   // Generate portfolio report (after per-repo reports so contributor data is available).
   if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory);
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 
@@ -225,7 +227,7 @@ export async function report(context) {
     for (const r of activeRepos) {
       const d = repoDetails?.[r.name] || {};
       const classified = { ...r, ...d };
-      const { tier } = computeHealthTier(classified);
+      const { tier } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
       const svg = generateHealthBadge(r.name, tier);
       await writeFile(join(badgeDir, `${r.name}.svg`), svg);
       const pushed = new Date(r.pushed_at);

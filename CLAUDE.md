@@ -31,9 +31,9 @@ OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
 
 `src/github.js` is the custom API client used by every module. It provides `request()`, `paginate()`, `getFileContent()`, and `listDir()`. Rate limiting is handled internally with exponential backoff on 429/403. All other modules import `createClient(token)` from here.
 
-`src/observe.js` gathers data via GitHub REST API. It runs ~11 API calls in parallel via `Promise.all`, including community health profile, Dependabot alerts, CI pass rate, and computes derived metrics (bus factor, time-to-close median). `observePortfolio()` classifies all repos by activity level.
+`src/observe.js` gathers data via GitHub REST API. It runs ~13 API calls in parallel via `Promise.all`, including community health profile, Dependabot alerts, code scanning alerts, secret scanning alerts, CI pass rate, and computes derived metrics (bus factor, time-to-close median). `observePortfolio()` classifies all repos by activity level.
 
-The report module is split into five files. `src/report.js` is the entry point that orchestrates the REPORT phase. `src/report-shared.js` has shared constants and `computeHealthTier()`. `src/report-portfolio.js` has `fetchPortfolioDetails()`, `generatePortfolioReport()`, and `buildCampaignSection()`. `src/report-repo.js` has `generateRepoReport()` and per-repo chart data fetchers. `src/report-styles.js` has the CSS template.
+The report module is split into five files. `src/report.js` is the entry point that orchestrates the REPORT phase. `src/report-shared.js` has shared constants, `computeHealthTier(r, options)` (supports `releaseExempt` option and the security trifecta: Dependabot + code scanning + secret scanning), and `isReleaseExempt()`. `src/report-portfolio.js` has `fetchPortfolioDetails()`, `generatePortfolioReport()`, and `buildCampaignSection()`. `src/report-repo.js` has `generateRepoReport()` and per-repo chart data fetchers. `src/report-styles.js` has the CSS template.
 
 `src/store.js` persists JSON snapshots to a `repo-butler-data` orphan branch using the Git Data API (blobs → trees → commits → ref updates). Weekly portfolio snapshots are stored for trend analysis (max 12 weeks).
 

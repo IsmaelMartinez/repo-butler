@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection } from './report.js';
+import { isReleaseExempt } from './report-shared.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -308,7 +309,7 @@ describe('computeHealthTier', () => {
     assert.equal(tier, 'bronze');
   });
 
-  it('gold requires dependabot configured (vulns != null)', () => {
+  it('gold requires at least one security scanner configured', () => {
     const r = {
       ci: 2, license: 'MIT', open_issues: 0, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: null, commits: 50,
@@ -321,6 +322,69 @@ describe('computeHealthTier', () => {
     const r = {
       ci: 1, license: 'MIT', open_issues: 0, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold passes security check with only code scanning configured (no dependabot)', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: { count: 0, max_severity: null }, secretScanning: null, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'gold');
+  });
+
+  it('gold passes security check with only secret scanning configured', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: null, secretScanning: { count: 0 }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'gold');
+  });
+
+  it('gold fails security check when no scanner is configured', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: null, secretScanning: null, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold fails when code scanning has critical findings', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: { count: 1, max_severity: 'critical' }, secretScanning: null, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold fails when secret scanning has open alerts', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: null, secretScanning: { count: 1 }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold passes release check when releaseExempt option is true', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: null,
+      communityHealth: 85, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r, { releaseExempt: true });
+    assert.equal(tier, 'gold');
+  });
+
+  it('gold still fails release check when releaseExempt is false (default)', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: null,
+      communityHealth: 85, vulns: { count: 0, max_severity: null }, commits: 50,
     };
     const { tier } = computeHealthTier(r);
     assert.equal(tier, 'silver');
@@ -723,5 +787,27 @@ describe('generateSparklineSVG', () => {
     assert.ok(svg.includes('<line'), 'all zeros should render as a flat line');
     assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
     assert.ok(svg.includes('opacity="0.4"'), 'flat line should be muted');
+  });
+});
+
+describe('isReleaseExempt', () => {
+  it('returns true for a repo listed in release_exempt', () => {
+    assert.equal(isReleaseExempt('sound3fy', { release_exempt: 'sound3fy,other-repo' }), true);
+  });
+
+  it('returns false for a repo not listed in release_exempt', () => {
+    assert.equal(isReleaseExempt('repo-butler', { release_exempt: 'sound3fy' }), false);
+  });
+
+  it('returns false when release_exempt is empty string', () => {
+    assert.equal(isReleaseExempt('sound3fy', { release_exempt: '' }), false);
+  });
+
+  it('returns false when release_exempt key is missing', () => {
+    assert.equal(isReleaseExempt('sound3fy', {}), false);
+  });
+
+  it('handles whitespace around repo names in comma-separated list', () => {
+    assert.equal(isReleaseExempt('sound3fy', { release_exempt: ' sound3fy , other-repo ' }), true);
   });
 });

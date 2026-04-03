@@ -7,7 +7,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
-  computeHealthTier, getLibyearColor,
+  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary,
 } from './report-shared.js';
 
 
@@ -143,7 +143,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt] = await Promise.all([
+    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -172,18 +172,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
         })
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/dependabot/alerts?state=open&per_page=100`)
-        .then(alerts => {
-          const count = alerts.length;
-          let maxSeverity = null;
-          const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-          for (const a of alerts) {
-            const sev = a.security_vulnerability?.severity || a.security_advisory?.severity;
-            if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
-              maxSeverity = sev;
-            }
-          }
-          return { count, max_severity: maxSeverity };
-        })
+        .then(alerts => getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity))
         .catch(async () => {
           // Alerts API returned 403 (token lacks scope). Fall back to checking
           // if dependabot.yml exists — if so, Dependabot IS configured even
@@ -211,10 +200,16 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
       gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 1 })
         .then(rels => rels[0]?.published_at ?? null)
         .catch(() => null),
+      gh.request(`/repos/${owner}/${r.name}/code-scanning/alerts?state=open&per_page=100`)
+        .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))
+        .catch(() => null),
+      gh.request(`/repos/${owner}/${r.name}/secret-scanning/alerts?state=open&per_page=100`)
+        .then(alerts => ({ count: Array.isArray(alerts) ? alerts.length : 0 }))
+        .catch(() => null),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning };
   });
 
   await Promise.all(fetches);
@@ -402,7 +397,7 @@ ${licenseCards}`;
 
 // --- Portfolio report ---
 
-export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null) {
+export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived && !r.fork)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
@@ -449,7 +444,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
 
   const tableRows = classified.map(r => {
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
-    const { tier } = computeHealthTier(r);
+    const { tier } = computeHealthTier(r, { releaseExempt: isReleaseExempt(r.name, config) });
     const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? COLOR_SUCCESS : r.communityHealth >= 50 ? COLOR_WARNING : COLOR_DANGER;
     // CI: merge workflow count + pass rate into one cell
     const ciCount = r.ci || 0;
