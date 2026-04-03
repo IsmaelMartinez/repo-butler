@@ -143,6 +143,8 @@ export async function report(context) {
           license: meta?.license?.spdx_id || details?.license || null,
           community_profile: communityProfile,
           dependabot_alerts: details?.vulns || null,
+          code_scanning_alerts: details?.codeScanning ?? null,
+          secret_scanning_alerts: details?.secretScanning ?? null,
           ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
           sbom: details?.sbom || null,
           summary: {
