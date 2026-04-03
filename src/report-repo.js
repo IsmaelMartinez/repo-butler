@@ -234,7 +234,32 @@ export function buildActionItems(snapshot, openPRs) {
     });
   }
 
-  // 3. PRs awaiting review for > 7 days.
+  // 3. Code scanning critical/high alerts.
+  const cs = snapshot.code_scanning_alerts;
+  if (cs && (cs.critical > 0 || cs.high > 0)) {
+    const parts = [];
+    if (cs.critical > 0) parts.push(`${cs.critical} critical`);
+    if (cs.high > 0) parts.push(`${cs.high} high`);
+    items.push({
+      text: `Fix ${parts.join(', ')} <a href="https://github.com/${repo}/security/code-scanning">code scanning alerts</a>`,
+      effort: 'moderate',
+      impact: 'high',
+      priority: 2,
+    });
+  }
+
+  // 4. Secret scanning open alerts.
+  const ss = snapshot.secret_scanning_alerts;
+  if (ss && ss.count > 0) {
+    items.push({
+      text: `Resolve ${ss.count} open <a href="https://github.com/${repo}/security/secret-scanning">secret scanning alerts</a>`,
+      effort: 'low',
+      impact: 'high',
+      priority: 1,
+    });
+  }
+
+  // 5. PRs awaiting review for > 7 days.
   const needsReview = (openPRs || []).filter(pr =>
     pr.review_requested && !pr.draft && !pr.bot && pr.age_days > 7
   );
@@ -331,6 +356,8 @@ function snapshotToTierInput(snapshot) {
     communityHealth: cp?.health_percentage ?? null,
     vulns: da,
     commits: snapshot.summary?.recently_merged_prs || 0,
+    codeScanning: snapshot.code_scanning_alerts ?? null,
+    secretScanning: snapshot.secret_scanning_alerts ?? null,
   };
 }
 
@@ -399,6 +426,16 @@ ${['readme', 'license', 'contributing', 'code_of_conduct', 'issue_template', 'pu
 ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>` : ''}${da.high ? `<span style="color:#f85149">${da.high} high</span><br>` : ''}${da.medium ? `<span style="color:#d29922">${da.medium} medium</span><br>` : ''}${da.low ? `<span style="color:#7ee787">${da.low} low</span>` : ''}${da.count === 0 ? 'No open alerts' : ''}
 </div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
+  const cs = snapshot.code_scanning_alerts;
+  const codeScanHtml = cs ? `<div class="card"><h3>Code Scanning</h3>
+<div class="stat" style="color:${cs.count === 0 ? '#7ee787' : cs.max_severity === 'critical' || cs.max_severity === 'high' ? '#f85149' : '#d29922'}">${cs.count}</div>
+<div class="stat-label">${cs.count === 0 ? 'No open alerts' : 'open alerts'}</div></div>` : `<div class="card"><h3>Code Scanning</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+
+  const ss = snapshot.secret_scanning_alerts;
+  const secretScanHtml = ss ? `<div class="card"><h3>Secret Scanning</h3>
+<div class="stat" style="color:${ss.count === 0 ? '#7ee787' : '#f85149'}">${ss.count}</div>
+<div class="stat-label">${ss.count === 0 ? 'No open alerts' : 'open alerts'}</div></div>` : `<div class="card"><h3>Secret Scanning</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+
   const hasCiData = cipr?.pass_rate != null;
   const ciColor = !hasCiData ? '#6e7681' : cipr.pass_rate >= 0.9 ? '#7ee787' : cipr.pass_rate >= 0.7 ? '#d29922' : '#f85149';
   const ciHtml = hasCiData ? `<div class="card"><h3>CI Pass Rate</h3>
@@ -420,6 +457,8 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
 <div class="grid">
 ${communityHtml}
 ${vulnHtml}
+${codeScanHtml}
+${secretScanHtml}
 ${ciHtml}
 ${busHtml}
 ${ttcHtml}
