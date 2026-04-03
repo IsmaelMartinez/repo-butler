@@ -10,6 +10,8 @@
 
 ---
 
+## Tasks
+
 ### Task 1: Add code scanning and secret scanning fetchers to observe.js
 
 **Files:**

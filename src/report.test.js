@@ -806,4 +806,8 @@ describe('isReleaseExempt', () => {
   it('returns false when release_exempt key is missing', () => {
     assert.equal(isReleaseExempt('sound3fy', {}), false);
   });
+
+  it('handles whitespace around repo names in comma-separated list', () => {
+    assert.equal(isReleaseExempt('sound3fy', { release_exempt: ' sound3fy , other-repo ' }), true);
+  });
 });

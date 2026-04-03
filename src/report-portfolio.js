@@ -7,7 +7,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
-  computeHealthTier, getLibyearColor, isReleaseExempt,
+  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary,
 } from './report-shared.js';
 
 
@@ -172,18 +172,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
         })
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/dependabot/alerts?state=open&per_page=100`)
-        .then(alerts => {
-          const count = alerts.length;
-          let maxSeverity = null;
-          const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-          for (const a of alerts) {
-            const sev = a.security_vulnerability?.severity || a.security_advisory?.severity;
-            if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
-              maxSeverity = sev;
-            }
-          }
-          return { count, max_severity: maxSeverity };
-        })
+        .then(alerts => getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity))
         .catch(async () => {
           // Alerts API returned 403 (token lacks scope). Fall back to checking
           // if dependabot.yml exists — if so, Dependabot IS configured even
@@ -212,18 +201,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
         .then(rels => rels[0]?.published_at ?? null)
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/code-scanning/alerts?state=open&per_page=100`)
-        .then(alerts => {
-          const count = alerts.length;
-          let maxSeverity = null;
-          const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-          for (const a of alerts) {
-            const sev = a.rule?.security_severity_level;
-            if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
-              maxSeverity = sev;
-            }
-          }
-          return { count, max_severity: maxSeverity };
-        })
+        .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/secret-scanning/alerts?state=open&per_page=100`)
         .then(alerts => ({ count: Array.isArray(alerts) ? alerts.length : 0 }))

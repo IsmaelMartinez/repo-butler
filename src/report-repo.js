@@ -275,7 +275,7 @@ export function buildActionItems(snapshot, openPRs) {
     });
   }
 
-  // 4. Stale awaiting-feedback issues (> 30 days since last update).
+  // 6. Stale awaiting-feedback issues (> 30 days since last update).
   const feedbackIssues = (snapshot.issues?.open || [])
     .filter(i => i.labels.some(l => l.includes('feedback')) && Math.floor((now - new Date(i.updated_at).getTime()) / 86400000) > 30);
   if (feedbackIssues.length > 0) {
@@ -291,7 +291,7 @@ export function buildActionItems(snapshot, openPRs) {
     });
   }
 
-  // 5. CI failures to investigate.
+  // 7. CI failures to investigate.
   const cipr = snapshot.ci_pass_rate;
   if (cipr && cipr.pass_rate != null && cipr.pass_rate < 0.8) {
     const pct = Math.round(cipr.pass_rate * 100);
@@ -303,7 +303,7 @@ export function buildActionItems(snapshot, openPRs) {
     });
   }
 
-  // 6. PRs needing author rework (draft PRs that are not bot).
+  // 8. PRs needing author rework (draft PRs that are not bot).
   const needsRework = (openPRs || []).filter(pr => pr.draft && !pr.bot);
   if (needsRework.length > 0) {
     const refs = needsRework.map(pr =>

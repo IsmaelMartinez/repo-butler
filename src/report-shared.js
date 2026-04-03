@@ -19,6 +19,19 @@ export function getLibyearColor(libyearVal) {
   return '#f85149';
 }
 
+export function getAlertSummary(alerts, getSeverity) {
+  const count = alerts.length;
+  let maxSeverity = null;
+  const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+  for (const a of alerts) {
+    const sev = getSeverity(a);
+    if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
+      maxSeverity = sev;
+    }
+  }
+  return { count, max_severity: maxSeverity };
+}
+
 export function isReleaseExempt(repoName, config) {
   const exempt = config?.release_exempt || '';
   return exempt.split(',').map(s => s.trim()).filter(Boolean).includes(repoName);

@@ -160,7 +160,7 @@ describe('fetchCodeScanningAlerts', () => {
     assert.deepEqual(result, { count: 5, critical: 1, high: 2, medium: 1, low: 1, max_severity: 'critical' });
   });
 
-  it('returns null for empty alert list with null max_severity', async () => {
+  it('returns zero counts with null max_severity for empty alert list', async () => {
     const { fetchCodeScanningAlerts } = await import('./observe.js');
     const gh = { request: async () => [] };
     const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
