@@ -4,7 +4,7 @@ import { CSS } from './report-styles.js';
 import {
   TIER_DISPLAY, TIER_COLORS,
   isBotAuthor, escHtml, fmt, countBy,
-  daysAgoISO, last12Months, computeHealthTier, getLibyearColor,
+  daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
 } from './report-shared.js';
 
 
@@ -334,9 +334,10 @@ function snapshotToTierInput(snapshot) {
   };
 }
 
-function buildHealthTierSection(snapshot) {
+function buildHealthTierSection(snapshot, config) {
   const input = snapshotToTierInput(snapshot);
-  const { tier, checks } = computeHealthTier(input);
+  const repoName = snapshot.repository?.split('/')[1] || '';
+  const { tier, checks } = computeHealthTier(input, { releaseExempt: isReleaseExempt(repoName, config) });
   const color = TIER_COLORS[tier] || TIER_COLORS.none;
   const display = TIER_DISPLAY[tier] || 'Unranked';
 
@@ -605,7 +606,7 @@ function buildCalendarHeatmap(weeklyCommits) {
 
 // --- HTML generators ---
 
-export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = [], depSummary = null, libyear = null) {
+export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = [], depSummary = null, libyear = null, config = {}) {
   const s = snapshot.summary;
   const releases = snapshot.releases || [];
 
@@ -671,7 +672,7 @@ ${CSS}
   <div class="card"><h3>Releases</h3><div class="stat">${s.releases}</div><div class="stat-label">Latest: ${s.latest_release}</div></div>
 </div>
 ${buildActionabilitySection(snapshot, openPRs)}
-${buildHealthTierSection(snapshot)}
+${buildHealthTierSection(snapshot, config)}
 ${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
 ${buildHealthSection(snapshot, depSummary, libyear)}
 ${buildPRTriageSection(openPRs, snapshot.repository)}
