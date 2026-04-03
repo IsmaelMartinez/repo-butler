@@ -8,9 +8,20 @@ Research into three questions: how should AI agent skills and instruction files 
 
 ## AI Instruction File Landscape
 
-The instruction file space is fragmented across 10+ formats. Each AI coding tool reads its own file: `CLAUDE.md` (Claude Code), `.cursorrules` (Cursor), `AGENTS.md` (Codex), `GEMINI.md` (Gemini CLI), `.github/copilot-instructions.md` (Copilot), `.windsurfrules` (Windsurf), `.junie/guidelines.md` (JetBrains Junie), `.kiro/steering/` (Kiro), `.clinerules` (Roo Code), `.aider.conf.yml` (Aider).
+The instruction file space is fragmented across 10+ formats. Each AI coding tool reads its own file:
 
-AGENTS.md (github.com/agentsmd/agents.md, 19.7k stars) is trying to be vendor-neutral. Next.js symlinks CLAUDE.md to AGENTS.md. However AGENTS.md is backed by OpenAI (Codex reads it natively) so some see it as just another vendor format. The format is converging around project overview, build/test commands, architecture, conventions, and constraints — regardless of which file it lives in.
+- `CLAUDE.md` (Claude Code)
+- `.cursorrules` (Cursor)
+- `AGENTS.md` (Codex)
+- `GEMINI.md` (Gemini CLI)
+- `.github/copilot-instructions.md` (Copilot)
+- `.windsurfrules` (Windsurf)
+- `.junie/guidelines.md` (JetBrains Junie)
+- `.kiro/steering/` (Kiro)
+- `.clinerules` (Roo Code)
+- `.aider.conf.yml` (Aider)
+
+AGENTS.md (github.com/agents-md/agents.md) is trying to be vendor-neutral. Next.js symlinks CLAUDE.md to AGENTS.md. However AGENTS.md is backed by OpenAI (Codex reads it natively) so some see it as just another vendor format. The format is converging around project overview, build/test commands, architecture, conventions, and constraints — regardless of which file it lives in.
 
 Major projects with CLAUDE.md or AGENTS.md: Next.js, React, Deno, Svelte, Vercel CLI, Remix. Supabase uses `.github/copilot-instructions.md` with path-scoped instruction files in `.github/instructions/` — the most sophisticated setup found.
 
