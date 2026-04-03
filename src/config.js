@@ -21,6 +21,7 @@ const DEFAULTS = {
   },
   standards: {},
   'standards-exclude': {},
+  release_exempt: '',
 };
 
 export async function loadConfig(path) {
