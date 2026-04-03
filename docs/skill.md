@@ -123,7 +123,7 @@ Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (s
 
 **Gold** — all silver checks pass AND all gold checks pass:
 - `ci >= 2` (2+ CI workflows)
-- `open_issues < 10`
+- `open_issues < 20`
 - `released_at` within 90 days
 - `communityHealth >= 80`
 - `vulns != null` (Dependabot/Renovate configured)
