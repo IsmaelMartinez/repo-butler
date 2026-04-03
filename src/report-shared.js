@@ -74,7 +74,7 @@ export function computeHealthTier(r) {
   const checks = [
     { name: 'Has CI workflows (2+)', passed: (r.ci || 0) >= 2, required_for: 'gold' },
     { name: 'Has a license', passed: !!(r.license && r.license !== 'None'), required_for: 'silver' },
-    { name: 'Fewer than 10 open issues', passed: (r.open_issues || 0) < 10, required_for: 'gold' },
+    { name: 'Fewer than 20 open issues', passed: (r.open_issues || 0) < 20, required_for: 'gold' },
     { name: 'Release in the last 90 days', passed: daysSinceRelease <= 90, required_for: 'gold' },
     { name: 'Community health above 80%', passed: (r.communityHealth ?? -1) >= 80, required_for: 'gold' },
     { name: 'Dependabot/Renovate configured', passed: r.vulns != null, required_for: 'gold' },

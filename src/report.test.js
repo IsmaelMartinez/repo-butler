@@ -244,9 +244,9 @@ describe('computeHealthTier', () => {
     assert.equal(tier, 'gold');
   });
 
-  it('fails gold when open issues >= 10', () => {
+  it('fails gold when open issues >= 20', () => {
     const r = {
-      ci: 2, license: 'MIT', open_issues: 10, pushed_at: now, released_at: now,
+      ci: 2, license: 'MIT', open_issues: 20, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
     };
     const { tier } = computeHealthTier(r);

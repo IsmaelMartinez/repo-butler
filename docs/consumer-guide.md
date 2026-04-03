@@ -53,7 +53,7 @@ Each repo is classified into a tier based on objective criteria. The per-repo re
 
 ### Gold (all Silver checks + all Gold checks pass)
 
-Gold requires two or more CI workflows, fewer than 10 open issues, a release within the last 90 days, community health above 80%, Dependabot or Renovate configured, and zero critical or high vulnerability alerts.
+Gold requires two or more CI workflows, fewer than 20 open issues, a release within the last 90 days, community health above 80%, Dependabot or Renovate configured, and zero critical or high vulnerability alerts.
 
 ### Silver (all Silver checks pass)
 
