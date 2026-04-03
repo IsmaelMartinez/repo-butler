@@ -14,7 +14,7 @@ import { computeTrends } from './assess.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO } from './report-shared.js';
+import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt } from './report-shared.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
   fetchWeeklyCommits, fetchPRAuthors, computePRCycleTime,
@@ -193,7 +193,7 @@ export async function report(context) {
 
   // Generate portfolio report (after per-repo reports so contributor data is available).
   if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory);
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 
@@ -225,7 +225,7 @@ export async function report(context) {
     for (const r of activeRepos) {
       const d = repoDetails?.[r.name] || {};
       const classified = { ...r, ...d };
-      const { tier } = computeHealthTier(classified);
+      const { tier } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
       const svg = generateHealthBadge(r.name, tier);
       await writeFile(join(badgeDir, `${r.name}.svg`), svg);
       const pushed = new Date(r.pushed_at);

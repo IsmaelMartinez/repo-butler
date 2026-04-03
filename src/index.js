@@ -170,7 +170,7 @@ async function main() {
           const standards = parseStandardsConfig(config);
           const gaps = detectStandardsGaps(standards, context.portfolio.repos, context.repoDetails);
           const drift = detectPolicyDrift(context.portfolio.repos, context.repoDetails);
-          const uplift = generateUpliftProposals(context.portfolio.repos, context.repoDetails);
+          const uplift = generateUpliftProposals(context.portfolio.repos, context.repoDetails, config);
 
           context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
           console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);

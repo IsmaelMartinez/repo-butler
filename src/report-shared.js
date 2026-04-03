@@ -19,6 +19,11 @@ export function getLibyearColor(libyearVal) {
   return '#f85149';
 }
 
+export function isReleaseExempt(repoName, config) {
+  const exempt = config?.release_exempt || '';
+  return exempt.split(',').map(s => s.trim()).filter(Boolean).includes(repoName);
+}
+
 export function isBotAuthor(author = '') {
   return author.includes('[bot]') || author.startsWith('app/');
 }

@@ -3,7 +3,7 @@
 // Pure functions that receive portfolio data and return governance findings.
 
 import { detectEcosystem } from './safety.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt } from './report-shared.js';
 
 // Built-in detectors map standard tool names to compliance checks.
 // Each detector receives (repo, details) and returns boolean.
@@ -208,14 +208,14 @@ export function detectPolicyDrift(repos, details) {
  * @param {Object} details — enriched details from fetchPortfolioDetails()
  * @returns {Array} uplift proposals
  */
-export function generateUpliftProposals(repos, details) {
+export function generateUpliftProposals(repos, details, config = null) {
   const eligible = eligibleRepos(repos);
   const proposals = [];
 
   for (const r of eligible) {
     const d = details?.[r.name] || {};
     const classified = { ...r, ...d };
-    const { tier, checks } = computeHealthTier(classified);
+    const { tier, checks } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
 
     if (tier === 'gold') continue; // Already at top
 

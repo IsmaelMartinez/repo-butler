@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection } from './report.js';
+import { isReleaseExempt } from './report-shared.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -786,5 +787,23 @@ describe('generateSparklineSVG', () => {
     assert.ok(svg.includes('<line'), 'all zeros should render as a flat line');
     assert.ok(svg.includes('#388bfd'), 'should use the muted blue color');
     assert.ok(svg.includes('opacity="0.4"'), 'flat line should be muted');
+  });
+});
+
+describe('isReleaseExempt', () => {
+  it('returns true for a repo listed in release_exempt', () => {
+    assert.equal(isReleaseExempt('sound3fy', { release_exempt: 'sound3fy,other-repo' }), true);
+  });
+
+  it('returns false for a repo not listed in release_exempt', () => {
+    assert.equal(isReleaseExempt('repo-butler', { release_exempt: 'sound3fy' }), false);
+  });
+
+  it('returns false when release_exempt is empty string', () => {
+    assert.equal(isReleaseExempt('sound3fy', { release_exempt: '' }), false);
+  });
+
+  it('returns false when release_exempt key is missing', () => {
+    assert.equal(isReleaseExempt('sound3fy', {}), false);
   });
 });
