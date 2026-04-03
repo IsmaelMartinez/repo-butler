@@ -144,6 +144,80 @@ describe('computeTimeToCloseMedian', () => {
   });
 });
 
+describe('fetchCodeScanningAlerts', () => {
+  it('returns structured alert counts on success', async () => {
+    const { fetchCodeScanningAlerts } = await import('./observe.js');
+    const gh = {
+      request: async () => [
+        { rule: { security_severity_level: 'critical' } },
+        { rule: { security_severity_level: 'high' } },
+        { rule: { security_severity_level: 'high' } },
+        { rule: { security_severity_level: 'medium' } },
+        { rule: { security_severity_level: 'low' } },
+      ],
+    };
+    const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
+    assert.deepEqual(result, { count: 5, critical: 1, high: 2, medium: 1, low: 1, max_severity: 'critical' });
+  });
+
+  it('returns null for empty alert list with null max_severity', async () => {
+    const { fetchCodeScanningAlerts } = await import('./observe.js');
+    const gh = { request: async () => [] };
+    const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
+    assert.deepEqual(result, { count: 0, critical: 0, high: 0, medium: 0, low: 0, max_severity: null });
+  });
+
+  it('returns null on 403', async () => {
+    const { fetchCodeScanningAlerts } = await import('./observe.js');
+    const gh = { request: async () => { throw new Error('403 Forbidden'); } };
+    const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
+    assert.equal(result, null);
+  });
+
+  it('returns null on 404', async () => {
+    const { fetchCodeScanningAlerts } = await import('./observe.js');
+    const gh = { request: async () => { throw new Error('404 Not Found'); } };
+    const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
+    assert.equal(result, null);
+  });
+});
+
+describe('fetchSecretScanningAlerts', () => {
+  it('returns structured alert count on success', async () => {
+    const { fetchSecretScanningAlerts } = await import('./observe.js');
+    const gh = {
+      request: async () => [
+        { number: 1 },
+        { number: 2 },
+        { number: 3 },
+      ],
+    };
+    const result = await fetchSecretScanningAlerts(gh, 'owner', 'repo');
+    assert.deepEqual(result, { count: 3 });
+  });
+
+  it('returns count of 0 for empty list', async () => {
+    const { fetchSecretScanningAlerts } = await import('./observe.js');
+    const gh = { request: async () => [] };
+    const result = await fetchSecretScanningAlerts(gh, 'owner', 'repo');
+    assert.deepEqual(result, { count: 0 });
+  });
+
+  it('returns null on 403', async () => {
+    const { fetchSecretScanningAlerts } = await import('./observe.js');
+    const gh = { request: async () => { throw new Error('403 Forbidden'); } };
+    const result = await fetchSecretScanningAlerts(gh, 'owner', 'repo');
+    assert.equal(result, null);
+  });
+
+  it('returns null on 404', async () => {
+    const { fetchSecretScanningAlerts } = await import('./observe.js');
+    const gh = { request: async () => { throw new Error('404 Not Found'); } };
+    const result = await fetchSecretScanningAlerts(gh, 'owner', 'repo');
+    assert.equal(result, null);
+  });
+});
+
 describe('assess module', () => {
   it('exports assess', async () => {
     const mod = await import('./assess.js');
