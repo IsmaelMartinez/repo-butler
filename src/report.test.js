@@ -325,6 +325,69 @@ describe('computeHealthTier', () => {
     const { tier } = computeHealthTier(r);
     assert.equal(tier, 'silver');
   });
+
+  it('gold passes security check with only code scanning configured (no dependabot)', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: { count: 0, max_severity: null }, secretScanning: null, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'gold');
+  });
+
+  it('gold passes security check with only secret scanning configured', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: null, secretScanning: { count: 0 }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'gold');
+  });
+
+  it('gold fails security check when no scanner is configured', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: null, secretScanning: null, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold fails when code scanning has critical findings', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: { count: 1, max_severity: 'critical' }, secretScanning: null, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold fails when secret scanning has open alerts', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: null, codeScanning: null, secretScanning: { count: 1 }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold passes release check when releaseExempt option is true', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: null,
+      communityHealth: 85, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r, { releaseExempt: true });
+    assert.equal(tier, 'gold');
+  });
+
+  it('gold still fails release check when releaseExempt is false (default)', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: null,
+      communityHealth: 85, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
 });
 
 describe('buildActionItems', () => {
