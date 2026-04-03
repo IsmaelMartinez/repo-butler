@@ -1,19 +1,19 @@
 {
-  "github-issue-triage-bot": {
+  "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 199,
-    "stars": 1,
+    "commits_6mo": 160,
+    "stars": 2,
     "license": "MIT",
-    "communityHealth": 100,
-    "ciPassRate": 0.97,
+    "communityHealth": 85,
+    "ciPassRate": 0.98,
     "vulns": {
       "count": 0,
       "max_severity": null,
       "config_only": true
     },
-    "ci": 9,
-    "released_at": "2026-04-01T12:26:05Z",
-    "pushed_at": "2026-04-02T22:53:52Z"
+    "ci": 4,
+    "released_at": "2026-03-31T22:55:25Z",
+    "pushed_at": "2026-04-03T06:23:13Z"
   },
   "wifisentinel": {
     "open_issues": 0,
@@ -29,7 +29,63 @@
     },
     "ci": 3,
     "released_at": "2026-04-01T08:19:52Z",
-    "pushed_at": "2026-04-02T21:57:10Z"
+    "pushed_at": "2026-04-03T06:12:12Z"
+  },
+  "betis-escocia": {
+    "open_issues": 0,
+    "commits_6mo": 148,
+    "stars": 1,
+    "license": "None",
+    "communityHealth": 28,
+    "ciPassRate": 0.67,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-03T06:11:04Z"
+  },
+  "ai-model-advisor": {
+    "open_issues": 0,
+    "commits_6mo": 151,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 42,
+    "ciPassRate": 0.97,
+    "vulns": null,
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-03T06:10:35Z"
+  },
+  "gridfs-storage-engine": {
+    "open_issues": 2,
+    "commits_6mo": 2,
+    "stars": 8,
+    "license": "MIT",
+    "communityHealth": 42,
+    "ciPassRate": null,
+    "vulns": null,
+    "ci": 0,
+    "released_at": "2016-05-09T10:18:37Z",
+    "pushed_at": "2026-04-03T06:10:33Z"
+  },
+  "github-issue-triage-bot": {
+    "open_issues": 0,
+    "commits_6mo": 199,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 100,
+    "ciPassRate": 0.97,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "ci": 9,
+    "released_at": "2026-04-01T12:26:05Z",
+    "pushed_at": "2026-04-03T06:05:52Z"
   },
   "ismaelmartinez.me.uk": {
     "open_issues": 1,
@@ -47,22 +103,6 @@
     "released_at": null,
     "pushed_at": "2026-04-02T14:01:32Z"
   },
-  "betis-escocia": {
-    "open_issues": 0,
-    "commits_6mo": 148,
-    "stars": 1,
-    "license": "None",
-    "communityHealth": 28,
-    "ciPassRate": 0.67,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-04-02T14:00:36Z"
-  },
   "teams-for-linux": {
     "open_issues": 12,
     "commits_6mo": 345,
@@ -78,22 +118,6 @@
     "ci": 14,
     "released_at": "2026-03-29T11:24:34Z",
     "pushed_at": "2026-04-02T13:25:19Z"
-  },
-  "repo-butler": {
-    "open_issues": 0,
-    "commits_6mo": 159,
-    "stars": 2,
-    "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": 0.98,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "ci": 4,
-    "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-02T10:01:26Z"
   },
   "sound3fy": {
     "open_issues": 0,
@@ -131,18 +155,6 @@
     "released_at": null,
     "pushed_at": "2026-04-01T19:00:13Z"
   },
-  "gridfs-storage-engine": {
-    "open_issues": 2,
-    "commits_6mo": 1,
-    "stars": 8,
-    "license": "None",
-    "communityHealth": 28,
-    "ciPassRate": null,
-    "vulns": null,
-    "ci": 0,
-    "released_at": "2016-05-09T10:18:37Z",
-    "pushed_at": "2026-04-01T19:00:13Z"
-  },
   "leapp-codeartifact-login-plugin": {
     "open_issues": 1,
     "commits_6mo": 1,
@@ -171,18 +183,6 @@
     "released_at": null,
     "pushed_at": "2026-04-01T19:00:08Z"
   },
-  "seagate-photos": {
-    "open_issues": 1,
-    "commits_6mo": 1,
-    "stars": 3,
-    "license": "None",
-    "communityHealth": 0,
-    "ciPassRate": 1,
-    "vulns": null,
-    "ci": 1,
-    "released_at": null,
-    "pushed_at": "2026-04-01T19:00:06Z"
-  },
   "generator-atlassian-compass-event-catalog": {
     "open_issues": 0,
     "commits_6mo": 165,
@@ -199,28 +199,16 @@
     "released_at": "2026-03-16T22:15:11Z",
     "pushed_at": "2026-04-01T18:59:57Z"
   },
-  "ai-model-advisor": {
-    "open_issues": 0,
-    "commits_6mo": 149,
-    "stars": 1,
-    "license": "None",
-    "communityHealth": 28,
-    "ciPassRate": 1,
-    "vulns": null,
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-04-01T08:05:51Z"
-  },
   "local-brain": {
-    "open_issues": 2,
-    "commits_6mo": 0,
+    "open_issues": 0,
+    "commits_6mo": 213,
     "stars": 0,
-    "license": null,
-    "communityHealth": null,
-    "ciPassRate": null,
+    "license": "MIT",
+    "communityHealth": 42,
+    "ciPassRate": 0.9,
     "vulns": null,
-    "ci": 0,
-    "released_at": null,
+    "ci": 5,
+    "released_at": "2026-01-10T10:13:32Z",
     "pushed_at": "2026-04-01T08:05:46Z"
   }
 }
