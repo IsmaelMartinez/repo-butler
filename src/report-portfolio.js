@@ -143,7 +143,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt] = await Promise.all([
+    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -211,10 +211,27 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
       gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 1 })
         .then(rels => rels[0]?.published_at ?? null)
         .catch(() => null),
+      gh.request(`/repos/${owner}/${r.name}/code-scanning/alerts?state=open&per_page=100`)
+        .then(alerts => {
+          const count = alerts.length;
+          let maxSeverity = null;
+          const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+          for (const a of alerts) {
+            const sev = a.rule?.security_severity_level;
+            if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
+              maxSeverity = sev;
+            }
+          }
+          return { count, max_severity: maxSeverity };
+        })
+        .catch(() => null),
+      gh.request(`/repos/${owner}/${r.name}/secret-scanning/alerts?state=open&per_page=100`)
+        .then(alerts => ({ count: Array.isArray(alerts) ? alerts.length : 0 }))
+        .catch(() => null),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning };
   });
 
   await Promise.all(fetches);

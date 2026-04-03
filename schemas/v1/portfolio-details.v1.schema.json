@@ -93,6 +93,26 @@
         "contributors": {
           "type": ["integer", "null"],
           "description": "Count of unique human PR authors; populated later in src/report.js from the contributor funnel analysis, not by fetchPortfolioDetails() itself"
+        },
+        "codeScanning": {
+          "oneOf": [
+            { "$ref": "#/$defs/VulnSummary" },
+            { "type": "null" }
+          ],
+          "description": "Code scanning alert summary from /code-scanning/alerts; null when unavailable (403/404)"
+        },
+        "secretScanning": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["count"],
+              "properties": {
+                "count": { "type": "integer", "description": "Number of open secret scanning alerts" }
+              }
+            },
+            { "type": "null" }
+          ],
+          "description": "Secret scanning alert summary from /secret-scanning/alerts; null when unavailable (403/404)"
         }
       }
     },

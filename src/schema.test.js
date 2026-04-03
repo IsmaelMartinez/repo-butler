@@ -227,7 +227,7 @@ describe('portfolio-details schema documents fetchPortfolioDetails shape', () =>
     const expectedFields = [
       'commits', 'weekly', 'license', 'ci', 'communityHealth', 'vulns',
       'ciPassRate', 'open_issues', 'sbom', 'released_at', 'hasIssueTemplate',
-      'libyear', 'contributors',
+      'libyear', 'contributors', 'codeScanning', 'secretScanning',
     ];
 
     for (const field of expectedFields) {
