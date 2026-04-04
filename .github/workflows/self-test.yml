@@ -39,9 +39,17 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Run Repo Butler
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           INPUT_PHASE: ${{ github.event.inputs.phase || 'report' }}
           INPUT_CONFIG_PATH: .github/roadmap.yml
           INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
