@@ -48,25 +48,27 @@ const COPYLEFT_LICENSES = new Set([
   'GPL-2.0', 'GPL-3.0', 'AGPL-3.0', 'LGPL-2.1', 'LGPL-3.0',
 ]);
 
-// Explain why a copyleft license in a permissive-licensed repo is a concern.
+// License concern levels: 'high' for licenses that may impose obligations on
+// the whole project, 'low' for weak copyleft that only affects the library
+// itself and is fine for non-commercial use as a dependency.
 const LICENSE_CONCERNS = {
-  'GPL-2.0': 'Requires derivative works to be GPL-licensed. May force your project to adopt GPL.',
-  'GPL-2.0-only': 'Requires derivative works to be GPL-licensed. May force your project to adopt GPL.',
-  'GPL-2.0-or-later': 'Requires derivative works to be GPL-licensed. May force your project to adopt GPL.',
-  'GPL-3.0': 'Strong copyleft: derived works must use GPL-3.0. Incompatible with most permissive licenses.',
-  'GPL-3.0-only': 'Strong copyleft: derived works must use GPL-3.0. Incompatible with most permissive licenses.',
-  'GPL-3.0-or-later': 'Strong copyleft: derived works must use GPL-3.0+. Incompatible with most permissive licenses.',
-  'AGPL-3.0': 'Network copyleft: even SaaS use triggers source disclosure. Strongest copyleft obligation.',
-  'AGPL-3.0-only': 'Network copyleft: even SaaS use triggers source disclosure. Strongest copyleft obligation.',
-  'AGPL-3.0-or-later': 'Network copyleft: even SaaS use triggers source disclosure. Strongest copyleft obligation.',
-  'LGPL-2.1': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
-  'LGPL-2.1-only': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
-  'LGPL-2.1-or-later': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
-  'LGPL-3.0': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
-  'LGPL-3.0-only': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
-  'LGPL-3.0-or-later': 'Weak copyleft: linking is allowed but modifications to the library itself must be shared.',
-  'MPL-2.0': 'File-level copyleft: modified files must remain MPL-2.0 but can combine with other licenses.',
-  'EUPL-1.2': 'EU copyleft: similar to LGPL but with EU-specific provisions.',
+  'AGPL-3.0': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
+  'AGPL-3.0-only': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
+  'AGPL-3.0-or-later': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
+  'GPL-2.0': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-2.0-only': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-2.0-or-later': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-3.0': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-3.0-only': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-3.0-or-later': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'LGPL-2.1': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-2.1-only': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-2.1-or-later': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-3.0': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-3.0-only': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-3.0-or-later': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'MPL-2.0': { level: 'low', note: 'File-level copyleft: only modified files must stay MPL-2.0. Fine as a dependency.' },
+  'EUPL-1.2': { level: 'low', note: 'EU copyleft similar to LGPL. Fine as a dependency.' },
 };
 
 // Parse SPDX expression into individual license identifiers.
@@ -81,11 +83,15 @@ function parseSpdxParts(license) {
 }
 
 function describeLicenseConcern(license) {
-  if (!license) return 'Unknown license terms.';
+  if (!license) return { level: 'low', note: 'Unknown license terms.' };
   for (const part of parseSpdxParts(license)) {
     if (LICENSE_CONCERNS[part]) return LICENSE_CONCERNS[part];
   }
-  return 'Copyleft license may impose obligations on your permissive-licensed project.';
+  return { level: 'low', note: 'Copyleft license — low risk as a dependency in non-commercial projects.' };
+}
+
+function isHighConcernLicense(license) {
+  return parseSpdxParts(license).some(part => LICENSE_CONCERNS[part]?.level === 'high');
 }
 
 export function isCopyleft(license) {
@@ -107,7 +113,7 @@ export function analyzeDependencyInventory(details) {
       depUsage[key].repos.add(repoName);
       if (pkg.license) depUsage[key].licenses.add(pkg.license);
       if (isCopyleft(pkg.license) && d.license !== 'None' && !isCopyleft(d.license)) {
-        licenseFlags.push({ name: pkg.name, license: pkg.license });
+        licenseFlags.push({ name: pkg.name, license: pkg.license, level: isHighConcernLicense(pkg.license) ? 'high' : 'low' });
       }
     }
     repoSummaries[repoName] = { depCount: d.sbom.count, licenseFlags };
@@ -349,7 +355,7 @@ export function buildDependencyInventorySection(inventory) {
 <div class="grid">
   <div class="card"><h3>Total Unique Dependencies</h3><div class="stat">${fmt(inventory.totalUnique)}</div><div class="stat-label">across ${inventory.reposWithSBOM} repos with SBOM</div></div>
   <div class="card"><h3>Shared Dependencies</h3><div class="stat">${inventory.sharedDepsTotal}</div><div class="stat-label">used in 2+ repos</div></div>
-  <div class="card"><h3>License Concerns</h3><div class="stat" style="color:${inventory.licenseFlags.length > 0 ? '#f85149' : '#7ee787'}">${inventory.licenseFlags.length}</div><div class="stat-label">copyleft deps in permissive repos</div></div>
+  <div class="card"><h3>License Notes</h3><div class="stat" style="color:${inventory.licenseFlags.some(f => f.level === 'high') ? '#f85149' : inventory.licenseFlags.length > 0 ? '#8b949e' : '#7ee787'}">${inventory.licenseFlags.filter(f => f.level === 'high').length || (inventory.licenseFlags.length > 0 ? inventory.licenseFlags.length + ' low-risk' : 0)}</div><div class="stat-label">${inventory.licenseFlags.some(f => f.level === 'high') ? 'high-concern copyleft deps' : 'copyleft deps (low risk for non-commercial use)'}</div></div>
 </div>`;
 
   if (inventory.commonDeps.length > 0) {
@@ -367,28 +373,48 @@ export function buildDependencyInventorySection(inventory) {
   }
 
   if (inventory.licenseFlags.length > 0) {
-    // Group by license so the concern explanation appears once per license type,
-    // with affected repos and dependencies listed underneath.
-    const byLicense = {};
-    for (const f of inventory.licenseFlags) {
-      if (!byLicense[f.license]) byLicense[f.license] = [];
-      byLicense[f.license].push(f);
-    }
+    const highFlags = inventory.licenseFlags.filter(f => f.level === 'high');
+    const lowFlags = inventory.licenseFlags.filter(f => f.level !== 'high');
 
-    const licenseCards = Object.entries(byLicense).map(([license, flags]) => {
-      const concern = describeLicenseConcern(license);
-      const depRows = flags.map(f =>
-        `<tr><td>${escHtml(f.repo || 'unknown')}</td><td>${escHtml(f.dep || 'unknown')}</td></tr>`
-      ).join('');
-      return `<div class="chart-container" style="margin-bottom:1rem">
-<div class="chart-title"><span style="color:${COLOR_DANGER}">${escHtml(license)}</span> <span style="font-size:0.85rem;color:#8b949e">— ${escHtml(concern)}</span></div>
+    // Only show detailed cards for high-concern licenses (AGPL etc.)
+    if (highFlags.length > 0) {
+      const byLicense = {};
+      for (const f of highFlags) {
+        if (!byLicense[f.license]) byLicense[f.license] = [];
+        byLicense[f.license].push(f);
+      }
+      const licenseCards = Object.entries(byLicense).map(([license, flags]) => {
+        const concern = describeLicenseConcern(license);
+        const depRows = flags.map(f =>
+          `<tr><td>${escHtml(f.repo || 'unknown')}</td><td>${escHtml(f.dep || 'unknown')}</td></tr>`
+        ).join('');
+        return `<div class="chart-container" style="margin-bottom:1rem">
+<div class="chart-title"><span style="color:${COLOR_DANGER}">${escHtml(license)}</span> <span style="font-size:0.85rem;color:#8b949e">— ${escHtml(concern.note)}</span></div>
 <table><thead><tr><th>Repo</th><th>Dependency</th></tr></thead>
 <tbody>${depRows}</tbody></table>
 </div>`;
-    }).join('');
+      }).join('');
+      html += `<h3 style="margin-top:1.5rem;color:#e6edf3">License Concerns</h3>${licenseCards}`;
+    }
 
-    html += `<h3 style="margin-top:1.5rem;color:#e6edf3">License Concerns <span style="font-size:0.8rem;color:#8b949e">(copyleft dependencies in permissive-licensed repos)</span></h3>
-${licenseCards}`;
+    // Show low-concern copyleft as a collapsed summary
+    if (lowFlags.length > 0) {
+      const byLicense = {};
+      for (const f of lowFlags) {
+        if (!byLicense[f.license]) byLicense[f.license] = [];
+        byLicense[f.license].push(f);
+      }
+      const summaryRows = Object.entries(byLicense).map(([license, flags]) => {
+        const concern = describeLicenseConcern(license);
+        const deps = flags.slice(0, 3).map(f => escHtml(f.dep)).join(', ');
+        const more = flags.length > 3 ? ` +${flags.length - 3} more` : '';
+        return `<tr><td style="color:#8b949e">${escHtml(license)}</td><td style="color:#8b949e">${deps}${more}</td><td style="color:#8b949e">${escHtml(concern.note)}</td></tr>`;
+      }).join('');
+      html += `<details style="margin-top:1rem"><summary style="color:#8b949e;cursor:pointer">Low-risk copyleft dependencies (${lowFlags.length}) — fine for non-commercial use</summary>
+<table style="margin-top:0.5rem"><thead><tr><th>License</th><th>Dependencies</th><th>Note</th></tr></thead>
+<tbody>${summaryRows}</tbody></table>
+</details>`;
+    }
   }
 
   return html;
