@@ -1,45 +1,51 @@
 {
-  "repo-butler": {
+  "local-brain": {
     "open_issues": 0,
-    "commits_6mo": 166,
-    "stars": 2,
-    "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": 0.98,
-    "vulns": {
-      "count": 0,
-      "max_severity": null
-    },
-    "codeScanning": null,
-    "secretScanning": {
-      "count": 0
-    },
-    "ci": 4,
-    "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-04T15:46:07Z"
-  },
-  "votescot": {
-    "open_issues": 0,
-    "commits_6mo": 51,
+    "commits_6mo": 219,
     "stars": 0,
     "license": "MIT",
-    "communityHealth": 42,
-    "ciPassRate": 0.9090909090909091,
+    "communityHealth": 85,
+    "ciPassRate": 0.93,
     "vulns": {
       "count": 0,
       "max_severity": null
     },
-    "codeScanning": null,
+    "codeScanning": {
+      "count": 0,
+      "max_severity": null
+    },
     "secretScanning": {
       "count": 0
     },
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-04-04T15:46:03Z"
+    "ci": 5,
+    "released_at": "2026-01-10T10:13:32Z",
+    "pushed_at": "2026-04-04T21:52:00Z"
+  },
+  "teams-for-linux": {
+    "open_issues": 0,
+    "commits_6mo": 349,
+    "stars": 4561,
+    "license": "GPL-3.0",
+    "communityHealth": 85,
+    "ciPassRate": 0.9104477611940298,
+    "vulns": {
+      "count": 3,
+      "max_severity": "high"
+    },
+    "codeScanning": {
+      "count": 0,
+      "max_severity": null
+    },
+    "secretScanning": {
+      "count": 0
+    },
+    "ci": 14,
+    "released_at": "2026-03-29T11:24:34Z",
+    "pushed_at": "2026-04-04T21:47:26Z"
   },
   "lounge-tv": {
     "open_issues": 0,
-    "commits_6mo": 4,
+    "commits_6mo": 7,
     "stars": 0,
     "license": "MIT",
     "communityHealth": 57,
@@ -54,29 +60,45 @@
     },
     "ci": 1,
     "released_at": null,
-    "pushed_at": "2026-04-04T15:45:08Z"
+    "pushed_at": "2026-04-04T15:52:46Z"
   },
-  "local-brain": {
+  "votescot": {
     "open_issues": 0,
-    "commits_6mo": 218,
+    "commits_6mo": 54,
     "stars": 0,
     "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": 0.93,
+    "communityHealth": 42,
+    "ciPassRate": 0.9183673469387755,
     "vulns": {
-      "count": 16,
-      "max_severity": "critical"
-    },
-    "codeScanning": {
       "count": 0,
       "max_severity": null
     },
+    "codeScanning": null,
     "secretScanning": {
       "count": 0
     },
-    "ci": 5,
-    "released_at": "2026-01-10T10:13:32Z",
-    "pushed_at": "2026-04-04T14:44:59Z"
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-04T15:52:17Z"
+  },
+  "repo-butler": {
+    "open_issues": 0,
+    "commits_6mo": 167,
+    "stars": 2,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.98,
+    "vulns": {
+      "count": 0,
+      "max_severity": null
+    },
+    "codeScanning": null,
+    "secretScanning": {
+      "count": 0
+    },
+    "ci": 4,
+    "released_at": "2026-03-31T22:55:25Z",
+    "pushed_at": "2026-04-04T15:51:56Z"
   },
   "yourear": {
     "open_issues": 0,
@@ -193,28 +215,6 @@
     "ci": 5,
     "released_at": "2025-12-20T09:59:52Z",
     "pushed_at": "2026-04-04T11:10:56Z"
-  },
-  "teams-for-linux": {
-    "open_issues": 0,
-    "commits_6mo": 348,
-    "stars": 4561,
-    "license": "GPL-3.0",
-    "communityHealth": 85,
-    "ciPassRate": 0.90625,
-    "vulns": {
-      "count": 3,
-      "max_severity": "high"
-    },
-    "codeScanning": {
-      "count": 0,
-      "max_severity": null
-    },
-    "secretScanning": {
-      "count": 0
-    },
-    "ci": 14,
-    "released_at": "2026-03-29T11:24:34Z",
-    "pushed_at": "2026-04-04T06:55:32Z"
   },
   "wifisentinel": {
     "open_issues": 0,
