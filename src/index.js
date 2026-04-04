@@ -209,7 +209,7 @@ async function main() {
     const { onboard } = await import('./onboard.js');
     const activeRepos = context.portfolio.repos
       .filter(r => !r.archived && !r.fork)
-      .map(r => `${owner}/${r.name}`);
+      .map(r => r.full_name);
 
     if (activeRepos.length > 0) {
       console.log(`\n=== AUTO-ONBOARD ===\n`);
