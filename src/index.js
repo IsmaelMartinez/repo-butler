@@ -204,6 +204,24 @@ async function main() {
     }
   }
 
+  // Auto-onboard new portfolio repos that lack the CLAUDE.md marker.
+  if (context.portfolio && !dryRun) {
+    const { onboard } = await import('./onboard.js');
+    const activeRepos = context.portfolio.repos
+      .filter(r => !r.archived && !r.fork)
+      .map(r => `${owner}/${r.name}`);
+
+    if (activeRepos.length > 0) {
+      console.log(`\n=== AUTO-ONBOARD ===\n`);
+      console.log(`Checking ${activeRepos.length} repos for onboarding...`);
+      const results = await onboard(token, activeRepos);
+      const created = results.filter(r => r.status === 'created');
+      const skipped = results.filter(r => r.status === 'skipped');
+      const errors = results.filter(r => r.status === 'error');
+      console.log(`Onboarding: ${created.length} new, ${skipped.length} already done, ${errors.length} errors`);
+    }
+  }
+
   // Output summary for GitHub Actions.
   if (process.env.GITHUB_OUTPUT) {
     const { appendFileSync } = await import('node:fs');
