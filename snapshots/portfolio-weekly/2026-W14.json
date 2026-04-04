@@ -1,7 +1,7 @@
 {
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 165,
+    "commits_6mo": 166,
     "stars": 2,
     "license": "MIT",
     "communityHealth": 85,
@@ -16,15 +16,15 @@
     },
     "ci": 4,
     "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-04T15:06:16Z"
+    "pushed_at": "2026-04-04T15:46:07Z"
   },
   "votescot": {
     "open_issues": 0,
-    "commits_6mo": 42,
+    "commits_6mo": 51,
     "stars": 0,
     "license": "MIT",
     "communityHealth": 42,
-    "ciPassRate": 1,
+    "ciPassRate": 0.9090909090909091,
     "vulns": {
       "count": 0,
       "max_severity": null
@@ -35,11 +35,11 @@
     },
     "ci": 6,
     "released_at": null,
-    "pushed_at": "2026-04-04T15:03:17Z"
+    "pushed_at": "2026-04-04T15:46:03Z"
   },
   "lounge-tv": {
     "open_issues": 0,
-    "commits_6mo": 1,
+    "commits_6mo": 4,
     "stars": 0,
     "license": "MIT",
     "communityHealth": 57,
@@ -54,7 +54,7 @@
     },
     "ci": 1,
     "released_at": null,
-    "pushed_at": "2026-04-04T14:52:57Z"
+    "pushed_at": "2026-04-04T15:45:08Z"
   },
   "local-brain": {
     "open_issues": 0,
