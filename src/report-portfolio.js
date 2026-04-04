@@ -131,7 +131,7 @@ export function analyzeDependencyInventory(details) {
     .map(([, v]) => ({ name: v.name, repoCount: v.repos.size, licenses: [...v.licenses] }));
 
   const allLicenseFlags = Object.entries(repoSummaries).flatMap(([repoName, summary]) =>
-    summary.licenseFlags.map(flag => ({ repo: repoName, dep: flag.name, license: flag.license }))
+    summary.licenseFlags.map(flag => ({ repo: repoName, dep: flag.name, license: flag.license, level: flag.level }))
   );
 
   const totalUnique = Object.keys(depUsage).length;
@@ -406,8 +406,9 @@ export function buildDependencyInventorySection(inventory) {
       }
       const summaryRows = Object.entries(byLicense).map(([license, flags]) => {
         const concern = describeLicenseConcern(license);
-        const deps = flags.slice(0, 3).map(f => escHtml(f.dep)).join(', ');
-        const more = flags.length > 3 ? ` +${flags.length - 3} more` : '';
+        const uniqueDeps = [...new Set(flags.map(f => f.dep))];
+        const deps = uniqueDeps.slice(0, 3).map(d => escHtml(d)).join(', ');
+        const more = uniqueDeps.length > 3 ? ` +${uniqueDeps.length - 3} more` : '';
         return `<tr><td style="color:#8b949e">${escHtml(license)}</td><td style="color:#8b949e">${deps}${more}</td><td style="color:#8b949e">${escHtml(concern.note)}</td></tr>`;
       }).join('');
       html += `<details style="margin-top:1rem"><summary style="color:#8b949e;cursor:pointer">Low-risk copyleft dependencies (${lowFlags.length}) — fine for non-commercial use</summary>
