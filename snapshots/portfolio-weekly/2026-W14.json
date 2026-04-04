@@ -1,7 +1,7 @@
 {
   "repo-butler": {
     "open_issues": 0,
-    "commits_6mo": 163,
+    "commits_6mo": 164,
     "stars": 2,
     "license": "MIT",
     "communityHealth": 85,
@@ -15,21 +15,131 @@
     "secretScanning": null,
     "ci": 4,
     "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-03T23:10:10Z"
+    "pushed_at": "2026-04-04T09:59:40Z"
+  },
+  "votescot": {
+    "open_issues": 0,
+    "commits_6mo": 21,
+    "stars": 0,
+    "license": "MIT",
+    "communityHealth": 42,
+    "ciPassRate": 1,
+    "vulns": null,
+    "codeScanning": null,
+    "secretScanning": null,
+    "ci": 2,
+    "released_at": null,
+    "pushed_at": "2026-04-04T08:38:12Z"
+  },
+  "betis-escocia": {
+    "open_issues": 0,
+    "commits_6mo": 156,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.81,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "codeScanning": null,
+    "secretScanning": null,
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-04T08:27:18Z"
   },
   "bonnie-wee-plot": {
     "open_issues": 0,
-    "commits_6mo": 373,
+    "commits_6mo": 375,
     "stars": 1,
     "license": "NOASSERTION",
-    "communityHealth": 57,
+    "communityHealth": 85,
     "ciPassRate": 0.94,
     "vulns": null,
     "codeScanning": null,
     "secretScanning": null,
     "ci": 6,
     "released_at": null,
-    "pushed_at": "2026-04-03T15:55:09Z"
+    "pushed_at": "2026-04-04T07:08:37Z"
+  },
+  "yourear": {
+    "open_issues": 0,
+    "commits_6mo": 40,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.9292929292929293,
+    "vulns": null,
+    "codeScanning": null,
+    "secretScanning": null,
+    "ci": 4,
+    "released_at": null,
+    "pushed_at": "2026-04-04T07:04:31Z"
+  },
+  "teams-for-linux": {
+    "open_issues": 0,
+    "commits_6mo": 348,
+    "stars": 4560,
+    "license": "GPL-3.0",
+    "communityHealth": 85,
+    "ciPassRate": 0.90625,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "codeScanning": null,
+    "secretScanning": null,
+    "ci": 14,
+    "released_at": "2026-03-29T11:24:34Z",
+    "pushed_at": "2026-04-04T06:55:32Z"
+  },
+  "ismaelmartinez.me.uk": {
+    "open_issues": 0,
+    "commits_6mo": 70,
+    "stars": 0,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.9183673469387755,
+    "vulns": {
+      "count": 0,
+      "max_severity": null,
+      "config_only": true
+    },
+    "codeScanning": null,
+    "secretScanning": null,
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-04T06:40:03Z"
+  },
+  "local-brain": {
+    "open_issues": 0,
+    "commits_6mo": 217,
+    "stars": 0,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.94,
+    "vulns": null,
+    "codeScanning": null,
+    "secretScanning": null,
+    "ci": 5,
+    "released_at": "2026-01-10T10:13:32Z",
+    "pushed_at": "2026-04-04T06:24:10Z"
+  },
+  "ai-model-advisor": {
+    "open_issues": 0,
+    "commits_6mo": 155,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.93,
+    "vulns": null,
+    "codeScanning": null,
+    "secretScanning": null,
+    "ci": 6,
+    "released_at": null,
+    "pushed_at": "2026-04-04T06:23:31Z"
   },
   "wifisentinel": {
     "open_issues": 0,
@@ -49,24 +159,6 @@
     "released_at": "2026-04-01T08:19:52Z",
     "pushed_at": "2026-04-03T14:55:46Z"
   },
-  "betis-escocia": {
-    "open_issues": 0,
-    "commits_6mo": 154,
-    "stars": 1,
-    "license": "MIT",
-    "communityHealth": 42,
-    "ciPassRate": 0.78,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "codeScanning": null,
-    "secretScanning": null,
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-04-03T11:38:46Z"
-  },
   "github-issue-triage-bot": {
     "open_issues": 0,
     "commits_6mo": 202,
@@ -85,56 +177,6 @@
     "released_at": "2026-04-01T12:26:05Z",
     "pushed_at": "2026-04-03T10:07:30Z"
   },
-  "ai-model-advisor": {
-    "open_issues": 0,
-    "commits_6mo": 151,
-    "stars": 1,
-    "license": "MIT",
-    "communityHealth": 42,
-    "ciPassRate": 0.97,
-    "vulns": null,
-    "codeScanning": null,
-    "secretScanning": null,
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-04-03T06:10:35Z"
-  },
-  "ismaelmartinez.me.uk": {
-    "open_issues": 1,
-    "commits_6mo": 67,
-    "stars": 0,
-    "license": "MIT",
-    "communityHealth": 71,
-    "ciPassRate": 0.8367346938775511,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "codeScanning": null,
-    "secretScanning": null,
-    "ci": 6,
-    "released_at": null,
-    "pushed_at": "2026-04-02T14:01:32Z"
-  },
-  "teams-for-linux": {
-    "open_issues": 12,
-    "commits_6mo": 345,
-    "stars": 4559,
-    "license": "GPL-3.0",
-    "communityHealth": 85,
-    "ciPassRate": 0.9047619047619048,
-    "vulns": {
-      "count": 0,
-      "max_severity": null,
-      "config_only": true
-    },
-    "codeScanning": null,
-    "secretScanning": null,
-    "ci": 14,
-    "released_at": "2026-03-29T11:24:34Z",
-    "pushed_at": "2026-04-02T13:25:19Z"
-  },
   "sound3fy": {
     "open_issues": 0,
     "commits_6mo": 57,
@@ -148,20 +190,6 @@
     "ci": 5,
     "released_at": "2025-12-20T09:59:52Z",
     "pushed_at": "2026-04-01T20:11:19Z"
-  },
-  "yourear": {
-    "open_issues": 0,
-    "commits_6mo": 38,
-    "stars": 1,
-    "license": "MIT",
-    "communityHealth": 57,
-    "ciPassRate": 0.9239130434782609,
-    "vulns": null,
-    "codeScanning": null,
-    "secretScanning": null,
-    "ci": 4,
-    "released_at": null,
-    "pushed_at": "2026-04-01T19:00:13Z"
   },
   "generator-atlassian-compass-event-catalog": {
     "open_issues": 0,
@@ -180,19 +208,5 @@
     "ci": 7,
     "released_at": "2026-03-16T22:15:11Z",
     "pushed_at": "2026-04-01T18:59:57Z"
-  },
-  "local-brain": {
-    "open_issues": 0,
-    "commits_6mo": 213,
-    "stars": 0,
-    "license": "MIT",
-    "communityHealth": 42,
-    "ciPassRate": 0.91,
-    "vulns": null,
-    "codeScanning": null,
-    "secretScanning": null,
-    "ci": 5,
-    "released_at": "2026-01-10T10:13:32Z",
-    "pushed_at": "2026-04-01T08:05:46Z"
   }
 }
