@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-03-30
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/)
+**Last Updated:** 2026-04-04
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 10 Gold, 3 Silver, 1 Bronze (14 repos).
 
 ---
 
@@ -40,7 +40,15 @@ Phase 1 (Richer Observation) shipped 2026-03-22 via PR #18. Added community heal
 
 Phase 2 (Richer Reports) in progress since 2026-03-23. Open PR triage view (PR #26), issue staleness detection (PR #27), blocked issue context with upstream classification (PR #28). 74 tests, 28 merged PRs.
 
-The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 74 tests and secret-leak checks on every PR.
+Security trifecta shipped 2026-04-04 (PR #82). Broadened security assessment from Dependabot-only to three GitHub security scanners: Dependabot alerts, code scanning (CodeQL/SAST), and secret scanning. Gold tier check changed from "Dependabot configured" to "any security scanner configured" with findings checked across all configured scanners. Added `release_exempt` config option for stable repos that don't need frequent releases. Added `getAlertSummary` shared helper for DRY severity computation across observe and portfolio paths.
+
+GitHub App token for vulnerability access shipped 2026-04-04 (PR #83). Switched the main workflow from the default GITHUB_TOKEN to the GitHub App token, granting access to Dependabot alerts, code scanning alerts, and secret scanning alerts APIs across all portfolio repos.
+
+License concern severity tuned 2026-04-04 (PR #84). Replaced blanket red flags for all copyleft with a two-level system: high concern (AGPL, shown in red) and low risk (GPL, LGPL, MPL — collapsed grey summary). Non-commercial projects using permissive licenses are not meaningfully affected by weak copyleft dependencies.
+
+Auto-onboarding shipped 2026-04-04 (PR #85). The pipeline now automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. Skipped during dry runs.
+
+The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 352 tests and secret-leak checks on every PR.
 
 ---
 
@@ -82,7 +90,7 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 These are ideas for later evaluation, not commitments.
 
-**Libyear dependency freshness** — Using SBOM data plus npm/PyPI registry lookups, compute the cumulative age of each repo's dependencies versus their latest versions. A single number per repo answering "how stale are the dependencies?"
+~~**Libyear dependency freshness**~~ — SHIPPED. Implemented via SBOM data plus npm registry lookups. Shows cumulative dependency age per repo in the portfolio table and per-repo reports.
 
 **External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern. Phase 6 schemas lay the groundwork for structured consumption of these external signals. Also evaluate `ossf/scorecard` as a security health signal — its 0-10 score across 18 dimensions could feed into or complement the health tier model rather than the butler computing its own security metrics.
 
@@ -112,7 +120,7 @@ The core insight: repo-butler's unique value is the cross-repo view. It sees whi
 
 Cross-repo PR creation uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
 
-**Auto-onboarding via GitHub App** — When the App is installed on a repo, the `installation` webhook triggers the butler to open a welcome PR that adds the consumer guide reference to the repo's CLAUDE.md and configures the MCP server connection. This is the first cross-repo PR use case and serves as the onboarding mechanism for the agent ecosystem. Every repo gets the skill automatically on App installation.
+~~**Auto-onboarding**~~ — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.
 
 Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
 
