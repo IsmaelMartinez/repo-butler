@@ -31,7 +31,7 @@ outputs:
     description: 'JSON summary of what the agent observed and proposed'
 
 runs:
-  using: 'node22'
+  using: 'node24'
   main: 'src/index.js'
 
 branding:
