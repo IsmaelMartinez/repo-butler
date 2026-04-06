@@ -204,7 +204,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
           const filtered = issues.filter(i => !i.pull_request);
           return { total: filtered.length, bugs: filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length };
         })
-        .catch(() => ({ total: r.open_issues || 0, bugs: 0 })),
+        .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
       gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 1 })
         .then(rels => rels[0]?.published_at ?? null)

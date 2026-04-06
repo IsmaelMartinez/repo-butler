@@ -213,7 +213,7 @@ export function createStore(context) {
       const details = repoDetails[r.name];
       summaries[r.name] = {
         open_issues: details?.open_issues ?? r.open_issues ?? 0,
-        open_bugs: details?.open_bugs ?? 0,
+        open_bugs: details?.open_bugs ?? null,
         commits_6mo: details?.commits || 0,
         stars: r.stars || 0,
         license: details?.license ?? null,

@@ -351,7 +351,7 @@ function snapshotToTierInput(snapshot) {
     ci: snapshot.summary?.ci_workflows || 0,
     license: snapshot.license ?? (cp?.files?.license ? 'present' : 'None'),
     open_issues: snapshot.summary?.open_issues || 0,
-    open_bugs: snapshot.summary?.open_bugs ?? snapshot.summary?.open_issues ?? 0,
+    open_bugs: snapshot.summary?.open_bugs ?? null,
     pushed_at: snapshot.pushed_at ?? null,
     released_at: snapshot.releases?.[0]?.published_at ?? null,
     communityHealth: cp?.health_percentage ?? null,

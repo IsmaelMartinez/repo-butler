@@ -37,12 +37,18 @@ const FEATURE_LABELS = ['enhancement', 'feature', 'feature-request', 'feature re
 
 export function isBugIssue(labels) {
   const l = Array.isArray(labels) ? labels : (labels?.labels || []);
-  return l.some(name => BUG_LABELS.includes(name.toLowerCase()));
+  return l.some(item => {
+    const name = typeof item === 'string' ? item : item?.name;
+    return name ? BUG_LABELS.includes(name.toLowerCase()) : false;
+  });
 }
 
 export function isFeatureIssue(labels) {
   const l = Array.isArray(labels) ? labels : (labels?.labels || []);
-  return !isBugIssue(l) && l.some(name => FEATURE_LABELS.includes(name.toLowerCase()));
+  return !isBugIssue(l) && l.some(item => {
+    const name = typeof item === 'string' ? item : item?.name;
+    return name ? FEATURE_LABELS.includes(name.toLowerCase()) : false;
+  });
 }
 
 export function isReleaseExempt(repoName, config) {
@@ -117,7 +123,7 @@ export function computeHealthTier(r, options = {}) {
   const checks = [
     { name: 'Has CI workflows (2+)', passed: (r.ci || 0) >= 2, required_for: 'gold' },
     { name: 'Has a license', passed: !!(r.license && r.license !== 'None'), required_for: 'silver' },
-    { name: 'Fewer than 10 open bugs', passed: (r.open_bugs ?? r.open_issues ?? 0) < 10, required_for: 'gold' },
+    { name: 'Fewer than 10 open bugs', passed: r.open_bugs != null ? r.open_bugs < 10 : (r.open_issues ?? 0) < 20, required_for: 'gold' },
     { name: 'Release in the last 90 days', passed: options.releaseExempt || daysSinceRelease <= 90, required_for: 'gold' },
     { name: 'Community health above 80%', passed: (r.communityHealth ?? -1) >= 80, required_for: 'gold' },
     { name: 'Security scanning configured', passed: anyScannerConfigured, required_for: 'gold' },
