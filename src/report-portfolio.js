@@ -7,7 +7,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
-  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary,
+  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue,
 } from './report-shared.js';
 
 
@@ -199,9 +199,12 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
           return total > 0 ? success / total : null;
         })
         .catch(() => null),
-      gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 200 })
-        .then(issues => issues.filter(i => !i.pull_request).length)
-        .catch(() => r.open_issues || 0),
+      gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 500 })
+        .then(issues => {
+          const filtered = issues.filter(i => !i.pull_request);
+          return { total: filtered.length, bugs: filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length };
+        })
+        .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
       gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 1 })
         .then(rels => rels[0]?.published_at ?? null)
@@ -215,7 +218,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning };
   });
 
   await Promise.all(fetches);

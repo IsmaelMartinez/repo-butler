@@ -1,4 +1,5 @@
 import { createClient } from './github.js';
+import { isBugIssue, isFeatureIssue } from './report-shared.js';
 
 export async function observe(context) {
   const { owner, repo, token, config } = context;
@@ -428,6 +429,8 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
   return {
     repo: repoMeta ? `${repoMeta.stars} stars, ${repoMeta.forks} forks` : 'unknown',
     open_issues: openIssues.length,
+    open_bugs: openIssues.filter(i => isBugIssue(i.labels)).length,
+    open_features: openIssues.filter(i => isFeatureIssue(i.labels)).length,
     blocked_issues: blockedCount,
     awaiting_feedback: awaitingFeedback.length,
     recently_closed: closedIssues.length,
