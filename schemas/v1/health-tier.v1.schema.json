@@ -32,6 +32,7 @@
             "Has CI workflows (2+)",
             "Has a license",
             "Fewer than 10 open bugs",
+            "Fewer than 20 open issues",
             "Release in the last 90 days",
             "Community health above 80%",
             "Security scanning configured",

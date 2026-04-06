@@ -199,7 +199,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
           return total > 0 ? success / total : null;
         })
         .catch(() => null),
-      gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 200 })
+      gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 500 })
         .then(issues => {
           const filtered = issues.filter(i => !i.pull_request);
           return { total: filtered.length, bugs: filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length };
