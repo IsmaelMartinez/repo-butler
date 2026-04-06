@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection } from './report.js';
-import { isReleaseExempt } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue } from './report-shared.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -245,7 +245,25 @@ describe('computeHealthTier', () => {
     assert.equal(tier, 'gold');
   });
 
-  it('fails gold when open issues >= 20', () => {
+  it('fails gold when open bugs >= 10', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 25, open_bugs: 10, pushed_at: now, released_at: now,
+      communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'silver');
+  });
+
+  it('gold passes with many open issues if few are bugs', () => {
+    const r = {
+      ci: 2, license: 'MIT', open_issues: 50, open_bugs: 3, pushed_at: now, released_at: now,
+      communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
+    };
+    const { tier } = computeHealthTier(r);
+    assert.equal(tier, 'gold');
+  });
+
+  it('falls back to open_issues when open_bugs is not set', () => {
     const r = {
       ci: 2, license: 'MIT', open_issues: 20, pushed_at: now, released_at: now,
       communityHealth: 90, vulns: { count: 0, max_severity: null }, commits: 50,
@@ -809,5 +827,57 @@ describe('isReleaseExempt', () => {
 
   it('handles whitespace around repo names in comma-separated list', () => {
     assert.equal(isReleaseExempt('sound3fy', { release_exempt: ' sound3fy , other-repo ' }), true);
+  });
+});
+
+describe('isBugIssue', () => {
+  it('returns true for bug label', () => {
+    assert.equal(isBugIssue(['bug']), true);
+  });
+
+  it('returns true for case-insensitive match', () => {
+    assert.equal(isBugIssue(['Bug']), true);
+    assert.equal(isBugIssue(['BUG']), true);
+  });
+
+  it('returns true for variant bug labels', () => {
+    assert.equal(isBugIssue(['defect']), true);
+    assert.equal(isBugIssue(['type: bug']), true);
+    assert.equal(isBugIssue(['kind/bug']), true);
+  });
+
+  it('returns false for feature labels', () => {
+    assert.equal(isBugIssue(['enhancement']), false);
+    assert.equal(isBugIssue(['feature']), false);
+  });
+
+  it('returns false for empty labels', () => {
+    assert.equal(isBugIssue([]), false);
+  });
+
+  it('returns true when bug is among multiple labels', () => {
+    assert.equal(isBugIssue(['priority: high', 'bug', 'frontend']), true);
+  });
+});
+
+describe('isFeatureIssue', () => {
+  it('returns true for enhancement label', () => {
+    assert.equal(isFeatureIssue(['enhancement']), true);
+  });
+
+  it('returns true for feature-request label', () => {
+    assert.equal(isFeatureIssue(['feature-request']), true);
+  });
+
+  it('returns false for bug labels', () => {
+    assert.equal(isFeatureIssue(['bug']), false);
+  });
+
+  it('returns false when both bug and enhancement are present (bug takes precedence)', () => {
+    assert.equal(isFeatureIssue(['bug', 'enhancement']), false);
+  });
+
+  it('returns false for unlabeled issues', () => {
+    assert.equal(isFeatureIssue([]), false);
   });
 });
