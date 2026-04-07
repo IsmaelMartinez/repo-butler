@@ -86,6 +86,20 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 ---
 
+## Next Up
+
+### Dashboard Narrative Restructure
+
+Spec at `docs/superpowers/specs/2026-04-07-dashboard-narrative-restructure-design.md`. Identified by a multi-persona review (portfolio owner, data analyst, UX specialist, narrative consultant) as the highest-impact improvement. The dashboards currently dump data without narrative flow — vanity metrics first, actionable information buried or scattered. The restructure follows a situation-problem-action arc where a reader gets value proportional to time spent.
+
+Portfolio page: replace vanity stat cards with a tier distribution pulse, add a portfolio-level "Attention Required" section aggregating top action items across all repos, simplify the health table from 13 to 6 columns with full view behind a toggle, collapse dependency inventory and activity charts behind `<details>` elements, remove distribution doughnut charts entirely.
+
+Per-repo page: keep the strong top section (actions + tier), move trends up to position 4 for context, merge the 9-card health grid into the tier checklist (eliminates duplication), group PR/issue triage under "Open Work", collapse velocity charts and contributors behind collapsible sections.
+
+Presentation-only refactor — no changes to data collection, tier logic, or pipeline phases. Changes are in `report-portfolio.js`, `report-repo.js`, and `report-styles.js`.
+
+---
+
 ## Future
 
 These are ideas for later evaluation, not commitments.
