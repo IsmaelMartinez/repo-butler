@@ -889,3 +889,66 @@ describe('CSS includes collapsible styles', () => {
     assert.ok(CSS.includes('summary'), 'CSS should style summary elements');
   });
 });
+
+describe('buildPortfolioAttentionSection', () => {
+  it('shows all-clear when no actions needed', async () => {
+    const { buildPortfolioAttentionSection } = await import('./report-portfolio.js');
+    const repos = [{ name: 'a' }];
+    const details = { a: { vulns: { count: 0, max_severity: null }, codeScanning: null, secretScanning: null, ciPassRate: 0.95, open_bugs: 0 } };
+    const html = buildPortfolioAttentionSection(repos, details, 'owner', {});
+    assert.ok(html.includes('All clear'), 'should show all-clear message');
+  });
+
+  it('aggregates action items across repos', async () => {
+    const { buildPortfolioAttentionSection } = await import('./report-portfolio.js');
+    const repos = [{ name: 'a' }, { name: 'b' }];
+    const details = {
+      a: { vulns: { count: 2, critical: 1, high: 1, medium: 0, low: 0, max_severity: 'critical' }, codeScanning: null, secretScanning: null, ciPassRate: 0.95, open_bugs: 0 },
+      b: { vulns: { count: 0, max_severity: null }, codeScanning: null, secretScanning: null, ciPassRate: 0.5, open_bugs: 0 },
+    };
+    const html = buildPortfolioAttentionSection(repos, details, 'owner', {});
+    assert.ok(html.includes('Attention Required'), 'should have attention heading');
+    assert.ok(html.includes('a.html'), 'should link to repo a');
+    assert.ok(html.includes('b.html'), 'should link to repo b');
+  });
+});
+
+describe('generatePortfolioReport restructure', () => {
+  it('has tier distribution pulse instead of vanity stats', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const owner = 'test';
+    const portfolio = { repos: [
+      { name: 'a', stars: 5, forks: 1, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ]};
+    const details = { a: { commits: 20, weekly: [1,2], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const html = generatePortfolioReport(owner, portfolio, details, null, null, {});
+    assert.ok(html.includes('Portfolio Pulse'), 'should have pulse section');
+    assert.ok(!html.includes('id="langChart"'), 'should not have language doughnut chart');
+    assert.ok(!html.includes('id="statusChart"'), 'should not have status doughnut chart');
+    assert.ok(!html.includes('id="commitChart"'), 'should not have commit totals chart');
+  });
+
+  it('has simplified health table with 6 columns and full view toggle', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const portfolio = { repos: [
+      { name: 'b', stars: 1, forks: 0, open_issues: 2, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'Go' },
+    ]};
+    const details = { b: { commits: 15, weekly: [3], license: 'MIT', ci: 3, communityHealth: 85, vulns: { count: 0, max_severity: null }, ciPassRate: 0.92, open_issues: 2, open_bugs: 1, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('Next Step'), 'simplified table should have Next Step column');
+    assert.ok(html.includes('Show all columns'), 'should have toggle for full table');
+  });
+
+  it('wraps commit activity in collapsible details', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const portfolio = { repos: [
+      { name: 'c', stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ]};
+    const details = { c: { commits: 10, weekly: [1,1,1], license: 'MIT', ci: 2, communityHealth: 80, vulns: { count: 0, max_severity: null }, ciPassRate: 1.0, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    // The commit activity chart should be inside a <details> element
+    const detailsIdx = html.indexOf('<details');
+    const weeklyChartIdx = html.indexOf('id="weeklyChart"');
+    assert.ok(detailsIdx >= 0 && weeklyChartIdx > detailsIdx, 'weekly chart should be inside a details element');
+  });
+});

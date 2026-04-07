@@ -25,12 +25,13 @@ import {
   fetchPortfolioDetails, analyzeDependencyInventory,
   generatePortfolioReport, generateDigestReport,
   generateSparklineSVG, buildCampaignSection,
+  buildPortfolioAttentionSection,
 } from './report-portfolio.js';
 
 // Re-export everything that tests and other modules need from report.js
 export { generateHealthBadge, computeHealthTier } from './report-shared.js';
 export { buildActionItems, computeContributorStats } from './report-repo.js';
-export { generateSparklineSVG, buildCampaignSection, generateDigestReport } from './report-portfolio.js';
+export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection } from './report-portfolio.js';
 
 export async function report(context) {
   const { owner, token, config, store } = context;

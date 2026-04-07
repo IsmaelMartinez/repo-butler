@@ -2,6 +2,7 @@
 
 import { CSS } from './report-styles.js';
 import { computeLibyearWithTimeout } from './libyear.js';
+import { buildActionItems } from './report-repo.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
@@ -349,6 +350,52 @@ ${cards}
 }
 
 
+// --- Portfolio attention section ---
+
+export function buildPortfolioAttentionSection(repos, details, owner, config) {
+  const allItems = [];
+  for (const r of repos) {
+    const d = details[r.name];
+    if (!d) continue;
+    const snapshot = {
+      repository: `${owner}/${r.name}`,
+      dependabot_alerts: d.vulns || null,
+      code_scanning_alerts: d.codeScanning || null,
+      secret_scanning_alerts: d.secretScanning || null,
+      ci_pass_rate: d.ciPassRate != null ? { pass_rate: d.ciPassRate } : null,
+      issues: { open: [] },
+      summary: {},
+    };
+    const items = buildActionItems(snapshot, []);
+    for (const item of items) {
+      allItems.push({ ...item, repo: r.name });
+    }
+  }
+
+  allItems.sort((a, b) => a.priority - b.priority);
+  const top10 = allItems.slice(0, 10);
+
+  if (top10.length === 0) {
+    return `<h2>Attention Required</h2>
+<div class="chart-container"><p style="color:#7ee787;margin:0">All clear — nothing needs attention across the portfolio.</p></div>`;
+  }
+
+  const effortColor = { 'quick win': '#7ee787', 'moderate': '#d29922', 'significant': '#f85149' };
+  const rows = top10.map((item, i) => `<tr>
+    <td style="color:#8b949e;font-weight:600">${i + 1}</td>
+    <td><a href="${escHtml(item.repo)}.html">${escHtml(item.repo)}</a></td>
+    <td>${item.text}</td>
+    <td><span style="color:${effortColor[item.effort] || '#8b949e'}">${item.effort}</span></td>
+  </tr>`).join('');
+
+  return `<h2>Attention Required</h2>
+<div class="chart-container">
+<table><thead><tr><th>#</th><th>Repo</th><th>Action</th><th>Effort</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`;
+}
+
+
 // --- Dependency inventory section ---
 
 export function buildDependencyInventorySection(inventory) {
@@ -432,11 +479,6 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     .filter(r => !r.archived && !r.fork)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
 
-  const totalStars = repos.reduce((s, r) => s + r.stars, 0);
-  const totalForks = repos.reduce((s, r) => s + r.forks, 0);
-  const totalCommits = Object.values(details).reduce((s, d) => s + (d.commits || 0), 0);
-  const totalIssues = repos.reduce((s, r) => s + (r.open_issues || 0), 0);
-
   const now = new Date().toISOString().split('T')[0];
 
   function status(r) {
@@ -447,9 +489,15 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     return 'active';
   }
 
-  const classified = repos.map(r => ({ ...r, status: status(r), ...(details[r.name] || {}) }));
+  // Classify repos and stash tier to avoid recomputing.
+  const classified = repos.map(r => {
+    const merged = { ...r, status: status(r), ...(details[r.name] || {}) };
+    const { tier } = computeHealthTier(merged, { releaseExempt: isReleaseExempt(r.name, config) });
+    merged._tier = tier;
+    return merged;
+  });
+
   const statusCounts = countBy(classified.map(r => r.status));
-  const langCounts = countBy(repos.map(r => r.language || 'None'));
 
   // Weekly commit data for stacked chart.
   const weekLabels = Array.from({ length: 26 }, (_, i) => {
@@ -472,33 +520,74 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     `{label:'${r.name}',data:[${(r.weekly || []).join(',')}],backgroundColor:'${chartColors[i] || chartColors[7]}',borderRadius:1}`
   ).join(',');
 
-  const tableRows = classified.map(r => {
+  // --- Portfolio Pulse ---
+  const tierCounts = countBy(classified.map(r => r._tier));
+  const goldCount = tierCounts.gold || 0;
+  const goldPct = classified.length > 0 ? Math.round((goldCount / classified.length) * 100) : 0;
+  const goldColor = goldPct >= 80 ? COLOR_SUCCESS : goldPct >= 50 ? COLOR_WARNING : COLOR_DANGER;
+  const tierBadges = ['gold', 'silver', 'bronze', 'none']
+    .filter(t => tierCounts[t] > 0)
+    .map(t => `<span class="tier-badge tier-${t}">${tierCounts[t]} ${TIER_DISPLAY[t]}</span>`)
+    .join(' ');
+
+  const pulseSection = `<h2>Portfolio Pulse</h2>
+<div class="chart-container">
+  <div style="font-size:2.5rem;font-weight:700;color:${goldColor};margin-bottom:0.5rem">${goldPct}% Gold</div>
+  <div style="margin-bottom:0.5rem">${tierBadges}</div>
+  <div style="color:#8b949e">${classified.length} repos — ${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div>
+</div>`;
+
+  // --- Simplified health table (6 columns) ---
+  const simplifiedRows = classified.map(r => {
+    const tier = r._tier;
+    const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
+    const ciPassColor = ciPassPct == null ? '#6e7681' : ciPassPct >= 90 ? COLOR_SUCCESS : ciPassPct >= 70 ? COLOR_WARNING : COLOR_DANGER;
+    const ciDisplay = ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span>` : '—';
+    const vulnDisplay = r.vulns == null
+      ? '<span style="color:#6e7681">n/a</span>'
+      : r.vulns.count === 0
+        ? `<span style="color:${COLOR_SUCCESS}">0</span>`
+        : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
+    const openBugs = r.open_bugs != null ? r.open_bugs : (r.open_issues || 0);
+    const bugsColor = openBugs === 0 ? COLOR_SUCCESS : openBugs < 10 ? COLOR_WARNING : COLOR_DANGER;
+    // Next Step: first failing check name from computeHealthTier
+    const { checks } = computeHealthTier(r, { releaseExempt: isReleaseExempt(r.name, config) });
+    const firstFail = checks.find(c => !c.passed);
+    const nextStep = firstFail ? `<span style="color:#8b949e;font-size:0.85em">${escHtml(firstFail.name)}</span>` : `<span style="color:${COLOR_SUCCESS};font-size:0.85em">All checks pass</span>`;
+    const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
+    return `<tr>
+      <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
+      <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td>
+      <td><span style="color:${bugsColor}">${openBugs}</span></td>
+      <td>${ciDisplay}</td>
+      <td>${vulnDisplay}</td>
+      <td>${nextStep}</td></tr>`;
+  }).join('');
+
+  // --- Full 13-column table (inside details toggle) ---
+  const fullTableRows = classified.map(r => {
+    const tier = r._tier;
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
-    const { tier } = computeHealthTier(r, { releaseExempt: isReleaseExempt(r.name, config) });
     const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? COLOR_SUCCESS : r.communityHealth >= 50 ? COLOR_WARNING : COLOR_DANGER;
-    // CI: merge workflow count + pass rate into one cell
     const ciCount = r.ci || 0;
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
     const ciPassColor = ciPassPct == null ? '#6e7681' : ciPassPct >= 90 ? COLOR_SUCCESS : ciPassPct >= 70 ? COLOR_WARNING : COLOR_DANGER;
     const ciDisplay = ciCount === 0
       ? `<span style="color:${COLOR_DANGER}">none</span>`
       : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:#6e7681;font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
-    // Vulns: show context when unavailable
     const vulnDisplay = r.vulns == null
       ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:#6e7681;cursor:help">n/a</span>'
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
         : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
-    // Deps: merge count + libyear into one cell
     const libyearVal = r.libyear?.total_libyear;
     const libyearColor = getLibyearColor(libyearVal);
     const depDisplay = r.sbom
       ? `${r.sbom.count}${libyearVal != null ? ` <span style="color:${libyearColor};font-size:0.8em" title="Libyear: dependency freshness">(${libyearVal.toFixed(1)}y)</span>` : ''}`
       : '—';
-    // Description as tooltip on repo name
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
     return `<tr>
-      <td><a href="${r.name}.html"${descTooltip}>${r.name}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
+      <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
       <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
       <td>${r.commits || 0}</td>
       <td>${ciDisplay}</td>
@@ -511,6 +600,10 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td></tr>`;
   }).join('');
 
+  const depSection = depInventory
+    ? `<details><summary>Dependency Inventory</summary>${buildDependencyInventorySection(depInventory)}</details>`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -522,35 +615,28 @@ ${CSS}
 <body>
 <h1><a href="https://github.com/${owner}" class="repo-link">@${owner} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
 <div class="subtitle">GitHub Portfolio Health Report — ${now} — click any repo name for details — <a href="digest.html">weekly digest</a></div>
-<div class="grid">
-  <div class="card"><h3>Repos</h3><div class="stat">${repos.length}</div><div class="stat-label">${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div></div>
-  <div class="card"><h3>Stars</h3><div class="stat">${fmt(totalStars)}</div></div>
-  <div class="card"><h3>Commits (6mo)</h3><div class="stat">${fmt(totalCommits)}</div></div>
-  <div class="card"><h3>Open Issues</h3><div class="stat">${totalIssues}</div></div>
-</div>
-<h2>Commit Activity (26 weeks)</h2>
-<div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
+${pulseSection}
+${buildPortfolioAttentionSection(classified, details, owner, config)}
 <h2>Portfolio Health</h2>
 <div class="chart-container">
+<table><thead><tr><th>Repo</th><th>Tier</th><th>Bugs</th><th>CI%</th><th>Vulns</th><th>Next Step</th></tr></thead>
+<tbody>${simplifiedRows}</tbody></table>
+</div>
+<details><summary>Show all columns (${classified.length} repos)</summary>
+<div class="chart-container">
 <table><thead><tr><th>Repo</th><th>Lang</th><th>Stars</th><th>Issues</th><th>Commits</th><th>CI</th><th>License</th><th>Community</th><th>Vulns</th><th>Deps</th><th>Contributors</th><th>Status</th><th>Tier</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
+<tbody>${fullTableRows}</tbody></table>
 </div>
+</details>
 ${buildCampaignSection(repos, details)}
-<h2>Distribution</h2>
-<div class="three-col">
-  <div class="chart-container"><div class="chart-title">By Language</div><canvas id="langChart"></canvas></div>
-  <div class="chart-container"><div class="chart-title">By Status</div><canvas id="statusChart"></canvas></div>
-  <div class="chart-container"><div class="chart-title">Commit Totals (6mo)</div><canvas id="commitChart"></canvas></div>
-</div>
-${buildDependencyInventorySection(depInventory)}
+<details><summary>Commit Activity (26 weeks)</summary>
+<div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
+</details>
+${depSection}
 <div class="footer">Generated by <a href="https://github.com/IsmaelMartinez/repo-butler">repo-butler</a></div>
 <script>
 Chart.defaults.color='#8b949e';Chart.defaults.borderColor='#21262d';Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,monospace';
 new Chart(document.getElementById('weeklyChart'),{type:'bar',data:{labels:[${weekLabels.map(l => `'${l}'`).join(',')}],datasets:[${weeklyDatasets}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:10,font:{size:10}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{maxRotation:45,font:{size:9}}},y:{stacked:true,beginAtZero:true,grid:{color:'#21262d'}}}}});
-new Chart(document.getElementById('langChart'),{type:'doughnut',data:{labels:[${Object.entries(langCounts).map(([n, c]) => `'${n} (${c})'`).join(',')}],datasets:[{data:[${Object.values(langCounts).join(',')}],backgroundColor:['#f1e05a','#3178c6','#00ADD8','#3572A5','#fcb32c','#6e7681','#e34c26','#8957e5'],borderColor:'#161b22',borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
-new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels:[${Object.entries(statusCounts).map(([n, c]) => `'${n} (${c})'`).join(',')}],datasets:[{data:[${Object.values(statusCounts).join(',')}],backgroundColor:['#238636','#8957e5','#da3633','#6e7681','#1f6feb'],borderColor:'#161b22',borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
-const commitRepos=${JSON.stringify(classified.filter(r => r.commits > 0).sort((a, b) => b.commits - a.commits).map(r => ({ name: r.name, commits: r.commits })))};
-new Chart(document.getElementById('commitChart'),{type:'bar',data:{labels:commitRepos.map(r=>r.name.length>18?r.name.slice(0,16)+'…':r.name),datasets:[{data:commitRepos.map(r=>r.commits),backgroundColor:commitRepos.map(r=>r.commits>300?'rgba(56,139,253,0.8)':r.commits>100?'rgba(126,231,135,0.7)':'rgba(139,148,158,0.5)'),borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:'#21262d'}},y:{grid:{display:false}}}}});
 </script></body></html>`;
 }
 
