@@ -32,7 +32,7 @@ Campaign cards stay but non-compliant repo lists collapse behind a click. Curren
 
 ### Section 5: Details (collapsible)
 
-The 26-week commit activity chart, distribution doughnut charts, and dependency inventory all move into collapsible `<details>` sections. These are audit material, not weekly check-in material. The three distribution doughnut charts (language, status, commit totals) are removed entirely — they were unanimously identified as filler.
+The 26-week commit activity chart and dependency inventory move into collapsible `<details>` sections. These are audit material, not weekly check-in material. The three distribution doughnut charts (language, status, commit totals) are removed entirely — they were unanimously identified as filler.
 
 ### Removed from portfolio page
 
