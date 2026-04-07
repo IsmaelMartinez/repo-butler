@@ -881,3 +881,11 @@ describe('isFeatureIssue', () => {
     assert.equal(isFeatureIssue([]), false);
   });
 });
+
+describe('CSS includes collapsible styles', () => {
+  it('has details and summary styling', async () => {
+    const { CSS } = await import('./report-styles.js');
+    assert.ok(CSS.includes('details'), 'CSS should style details elements');
+    assert.ok(CSS.includes('summary'), 'CSS should style summary elements');
+  });
+});
