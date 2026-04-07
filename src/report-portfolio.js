@@ -492,8 +492,9 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   // Classify repos and stash tier to avoid recomputing.
   const classified = repos.map(r => {
     const merged = { ...r, status: status(r), ...(details[r.name] || {}) };
-    const { tier } = computeHealthTier(merged, { releaseExempt: isReleaseExempt(r.name, config) });
+    const { tier, checks } = computeHealthTier(merged, { releaseExempt: isReleaseExempt(r.name, config) });
     merged._tier = tier;
+    merged._checks = checks;
     return merged;
   });
 
@@ -550,9 +551,8 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
         : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
     const openBugs = r.open_bugs != null ? r.open_bugs : (r.open_issues || 0);
     const bugsColor = openBugs === 0 ? COLOR_SUCCESS : openBugs < 10 ? COLOR_WARNING : COLOR_DANGER;
-    // Next Step: first failing check name from computeHealthTier
-    const { checks } = computeHealthTier(r, { releaseExempt: isReleaseExempt(r.name, config) });
-    const firstFail = checks.find(c => !c.passed);
+    // Next Step: first failing check from stashed checks
+    const firstFail = r._checks.find(c => !c.passed);
     const nextStep = firstFail ? `<span style="color:#8b949e;font-size:0.85em">${escHtml(firstFail.name)}</span>` : `<span style="color:${COLOR_SUCCESS};font-size:0.85em">All checks pass</span>`;
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
     return `<tr>
