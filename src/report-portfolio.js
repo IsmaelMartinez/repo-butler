@@ -331,7 +331,7 @@ export function buildCampaignSection(repos, details) {
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
     const barColor = pct >= 80 ? COLOR_SUCCESS : pct >= 50 ? COLOR_WARNING : COLOR_DANGER;
     const nonCompliantList = nonCompliant.length > 0
-      ? `<div class="campaign-repos">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div>`
+      ? `<details><summary style="font-size:0.75rem;color:#8b949e;cursor:pointer">${nonCompliant.length} repo${nonCompliant.length !== 1 ? 's' : ''} need attention</summary><div class="campaign-repos" style="margin-top:0.3rem">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div></details>`
       : `<div class="campaign-repos" style="color:${COLOR_SUCCESS}">All repos compliant</div>`;
 
     return `<div class="campaign-card">

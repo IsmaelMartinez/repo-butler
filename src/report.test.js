@@ -767,6 +767,17 @@ describe('buildCampaignSection', () => {
     assert.ok(html.includes('1/2'), 'should count both repos in total');
     assert.ok(html.includes('no-data'), 'should list repo without details as non-compliant');
   });
+
+  it('wraps non-compliant campaign repos in details element', () => {
+    const repos = [makeRepo('good'), makeRepo('bad')];
+    const details = {
+      good: { communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, license: 'MIT', hasIssueTemplate: true },
+      bad: { communityHealth: 40, vulns: null, ciPassRate: 0.5, license: 'None', hasIssueTemplate: false },
+    };
+    const html = buildCampaignSection(repos, details);
+    const detailsCount = (html.match(/<details>/g) || []).length;
+    assert.ok(detailsCount > 0, 'non-compliant repos should be in details elements');
+  });
 });
 
 describe('generateSparklineSVG', () => {
