@@ -952,3 +952,48 @@ describe('generatePortfolioReport restructure', () => {
     assert.ok(detailsIdx >= 0 && weeklyChartIdx > detailsIdx, 'weekly chart should be inside a details element');
   });
 });
+
+describe('generateRepoReport restructure', () => {
+  it('has trends before activity history and no health grid', async () => {
+    const { generateRepoReport } = await import('./report-repo.js');
+    const snapshot = {
+      repository: 'owner/test', meta: { stars: 5, forks: 1, watchers: 2 },
+      issues: { open: [] }, releases: [{ tag: 'v1', published_at: new Date().toISOString() }],
+      community_profile: { health_percentage: 90, files: { readme: true, license: true, contributing: true, code_of_conduct: true, issue_template: true, pull_request_template: true } },
+      dependabot_alerts: { count: 0, critical: 0, high: 0, medium: 0, low: 0, max_severity: null },
+      code_scanning_alerts: null, secret_scanning_alerts: { count: 0 },
+      ci_pass_rate: { pass_rate: 0.98, total_runs: 100, passed: 98, failed: 2 },
+      pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
+      summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 10, human_prs: 8, bot_prs: 2, releases: 1, latest_release: 'v1', ci_workflows: 4, bus_factor: 2, time_to_close_median: { median_days: 3, sample_size: 10 } },
+    };
+    const prActivity = [{ month: 'Jan', count: 5 }];
+    const issueActivity = [{ month: 'Jan', opened: 2, closed: 3 }];
+    const prAuthors = [{ author: 'dev', count: 8, firstTime: false }];
+    const trends = { direction: 'stable', weeks: [{ week: 'W1', open_issues: 3, merged_prs: 2 }, { week: 'W2', open_issues: 2, merged_prs: 3 }] };
+
+    const html = generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, null, [], null, [], null, null, {});
+
+    // Trends before Activity History
+    const trendsPos = html.indexOf('Trends');
+    const activityPos = html.indexOf('Activity History');
+    assert.ok(trendsPos > 0, 'should have Trends section');
+    assert.ok(activityPos > 0, 'should have Activity History section');
+    assert.ok(trendsPos < activityPos, 'Trends should come before Activity History');
+
+    // Collapsible sections
+    assert.ok(html.includes('<details'), 'should use details elements');
+
+    // No doughnut charts
+    assert.ok(!html.includes('id="authorChart"'), 'no author doughnut');
+    assert.ok(!html.includes('id="labelChart"'), 'no label chart');
+
+    // No separate health grid
+    assert.ok(!html.includes('Repository Health'), 'health grid merged into tier');
+
+    // Health tier has Detail column
+    assert.ok(html.includes('Detail'), 'tier table should have Detail column');
+
+    // Stars in subtitle, not in a card
+    assert.ok(html.includes('5 stars'), 'stars should be in subtitle');
+  });
+});
