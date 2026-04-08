@@ -205,10 +205,11 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
           const filtered = issues.filter(i => !i.pull_request);
           // If paginated list returned 0 but the repo listing says there are issues,
           // the token likely lacks issues:read — fall back to the repo count.
-          const total = filtered.length === 0 && (r.open_issues || 0) > 0
-            ? r.open_issues
-            : filtered.length;
-          return { total, bugs: filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length };
+          const isFallback = filtered.length === 0 && (r.open_issues || 0) > 0;
+          return {
+            total: isFallback ? r.open_issues : filtered.length,
+            bugs: isFallback ? null : filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length,
+          };
         })
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
@@ -554,8 +555,8 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
         : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
-    const openBugs = r.open_bugs != null ? r.open_bugs : (r.open_issues || 0);
-    const bugsColor = openBugs === 0 ? COLOR_SUCCESS : openBugs < 10 ? COLOR_WARNING : COLOR_DANGER;
+    const openIssues = r.open_issues || 0;
+    const issuesColor = openIssues === 0 ? COLOR_SUCCESS : openIssues < 20 ? COLOR_WARNING : COLOR_DANGER;
     // Next Step: first failing check scoped to the repo's next tier
     const nextTier = tier === 'none' ? 'bronze' : tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
     const firstFail = nextTier
@@ -566,7 +567,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     return `<tr>
       <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td>
-      <td><span style="color:${bugsColor}">${openBugs}</span>${r.open_issues && r.open_issues > openBugs ? ` <span style="color:#6e7681;font-size:0.8em">(${r.open_issues})</span>` : ''}</td>
+      <td><span style="color:${issuesColor}">${openIssues}</span></td>
       <td>${ciDisplay}</td>
       <td>${vulnDisplay}</td>
       <td>${nextStep}</td></tr>`;
@@ -627,7 +628,7 @@ ${pulseSection}
 ${buildPortfolioAttentionSection(classified, details, owner, config)}
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Tier</th><th>Bugs <span style="color:#6e7681;font-weight:400;font-size:0.85em">(issues)</span></th><th>CI%</th><th>Vulns</th><th>Next Step</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Tier</th><th>Issues</th><th>CI%</th><th>Vulns</th><th>Next Step</th></tr></thead>
 <tbody>${simplifiedRows}</tbody></table>
 </div>
 <details><summary>Show all columns (${classified.length} repos)</summary>
