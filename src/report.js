@@ -208,7 +208,7 @@ export async function report(context) {
 
     // Persist weekly portfolio summaries for per-repo trend charts.
     if (store) {
-      await store.writePortfolioWeekly(portfolio, repoDetails);
+      await store.writePortfolioWeekly(portfolio, repoDetails, config);
     }
   }
 
