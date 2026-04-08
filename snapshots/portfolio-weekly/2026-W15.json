@@ -2,7 +2,7 @@
   "repo-butler": {
     "open_issues": 0,
     "open_bugs": 0,
-    "commits_6mo": 177,
+    "commits_6mo": 178,
     "stars": 3,
     "license": "MIT",
     "communityHealth": 85,
@@ -17,12 +17,12 @@
     },
     "ci": 4,
     "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-08T09:45:38Z"
+    "pushed_at": "2026-04-08T10:09:04Z"
   },
   "votescot": {
-    "open_issues": 1,
+    "open_issues": 0,
     "open_bugs": 0,
-    "commits_6mo": 71,
+    "commits_6mo": 72,
     "stars": 0,
     "license": "MIT",
     "communityHealth": 100,
@@ -37,11 +37,11 @@
     },
     "ci": 7,
     "released_at": "2026-04-05T23:25:44Z",
-    "pushed_at": "2026-04-08T09:39:21Z"
+    "pushed_at": "2026-04-08T09:54:54Z"
   },
   "teams-for-linux": {
     "open_issues": 19,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 351,
     "stars": 4563,
     "license": "GPL-3.0",
@@ -64,7 +64,7 @@
   },
   "local-brain": {
     "open_issues": 2,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 226,
     "stars": 0,
     "license": "MIT",
@@ -87,7 +87,7 @@
   },
   "sound3fy": {
     "open_issues": 5,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 60,
     "stars": 3,
     "license": "MIT",
@@ -128,7 +128,7 @@
   },
   "bonnie-wee-plot": {
     "open_issues": 11,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 377,
     "stars": 1,
     "license": "NOASSERTION",
@@ -151,7 +151,7 @@
   },
   "yourear": {
     "open_issues": 5,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 43,
     "stars": 1,
     "license": "MIT",
@@ -169,7 +169,7 @@
   },
   "ismaelmartinez.me.uk": {
     "open_issues": 12,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 72,
     "stars": 0,
     "license": "MIT",
@@ -189,7 +189,7 @@
   },
   "ai-model-advisor": {
     "open_issues": 4,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 157,
     "stars": 1,
     "license": "MIT",
@@ -229,7 +229,7 @@
   },
   "betis-escocia": {
     "open_issues": 6,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 155,
     "stars": 1,
     "license": "MIT",
@@ -252,7 +252,7 @@
   },
   "wifisentinel": {
     "open_issues": 8,
-    "open_bugs": 0,
+    "open_bugs": null,
     "commits_6mo": 173,
     "stars": 0,
     "license": "MIT",
