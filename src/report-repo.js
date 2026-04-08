@@ -362,7 +362,7 @@ function snapshotToTierInput(snapshot) {
   };
 }
 
-function buildHealthTierSection(snapshot, config) {
+function buildHealthTierSection(snapshot, config, healthData = {}) {
   const input = snapshotToTierInput(snapshot);
   const repoName = snapshot.repository?.split('/')[1] || '';
   const { tier, checks } = computeHealthTier(input, { releaseExempt: isReleaseExempt(repoName, config) });
@@ -378,10 +378,13 @@ function buildHealthTierSection(snapshot, config) {
     const icon = c.passed ? '\u2713' : '\u2717';
     const iconColor = c.passed ? '#7ee787' : '#f85149';
     const tierLabel = c.required_for === 'gold' ? 'Gold' : c.required_for === 'silver' ? 'Silver' : 'Bronze';
+    const detail = healthData[c.name] || '';
+    const detailHtml = detail ? `<span style="color:#8b949e">${escHtml(detail)}</span>` : '';
     return `<tr>
       <td style="color:${iconColor};font-weight:600;text-align:center">${icon}</td>
       <td>${c.name}</td>
-      <td><span class="tier-badge tier-${c.required_for}">${tierLabel}</span></td></tr>`;
+      <td><span class="tier-badge tier-${c.required_for}">${tierLabel}</span></td>
+      <td>${detailHtml}</td></tr>`;
   }).join('');
 
   const nextTierHtml = nextTier && failedForNext.length > 0
@@ -394,7 +397,7 @@ ${failedForNext.map(c => `<div style="color:#f85149;font-size:0.85rem;margin-lef
   return `<h2>Health Tier</h2>
 <div class="chart-container" style="text-align:center;padding-bottom:0.5rem">
 <div style="font-size:3rem;font-weight:700;color:${color}">${display}</div>
-<table style="margin-top:1rem;text-align:left"><thead><tr><th></th><th>Criteria</th><th>Required</th></tr></thead>
+<table style="margin-top:1rem;text-align:left"><thead><tr><th></th><th>Criteria</th><th>Required</th><th>Detail</th></tr></thead>
 <tbody>${checkRows}</tbody></table>
 ${nextTierHtml}
 </div>`;
@@ -656,10 +659,6 @@ export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthor
   const issueOpened = issueActivity.map(m => m.opened).join(',');
   const issueClosed = issueActivity.map(m => m.closed).join(',');
 
-  const maintainer = prAuthors.find(a => !isBotAuthor(a.author));
-  const botPRs = prAuthors.filter(a => isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0);
-  const communityPRs = prAuthors.filter(a => !isBotAuthor(a.author) && a.author !== maintainer?.author).reduce((s, a) => s + a.count, 0);
-
   const relData = releases.slice(0, 20).map(r => ({
     tag: r.tag, date: r.published_at?.split('T')[0] || '',
   }));
@@ -667,18 +666,6 @@ export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthor
     if (i === 0) return 0;
     return Math.round((new Date(relData[i - 1].date) - new Date(r.date)) / 86400000);
   });
-
-  const labelEntries = Object.entries(countBy(snapshot.issues?.open?.flatMap(i => i.labels) || []))
-    .sort(([, a], [, b]) => b - a);
-  const labelNames = labelEntries.map(([n]) => `'${n}'`).join(',');
-  const labelCounts = labelEntries.map(([, c]) => c).join(',');
-  const labelColors = labelEntries.map(([n]) => {
-    if (n === 'bug') return "'#f85149'";
-    if (n.includes('feedback')) return "'#d29922'";
-    if (n === 'blocked') return "'#ff6b7c'";
-    if (n === 'enhancement') return "'#a2eeef'";
-    return "'#388bfd'";
-  }).join(',');
 
   const now = new Date().toISOString().split('T')[0];
 
@@ -694,6 +681,33 @@ export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthor
   const trendsJs = hasTrends ? `
 new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${trends.weeks.map(w => `'${w.week}'`).join(',')}],datasets:[{label:'Open Issues',data:[${trends.weeks.map(w => w.open_issues).join(',')}],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y'}${mergedPrDataset}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{type:'linear',position:'left',beginAtZero:true,grid:{color:'#21262d'},title:{display:true,text:'Open Issues'}}${mergedPrScale},x:{grid:{display:false}}}}});` : '';
 
+  // Build healthData annotations for the tier table
+  const cp = snapshot.community_profile;
+  const da = snapshot.dependabot_alerts;
+  const cs = snapshot.code_scanning_alerts;
+  const ss = snapshot.secret_scanning_alerts;
+  const cipr = snapshot.ci_pass_rate;
+  const healthData = {
+    'Has CI workflows (2+)': `${s.ci_workflows || 0} workflows${cipr?.pass_rate != null ? ', ' + Math.round(cipr.pass_rate * 100) + '% pass' : ''}`,
+    'Has CI workflows': `${s.ci_workflows || 0} workflows`,
+    'Has a license': snapshot.license || '—',
+    'Fewer than 10 open bugs': s.open_bugs != null ? `${s.open_bugs} bugs` : 'unavailable',
+    'Fewer than 20 open issues': `${s.open_issues} issues`,
+    'Release in the last 90 days': s.latest_release !== 'none' ? s.latest_release : '—',
+    'Community health above 80%': cp ? `${cp.health_percentage}%` : '—',
+    'Community health above 50%': cp ? `${cp.health_percentage}%` : '—',
+    'Security scanning configured': [da && 'Dependabot', cs && 'Code Scanning', ss && 'Secret Scanning'].filter(Boolean).join(' + ') || 'none',
+    'Zero critical/high security findings': [da && `${da.count} vuln`, cs && `${cs.count} code`, ss && `${ss.count} secret`].filter(Boolean).join(', ') || '—',
+    'Activity in the last 6 months': snapshot.pushed_at ? `pushed ${Math.floor((Date.now() - new Date(snapshot.pushed_at).getTime()) / 86400000)}d ago` : '—',
+    'Some activity (within 1 year)': snapshot.pushed_at ? `pushed ${Math.floor((Date.now() - new Date(snapshot.pushed_at).getTime()) / 86400000)}d ago` : '—',
+  };
+
+  const prTriageHtml = (buildPRTriageSection(openPRs, snapshot.repository) || '').replace(/<h2>/g, '<h3>').replace(/<\/h2>/g, '</h3>');
+  const stalenessHtml = (buildStalenessSection(snapshot) || '').replace(/<h2>/g, '<h3>').replace(/<\/h2>/g, '</h3>');
+  const openWorkHtml = prTriageHtml || stalenessHtml
+    ? `<h2>Open Work</h2>${prTriageHtml}${stalenessHtml}`
+    : '<h2>Open Work</h2><p style="color:#8b949e;font-size:0.9rem">No open work</p>';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -704,41 +718,34 @@ ${CSS}
 </head>
 <body>
 <h1><a href="https://github.com/${snapshot.repository}" class="repo-link">${snapshot.repository} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
-<div class="subtitle">Project Health Report — ${now} — <a href="index.html">portfolio view</a> — <a href="digest.html">weekly digest</a></div>
+<div class="subtitle">${fmt(snapshot.meta?.stars)} stars · ${fmt(snapshot.meta?.forks)} forks · ${fmt(snapshot.meta?.watchers)} watchers — ${now} — <a href="index.html">portfolio</a> — <a href="digest.html">digest</a></div>
 <div class="grid">
-  <div class="card"><h3>Stars</h3><div class="stat">${fmt(snapshot.meta?.stars)}</div><div class="stat-label">${snapshot.meta?.forks} forks, ${snapshot.meta?.watchers} watchers</div></div>
   <div class="card"><h3>Open Issues</h3><div class="stat">${s.open_issues}</div><div class="stat-label">${s.blocked_issues} blocked, ${s.awaiting_feedback} awaiting feedback</div></div>
   <div class="card"><h3>PRs Merged (90d)</h3><div class="stat">${s.recently_merged_prs}</div><div class="stat-label">${s.human_prs} human, ${s.bot_prs} bot</div></div>
   <div class="card"><h3>Releases</h3><div class="stat">${s.releases}</div><div class="stat-label">Latest: ${s.latest_release}</div></div>
 </div>
 ${buildActionabilitySection(snapshot, openPRs)}
-${buildHealthTierSection(snapshot, config)}
+${buildHealthTierSection(snapshot, config, healthData)}
 ${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
-${buildHealthSection(snapshot, depSummary, libyear)}
-${buildPRTriageSection(openPRs, snapshot.repository)}
-${buildStalenessSection(snapshot)}
-<h2>Development Velocity</h2>
+${trendsHtml}
+${openWorkHtml}
+<details><summary>Activity History</summary>
 ${buildCycleTimeCard(cycleTime)}
 <div class="chart-container"><div class="chart-title">Merged PRs per Month</div><canvas id="prChart"></canvas></div>
 <div class="chart-container"><div class="chart-title">Issues Opened vs Closed per Month</div><canvas id="issueChart"></canvas></div>
 <h2>Release Cadence</h2>
 <div class="chart-container"><div class="chart-title">Days Between Releases</div><canvas id="releaseChart"></canvas></div>
 ${buildCalendarHeatmap(weeklyCommits)}
+</details>
+<details><summary>Community</summary>
 ${buildContributorCard(prAuthors, snapshot.meta?.stars || 0)}
-<h2>Contribution & Issues</h2>
-<div class="two-col">
-  <div class="chart-container"><div class="chart-title">PR Authors (90d)</div><canvas id="authorChart"></canvas></div>
-  <div class="chart-container"><div class="chart-title">Open Issues by Label</div><canvas id="labelChart"></canvas></div>
-</div>
-${trendsHtml}
+</details>
 <div class="footer">Generated by <a href="https://github.com/IsmaelMartinez/repo-butler">repo-butler</a>${dashboardUrl ? ` — <a href="${dashboardUrl}">live triage dashboard</a>` : ''}</div>
 <script>
 Chart.defaults.color='#8b949e';Chart.defaults.borderColor='#21262d';Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,monospace';
 new Chart(document.getElementById('prChart'),{type:'bar',data:{labels:[${prMonths}],datasets:[{label:'Merged PRs',data:[${prCounts}],backgroundColor:'rgba(56,139,253,0.7)',borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#21262d'}},x:{grid:{display:false}}}}});
 new Chart(document.getElementById('issueChart'),{type:'line',data:{labels:[${issueMonths}],datasets:[{label:'Opened',data:[${issueOpened}],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,0.1)',fill:true,tension:0.3,pointRadius:4},{label:'Closed',data:[${issueClosed}],borderColor:'#7ee787',backgroundColor:'rgba(126,231,135,0.1)',fill:true,tension:0.3,pointRadius:4}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,grid:{color:'#21262d'}},x:{grid:{display:false}}}}});
-new Chart(document.getElementById('releaseChart'),{type:'bar',data:{labels:[${relData.map(r => `'${r.tag}'`).join(',')}],datasets:[{label:'Days',data:[${relDays.join(',')}],backgroundColor:'rgba(126,231,135,0.7)',borderRadius:3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#21262d'},title:{display:true,text:'Days'}},x:{ticks:{maxRotation:45},grid:{display:false}}}}});
-new Chart(document.getElementById('authorChart'),{type:'doughnut',data:{labels:['${maintainer?.author||"maintainer"}','Bots','Community'],datasets:[{data:[${maintainer?.count||0},${botPRs},${communityPRs}],backgroundColor:['rgba(56,139,253,0.8)','rgba(139,148,158,0.6)','rgba(126,231,135,0.7)'],borderColor:'#161b22',borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
-new Chart(document.getElementById('labelChart'),{type:'bar',data:{labels:[${labelNames}],datasets:[{data:[${labelCounts}],backgroundColor:[${labelColors}],borderRadius:4}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:'#21262d'}},y:{grid:{display:false}}}}});${trendsJs}
+new Chart(document.getElementById('releaseChart'),{type:'bar',data:{labels:[${relData.map(r => `'${r.tag}'`).join(',')}],datasets:[{label:'Days',data:[${relDays.join(',')}],backgroundColor:'rgba(126,231,135,0.7)',borderRadius:3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#21262d'},title:{display:true,text:'Days'}},x:{ticks:{maxRotation:45},grid:{display:false}}}}});${trendsJs}
 </script></body></html>`;
 }
 

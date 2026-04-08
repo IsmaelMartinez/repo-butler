@@ -25,12 +25,13 @@ import {
   fetchPortfolioDetails, analyzeDependencyInventory,
   generatePortfolioReport, generateDigestReport,
   generateSparklineSVG, buildCampaignSection,
+  buildPortfolioAttentionSection,
 } from './report-portfolio.js';
 
 // Re-export everything that tests and other modules need from report.js
 export { generateHealthBadge, computeHealthTier } from './report-shared.js';
 export { buildActionItems, computeContributorStats } from './report-repo.js';
-export { generateSparklineSVG, buildCampaignSection, generateDigestReport } from './report-portfolio.js';
+export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection } from './report-portfolio.js';
 
 export async function report(context) {
   const { owner, token, config, store } = context;
@@ -149,6 +150,7 @@ export async function report(context) {
           sbom: details?.sbom || null,
           summary: {
             open_issues: openIssues.length,
+            open_bugs: details?.open_bugs ?? null,
             blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
             awaiting_feedback: openIssues.filter(i => i.labels.some(l => l.name.includes('feedback'))).length,
             recently_merged_prs: prActivity.reduce((s, m) => s + m.count, 0),

@@ -53,4 +53,8 @@ a{color:#58a6ff;text-decoration:none}
 .campaign-repos{font-size:0.75rem;color:#8b949e}
 .campaign-repos a{margin-right:0.4rem}
 @media(max-width:900px){.two-col,.three-col,.campaign-grid{grid-template-columns:1fr}}
+details{margin-bottom:1.5rem}
+details summary{cursor:pointer;color:#58a6ff;font-size:1rem;font-weight:600;padding:0.5rem 0;user-select:none}
+details summary:hover{color:#79c0ff}
+details[open] summary{margin-bottom:1rem}
 </style>`;
