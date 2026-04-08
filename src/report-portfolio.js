@@ -561,7 +561,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     return `<tr>
       <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td>
-      <td><span style="color:${bugsColor}">${openBugs}</span></td>
+      <td><span style="color:${bugsColor}">${openBugs}</span>${r.open_issues && r.open_issues > openBugs ? ` <span style="color:#6e7681;font-size:0.8em">(${r.open_issues})</span>` : ''}</td>
       <td>${ciDisplay}</td>
       <td>${vulnDisplay}</td>
       <td>${nextStep}</td></tr>`;
@@ -622,7 +622,7 @@ ${pulseSection}
 ${buildPortfolioAttentionSection(classified, details, owner, config)}
 <h2>Portfolio Health</h2>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Tier</th><th>Bugs</th><th>CI%</th><th>Vulns</th><th>Next Step</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Tier</th><th>Bugs <span style="color:#6e7681;font-weight:400;font-size:0.85em">(issues)</span></th><th>CI%</th><th>Vulns</th><th>Next Step</th></tr></thead>
 <tbody>${simplifiedRows}</tbody></table>
 </div>
 <details><summary>Show all columns (${classified.length} repos)</summary>
