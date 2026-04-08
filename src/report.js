@@ -153,7 +153,7 @@ export async function report(context) {
             open_bugs: details?.open_bugs ?? null,
             blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
             awaiting_feedback: openIssues.filter(i => i.labels.some(l => l.name.includes('feedback'))).length,
-            recently_merged_prs: prActivity.reduce((s, m) => s + m.count, 0),
+            recently_merged_prs: prAuthors.reduce((s, a) => s + a.count, 0),
             human_prs: prAuthors.filter(a => !isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0),
             bot_prs: prAuthors.filter(a => isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0),
             releases: releases.length,
