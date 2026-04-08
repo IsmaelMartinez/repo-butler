@@ -1,8 +1,31 @@
 {
+  "betis-escocia": {
+    "open_issues": 0,
+    "open_bugs": 0,
+    "commits_6mo": 158,
+    "stars": 1,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.76,
+    "vulns": {
+      "count": 1,
+      "max_severity": "low"
+    },
+    "codeScanning": {
+      "count": 0,
+      "max_severity": null
+    },
+    "secretScanning": {
+      "count": 0
+    },
+    "ci": 6,
+    "released_at": "2026-04-04T14:32:15Z",
+    "pushed_at": "2026-04-08T21:08:48Z"
+  },
   "repo-butler": {
     "open_issues": 0,
     "open_bugs": 0,
-    "commits_6mo": 179,
+    "commits_6mo": 181,
     "stars": 3,
     "license": "MIT",
     "communityHealth": 85,
@@ -17,16 +40,36 @@
     },
     "ci": 4,
     "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-08T20:24:03Z"
+    "pushed_at": "2026-04-08T21:04:58Z"
+  },
+  "ismaelmartinez.me.uk": {
+    "open_issues": 1,
+    "open_bugs": 0,
+    "commits_6mo": 73,
+    "stars": 0,
+    "license": "MIT",
+    "communityHealth": 85,
+    "ciPassRate": 0.95,
+    "vulns": {
+      "count": 2,
+      "max_severity": "high"
+    },
+    "codeScanning": null,
+    "secretScanning": {
+      "count": 0
+    },
+    "ci": 6,
+    "released_at": "2026-04-04T14:32:15Z",
+    "pushed_at": "2026-04-08T20:46:04Z"
   },
   "teams-for-linux": {
     "open_issues": 13,
     "open_bugs": 7,
     "commits_6mo": 352,
-    "stars": 4564,
+    "stars": 4565,
     "license": "GPL-3.0",
     "communityHealth": 85,
-    "ciPassRate": 0.9538461538461539,
+    "ciPassRate": 0.9516129032258065,
     "vulns": {
       "count": 0,
       "max_severity": null
@@ -167,26 +210,6 @@
     "released_at": "2026-04-04T14:32:15Z",
     "pushed_at": "2026-04-07T10:08:34Z"
   },
-  "ismaelmartinez.me.uk": {
-    "open_issues": 1,
-    "open_bugs": 0,
-    "commits_6mo": 72,
-    "stars": 0,
-    "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": 0.95,
-    "vulns": {
-      "count": 2,
-      "max_severity": "high"
-    },
-    "codeScanning": null,
-    "secretScanning": {
-      "count": 0
-    },
-    "ci": 6,
-    "released_at": "2026-04-04T14:32:15Z",
-    "pushed_at": "2026-04-07T10:08:18Z"
-  },
   "ai-model-advisor": {
     "open_issues": 0,
     "open_bugs": 0,
@@ -226,29 +249,6 @@
     "ci": 2,
     "released_at": "2026-04-07T07:04:50Z",
     "pushed_at": "2026-04-07T07:04:50Z"
-  },
-  "betis-escocia": {
-    "open_issues": 0,
-    "open_bugs": 0,
-    "commits_6mo": 155,
-    "stars": 1,
-    "license": "MIT",
-    "communityHealth": 85,
-    "ciPassRate": 0.78,
-    "vulns": {
-      "count": 2,
-      "max_severity": "high"
-    },
-    "codeScanning": {
-      "count": 0,
-      "max_severity": null
-    },
-    "secretScanning": {
-      "count": 0
-    },
-    "ci": 6,
-    "released_at": "2026-04-04T14:32:15Z",
-    "pushed_at": "2026-04-06T20:12:07Z"
   },
   "wifisentinel": {
     "open_issues": 0,
