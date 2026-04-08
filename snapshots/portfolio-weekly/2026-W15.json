@@ -2,7 +2,7 @@
   "repo-butler": {
     "open_issues": 0,
     "open_bugs": 0,
-    "commits_6mo": 173,
+    "commits_6mo": 174,
     "stars": 2,
     "license": "MIT",
     "communityHealth": 85,
@@ -17,16 +17,39 @@
     },
     "ci": 4,
     "released_at": "2026-03-31T22:55:25Z",
-    "pushed_at": "2026-04-07T23:30:12Z"
+    "pushed_at": "2026-04-08T06:39:52Z"
+  },
+  "teams-for-linux": {
+    "open_issues": 11,
+    "open_bugs": 6,
+    "commits_6mo": 350,
+    "stars": 4562,
+    "license": "GPL-3.0",
+    "communityHealth": 85,
+    "ciPassRate": 0.9696969696969697,
+    "vulns": {
+      "count": 0,
+      "max_severity": null
+    },
+    "codeScanning": {
+      "count": 0,
+      "max_severity": null
+    },
+    "secretScanning": {
+      "count": 0
+    },
+    "ci": 14,
+    "released_at": "2026-04-06T08:21:53Z",
+    "pushed_at": "2026-04-08T06:38:56Z"
   },
   "votescot": {
     "open_issues": 0,
     "open_bugs": 0,
-    "commits_6mo": 68,
+    "commits_6mo": 69,
     "stars": 0,
     "license": "MIT",
     "communityHealth": 100,
-    "ciPassRate": 0.9101123595505618,
+    "ciPassRate": 0.9120879120879121,
     "vulns": {
       "count": 0,
       "max_severity": null
@@ -37,7 +60,7 @@
     },
     "ci": 7,
     "released_at": "2026-04-05T23:25:44Z",
-    "pushed_at": "2026-04-07T23:26:25Z"
+    "pushed_at": "2026-04-08T06:32:28Z"
   },
   "local-brain": {
     "open_issues": 0,
@@ -61,29 +84,6 @@
     "ci": 5,
     "released_at": "2026-01-10T10:13:32Z",
     "pushed_at": "2026-04-07T22:48:17Z"
-  },
-  "teams-for-linux": {
-    "open_issues": 0,
-    "open_bugs": 0,
-    "commits_6mo": 350,
-    "stars": 4562,
-    "license": "GPL-3.0",
-    "communityHealth": 85,
-    "ciPassRate": 0.967741935483871,
-    "vulns": {
-      "count": 0,
-      "max_severity": null
-    },
-    "codeScanning": {
-      "count": 0,
-      "max_severity": null
-    },
-    "secretScanning": {
-      "count": 0
-    },
-    "ci": 14,
-    "released_at": "2026-04-06T08:21:53Z",
-    "pushed_at": "2026-04-07T21:56:58Z"
   },
   "sound3fy": {
     "open_issues": 0,
@@ -168,7 +168,7 @@
     "pushed_at": "2026-04-07T10:08:34Z"
   },
   "ismaelmartinez.me.uk": {
-    "open_issues": 0,
+    "open_issues": 1,
     "open_bugs": 0,
     "commits_6mo": 72,
     "stars": 0,
