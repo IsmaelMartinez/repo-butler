@@ -205,10 +205,11 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
           const filtered = issues.filter(i => !i.pull_request);
           // If paginated list returned 0 but the repo listing says there are issues,
           // the token likely lacks issues:read — fall back to the repo count.
-          const total = filtered.length === 0 && (r.open_issues || 0) > 0
-            ? r.open_issues
-            : filtered.length;
-          return { total, bugs: filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length };
+          const isFallback = filtered.length === 0 && (r.open_issues || 0) > 0;
+          return {
+            total: isFallback ? r.open_issues : filtered.length,
+            bugs: isFallback ? null : filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length,
+          };
         })
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
