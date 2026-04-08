@@ -691,7 +691,7 @@ new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${tr
     'Has CI workflows (2+)': `${s.ci_workflows || 0} workflows${cipr?.pass_rate != null ? ', ' + Math.round(cipr.pass_rate * 100) + '% pass' : ''}`,
     'Has CI workflows': `${s.ci_workflows || 0} workflows`,
     'Has a license': snapshot.license || '—',
-    'Fewer than 10 open bugs': `${s.open_bugs ?? s.open_issues} ${s.open_bugs != null ? 'bugs' : 'issues'}`,
+    'Fewer than 10 open bugs': s.open_bugs != null ? `${s.open_bugs} bugs` : 'unavailable',
     'Fewer than 20 open issues': `${s.open_issues} issues`,
     'Release in the last 90 days': s.latest_release !== 'none' ? s.latest_release : '—',
     'Community health above 80%': cp ? `${cp.health_percentage}%` : '—',

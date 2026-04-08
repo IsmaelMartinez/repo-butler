@@ -150,6 +150,7 @@ export async function report(context) {
           sbom: details?.sbom || null,
           summary: {
             open_issues: openIssues.length,
+            open_bugs: details?.open_bugs ?? null,
             blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
             awaiting_feedback: openIssues.filter(i => i.labels.some(l => l.name.includes('feedback'))).length,
             recently_merged_prs: prActivity.reduce((s, m) => s + m.count, 0),
