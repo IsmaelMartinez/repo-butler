@@ -1,0 +1,58 @@
+name: Repo Butler Monitor
+
+# Continuous monitoring: runs on events and every 15 minutes.
+# Detects new threats, issues, PRs, security alerts, and CI failures.
+# Events are triaged by the agent council (product, dev, stability, maintainability, security).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'    # Every 15 minutes
+  issues:
+    types: [opened, labeled]
+  pull_request:
+    types: [opened, labeled, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      council-mode:
+        description: 'Council deliberation mode (quick or full)'
+        required: false
+        default: 'quick'
+
+permissions:
+  issues: read
+  pull-requests: read
+  contents: write
+  security-events: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    # Limit concurrency so only one monitor runs at a time.
+    concurrency:
+      group: repo-butler-monitor
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Run Monitor + Council Triage
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          INPUT_PHASE: monitor
+          INPUT_CONFIG_PATH: .github/roadmap.yml
+          INPUT_DRY_RUN: 'true'
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          COUNCIL_MODE: ${{ github.event.inputs.council-mode || 'quick' }}
+        run: node src/index.js --phase=monitor

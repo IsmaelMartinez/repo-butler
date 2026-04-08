@@ -154,9 +154,29 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        phase: { type: 'string', enum: ['report', 'all'], default: 'report', description: 'Pipeline phase to run. "report" regenerates dashboards only, "all" runs the full pipeline.' },
+        phase: { type: 'string', enum: ['report', 'all', 'monitor'], default: 'report', description: 'Pipeline phase to run. "report" regenerates dashboards only, "all" runs the full pipeline, "monitor" runs continuous event detection.' },
       },
     },
+  },
+  {
+    name: 'get_monitor_events',
+    description: 'Get the latest monitor events — new threats, issues, PRs, security alerts, and CI failures detected since the last monitor run.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        min_severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low', 'info'], default: 'low', description: 'Minimum severity threshold for events.' },
+      },
+    },
+  },
+  {
+    name: 'get_watchlist',
+    description: 'Get items the agent council placed on the watchlist for later re-evaluation. These are events or proposals that need more evidence before action.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_council_personas',
+    description: 'Get the agent council personas and their roles. Useful for understanding which perspectives evaluate events and proposals.',
+    inputSchema: { type: 'object', properties: {} },
   },
 ];
 
@@ -178,6 +198,15 @@ function callTool(name, args) {
   }
   if (name === 'trigger_refresh') {
     return toolTriggerRefresh(args?.phase || 'report');
+  }
+  if (name === 'get_monitor_events') {
+    return toolGetMonitorEvents(args?.min_severity || 'low');
+  }
+  if (name === 'get_watchlist') {
+    return toolGetWatchlist();
+  }
+  if (name === 'get_council_personas') {
+    return toolGetCouncilPersonas();
   }
   return null;
 }
@@ -288,9 +317,9 @@ function getRepoSlug() {
 }
 
 function toolTriggerRefresh(phase) {
-  const validPhases = ['report', 'all'];
+  const validPhases = ['report', 'all', 'monitor'];
   if (!validPhases.includes(phase)) {
-    return { error: `Invalid phase "${phase}". Use "report" or "all".` };
+    return { error: `Invalid phase "${phase}". Use "report", "all", or "monitor".` };
   }
 
   const repo = getRepoSlug();
@@ -320,6 +349,69 @@ function toolTriggerRefresh(phase) {
       hint: 'Ensure the gh CLI is installed and authenticated.',
     };
   }
+}
+
+function toolGetMonitorEvents(minSeverity) {
+  const raw = loadFromDataBranch('snapshots/monitor-cursor.json');
+  if (!raw) return { events: [], message: 'No monitor data available — run the monitor phase first.' };
+
+  try {
+    const cursor = JSON.parse(raw);
+    const SEVERITY = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+    const threshold = SEVERITY[minSeverity] || 0;
+
+    return {
+      last_run: cursor.timestamp,
+      repository: cursor.repository,
+      total_events: cursor.last_event_count || 0,
+      known_issues: cursor.known_issue_numbers?.length || 0,
+      known_prs: cursor.known_pr_numbers?.length || 0,
+      known_security_alerts: (cursor.known_dependabot_alerts?.length || 0)
+        + (cursor.known_code_scanning_alerts?.length || 0)
+        + (cursor.known_secret_scanning_alerts?.length || 0),
+      filter: minSeverity,
+    };
+  } catch {
+    return { events: [], error: 'Failed to parse monitor data.' };
+  }
+}
+
+function toolGetWatchlist() {
+  const raw = loadFromDataBranch('snapshots/watchlist.json');
+  if (!raw) return { items: [], message: 'No watchlist items — council has not placed any items on watch.' };
+
+  try {
+    const items = JSON.parse(raw);
+    return {
+      total: items.length,
+      items: items.map(i => ({
+        title: i.title,
+        type: i.type,
+        severity: i.severity,
+        added_at: i.added_at,
+        review_count: i.review_count || 0,
+        council_summary: i.council_summary,
+      })),
+    };
+  } catch {
+    return { items: [], error: 'Failed to parse watchlist.' };
+  }
+}
+
+function toolGetCouncilPersonas() {
+  // Import-free — hardcode to avoid dynamic import in sync context.
+  return {
+    description: 'The agent council evaluates events and proposals from five specialist perspectives before deciding to act, watch, or dismiss.',
+    personas: [
+      { name: 'Product', role: 'Product Manager', focus: 'user value, feature priorities, roadmap alignment, community impact' },
+      { name: 'Development', role: 'Lead Developer', focus: 'implementation complexity, technical debt, code quality, developer experience' },
+      { name: 'Stability', role: 'SRE / Reliability Engineer', focus: 'system reliability, CI health, deployment risk, incident prevention' },
+      { name: 'Maintainability', role: 'Architecture Reviewer', focus: 'long-term maintenance burden, documentation, dependency management, bus factor' },
+      { name: 'Security', role: 'Security Engineer', focus: 'vulnerability impact, attack surface, data exposure, compliance' },
+    ],
+    verdicts: ['act (take action now)', 'watch (re-evaluate later)', 'dismiss (no action needed)'],
+    modes: ['quick (single LLM call, all perspectives)', 'full (separate call per agent + synthesis)'],
+  };
 }
 
 // --- Portfolio computation helpers ---

@@ -127,7 +127,7 @@ describe('MCP server', async () => {
       assert.equal(responses.length, 1);
       const tools = responses[0].result.tools;
       assert.ok(Array.isArray(tools));
-      assert.equal(tools.length, 6);
+      assert.equal(tools.length, 9);
 
       const names = tools.map(t => t.name);
       assert.ok(names.includes('get_health_tier'));
@@ -136,6 +136,9 @@ describe('MCP server', async () => {
       assert.ok(names.includes('get_snapshot_diff'));
       assert.ok(names.includes('get_governance_findings'));
       assert.ok(names.includes('trigger_refresh'));
+      assert.ok(names.includes('get_monitor_events'));
+      assert.ok(names.includes('get_watchlist'));
+      assert.ok(names.includes('get_council_personas'));
 
       // Every tool must have an inputSchema.
       for (const tool of tools) {

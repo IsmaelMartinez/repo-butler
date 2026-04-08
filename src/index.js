@@ -9,8 +9,10 @@ import { createStore } from './store.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ClaudeProvider } from './providers/claude.js';
 import { createTriageBotClient } from './triage-bot.js';
+import { monitor } from './monitor.js';
+import { reviewProposals, triageEvents } from './council.js';
 
-const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report'];
+const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report', 'monitor'];
 
 export function validateRepoFormat(repo) {
   if (!repo.includes('/')) {
@@ -59,7 +61,7 @@ async function main() {
   const deepProvider = providers[config.providers?.deep] || providers.claude || defaultProvider;
 
   // Validate LLM provider early if LLM phases will run.
-  const llmPhases = ['assess', 'update', 'ideate'];
+  const llmPhases = ['assess', 'update', 'ideate', 'monitor'];
   const phasesToRun = phase === 'all' ? PHASES : [phase];
   const needsLLM = phasesToRun.some(p => llmPhases.includes(p));
 
@@ -179,6 +181,18 @@ async function main() {
         const result = await ideate(context);
         context.ideas = result?.ideas || [];
 
+        // Run council deliberation on proposals if enabled.
+        if (context.ideas.length > 0 && config.council?.enabled !== false && deepProvider) {
+          console.log('\n--- Council Deliberation ---\n');
+          context.provider = deepProvider;
+          const councilResult = await reviewProposals(context, context.ideas);
+          context.councilResult = councilResult;
+          // Replace ideas with only the council-approved ones.
+          context.ideas = councilResult.approved;
+          context.watchlist = councilResult.watchlist;
+          console.log(`Council: ${councilResult.approved.length} approved, ${councilResult.watchlist.length} watchlisted, ${councilResult.dismissed.length} dismissed.`);
+        }
+
         // Persist governance findings for MCP consumption.
         if (context.governanceFindings?.length > 0 && store) {
           await store.writeGovernanceFindings(context.governanceFindings);
@@ -195,6 +209,21 @@ async function main() {
       case 'report': {
         const result = await report(context);
         context.reportResult = result;
+        break;
+      }
+
+      case 'monitor': {
+        // Continuous monitoring: detect new events since last check.
+        const monitorResult = await monitor(context);
+        context.monitorEvents = monitorResult.events;
+
+        // Run council triage on detected events if LLM is available.
+        if (monitorResult.events.length > 0 && deepProvider) {
+          context.provider = deepProvider;
+          const triage = await triageEvents(context, monitorResult.events);
+          context.triageResult = triage;
+          console.log(`Monitor triage: ${triage.actionable.length} actionable, ${triage.watch.length} watching, ${triage.dismissed.length} dismissed.`);
+        }
         break;
       }
 
