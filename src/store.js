@@ -10,7 +10,8 @@ const GOVERNANCE_PATH = 'snapshots/governance.json';
 
 export function computeSnapshotHash(snapshot) {
   const summary = snapshot?.summary ?? null;
-  const data = JSON.stringify(summary);
+  const templateVersion = snapshot?._templateVersion ?? '';
+  const data = JSON.stringify(summary) + templateVersion;
   return createHash('sha256').update(data).digest('hex');
 }
 

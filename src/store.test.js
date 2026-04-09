@@ -45,6 +45,20 @@ describe('computeSnapshotHash', () => {
     const b = computeSnapshotHash({ summary: { open_issues: 5 }, timestamp: '2026-03-20' });
     assert.equal(a, b);
   });
+
+  it('produces different hashes when templateVersion differs', () => {
+    const snapshot = { summary: { open_issues: 5 } };
+    const a = computeSnapshotHash({ ...snapshot, _templateVersion: 'abc123' });
+    const b = computeSnapshotHash({ ...snapshot, _templateVersion: 'def456' });
+    assert.notEqual(a, b);
+  });
+
+  it('is backward compatible when no templateVersion provided', () => {
+    const snapshot = { summary: { open_issues: 5 } };
+    const withoutVersion = computeSnapshotHash(snapshot);
+    const withEmptyVersion = computeSnapshotHash({ ...snapshot, _templateVersion: '' });
+    assert.equal(withoutVersion, withEmptyVersion);
+  });
 });
 
 describe('enrichPortfolioSummary', () => {

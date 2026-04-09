@@ -11,6 +11,8 @@ import { createClient } from './github.js';
 import { observe, observePortfolio, computeBusFactor, computeTimeToCloseMedian } from './observe.js';
 import { computeSnapshotHash } from './store.js';
 import { computeTrends } from './assess.js';
+import { readFile as fsReadFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -44,11 +46,16 @@ export async function report(context) {
     context.portfolio = await observePortfolio(context);
   }
 
+  // Compute template version hash so presentation changes invalidate cache.
+  const templateFiles = ['src/report-portfolio.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js'];
+  const templateContents = await Promise.all(templateFiles.map(f => fsReadFile(f, 'utf8').catch(() => '')));
+  const templateVersion = createHash('sha256').update(templateContents.join('')).digest('hex').slice(0, 12);
+
   // Cache check: skip regeneration if snapshot hasn't changed.
   // Include today's date so the cache expires daily (libyear and other
   // dynamic data like npm registry lookups need periodic refresh).
   const dateBucket = new Date().toISOString().slice(0, 10);
-  const currentHash = store ? computeSnapshotHash({ ...context.snapshot, _dateBucket: dateBucket }) : null;
+  const currentHash = store ? computeSnapshotHash({ ...context.snapshot, _dateBucket: dateBucket, _templateVersion: templateVersion }) : null;
   if (store && !context.forceReport) {
     const lastHash = await store.readLastHash();
     if (currentHash === lastHash) {
