@@ -224,13 +224,14 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
 
   await Promise.all(fetches);
 
-  // Compute libyear freshness sequentially (one repo at a time) to avoid
-  // fanning out concurrent npm registry requests across all repos.
-  for (const r of activeRepos.slice(0, 15)) {
-    const sbom = details[r.name]?.sbom;
-    if (sbom) {
-      details[r.name].libyear = await computeLibyearWithTimeout(sbom.packages, 5000);
-    }
+  // Compute libyear freshness in batches of 4 to balance speed vs npm registry load.
+  const LIBYEAR_BATCH_SIZE = 4;
+  const libyearRepos = activeRepos.slice(0, 15).filter(r => details[r.name]?.sbom);
+  for (let i = 0; i < libyearRepos.length; i += LIBYEAR_BATCH_SIZE) {
+    const batch = libyearRepos.slice(i, i + LIBYEAR_BATCH_SIZE);
+    await Promise.all(batch.map(async (r) => {
+      details[r.name].libyear = await computeLibyearWithTimeout(details[r.name].sbom.packages, 5000);
+    }));
   }
 
   return details;
