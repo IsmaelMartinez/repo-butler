@@ -10,8 +10,9 @@ const GOVERNANCE_PATH = 'snapshots/governance.json';
 
 export function computeSnapshotHash(snapshot) {
   const summary = snapshot?.summary ?? null;
+  const dateBucket = snapshot?._dateBucket ?? '';
   const templateVersion = snapshot?._templateVersion ?? '';
-  const data = JSON.stringify(summary) + templateVersion;
+  const data = JSON.stringify(summary) + dateBucket + templateVersion;
   return createHash('sha256').update(data).digest('hex');
 }
 
@@ -286,7 +287,8 @@ export function createStore(context) {
         if (!content) return null;
         try {
           const parsed = JSON.parse(content);
-          const repoData = parsed[repoName];
+          // Support both v1 envelope ({ schema_version, repos }) and legacy flat format.
+          const repoData = parsed.repos?.[repoName] ?? parsed[repoName];
           if (!repoData) return null;
           return {
             _week: file.replace('.json', ''),

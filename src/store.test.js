@@ -59,6 +59,13 @@ describe('computeSnapshotHash', () => {
     const withEmptyVersion = computeSnapshotHash({ ...snapshot, _templateVersion: '' });
     assert.equal(withoutVersion, withEmptyVersion);
   });
+
+  it('produces different hashes when dateBucket differs', () => {
+    const snapshot = { summary: { open_issues: 5 } };
+    const a = computeSnapshotHash({ ...snapshot, _dateBucket: '2026-04-08' });
+    const b = computeSnapshotHash({ ...snapshot, _dateBucket: '2026-04-09' });
+    assert.notEqual(a, b);
+  });
 });
 
 describe('enrichPortfolioSummary', () => {
