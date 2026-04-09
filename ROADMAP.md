@@ -94,15 +94,17 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 ## Next Up
 
-### Dashboard Narrative Restructure
+### ~~Dashboard Narrative Restructure~~ SHIPPED
 
-Spec at `docs/superpowers/specs/2026-04-07-dashboard-narrative-restructure-design.md`. Identified by a multi-persona review (portfolio owner, data analyst, UX specialist, narrative consultant) as the highest-impact improvement. The dashboards currently dump data without narrative flow — vanity metrics first, actionable information buried or scattered. The restructure follows a situation-problem-action arc where a reader gets value proportional to time spent.
+Shipped 2026-04-08 (PRs #93–#100). Restructured both portfolio and per-repo dashboards from data dumps into narrative decision tools following a situation-problem-action arc. Portfolio page: tier distribution pulse, attention required section, simplified health table (Repo, Tier, Issues, PRs, CI%, Vulns, Next Step) with full view behind toggle, collapsible charts and dependency inventory, doughnut charts removed. Per-repo page: health grid merged into tier checklist with inline annotations, trends moved up, Open Work section, collapsible Activity History and Community. Also fixed PRs Merged (90d) data consistency, added issues:read to the GitHub App, and added open PRs column.
 
-Portfolio page: replace vanity stat cards with a tier distribution pulse, add a portfolio-level "Attention Required" section aggregating top action items across all repos, simplify the health table from 13 to 6 columns with full view behind a toggle, collapse dependency inventory and activity charts behind `<details>` elements, remove distribution doughnut charts entirely.
+### Astro Integration + Dynamic Dashboards
 
-Per-repo page: keep the strong top section (actions + tier), move trends up to position 4 for context, merge the 9-card health grid into the tier checklist (eliminates duplication), group PR/issue triage under "Open Work", collapse velocity charts and contributors behind collapsible sections.
+Research at `docs/research/2026-04-08-dynamic-dashboard-research.md`. Repo-butler continues as the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The presentation layer moves into the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load.
 
-Presentation-only refactor — no changes to data collection, tier logic, or pipeline phases. Changes are in `report-portfolio.js`, `report-repo.js`, and `report-styles.js`.
+Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).
+
+The Astro components would live in the personal site repo and fetch snapshot data from the `repo-butler-data` branch. The current GitHub Pages reports stay as a standalone fallback until the Astro integration is stable.
 
 ---
 

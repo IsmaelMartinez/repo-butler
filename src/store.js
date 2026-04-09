@@ -3,13 +3,16 @@
 
 import { createClient } from './github.js';
 import { createHash } from 'node:crypto';
+import { computeHealthTier, isReleaseExempt } from './report-shared.js';
 
 const HASH_PATH = 'snapshots/hash.txt';
 const GOVERNANCE_PATH = 'snapshots/governance.json';
 
 export function computeSnapshotHash(snapshot) {
   const summary = snapshot?.summary ?? null;
-  const data = JSON.stringify(summary);
+  const dateBucket = snapshot?._dateBucket ?? '';
+  const templateVersion = snapshot?._templateVersion ?? '';
+  const data = JSON.stringify(summary) + dateBucket + templateVersion;
   return createHash('sha256').update(data).digest('hex');
 }
 
@@ -19,6 +22,47 @@ const PREVIOUS_PATH = 'snapshots/previous.json';
 const WEEKLY_DIR = 'snapshots/weekly';
 const PORTFOLIO_WEEKLY_DIR = 'snapshots/portfolio-weekly';
 const MAX_WEEKLY_SNAPSHOTS = 12;
+
+export function enrichPortfolioSummary(summary, repoName, config) {
+  const { tier, checks } = computeHealthTier(summary, { releaseExempt: isReleaseExempt(repoName, config) });
+  const nextTier = tier === 'none' ? 'bronze' : tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
+  const firstFail = nextTier
+    ? checks.find(c => !c.passed && (c.required_for === nextTier || (nextTier === 'gold' && c.required_for === 'silver')))
+    : null;
+  return {
+    ...summary,
+    computed: {
+      tier,
+      checks: checks.map(c => ({ name: c.name, passed: c.passed, required_for: c.required_for })),
+      next_step: firstFail ? firstFail.name : null,
+    },
+  };
+}
+
+export function buildPortfolioSnapshot(repos, repoDetails, config) {
+  const summaries = {};
+  for (const r of repos) {
+    if (r.archived || r.fork) continue;
+    const details = repoDetails[r.name];
+    const raw = {
+      open_issues: details?.open_issues ?? r.open_issues ?? 0,
+      open_bugs: details?.open_bugs ?? null,
+      commits_6mo: details?.commits || 0,
+      stars: r.stars || 0,
+      license: details?.license ?? null,
+      communityHealth: details?.communityHealth ?? null,
+      ciPassRate: details?.ciPassRate ?? null,
+      vulns: details?.vulns ?? null,
+      codeScanning: details?.codeScanning ?? null,
+      secretScanning: details?.secretScanning ?? null,
+      ci: details?.ci ?? 0,
+      released_at: details?.released_at ?? null,
+      pushed_at: r.pushed_at ?? null,
+    };
+    summaries[r.name] = enrichPortfolioSummary(raw, r.name, config);
+  }
+  return { schema_version: 'v1', repos: summaries };
+}
 
 export function createStore(context) {
   const { owner, repo, token } = context;
@@ -202,35 +246,15 @@ export function createStore(context) {
   }
 
   // Store lightweight weekly summaries for each portfolio repo.
-  async function writePortfolioWeekly(portfolio, repoDetails) {
+  async function writePortfolioWeekly(portfolio, repoDetails, config = {}) {
     if (!portfolio?.repos || !repoDetails) return;
 
     const weekKey = isoWeekKey(new Date());
-    const summaries = {};
-
-    for (const r of portfolio.repos) {
-      if (r.archived || r.fork) continue;
-      const details = repoDetails[r.name];
-      summaries[r.name] = {
-        open_issues: details?.open_issues ?? r.open_issues ?? 0,
-        open_bugs: details?.open_bugs ?? null,
-        commits_6mo: details?.commits || 0,
-        stars: r.stars || 0,
-        license: details?.license ?? null,
-        communityHealth: details?.communityHealth ?? null,
-        ciPassRate: details?.ciPassRate ?? null,
-        vulns: details?.vulns ?? null,
-        codeScanning: details?.codeScanning ?? null,
-        secretScanning: details?.secretScanning ?? null,
-        ci: details?.ci ?? 0,
-        released_at: details?.released_at ?? null,
-        pushed_at: r.pushed_at ?? null,
-      };
-    }
+    const snapshot = buildPortfolioSnapshot(portfolio.repos, repoDetails, config);
 
     const path = `${PORTFOLIO_WEEKLY_DIR}/${weekKey}.json`;
-    await writeFile(path, JSON.stringify(summaries, null, 2));
-    console.log(`Portfolio weekly snapshot saved as ${weekKey} (${Object.keys(summaries).length} repos)`);
+    await writeFile(path, JSON.stringify(snapshot, null, 2));
+    console.log(`Portfolio weekly snapshot saved as ${weekKey} (${Object.keys(snapshot.repos).length} repos)`);
 
     // Prune old portfolio snapshots beyond retention.
     const files = await listBranchDir(PORTFOLIO_WEEKLY_DIR);
@@ -263,7 +287,8 @@ export function createStore(context) {
         if (!content) return null;
         try {
           const parsed = JSON.parse(content);
-          const repoData = parsed[repoName];
+          // Support both v1 envelope ({ schema_version, repos }) and legacy flat format.
+          const repoData = parsed.repos?.[repoName] ?? parsed[repoName];
           if (!repoData) return null;
           return {
             _week: file.replace('.json', ''),
