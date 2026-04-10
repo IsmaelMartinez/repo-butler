@@ -150,7 +150,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning] = await Promise.all([
+    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -216,10 +216,13 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
       gh.request(`/repos/${owner}/${r.name}/secret-scanning/alerts?state=open&per_page=100`)
         .then(alerts => ({ count: Array.isArray(alerts) ? alerts.length : 0 }))
         .catch(() => null),
+      gh.paginate(`/repos/${owner}/${r.name}/pulls`, { params: { state: 'open' }, max: 100 })
+        .then(prs => prs.length)
+        .catch(() => null),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning };
   });
 
   await Promise.all(fetches);
@@ -492,10 +495,8 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
 
   // Classify repos and stash tier to avoid recomputing.
   const classified = repos.map(r => {
-    const apiOpenCount = r.open_issues || 0; // GitHub API count (issues + PRs)
     const merged = { ...r, status: status(r), ...(details[r.name] || {}) };
-    // PR count = API total (issues+PRs) minus filtered issues. Null if no details available.
-    merged._open_prs = details[r.name] ? Math.max(0, apiOpenCount - (merged.open_issues || 0)) : null;
+    merged._open_prs = merged.open_prs ?? null;
     const { tier, checks } = computeHealthTier(merged, { releaseExempt: isReleaseExempt(r.name, config) });
     merged._tier = tier;
     merged._checks = checks;
