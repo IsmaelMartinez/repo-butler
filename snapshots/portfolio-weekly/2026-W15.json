@@ -1,28 +1,25 @@
 {
   "schema_version": "v1",
   "repos": {
-    "bonnie-wee-plot": {
+    "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 387,
-      "stars": 1,
-      "license": "NOASSERTION",
+      "commits_6mo": 183,
+      "stars": 3,
+      "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.82,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "max_severity": null
       },
-      "codeScanning": {
-        "count": 0,
-        "max_severity": null
-      },
+      "codeScanning": null,
       "secretScanning": {
         "count": 0
       },
-      "ci": 5,
-      "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-10T15:30:01Z",
+      "ci": 4,
+      "released_at": "2026-03-31T22:55:25Z",
+      "pushed_at": "2026-04-10T15:35:32Z",
       "computed": {
         "tier": "gold",
         "checks": [
@@ -85,25 +82,28 @@
         "next_step": null
       }
     },
-    "repo-butler": {
+    "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 183,
-      "stars": 3,
-      "license": "MIT",
+      "commits_6mo": 387,
+      "stars": 1,
+      "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 1,
+      "ciPassRate": 0.82,
       "vulns": {
         "count": 0,
         "max_severity": null
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 4,
-      "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-10T15:28:05Z",
+      "ci": 5,
+      "released_at": "2026-04-04T14:32:15Z",
+      "pushed_at": "2026-04-10T15:30:01Z",
       "computed": {
         "tier": "gold",
         "checks": [
@@ -733,13 +733,13 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 16,
-      "open_bugs": 10,
+      "open_issues": 15,
+      "open_bugs": 9,
       "commits_6mo": 352,
       "stars": 4573,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9423076923076923,
+      "ciPassRate": 0.9411764705882353,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -755,7 +755,7 @@
       "released_at": "2026-04-06T08:21:53Z",
       "pushed_at": "2026-04-10T08:57:40Z",
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -769,7 +769,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -813,7 +813,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Fewer than 10 open bugs"
+        "next_step": null
       }
     },
     "generator-atlassian-compass-event-catalog": {
