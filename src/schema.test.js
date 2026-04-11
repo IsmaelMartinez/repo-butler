@@ -222,12 +222,12 @@ describe('portfolio-details schema documents fetchPortfolioDetails shape', () =>
     const repoDetails = schema.$defs.RepoDetails.properties;
 
     // Fields directly assigned at line 173 of src/report-portfolio.js:
-    // { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues, sbom, released_at, hasIssueTemplate, libyear: null }
+    // { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues, sbom, released_at, hasIssueTemplate, libyear: null, traffic }
     // Plus `contributors` added later (documented in schema as optional)
     const expectedFields = [
       'commits', 'weekly', 'license', 'ci', 'communityHealth', 'vulns',
       'ciPassRate', 'open_issues', 'sbom', 'released_at', 'hasIssueTemplate',
-      'libyear', 'contributors', 'codeScanning', 'secretScanning',
+      'libyear', 'contributors', 'codeScanning', 'secretScanning', 'traffic',
     ];
 
     for (const field of expectedFields) {

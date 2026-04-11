@@ -42,6 +42,25 @@ function parseSBOMLicense(concluded, declared) {
   return raw;
 }
 
+// --- Traffic ---
+
+// Fetches the 14-day rolling views and clones summary for a repo.
+// Requires push/administration access on the token. Returns null on 403/404
+// (private fork, wrong scope, etc.) so the rest of the pipeline keeps working.
+// Only the rollup counts are stored — the per-day arrays would bloat weekly
+// snapshots for marginal forecasting value.
+export async function fetchTraffic(gh, owner, repoName) {
+  const [views, clones] = await Promise.all([
+    gh.request(`/repos/${owner}/${repoName}/traffic/views`).catch(() => null),
+    gh.request(`/repos/${owner}/${repoName}/traffic/clones`).catch(() => null),
+  ]);
+  if (!views && !clones) return null;
+  return {
+    views_14d: views ? { count: views.count ?? 0, uniques: views.uniques ?? 0 } : null,
+    clones_14d: clones ? { count: clones.count ?? 0, uniques: clones.uniques ?? 0 } : null,
+  };
+}
+
 const COPYLEFT_LICENSES = new Set([
   'GPL-2.0-only', 'GPL-2.0-or-later', 'GPL-3.0-only', 'GPL-3.0-or-later',
   'AGPL-3.0-only', 'AGPL-3.0-or-later', 'LGPL-2.1-only', 'LGPL-2.1-or-later',
@@ -150,7 +169,7 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
-    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount] = await Promise.all([
+    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -219,10 +238,11 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
       gh.paginate(`/repos/${owner}/${r.name}/pulls`, { params: { state: 'open' }, max: 100 })
         .then(prs => prs.length)
         .catch(() => null),
+      fetchTraffic(gh, owner, r.name),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);

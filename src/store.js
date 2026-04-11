@@ -58,6 +58,7 @@ export function buildPortfolioSnapshot(repos, repoDetails, config) {
       ci: details?.ci ?? 0,
       released_at: details?.released_at ?? null,
       pushed_at: r.pushed_at ?? null,
+      traffic: details?.traffic ?? null,
     };
     summaries[r.name] = enrichPortfolioSummary(raw, r.name, config);
   }
