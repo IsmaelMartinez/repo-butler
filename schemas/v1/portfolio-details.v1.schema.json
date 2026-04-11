@@ -113,6 +113,49 @@
             { "type": "null" }
           ],
           "description": "Secret scanning alert summary from /secret-scanning/alerts; null when unavailable (403/404)"
+        },
+        "traffic": {
+          "oneOf": [
+            { "$ref": "#/$defs/TrafficSummary" },
+            { "type": "null" }
+          ],
+          "description": "Rolling 14-day views and clones summary from /traffic/views and /traffic/clones. Requires push access on the token; null when unavailable (403/404). Adjacent weekly snapshots overlap by 7 days — fine for trend forecasting, not for cumulative counts."
+        }
+      }
+    },
+    "TrafficSummary": {
+      "title": "TrafficSummary",
+      "description": "14-day rolling traffic summary. Each inner object has `count` (total hits) and `uniques` (distinct visitors/cloners).",
+      "type": "object",
+      "properties": {
+        "views_14d": {
+          "oneOf": [
+            { "$ref": "#/$defs/TrafficCounts" },
+            { "type": "null" }
+          ],
+          "description": "Page views in the last 14 days; null when the views endpoint failed"
+        },
+        "clones_14d": {
+          "oneOf": [
+            { "$ref": "#/$defs/TrafficCounts" },
+            { "type": "null" }
+          ],
+          "description": "Clones in the last 14 days; null when the clones endpoint failed"
+        }
+      }
+    },
+    "TrafficCounts": {
+      "title": "TrafficCounts",
+      "type": "object",
+      "required": ["count", "uniques"],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "description": "Total events in the window"
+        },
+        "uniques": {
+          "type": "integer",
+          "description": "Distinct actors in the window"
         }
       }
     },
