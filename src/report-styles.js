@@ -53,6 +53,22 @@ a{color:#58a6ff;text-decoration:none}
 .campaign-repos{font-size:0.75rem;color:#8b949e}
 .campaign-repos a{margin-right:0.4rem}
 @media(max-width:900px){.two-col,.three-col,.campaign-grid{grid-template-columns:1fr}}
+@media(max-width:600px){
+  body{padding:1rem 0.75rem}
+  h1{font-size:1.4rem;word-break:break-word}
+  h2{font-size:1.1rem;margin:2rem 0 0.8rem}
+  .subtitle{font-size:0.8rem}
+  .stat{font-size:1.8rem}
+  .grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.8rem}
+  .card{padding:0.9rem}
+  .chart-container{padding:1rem;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .chart-container table{min-width:480px}
+  .heatmap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .heatmap-labels{overflow-x:auto}
+  canvas{max-height:220px}
+  .campaign-card{padding:1rem}
+  .alert-banner{padding:0.8rem 1rem;font-size:0.85rem}
+}
 details{margin-bottom:1.5rem}
 details summary{cursor:pointer;color:#58a6ff;font-size:1rem;font-weight:600;padding:0.5rem 0;user-select:none}
 details summary:hover{color:#79c0ff}
