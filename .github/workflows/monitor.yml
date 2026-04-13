@@ -6,7 +6,7 @@ name: Repo Butler Monitor
 
 on:
   schedule:
-    - cron: '*/15 * * * *'    # Every 15 minutes
+    - cron: '0 */6 * * *'     # Every 6 hours (was every 15 min — saturated GitHub's schedule queue)
   issues:
     types: [opened, labeled]
   pull_request:
