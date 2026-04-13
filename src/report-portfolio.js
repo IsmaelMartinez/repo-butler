@@ -163,12 +163,21 @@ export function analyzeDependencyInventory(details) {
 
 // --- Portfolio details fetcher ---
 
-export async function fetchPortfolioDetails(gh, owner, repos) {
+export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } = {}) {
   const details = {};
+  const cachedRepos = new Set();
   const activeRepos = repos.filter(r => !r.archived && !r.fork);
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
+    // Incremental: skip API calls for repos unchanged since last cache.
+    const cached = cache?.repos?.[r.name];
+    if (cached && cached.pushed_at === r.pushed_at && cached.open_issues_count === (r.open_issues || 0)) {
+      details[r.name] = cached.details;
+      cachedRepos.add(r.name);
+      console.log(`  ↩ ${r.name} — unchanged, using cache`);
+      return;
+    }
     const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
@@ -247,16 +256,13 @@ export async function fetchPortfolioDetails(gh, owner, repos) {
 
   await Promise.all(fetches);
 
-  // Compute libyear freshness in batches of 4 to balance speed vs npm registry load.
-  const LIBYEAR_BATCH_SIZE = 4;
-  const libyearRepos = activeRepos.slice(0, 15).filter(r => details[r.name]?.sbom);
-  for (let i = 0; i < libyearRepos.length; i += LIBYEAR_BATCH_SIZE) {
-    const batch = libyearRepos.slice(i, i + LIBYEAR_BATCH_SIZE);
-    await Promise.all(batch.map(async (r) => {
-      details[r.name].libyear = await computeLibyearWithTimeout(details[r.name].sbom.packages, 5000);
-    }));
-  }
+  // Compute libyear freshness for all repos in parallel (skip cached repos — already computed).
+  const libyearRepos = activeRepos.slice(0, 15).filter(r => details[r.name]?.sbom && !cachedRepos.has(r.name));
+  await Promise.all(libyearRepos.map(async (r) => {
+    details[r.name].libyear = await computeLibyearWithTimeout(details[r.name].sbom.packages, 8000);
+  }));
 
+  details._cachedRepos = [...cachedRepos];
   return details;
 }
 

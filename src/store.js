@@ -7,6 +7,7 @@ import { computeHealthTier, isReleaseExempt } from './report-shared.js';
 
 const HASH_PATH = 'snapshots/hash.txt';
 const GOVERNANCE_PATH = 'snapshots/governance.json';
+const REPO_CACHE_PATH = 'snapshots/repo-cache.json';
 
 export function computeSnapshotHash(snapshot) {
   const summary = snapshot?.summary ?? null;
@@ -330,7 +331,21 @@ export function createStore(context) {
     }
   }
 
-  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLastHash, writeHash, writeGovernanceFindings, readGovernanceFindings };
+  async function readRepoCache() {
+    try {
+      const content = await readFile(REPO_CACHE_PATH);
+      return content ? JSON.parse(content) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function writeRepoCache(cache) {
+    await ensureDataBranch();
+    await writeFile(REPO_CACHE_PATH, JSON.stringify(cache));
+  }
+
+  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLastHash, writeHash, writeGovernanceFindings, readGovernanceFindings, readRepoCache, writeRepoCache };
 }
 
 // Return ISO week key as YYYY-WNN (e.g. "2026-W12").
