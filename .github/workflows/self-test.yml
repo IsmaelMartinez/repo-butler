@@ -69,7 +69,7 @@ jobs:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           TRIAGE_BOT_INGEST_SECRET: ${{ secrets.TRIAGE_BOT_INGEST_SECRET }}
           REPORT_OUTPUT_DIR: reports
-          REPORT_FORCE: ${{ github.event.inputs.force-report }}
+          REPORT_FORCE: ${{ github.event.inputs.force-report || github.event_name != 'workflow_dispatch' }}
         run: node src/index.js
 
       - name: Check reports exist
