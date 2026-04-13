@@ -109,6 +109,7 @@ export async function observePortfolio(context) {
   }
 
   const portfolio = repos.map(r => ({
+    full_name: r.full_name,
     name: r.name,
     description: r.description,
     language: r.language,
