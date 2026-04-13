@@ -1008,3 +1008,85 @@ describe('generateRepoReport restructure', () => {
     assert.ok(html.includes('5 stars'), 'stars should be in subtitle');
   });
 });
+
+describe('report cache invalidation includes report.js', () => {
+  it('templateFiles array includes src/report.js', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile('src/report.js', 'utf8');
+    assert.ok(src.includes("'src/report.js'"), 'templateFiles should include src/report.js');
+    // All five report files must be in the template hash.
+    for (const f of ['src/report.js', 'src/report-portfolio.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js']) {
+      assert.ok(src.includes(`'${f}'`), `templateFiles should include ${f}`);
+    }
+  });
+});
+
+describe('fetchPortfolioDetails incremental cache', () => {
+  it('uses cached details when pushed_at and open_issues_count match', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // Mock GitHub client — should NOT be called for cached repos.
+    let apiCalled = false;
+    const gh = {
+      request: () => { apiCalled = true; return Promise.resolve({}); },
+      paginate: () => { apiCalled = true; return Promise.resolve([]); },
+      getFileContent: () => { apiCalled = true; return Promise.resolve(null); },
+    };
+    const repos = [
+      { name: 'cached-repo', pushed_at: '2026-04-01T00:00:00Z', open_issues: 5, archived: false, fork: false, stars: 10 },
+    ];
+    const cache = {
+      repos: {
+        'cached-repo': {
+          pushed_at: '2026-04-01T00:00:00Z',
+          open_issues_count: 5,
+          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null },
+        },
+      },
+    };
+    const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
+    assert.equal(apiCalled, false, 'should not call API for cached repo');
+    assert.equal(details['cached-repo'].commits, 42, 'should use cached commits');
+    assert.ok(details._cachedRepos.includes('cached-repo'), 'should mark as cached');
+  });
+
+  it('fetches fresh data when pushed_at differs', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    let apiCallCount = 0;
+    const gh = {
+      request: () => { apiCallCount++; return Promise.resolve({ total_count: 10, license: { spdx_id: 'MIT' }, health_percentage: 80, workflow_runs: [], files: {} }); },
+      paginate: () => { apiCallCount++; return Promise.resolve([]); },
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'changed-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 5, archived: false, fork: false, stars: 10 },
+    ];
+    const cache = {
+      repos: {
+        'changed-repo': {
+          pushed_at: '2026-04-01T00:00:00Z', // Different!
+          open_issues_count: 5,
+          details: { commits: 42 },
+        },
+      },
+    };
+    const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
+    assert.ok(apiCallCount > 0, 'should call API for changed repo');
+    assert.ok(!details._cachedRepos.includes('changed-repo'), 'should not mark as cached');
+  });
+
+  it('works without cache (backward compatible)', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    let apiCallCount = 0;
+    const gh = {
+      request: () => { apiCallCount++; return Promise.resolve({ total_count: 10, license: { spdx_id: 'MIT' }, health_percentage: 80, workflow_runs: [], files: {} }); },
+      paginate: () => { apiCallCount++; return Promise.resolve([]); },
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'fresh-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 2, archived: false, fork: false, stars: 3 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.ok(apiCallCount > 0, 'should call API without cache');
+    assert.deepEqual(details._cachedRepos, [], 'no repos should be cached');
+  });
+});
