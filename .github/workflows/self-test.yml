@@ -2,7 +2,19 @@ name: Repo Butler
 
 on:
   schedule:
+    # Primary daily run. GitHub cron is best-effort — may be delayed or
+    # dropped during high-demand periods (observed ~80% miss rate on this
+    # repo). The push trigger below acts as a reliable fallback.
     - cron: '0 2 * * *'
+  push:
+    branches: [main]
+    paths:
+      # Re-run the report when pipeline code or workflow config changes.
+      - 'src/report*.js'
+      - 'src/observe.js'
+      - 'src/store.js'
+      - '.github/workflows/self-test.yml'
+      - '.github/roadmap.yml'
   workflow_dispatch:
     inputs:
       phase:
