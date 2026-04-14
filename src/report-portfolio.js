@@ -390,6 +390,126 @@ ${cards}
 }
 
 
+// --- Governance findings section ---
+
+// Human-readable labels for the built-in standard detectors. Falls back to
+// the raw tool name so config-defined standards still render sensibly.
+const STANDARD_LABELS = {
+  'issue-form-templates': 'Issue form templates',
+  'contributing-guide': 'CONTRIBUTING guide',
+  'license': 'License',
+  'dependabot-actions': 'Dependabot alerts access',
+  'ci-workflows': 'CI workflows',
+};
+
+const DRIFT_LABELS = {
+  'license': 'License',
+  'ci-reliability': 'CI reliability',
+  'community-health': 'Community health',
+};
+
+const PRIORITY_COLOR = {
+  high: COLOR_DANGER,
+  medium: COLOR_WARNING,
+  low: '#8b949e',
+};
+
+function repoLinks(names) {
+  return names.map(n => `<a href="${escHtml(n)}.html">${escHtml(n)}</a>`).join(', ');
+}
+
+export function buildGovernanceSection(findings) {
+  if (!findings || findings.length === 0) return '';
+
+  const gaps = findings.filter(f => f.type === 'standards-gap');
+  const drift = findings.filter(f => f.type === 'policy-drift');
+  const uplift = findings.filter(f => f.type === 'tier-uplift');
+
+  const parts = [];
+
+  if (gaps.length > 0) {
+    const rows = gaps
+      .slice()
+      .sort((a, b) => a.adoptionRate - b.adoptionRate)
+      .map(g => {
+        const label = STANDARD_LABELS[g.tool] || g.tool;
+        const scopeLabel = g.scope?.type === 'ecosystem'
+          ? `<span style="color:#8b949e;font-size:0.8rem"> (${escHtml(g.scope.language)} only)</span>`
+          : '';
+        const pct = Math.round(g.adoptionRate * 100);
+        return `<tr>
+  <td><strong>${escHtml(label)}</strong>${scopeLabel}</td>
+  <td><span style="color:${PRIORITY_COLOR[g.priority] || '#8b949e'}">${escHtml(g.priority)}</span></td>
+  <td>${pct}% adopted</td>
+  <td>${g.nonCompliant.length} need this: ${repoLinks(g.nonCompliant)}</td>
+</tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Standards Gaps</h3>
+<div class="chart-container">
+<table><thead><tr><th>Standard</th><th>Priority</th><th>Adoption</th><th>Repos needing action</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
+  }
+
+  if (drift.length > 0) {
+    // Group drift by category for easier scanning.
+    const byCategory = {};
+    for (const d of drift) {
+      if (!byCategory[d.category]) byCategory[d.category] = [];
+      byCategory[d.category].push(d);
+    }
+    const rows = Object.entries(byCategory)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([category, items]) => {
+        const label = DRIFT_LABELS[category] || category;
+        const cells = items
+          .map(d => `<a href="${escHtml(d.repo)}.html">${escHtml(d.repo)}</a> <span style="color:#8b949e;font-size:0.8rem">(${escHtml(String(d.actual))} vs ${escHtml(String(d.expected))})</span>`)
+          .join(', ');
+        return `<tr><td><strong>${escHtml(label)}</strong></td><td>${cells}</td></tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Policy Drift</h3>
+<div class="chart-container">
+<table><thead><tr><th>Category</th><th>Diverging repos</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
+  }
+
+  if (uplift.length > 0) {
+    const rows = uplift
+      .slice()
+      .sort((a, b) => {
+        // High priority (silver→gold) first, then smallest gap first.
+        const pa = a.priority === 'high' ? 0 : 1;
+        const pb = b.priority === 'high' ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return a.failingChecks.length - b.failingChecks.length;
+      })
+      .map(u => {
+        const checks = u.failingChecks.map(c => escHtml(c.name)).join(', ');
+        return `<tr>
+  <td><a href="${escHtml(u.repo)}.html">${escHtml(u.repo)}</a></td>
+  <td>${escHtml(TIER_DISPLAY[u.currentTier] || u.currentTier)} → ${escHtml(TIER_DISPLAY[u.targetTier] || u.targetTier)}</td>
+  <td><span style="color:${PRIORITY_COLOR[u.priority] || '#8b949e'}">${escHtml(u.priority)}</span></td>
+  <td>${checks}</td>
+</tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Tier Uplift Opportunities</h3>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>Path</th><th>Priority</th><th>Remaining checks</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
+  }
+
+  if (parts.length === 0) return '';
+
+  return `<h2>Governance (${findings.length})</h2>
+${parts.join('\n')}`;
+}
+
+
 // --- Portfolio attention section ---
 
 export function buildPortfolioAttentionSection(repos, details, owner, config) {
@@ -514,7 +634,7 @@ export function buildDependencyInventorySection(inventory) {
 
 // --- Portfolio report ---
 
-export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null) {
+export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null, governanceFindings = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived && !r.fork)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
@@ -676,6 +796,7 @@ ${buildPortfolioAttentionSection(classified, details, owner, config)}
 </div>
 </details>
 ${buildCampaignSection(repos, details)}
+${buildGovernanceSection(governanceFindings)}
 <details><summary>Commit Activity (26 weeks)</summary>
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 </details>
