@@ -505,9 +505,8 @@ export function buildGovernanceSection(findings) {
 
   if (parts.length === 0) return '';
 
-  return `<details><summary><h2 style="display:inline;margin:0">Governance (${findings.length})</h2></summary>
-${parts.join('\n')}
-</details>`;
+  return `<h2>Governance (${findings.length})</h2>
+${parts.join('\n')}`;
 }
 
 

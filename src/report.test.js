@@ -1246,14 +1246,12 @@ describe('buildGovernanceSection', () => {
     assert.ok(!html.includes('Policy Drift'), 'should not render drift heading when no drift');
   });
 
-  it('wraps the whole section in a collapsible details element with a total count', () => {
+  it('opens with a top-level heading that carries the total finding count', () => {
     const findings = [
       { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: [], nonCompliant: ['a'], adoptionRate: 0, priority: 'high' },
       { type: 'tier-uplift', repo: 'a', currentTier: 'bronze', targetTier: 'silver', failingChecks: [{ name: 'License' }], priority: 'medium' },
     ];
     const html = buildGovernanceSection(findings);
-    assert.ok(html.startsWith('<details>'), 'should start with details element');
-    assert.ok(html.includes('Governance (2)'), 'should show total count in summary');
-    assert.ok(html.trimEnd().endsWith('</details>'), 'should close details element');
+    assert.ok(html.startsWith('<h2>Governance (2)</h2>'), 'should start with h2 carrying the count');
   });
 });
