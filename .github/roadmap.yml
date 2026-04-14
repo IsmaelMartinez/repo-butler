@@ -25,4 +25,17 @@ observe:
   prs_merged_days: 90
   releases_count: 10
 
+# Portfolio standards — declared policies the governance engine checks every
+# eligible repo against (src/governance.js STANDARD_DETECTORS).
+# Value is either "universal" (applies to all repos) or an ecosystem language
+# (e.g. "javascript") to scope by detected ecosystem.
+standards:
+  license: universal
+  issue-form-templates: universal
+  contributing-guide: universal
+  ci-workflows: universal
+  dependabot-actions: universal
+  code-scanning: universal
+  secret-scanning: universal
+
 release_exempt: sound3fy

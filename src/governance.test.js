@@ -136,6 +136,32 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings.length, 1);
     assert.deepEqual(result.findings[0].nonCompliant, ['b']);
   });
+
+  it('detects code-scanning gaps', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { codeScanning: { count: 0, max_severity: null } },
+      b: { codeScanning: null },
+    });
+    const standards = [{ tool: 'code-scanning', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+  });
+
+  it('detects secret-scanning gaps', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { secretScanning: { count: 0 } },
+      b: { secretScanning: null },
+    });
+    const standards = [{ tool: 'secret-scanning', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+  });
 });
 
 // --- detectPolicyDrift ---
