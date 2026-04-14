@@ -13,6 +13,8 @@ const STANDARD_DETECTORS = {
   'license': (_repo, details) => !!(details?.license && details.license !== 'None'),
   'dependabot-actions': (_repo, details) => details?.vulns != null,
   'ci-workflows': (_repo, details) => (details?.ci || 0) >= 1,
+  'code-scanning': (_repo, details) => details?.codeScanning != null,
+  'secret-scanning': (_repo, details) => details?.secretScanning != null,
 };
 
 // Minimum adoption rate to infer an implicit universal standard.
