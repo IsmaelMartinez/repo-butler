@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
 **Last Updated:** 2026-04-14
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 13 Gold (13 repos).
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 13 Gold (13 repos), with private repos now included via the installation-scoped discovery endpoint.
 
 ---
 
@@ -54,7 +54,9 @@ Node runtime compatibility fixed 2026-04-05 (PRs #87–#88). Resolved `'using: n
 
 Dashboard narrative restructure spec added 2026-04-07 (PR #91). Multi-persona review identified the dashboards as data dumps lacking narrative flow. Design spec at `docs/superpowers/specs/2026-04-07-dashboard-narrative-restructure-design.md` proposes restructuring both portfolio and per-repo pages around a situation-problem-action arc.
 
-The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 352 tests and secret-leak checks on every PR.
+Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so private repos such as `value-punter` appear in the portfolio when the workflow token can see them. Portfolio entries now carry `private` and `visibility` fields.
+
+The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 434 tests and secret-leak checks on every PR.
 
 ---
 
@@ -104,7 +106,7 @@ Shipped 2026-04-14. The presentation layer now lives in the personal website (is
 
 Research at `docs/research/2026-04-08-dynamic-dashboard-research.md`.
 
-~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison). 416 tests.
+~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison).
 
 ### Phase 5 — Portfolio Governance Engine
 
@@ -160,7 +162,7 @@ Shipped 2026-03-29 (PR #59). Six JSON Schema 2020-12 definitions in `schemas/v1/
 
 ### ~~Phase 7 — MCP Server~~ SHIPPED
 
-Shipped 2026-03-30 (PR #60). Zero-dependency MCP server at `src/mcp.js` (JSON-RPC 2.0 over stdio). Three resources (latest snapshot, portfolio health, campaign status) and four tools (`get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`). 15 MCP-specific tests. Connect with `claude mcp add repo-butler node src/mcp.js`. 223 tests.
+Shipped 2026-03-30 (PR #60). Zero-dependency MCP server at `src/mcp.js` (JSON-RPC 2.0 over stdio). Three resources (latest snapshot, portfolio health, campaign status) and four tools on launch: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`. Later expanded to nine tools: `get_governance_findings`, `trigger_refresh`, `get_monitor_events`, `get_watchlist`, `get_council_personas`. Connect with `claude mcp add repo-butler node src/mcp.js`.
 
 ### Phase 8 — A2A Agent Card + Triage Bot Contract
 

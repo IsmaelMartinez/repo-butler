@@ -93,6 +93,15 @@
         "topics": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "private": {
+          "type": "boolean",
+          "description": "True when the repo is private. Populated only when the discovery token can see private repos (GitHub App installation or user PAT)."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["public", "private", "internal"],
+          "description": "GitHub's visibility field; falls back to derived public/private when the API does not return it."
         }
       }
     },

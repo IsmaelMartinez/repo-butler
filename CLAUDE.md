@@ -21,17 +21,25 @@ Never merge a PR before AI code review bots (CodeRabbit, Gemini Code Assist) hav
 
 ## Architecture
 
-This is a GitHub Action (Node 22, ES modules, zero npm dependencies) that runs a six-phase pipeline:
+This is a GitHub Action (runs on the `node24` runtime, ES modules, zero npm dependencies) that runs a six-phase pipeline plus a continuous monitor:
 
 ```
-OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
+OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT   (+ MONITOR)
 ```
 
-`src/index.js` routes phases via `--phase=` arg or `INPUT_PHASE` env var. Each phase is an independent module that receives a shared `context` object and returns results that feed into subsequent phases. The `all` phase runs them sequentially.
+`src/index.js` routes phases via `--phase=` arg or `INPUT_PHASE` env var. Each phase is an independent module that receives a shared `context` object and returns results that feed into subsequent phases. The `all` phase runs them sequentially. `monitor` is a separate phase that detects new events between scheduled runs and feeds them into the council.
+
+`src/governance.js` runs after OBSERVE (when portfolio data is available) and produces three finding types — standards gaps, policy drift, and tier-uplift proposals — which are fed into the IDEATE prompt and persisted to the data branch for the MCP `get_governance_findings` tool.
+
+`src/council.js` is an agent-council deliberation layer. Five personas (Product, Development, Stability, Maintainability, Security) vote on ideated proposals (`reviewProposals`) and monitor events (`triageEvents`), producing approved / watchlisted / dismissed decisions.
+
+`src/monitor.js` detects new events (PRs opened, issues filed, CI failures) between daily runs and hands them to the council for triage. Scheduled separately via `.github/workflows/monitor.yml`.
+
+`src/onboard.js` opens onboarding PRs (adds `CLAUDE.md`) on any active portfolio repo missing the marker. Runs at the end of the main pipeline when not in dry-run mode.
 
 `src/github.js` is the custom API client used by every module. It provides `request()`, `paginate()`, `getFileContent()`, and `listDir()`. Rate limiting is handled internally with exponential backoff on 429/403. All other modules import `createClient(token)` from here.
 
-`src/observe.js` gathers data via GitHub REST API. It runs ~13 API calls in parallel via `Promise.all`, including community health profile, Dependabot alerts, code scanning alerts, secret scanning alerts, CI pass rate, and computes derived metrics (bus factor, time-to-close median). `observePortfolio()` classifies all repos by activity level.
+`src/observe.js` gathers data via GitHub REST API. It runs ~13 API calls in parallel via `Promise.all`, including community health profile, Dependabot alerts, code scanning alerts, secret scanning alerts, CI pass rate, and computes derived metrics (bus factor, time-to-close median). `observePortfolio()` classifies all repos by activity level. Repo discovery tries `/installation/repositories` (GitHub App token — includes private repos), falling back to `/user/repos` (PAT — includes private), then to the public-only `/users/{owner}/repos` and `/orgs/{owner}/repos`. The public fallbacks do not return private repos under any scope, so private repos only appear when the token is an installation or user token.
 
 The report module is split into five files. `src/report.js` is the entry point that orchestrates the REPORT phase. `src/report-shared.js` has shared constants, `computeHealthTier(r, options)` (supports `releaseExempt` option and the security trifecta: Dependabot + code scanning + secret scanning), and `isReleaseExempt()`. `src/report-portfolio.js` has `fetchPortfolioDetails()`, `generatePortfolioReport()`, and `buildCampaignSection()`. `src/report-repo.js` has `generateRepoReport()` and per-repo chart data fetchers. `src/report-styles.js` has the CSS template.
 
@@ -73,4 +81,4 @@ The report module is split into five files. `src/report.js` is the entry point t
 
 ## MCP server
 
-`src/mcp.js` is a zero-dependency MCP server over stdio. It reads data from the `repo-butler-data` branch via `git show`. The readline listener only starts when run directly (`node src/mcp.js`), not when imported for testing. Tools: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`, `get_governance_findings`, `trigger_refresh`. The `trigger_refresh` tool uses `gh` CLI to dispatch the workflow. Campaign logic mirrors `buildCampaignSection()` in `report-portfolio.js` — keep them aligned when adding new campaigns.
+`src/mcp.js` is a zero-dependency MCP server over stdio. It reads data from the `repo-butler-data` branch via `git show`. The readline listener only starts when run directly (`node src/mcp.js`), not when imported for testing. Tools: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`, `get_governance_findings`, `trigger_refresh`, `get_monitor_events`, `get_watchlist`, `get_council_personas`. The `trigger_refresh` tool uses `gh` CLI to dispatch the workflow. Campaign logic mirrors `buildCampaignSection()` in `report-portfolio.js` — keep them aligned when adding new campaigns.
