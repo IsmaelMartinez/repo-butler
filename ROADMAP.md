@@ -116,11 +116,11 @@ These are ideas for later evaluation, not commitments.
 
 **External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern. Phase 6 schemas lay the groundwork for structured consumption of these external signals. Also evaluate `ossf/scorecard` as a security health signal — its 0-10 score across 18 dimensions could feed into or complement the health tier model rather than the butler computing its own security metrics.
 
-**Contributor funnel** — Flag first-time contributors (PR authors whose first-ever merged PR in the repo falls within the observation window). Compute contributor confidence ratio (contributors / stargazers) as a lightweight sustainability indicator.
+~~**Contributor funnel**~~ — SHIPPED. `fetchPRAuthors` at `src/report-repo.js:49` marks authors via `pr.author_association === 'FIRST_TIME_CONTRIBUTOR'`. `computeContributorStats` at `src/report-repo.js:147` computes total, first-timers, and contributor confidence ratio (unique contributors / stargazers × 100). Rendered on per-repo reports as three cards: Unique Contributors (90d), First-Time Contributors, Contributor Confidence.
 
-**Sparkline mini-charts** — Add tiny inline trend lines in the portfolio table rows (26-week activity sparkline per repo) instead of just a number. Implementable with pure SVG, no library.
+~~**Sparkline mini-charts**~~ — SHIPPED. `generateSparklineSVG` at `src/report-portfolio.js:282` renders per-repo weekly activity inline in the portfolio table rows. Pure SVG, no library.
 
-**Campaign view** — Group improvement ideas and setup PRs into named campaigns on the portfolio dashboard: "License Compliance: 14/19 repos done, 5 need action." Transforms the dashboard from a status display into an active task tracker.
+~~**Campaign view**~~ — SHIPPED. `buildCampaignSection` at `src/report-portfolio.js:318` groups Community Health, Vulnerability Free, CI Reliability, License Compliance, and Issue Templates adoption into progress cards with non-compliant repo lists.
 
 **Skills and documentation review** — Review the research at `docs/research/2026-04-02-skills-and-documentation-landscape.md` and evaluate: distributing per-repo governance findings as Claude Code skills via the onboarding workflow, adding YAML frontmatter to ADRs for machine-parseability, establishing a documentation taxonomy (ADRs, specs, plans, research) consistent across both repo-butler and the triage bot, and pointing CLAUDE.md to relevant ADRs per area ("documentation as system prompt"). The butler's unique skill opportunity is cross-repo findings, not generic documentation — the ETH Zurich study found auto-generated context files reduced task success. Also evaluate the cross-org CLAUDE.md propagation gap as a natural extension of the onboarding workflow.
 
@@ -132,17 +132,21 @@ Replaces the original CARE phase with a broader portfolio governance model. See 
 
 The core insight: repo-butler's unique value is the cross-repo view. It sees which tools are configured where, what changed when, and which repos are out of alignment. The IDEATE/PROPOSE phases should generate proposals that only make sense with this portfolio context, not generic per-repo improvement ideas (which the triage bot does better with deeper context).
 
-**Portfolio policy definition** — Add a `standards` section to `.github/roadmap.yml` where the maintainer declares what every repo should have. Standards are scope-aware: universal standards apply to all repos (community health files, branch protection, language-agnostic code review tools, Dependabot for GitHub Actions), while ecosystem-specific standards filter by language (npm Renovate only for JavaScript repos, golangci-lint only for Go). Individual repos can be excluded. Without explicit standards, the butler infers conservatively from majority adoption — but only for universal tools, never for ecosystem-specific ones.
+Detection engine shipped (`src/governance.js`). The pipeline runs `detectStandardsGaps`, `detectPolicyDrift`, and `generateUpliftProposals` after OBSERVE, persists the merged findings to the data branch via `store.writeGovernanceFindings`, feeds them into IDEATE's governance-focused prompt, and exposes them via the MCP `get_governance_findings` tool.
 
-**Standards propagation** — Detect when a tool or configuration is adopted in some repos but not all, respecting scope. Generate proposals only for repos where the tool is applicable. Examples: CodeRabbit configured in 5 repos but missing from 14 (universal, applies to all). Issue form templates in 3 repos but 16 using old markdown format (universal). A Go linter workflow adopted in 2 Go repos but missing from 3 others (ecosystem-specific, only targets Go repos).
+~~**Portfolio policy definition**~~ — SHIPPED. `.github/roadmap.yml` accepts a flat `standards` section; `config.js` transforms it into structured scope/exclusion data for governance.
 
-**Policy drift detection** — Detect when repos that should be aligned have diverged. Examples: 18 repos use MIT but one switched to Apache-2.0. A CI workflow template was updated in the base repo but downstream repos run the old version. A shared CONTRIBUTING.md was revised but copies in other repos are stale.
+~~**Standards propagation**~~ — SHIPPED. `detectStandardsGaps` at `src/governance.js:71` checks each applicable repo against built-in detectors (issue-form-templates, contributing-guide, license, dependabot-actions, ci-workflows), filtered by scope and exclusions.
 
-**Health tier uplift proposals** — Generate concrete proposals to help repos reach the next tier. "repo-x is Silver. To reach Gold: needs a release, CONTRIBUTING.md, and Dependabot. Here are PRs for the latter two."
+~~**Policy drift detection**~~ — SHIPPED. `detectPolicyDrift` at `src/governance.js:122` flags license divergence from the ≥80% majority, and CI/community health scores >20pp below the portfolio median.
 
-**Rewrite IDEATE prompt** — Replace the generic "generate improvement ideas" prompt with a governance-focused prompt that receives full portfolio context (tool configs across repos, adoption rates, drift data) and produces standards propagation and drift correction proposals.
+~~**Health tier uplift proposals**~~ — SHIPPED. `generateUpliftProposals` at `src/governance.js:211` proposes tier uplift when ≤3 checks fail for the next tier, listing exactly which checks to close.
 
-Cross-repo PR creation uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
+~~**Rewrite IDEATE prompt**~~ — SHIPPED. `buildIdeatePrompt` at `src/ideate.js:34` switches to a portfolio governance advisor persona when governance findings are present and includes full findings via `appendGovernanceContext`.
+
+~~**Governance findings dashboard**~~ — SHIPPED. `buildGovernanceSection` at `src/report-portfolio.js:421` renders a collapsible Governance section on the portfolio report with three tables: Standards Gaps (by tool, sorted by adoption rate), Policy Drift (by category), and Tier Uplift Opportunities (silver→gold prioritised, listing remaining checks per repo).
+
+**Cross-repo PR creation** — The remaining gap. Uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
 
 ~~**Auto-onboarding**~~ — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.
 

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection } from './report.js';
+import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection } from './report.js';
 import { isReleaseExempt, isBugIssue, isFeatureIssue } from './report-shared.js';
 
 describe('report module', () => {
@@ -1088,5 +1088,172 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const details = await fetchPortfolioDetails(gh, 'owner', repos);
     assert.ok(apiCallCount > 0, 'should call API without cache');
     assert.deepEqual(details._cachedRepos, [], 'no repos should be cached');
+  });
+});
+
+describe('buildGovernanceSection', () => {
+  it('returns empty string for null or empty findings', () => {
+    assert.equal(buildGovernanceSection(null), '');
+    assert.equal(buildGovernanceSection([]), '');
+    assert.equal(buildGovernanceSection(undefined), '');
+  });
+
+  it('renders standards gaps grouped by tool with adoption rate and non-compliant repo links', () => {
+    const findings = [
+      {
+        type: 'standards-gap',
+        tool: 'issue-form-templates',
+        scope: { type: 'universal' },
+        compliant: ['repo-a'],
+        nonCompliant: ['repo-b', 'repo-c'],
+        adoptionRate: 1 / 3,
+        priority: 'high',
+      },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Standards Gaps'), 'should have standards gaps heading');
+    assert.ok(html.includes('Issue form templates'), 'should use human-readable label');
+    assert.ok(html.includes('33% adopted'), 'should show adoption percentage');
+    assert.ok(html.includes('href="repo-b.html"'), 'should link non-compliant repos');
+    assert.ok(html.includes('href="repo-c.html"'), 'should link non-compliant repos');
+    assert.ok(html.includes('high'), 'should show priority');
+  });
+
+  it('marks ecosystem-scoped standards with the language', () => {
+    const findings = [
+      {
+        type: 'standards-gap',
+        tool: 'ci-workflows',
+        scope: { type: 'ecosystem', language: 'Go' },
+        compliant: [],
+        nonCompliant: ['go-svc'],
+        adoptionRate: 0,
+        priority: 'high',
+      },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Go only'), 'should mention ecosystem scope');
+  });
+
+  it('groups policy drift by category', () => {
+    const findings = [
+      { type: 'policy-drift', category: 'license', repo: 'repo-a', expected: 'MIT', actual: 'Apache-2.0', priority: 'medium' },
+      { type: 'policy-drift', category: 'license', repo: 'repo-b', expected: 'MIT', actual: 'GPL-3.0', priority: 'medium' },
+      { type: 'policy-drift', category: 'ci-reliability', repo: 'repo-c', expected: '90%', actual: '65%', priority: 'medium' },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Policy Drift'), 'should have drift heading');
+    assert.ok(html.includes('License'), 'should label license category');
+    assert.ok(html.includes('CI reliability'), 'should label CI category');
+    assert.ok(html.includes('repo-a'), 'should mention repo-a');
+    assert.ok(html.includes('repo-b'), 'should mention repo-b');
+    assert.ok(html.includes('repo-c'), 'should mention repo-c');
+    assert.ok(html.includes('Apache-2.0'), 'should show actual value');
+    assert.ok(html.includes('vs MIT'), 'should show expected value');
+  });
+
+  it('renders tier uplift proposals with failing checks and path', () => {
+    const findings = [
+      {
+        type: 'tier-uplift',
+        repo: 'silver-repo',
+        currentTier: 'silver',
+        targetTier: 'gold',
+        failingChecks: [{ name: 'Recent release', required_for: 'gold' }],
+        priority: 'high',
+      },
+      {
+        type: 'tier-uplift',
+        repo: 'bronze-repo',
+        currentTier: 'bronze',
+        targetTier: 'silver',
+        failingChecks: [
+          { name: 'CONTRIBUTING.md', required_for: 'silver' },
+          { name: 'License', required_for: 'silver' },
+        ],
+        priority: 'medium',
+      },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Tier Uplift Opportunities'), 'should have uplift heading');
+    assert.ok(html.includes('silver-repo'), 'should mention silver repo');
+    assert.ok(html.includes('Recent release'), 'should list failing check');
+    assert.ok(html.includes('CONTRIBUTING.md'), 'should list check for bronze repo');
+  });
+
+  it('sorts standards gaps by adoption rate ascending', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: ['a', 'b', 'c'], nonCompliant: ['d'], adoptionRate: 0.75, priority: 'low' },
+      { type: 'standards-gap', tool: 'issue-form-templates', scope: { type: 'universal' }, compliant: [], nonCompliant: ['a', 'b'], adoptionRate: 0, priority: 'high' },
+    ];
+    const html = buildGovernanceSection(findings);
+    // issue-form-templates (0% adoption) should appear before license (75% adoption)
+    const issueIdx = html.indexOf('Issue form templates');
+    const licenseIdx = html.indexOf('License');
+    assert.ok(issueIdx > -1 && licenseIdx > -1);
+    assert.ok(issueIdx < licenseIdx, 'lower adoption should appear first');
+  });
+
+  it('prioritises silver→gold uplift over bronze→silver when both present', () => {
+    const findings = [
+      {
+        type: 'tier-uplift',
+        repo: 'bronze-repo',
+        currentTier: 'bronze',
+        targetTier: 'silver',
+        failingChecks: [{ name: 'License', required_for: 'silver' }],
+        priority: 'medium',
+      },
+      {
+        type: 'tier-uplift',
+        repo: 'silver-repo',
+        currentTier: 'silver',
+        targetTier: 'gold',
+        failingChecks: [{ name: 'Recent release', required_for: 'gold' }],
+        priority: 'high',
+      },
+    ];
+    const html = buildGovernanceSection(findings);
+    const silverIdx = html.indexOf('silver-repo');
+    const bronzeIdx = html.indexOf('bronze-repo');
+    assert.ok(silverIdx > -1 && bronzeIdx > -1);
+    assert.ok(silverIdx < bronzeIdx, 'high priority uplift should appear first');
+  });
+
+  it('escapes HTML in repo names and actual/expected values', () => {
+    const findings = [
+      {
+        type: 'policy-drift',
+        category: 'license',
+        repo: 'weird<name>',
+        expected: 'MIT',
+        actual: '<script>',
+        priority: 'medium',
+      },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(!html.includes('<script>'), 'should escape script tag in actual value');
+    assert.ok(html.includes('&lt;script&gt;'), 'should escape as entities');
+  });
+
+  it('omits sections that have no findings of that type', () => {
+    const findings = [
+      { type: 'tier-uplift', repo: 'a', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Release' }], priority: 'high' },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Tier Uplift Opportunities'));
+    assert.ok(!html.includes('Standards Gaps'), 'should not render standards heading when no gaps');
+    assert.ok(!html.includes('Policy Drift'), 'should not render drift heading when no drift');
+  });
+
+  it('wraps the whole section in a collapsible details element with a total count', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: [], nonCompliant: ['a'], adoptionRate: 0, priority: 'high' },
+      { type: 'tier-uplift', repo: 'a', currentTier: 'bronze', targetTier: 'silver', failingChecks: [{ name: 'License' }], priority: 'medium' },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.startsWith('<details>'), 'should start with details element');
+    assert.ok(html.includes('Governance (2)'), 'should show total count in summary');
+    assert.ok(html.trimEnd().endsWith('</details>'), 'should close details element');
   });
 });

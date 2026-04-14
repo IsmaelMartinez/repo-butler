@@ -33,7 +33,7 @@ import {
 // Re-export everything that tests and other modules need from report.js
 export { generateHealthBadge, computeHealthTier } from './report-shared.js';
 export { buildActionItems, computeContributorStats } from './report-repo.js';
-export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection } from './report-portfolio.js';
+export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection, buildGovernanceSection } from './report-portfolio.js';
 
 export async function report(context) {
   const { owner, token, config, store } = context;
@@ -290,7 +290,7 @@ export async function report(context) {
 
   // Generate portfolio report (after per-repo reports so contributor data is available).
   if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config);
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 
