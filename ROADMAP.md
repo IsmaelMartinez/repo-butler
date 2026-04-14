@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
 **Last Updated:** 2026-04-14
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos), with private repos now included via the installation-scoped discovery endpoint.
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 13 Gold (13 repos), with private repos now included via the installation-scoped discovery endpoint.
 
 ---
 
@@ -56,7 +56,7 @@ Dashboard narrative restructure spec added 2026-04-07 (PR #91). Multi-persona re
 
 Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so private repos such as `value-punter` appear in the portfolio when the workflow token can see them. Portfolio entries now carry `private` and `visibility` fields.
 
-The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 429 tests and secret-leak checks on every PR.
+The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 434 tests and secret-leak checks on every PR.
 
 ---
 
@@ -100,13 +100,41 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 Shipped 2026-04-08 (PRs #93–#100). Restructured both portfolio and per-repo dashboards from data dumps into narrative decision tools following a situation-problem-action arc. Portfolio page: tier distribution pulse, attention required section, simplified health table (Repo, Tier, Issues, PRs, CI%, Vulns, Next Step) with full view behind toggle, collapsible charts and dependency inventory, doughnut charts removed. Per-repo page: health grid merged into tier checklist with inline annotations, trends moved up, Open Work section, collapsible Activity History and Community. Also fixed PRs Merged (90d) data consistency, added issues:read to the GitHub App, and added open PRs column.
 
-### Astro Integration + Dynamic Dashboards
+### ~~Astro Integration + Dynamic Dashboards~~ SHIPPED
 
-Research at `docs/research/2026-04-08-dynamic-dashboard-research.md`. Repo-butler continues as the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The presentation layer moves into the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load.
+Shipped 2026-04-14. The presentation layer now lives in the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON from the `repo-butler-data` branch at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load. Repo-butler remains the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The GitHub Pages reports stay as a standalone fallback.
+
+Research at `docs/research/2026-04-08-dynamic-dashboard-research.md`.
 
 ~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison).
 
-The Astro components would live in the personal site repo and fetch snapshot data from the `repo-butler-data` branch. The current GitHub Pages reports stay as a standalone fallback until the Astro integration is stable.
+### Phase 5 — Portfolio Governance Engine
+
+Replaces the original CARE phase with a broader portfolio governance model. See [ADR-002](docs/decisions/002-portfolio-governance-boundary.md) for the full rationale on why this replaces the generic IDEATE/PROPOSE approach.
+
+The core insight: repo-butler's unique value is the cross-repo view. It sees which tools are configured where, what changed when, and which repos are out of alignment. The IDEATE/PROPOSE phases should generate proposals that only make sense with this portfolio context, not generic per-repo improvement ideas (which the triage bot does better with deeper context).
+
+Detection engine shipped (`src/governance.js`). The pipeline runs `detectStandardsGaps`, `detectPolicyDrift`, and `generateUpliftProposals` after OBSERVE, persists the merged findings to the data branch via `store.writeGovernanceFindings`, feeds them into IDEATE's governance-focused prompt, and exposes them via the MCP `get_governance_findings` tool.
+
+~~**Portfolio policy definition**~~ — SHIPPED. `.github/roadmap.yml` accepts a flat `standards` section; `config.js` transforms it into structured scope/exclusion data for governance.
+
+~~**Standards propagation**~~ — SHIPPED. `detectStandardsGaps` at `src/governance.js:71` checks each applicable repo against built-in detectors (issue-form-templates, contributing-guide, license, dependabot-actions, ci-workflows, code-scanning, secret-scanning), filtered by scope and exclusions.
+
+~~**Policy drift detection**~~ — SHIPPED. `detectPolicyDrift` at `src/governance.js:122` flags license divergence from the ≥80% majority, and CI/community health scores >20pp below the portfolio median.
+
+~~**Health tier uplift proposals**~~ — SHIPPED. `generateUpliftProposals` at `src/governance.js:211` proposes tier uplift when ≤3 checks fail for the next tier, listing exactly which checks to close.
+
+~~**Rewrite IDEATE prompt**~~ — SHIPPED. `buildIdeatePrompt` at `src/ideate.js:34` switches to a portfolio governance advisor persona when governance findings are present and includes full findings via `appendGovernanceContext`.
+
+~~**Governance findings dashboard**~~ — SHIPPED. `buildGovernanceSection` at `src/report-portfolio.js:421` renders a Governance section on the portfolio report with three tables: Standards Gaps (by tool, sorted by adoption rate), Policy Drift (by category), and Tier Uplift Opportunities (silver→gold prioritised, listing remaining checks per repo).
+
+**Cross-repo PR creation** — The remaining gap. Uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
+
+~~**Auto-onboarding**~~ — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.
+
+Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
+
+**Landscape evaluation** — Before building custom cross-repo enforcement, evaluate existing tools for the execution layer. File-based standards propagation (community health files, CI templates) can use `repo-file-sync-action` or `actions-template-sync`. Repo settings propagation (branch protection, labels, teams) can leverage `github/safe-settings` or GitHub org rulesets. Bulk remediation of governance findings can be handled by `multi-gitter` or `git-xargs` as the execution mechanism — the butler detects what needs to change, these tools apply it. See the Landscape section for details.
 
 ---
 
@@ -127,34 +155,6 @@ These are ideas for later evaluation, not commitments.
 **Skills and documentation review** — Review the research at `docs/research/2026-04-02-skills-and-documentation-landscape.md` and evaluate: distributing per-repo governance findings as Claude Code skills via the onboarding workflow, adding YAML frontmatter to ADRs for machine-parseability, establishing a documentation taxonomy (ADRs, specs, plans, research) consistent across both repo-butler and the triage bot, and pointing CLAUDE.md to relevant ADRs per area ("documentation as system prompt"). The butler's unique skill opportunity is cross-repo findings, not generic documentation — the ETH Zurich study found auto-generated context files reduced task success. Also evaluate the cross-org CLAUDE.md propagation gap as a natural extension of the onboarding workflow.
 
 **Distributable butler skills** — The butler-briefing and butler-debrief skills (`skills/`) currently have hardcoded paths (`~/projects/github/*/`, `IsmaelMartinez/`) and GitHub-specific repo lists. To distribute them as part of repo-butler for other users: read the owner name from `.github/roadmap.yml` config or environment variables, discover project directories dynamically (scan common locations or accept a config path), use the MCP server or snapshot data for repo lists instead of hardcoded names, and make the GitLab MR scanning conditional on `glab` availability. The debrief skill's `~/.claude/history.jsonl` scanning is already generic. Research at `docs/research/2026-04-10-reginald-session-reports.md`.
-
-### Phase 5 — Portfolio Governance Engine
-
-Replaces the original CARE phase with a broader portfolio governance model. See [ADR-002](docs/decisions/002-portfolio-governance-boundary.md) for the full rationale on why this replaces the generic IDEATE/PROPOSE approach.
-
-The core insight: repo-butler's unique value is the cross-repo view. It sees which tools are configured where, what changed when, and which repos are out of alignment. The IDEATE/PROPOSE phases should generate proposals that only make sense with this portfolio context, not generic per-repo improvement ideas (which the triage bot does better with deeper context).
-
-Detection engine shipped (`src/governance.js`). The pipeline runs `detectStandardsGaps`, `detectPolicyDrift`, and `generateUpliftProposals` after OBSERVE, persists the merged findings to the data branch via `store.writeGovernanceFindings`, feeds them into IDEATE's governance-focused prompt, and exposes them via the MCP `get_governance_findings` tool.
-
-~~**Portfolio policy definition**~~ — SHIPPED. `.github/roadmap.yml` accepts a flat `standards` section; `config.js` transforms it into structured scope/exclusion data for governance.
-
-~~**Standards propagation**~~ — SHIPPED. `detectStandardsGaps` at `src/governance.js:71` checks each applicable repo against built-in detectors (issue-form-templates, contributing-guide, license, dependabot-actions, ci-workflows), filtered by scope and exclusions.
-
-~~**Policy drift detection**~~ — SHIPPED. `detectPolicyDrift` at `src/governance.js:122` flags license divergence from the ≥80% majority, and CI/community health scores >20pp below the portfolio median.
-
-~~**Health tier uplift proposals**~~ — SHIPPED. `generateUpliftProposals` at `src/governance.js:211` proposes tier uplift when ≤3 checks fail for the next tier, listing exactly which checks to close.
-
-~~**Rewrite IDEATE prompt**~~ — SHIPPED. `buildIdeatePrompt` at `src/ideate.js:34` switches to a portfolio governance advisor persona when governance findings are present and includes full findings via `appendGovernanceContext`.
-
-~~**Governance findings dashboard**~~ — SHIPPED. `buildGovernanceSection` at `src/report-portfolio.js:421` renders a Governance section on the portfolio report with three tables: Standards Gaps (by tool, sorted by adoption rate), Policy Drift (by category), and Tier Uplift Opportunities (silver→gold prioritised, listing remaining checks per repo).
-
-**Cross-repo PR creation** — The remaining gap. Uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
-
-~~**Auto-onboarding**~~ — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.
-
-Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
-
-**Landscape evaluation** — Before building custom cross-repo enforcement, evaluate existing tools for the execution layer. File-based standards propagation (community health files, CI templates) can use `repo-file-sync-action` or `actions-template-sync`. Repo settings propagation (branch protection, labels, teams) can leverage `github/safe-settings` or GitHub org rulesets. Bulk remediation of governance findings can be handled by `multi-gitter` or `git-xargs` as the execution mechanism — the butler detects what needs to change, these tools apply it. See the Landscape section for details.
 
 ### ~~Phase 6 — Data Contracts + AI Skill~~ SHIPPED
 
