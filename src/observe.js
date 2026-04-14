@@ -87,28 +87,56 @@ export async function observe(context) {
 }
 
 // Observe all repos for a given owner (portfolio-level view).
+//
+// Repo discovery order, from most-to-least privileged:
+//   1. /installation/repositories — GitHub App installation tokens. Returns
+//      ALL repos (including private) the installation can access. This is
+//      the path used by the main workflow (actions/create-github-app-token).
+//   2. /user/repos — authenticated-user tokens (PAT). Also includes private.
+//   3. /users/{owner}/repos — public-only; used as a last resort when the
+//      token is unauthenticated or scoped to a different owner.
+//   4. /orgs/{owner}/repos — public-only fallback for org accounts when the
+//      user endpoint 404s (owner is an org, not a user).
+//
+// The public-only fallbacks are the reason private repos were previously
+// missing from the portfolio — /users/{owner}/repos never returns them, even
+// with a token that has private-repo scope.
 export async function observePortfolio(context) {
   const { owner, token } = context;
   const gh = createClient(token);
 
   console.log(`Observing portfolio for ${owner}...`);
 
-  // Try user endpoint first, fall back to org endpoint.
-  let repos;
-  try {
-    repos = await gh.paginate(`/users/${owner}/repos`, {
-      params: { sort: 'pushed', direction: 'desc', type: 'owner' },
-      max: 200,
-    });
-  } catch (err) {
-    if (!err.message?.includes('404')) throw err;
-    repos = await gh.paginate(`/orgs/${owner}/repos`, {
-      params: { sort: 'pushed', direction: 'desc' },
-      max: 200,
-    });
+  let repos = await fetchInstallationRepos(gh);
+  let source = 'installation';
+
+  if (!repos) {
+    repos = await fetchUserRepos(gh);
+    if (repos) source = 'user';
   }
 
-  const portfolio = repos.map(r => ({
+  if (!repos) {
+    source = 'public';
+    try {
+      repos = await gh.paginate(`/users/${owner}/repos`, {
+        params: { sort: 'pushed', direction: 'desc', type: 'owner' },
+        max: 200,
+      });
+    } catch (err) {
+      if (!err.message?.includes('404')) throw err;
+      repos = await gh.paginate(`/orgs/${owner}/repos`, {
+        params: { sort: 'pushed', direction: 'desc' },
+        max: 200,
+      });
+    }
+  }
+
+  // The installation endpoint may return repos from multiple owners when the
+  // App is installed on more than one account — filter to just the requested
+  // owner here. Public endpoints are already owner-scoped by URL.
+  const owned = repos.filter(r => !r.owner || r.owner.login === owner);
+
+  const portfolio = owned.map(r => ({
     full_name: r.full_name,
     name: r.name,
     description: r.description,
@@ -123,11 +151,56 @@ export async function observePortfolio(context) {
     has_issues: r.has_issues,
     default_branch: r.default_branch,
     topics: r.topics || [],
+    private: r.private ?? false,
+    visibility: r.visibility || (r.private ? 'private' : 'public'),
   }));
+
+  const privateCount = portfolio.filter(r => r.private).length;
+  console.log(`Portfolio source: ${source} — ${portfolio.length} repos (${privateCount} private).`);
 
   const classification = classifyRepos(portfolio);
 
   return { timestamp: new Date().toISOString(), owner, repos: portfolio, classification };
+}
+
+// /installation/repositories returns `{ total_count, repositories: [...] }`
+// instead of a plain array, so the generic paginate() helper can't be used.
+// Returns null when the token is not an installation token (404) or lacks
+// permission (403/401).
+async function fetchInstallationRepos(gh) {
+  const results = [];
+  const perPage = 100;
+  let page = 1;
+  try {
+    while (results.length < 500) {
+      const data = await gh.request('/installation/repositories', {
+        params: { per_page: perPage, page },
+      });
+      const batch = data.repositories || [];
+      if (batch.length === 0) break;
+      results.push(...batch);
+      if (batch.length < perPage) break;
+      page++;
+    }
+    return results.length > 0 ? results : null;
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.includes('404') || msg.includes('403') || msg.includes('401')) return null;
+    throw err;
+  }
+}
+
+async function fetchUserRepos(gh) {
+  try {
+    return await gh.paginate('/user/repos', {
+      params: { sort: 'pushed', direction: 'desc', affiliation: 'owner', visibility: 'all' },
+      max: 500,
+    });
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.includes('404') || msg.includes('403') || msg.includes('401')) return null;
+    throw err;
+  }
 }
 
 

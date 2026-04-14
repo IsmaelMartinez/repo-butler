@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Import the module to test that it loads without errors.
@@ -14,6 +14,116 @@ describe('observe module', () => {
     const mod = await import('./observe.js');
     assert.equal(typeof mod.computeBusFactor, 'function');
     assert.equal(typeof mod.computeTimeToCloseMedian, 'function');
+  });
+});
+
+describe('observePortfolio — repo discovery', () => {
+  let originalFetch;
+
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const makeRepo = (name, overrides = {}) => ({
+    full_name: `alice/${name}`,
+    name,
+    owner: { login: 'alice' },
+    description: null,
+    language: 'JavaScript',
+    stargazers_count: 0,
+    forks_count: 0,
+    open_issues_count: 0,
+    pushed_at: new Date().toISOString(),
+    archived: false,
+    fork: false,
+    license: null,
+    has_issues: true,
+    default_branch: 'main',
+    topics: [],
+    private: false,
+    visibility: 'public',
+    ...overrides,
+  });
+
+  it('uses /installation/repositories and includes private repos', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/installation/repositories')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Map(),
+          json: async () => ({
+            total_count: 2,
+            repositories: [
+              makeRepo('public-repo'),
+              makeRepo('value-punter', { private: true, visibility: 'private' }),
+            ],
+          }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { observePortfolio } = await import('./observe.js');
+    const result = await observePortfolio({ owner: 'alice', token: 'fake' });
+
+    assert.equal(result.repos.length, 2);
+    const privateRepo = result.repos.find(r => r.name === 'value-punter');
+    assert.ok(privateRepo, 'private repo should be in portfolio');
+    assert.equal(privateRepo.private, true);
+    assert.equal(privateRepo.visibility, 'private');
+  });
+
+  it('falls back to /user/repos when installation endpoint 404s', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      const headers = new Map([['x-ratelimit-remaining', '4999']]);
+      if (u.includes('/installation/repositories')) {
+        return { ok: false, status: 404, headers, text: async () => 'Not Found', json: async () => ({}) };
+      }
+      if (u.includes('/user/repos')) {
+        return {
+          ok: true,
+          status: 200,
+          headers,
+          json: async () => [makeRepo('pat-repo', { private: true, visibility: 'private' })],
+        };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { observePortfolio } = await import('./observe.js');
+    const result = await observePortfolio({ owner: 'alice', token: 'fake' });
+
+    assert.equal(result.repos.length, 1);
+    assert.equal(result.repos[0].private, true);
+  });
+
+  it('filters installation results to the requested owner', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/installation/repositories')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Map(),
+          json: async () => ({
+            total_count: 2,
+            repositories: [
+              makeRepo('mine'),
+              makeRepo('someone-elses', { owner: { login: 'bob' }, full_name: 'bob/someone-elses' }),
+            ],
+          }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { observePortfolio } = await import('./observe.js');
+    const result = await observePortfolio({ owner: 'alice', token: 'fake' });
+
+    assert.equal(result.repos.length, 1);
+    assert.equal(result.repos[0].name, 'mine');
   });
 });
 

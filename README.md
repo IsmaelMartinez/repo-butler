@@ -121,7 +121,7 @@ npm run all       # Full pipeline (needs GEMINI_API_KEY)
 
 ## Architecture
 
-Zero external dependencies. Uses Node 22's built-in `fetch` for all API calls. The GitHub API client handles rate limiting with automatic retry and backoff. Search API calls are throttled to stay under secondary rate limits. A safety layer validates all LLM output before publishing.
+Zero external dependencies. Runs on the GitHub Actions `node24` runtime and uses Node's built-in `fetch` for all API calls. The GitHub API client handles rate limiting with automatic retry and backoff. Search API calls are throttled to stay under secondary rate limits. A safety layer validates all LLM output before publishing.
 
 ```
 src/
@@ -136,6 +136,10 @@ src/
 ├── report-portfolio.js   # Portfolio reports, campaigns, dependency inventory
 ├── report-repo.js        # Per-repo charts, health sections, data fetchers
 ├── report-styles.js      # CSS template
+├── governance.js         # Standards-gap, policy-drift, tier-uplift detection
+├── council.js            # Agent-council deliberation on proposals and events
+├── monitor.js            # Continuous event monitoring between daily runs
+├── onboard.js            # Auto-onboarding PRs (CLAUDE.md marker) for new repos
 ├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
 ├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths
 ├── triage-bot.js         # Optional triage bot integration (auto-discovered)
@@ -152,6 +156,10 @@ docs/
 ├── skill.md              # Claude Code skill for AI agent consumption
 └── decisions/            # Architecture Decision Records (ADR-001 through ADR-003)
 ```
+
+### Private repository support
+
+The portfolio observer prefers the `/installation/repositories` endpoint (GitHub App tokens), falling back to `/user/repos` (PATs), then to the public-only `/users/{owner}/repos` endpoint. Private repos only appear when the token can see them — a default `GITHUB_TOKEN` cannot list repos across an owner's portfolio, so the workflow should use a GitHub App token (`actions/create-github-app-token`) installed on every repo that should be included.
 
 ## MCP Server (AI agent access)
 
@@ -172,7 +180,7 @@ claude mcp add repo-butler node src/mcp.js
 }
 ```
 
-Once connected, the AI gets four tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier/language), and `get_snapshot_diff` (what changed since last run). It also gets three resources: the latest snapshot, portfolio health summary, and campaign status.
+Once connected, the AI gets nine tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier/language), `get_snapshot_diff` (what changed since last run), `get_governance_findings` (standards gaps, policy drift, tier-uplift proposals), `trigger_refresh` (dispatch the workflow via `gh` CLI), `get_monitor_events` (events captured between daily runs), `get_watchlist` (council-watchlisted proposals), and `get_council_personas` (the five reviewer personas). It also exposes three resources: the latest snapshot, portfolio health summary, and campaign status.
 
 ## Design principles
 
