@@ -42,10 +42,11 @@ function parseSimpleYaml(text) {
   let currentSection = null;
 
   for (const line of text.split('\n')) {
-    const trimmed = line.trimEnd();
+    // Compute indent from the original line, then trim both sides for matching.
+    const indent = line.length - line.trimStart().length;
+    const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
 
-    const indent = line.length - line.trimStart().length;
     const match = trimmed.match(/^(\w[\w.-]*):\s*(.*)/);
     if (!match) continue;
 
