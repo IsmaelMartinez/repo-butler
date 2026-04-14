@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-04-13
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos).
+**Last Updated:** 2026-04-14
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 13 Gold (13 repos).
 
 ---
 
@@ -98,13 +98,13 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 Shipped 2026-04-08 (PRs #93–#100). Restructured both portfolio and per-repo dashboards from data dumps into narrative decision tools following a situation-problem-action arc. Portfolio page: tier distribution pulse, attention required section, simplified health table (Repo, Tier, Issues, PRs, CI%, Vulns, Next Step) with full view behind toggle, collapsible charts and dependency inventory, doughnut charts removed. Per-repo page: health grid merged into tier checklist with inline annotations, trends moved up, Open Work section, collapsible Activity History and Community. Also fixed PRs Merged (90d) data consistency, added issues:read to the GitHub App, and added open PRs column.
 
-### Astro Integration + Dynamic Dashboards
+### ~~Astro Integration + Dynamic Dashboards~~ SHIPPED
 
-Research at `docs/research/2026-04-08-dynamic-dashboard-research.md`. Repo-butler continues as the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The presentation layer moves into the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load.
+Shipped 2026-04-14. The presentation layer now lives in the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON from the `repo-butler-data` branch at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load. Repo-butler remains the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The GitHub Pages reports stay as a standalone fallback.
+
+Research at `docs/research/2026-04-08-dynamic-dashboard-research.md`.
 
 ~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison). 416 tests.
-
-The Astro components would live in the personal site repo and fetch snapshot data from the `repo-butler-data` branch. The current GitHub Pages reports stay as a standalone fallback until the Astro integration is stable.
 
 ---
 
