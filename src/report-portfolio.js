@@ -256,11 +256,21 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
 
   await Promise.all(fetches);
 
-  // Compute libyear freshness for all repos in parallel (skip cached repos — already computed).
+  // Compute libyear freshness (skip cached repos — already computed).
+  // Run repos in small batches (not fully parallel). Running all 15 at once
+  // saturates registry.npmjs.org with 15×5=75 concurrent requests, and the
+  // timeout fires en masse — "This operation was aborted" for every package.
+  // Batches of 3 repos give at most 15 concurrent fetches and let each repo
+  // actually complete within its timeout. Settled (not all) so one repo's
+  // rejection cannot propagate and abort the whole REPORT phase.
   const libyearRepos = activeRepos.slice(0, 15).filter(r => details[r.name]?.sbom && !cachedRepos.has(r.name));
-  await Promise.all(libyearRepos.map(async (r) => {
-    details[r.name].libyear = await computeLibyearWithTimeout(details[r.name].sbom.packages, 8000);
-  }));
+  const LIBYEAR_BATCH = 3;
+  for (let i = 0; i < libyearRepos.length; i += LIBYEAR_BATCH) {
+    const batch = libyearRepos.slice(i, i + LIBYEAR_BATCH);
+    await Promise.allSettled(batch.map(async (r) => {
+      details[r.name].libyear = await computeLibyearWithTimeout(details[r.name].sbom.packages, 12000);
+    }));
+  }
 
   details._cachedRepos = [...cachedRepos];
   return details;
