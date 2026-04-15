@@ -4,11 +4,11 @@
     "yourear": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 46,
+      "commits_6mo": 48,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.82,
+      "ciPassRate": 0.84,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -17,7 +17,7 @@
       "secretScanning": null,
       "ci": 4,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-14T22:04:07Z",
+      "pushed_at": "2026-04-15T09:53:48Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -162,13 +162,13 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 15,
-      "open_bugs": 9,
-      "commits_6mo": 354,
-      "stars": 4591,
+      "open_issues": 16,
+      "open_bugs": 10,
+      "commits_6mo": 355,
+      "stars": 4592,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.8545454545454545,
+      "ciPassRate": 0.8392857142857143,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -182,10 +182,10 @@
       },
       "ci": 14,
       "released_at": "2026-04-06T08:21:53Z",
-      "pushed_at": "2026-04-14T14:54:14Z",
+      "pushed_at": "2026-04-15T16:14:24Z",
       "traffic": null,
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -199,7 +199,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -243,7 +243,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Fewer than 10 open bugs"
       }
     },
     "ismaelmartinez.me.uk": {
@@ -264,7 +264,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-14T22:03:18Z",
+      "pushed_at": "2026-04-15T04:05:17Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -501,11 +501,11 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 160,
+      "commits_6mo": 161,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.79,
+      "ciPassRate": 0.8,
       "vulns": {
         "count": 1,
         "max_severity": "low"
@@ -519,7 +519,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-14T22:04:54Z",
+      "pushed_at": "2026-04-15T16:17:25Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -586,7 +586,7 @@
     "ai-model-advisor": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 161,
+      "commits_6mo": 162,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -601,7 +601,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-14T17:02:05Z",
+      "pushed_at": "2026-04-15T10:53:12Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -747,250 +747,10 @@
         "next_step": null
       }
     },
-    "triage-bot-test-repo": {
-      "open_issues": 0,
-      "open_bugs": 0,
-      "commits_6mo": 9,
-      "stars": 0,
-      "license": "None",
-      "communityHealth": 28,
-      "ciPassRate": null,
-      "vulns": {
-        "count": 0,
-        "max_severity": null
-      },
-      "codeScanning": null,
-      "secretScanning": null,
-      "ci": 0,
-      "released_at": null,
-      "pushed_at": "2026-03-18T22:41:37Z",
-      "traffic": null,
-      "computed": {
-        "tier": "bronze",
-        "checks": [
-          {
-            "name": "Has CI workflows (2+)",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has a license",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Fewer than 10 open bugs",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Release in the last 90 days",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Community health above 80%",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Security scanning configured",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Zero critical/high security findings",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has CI workflows",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Community health above 50%",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Activity in the last 6 months",
-            "passed": true,
-            "required_for": "silver"
-          },
-          {
-            "name": "Some activity (within 1 year)",
-            "passed": true,
-            "required_for": "bronze"
-          }
-        ],
-        "next_step": "Has a license"
-      }
-    },
-    "teams-for-linux-shadow": {
-      "open_issues": 2,
-      "open_bugs": 0,
-      "commits_6mo": 4,
-      "stars": 0,
-      "license": "None",
-      "communityHealth": 28,
-      "ciPassRate": null,
-      "vulns": {
-        "count": 0,
-        "max_severity": null
-      },
-      "codeScanning": null,
-      "secretScanning": null,
-      "ci": 0,
-      "released_at": null,
-      "pushed_at": "2026-04-14T19:26:28Z",
-      "traffic": null,
-      "computed": {
-        "tier": "bronze",
-        "checks": [
-          {
-            "name": "Has CI workflows (2+)",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has a license",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Fewer than 10 open bugs",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Release in the last 90 days",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Community health above 80%",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Security scanning configured",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Zero critical/high security findings",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has CI workflows",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Community health above 50%",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Activity in the last 6 months",
-            "passed": true,
-            "required_for": "silver"
-          },
-          {
-            "name": "Some activity (within 1 year)",
-            "passed": true,
-            "required_for": "bronze"
-          }
-        ],
-        "next_step": "Has a license"
-      }
-    },
-    "triage-bot-test-repo-shadow": {
-      "open_issues": 0,
-      "open_bugs": 0,
-      "commits_6mo": 1,
-      "stars": 0,
-      "license": "None",
-      "communityHealth": 28,
-      "ciPassRate": null,
-      "vulns": {
-        "count": 0,
-        "max_severity": null
-      },
-      "codeScanning": null,
-      "secretScanning": null,
-      "ci": 0,
-      "released_at": null,
-      "pushed_at": "2026-03-04T11:43:11Z",
-      "traffic": null,
-      "computed": {
-        "tier": "bronze",
-        "checks": [
-          {
-            "name": "Has CI workflows (2+)",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has a license",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Fewer than 10 open bugs",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Release in the last 90 days",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Community health above 80%",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Security scanning configured",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Zero critical/high security findings",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has CI workflows",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Community health above 50%",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Activity in the last 6 months",
-            "passed": true,
-            "required_for": "silver"
-          },
-          {
-            "name": "Some activity (within 1 year)",
-            "passed": true,
-            "required_for": "bronze"
-          }
-        ],
-        "next_step": "Has a license"
-      }
-    },
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 195,
+      "commits_6mo": 196,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
@@ -1005,7 +765,7 @@
       },
       "ci": 5,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-14T20:04:57Z",
+      "pushed_at": "2026-04-15T09:48:07Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1072,11 +832,11 @@
     "wifisentinel": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 202,
+      "commits_6mo": 204,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.7395833333333334,
+      "ciPassRate": 0.7263157894736842,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -1087,7 +847,7 @@
       },
       "ci": 4,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-04-14T22:02:00Z",
+      "pushed_at": "2026-04-15T16:21:47Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1154,11 +914,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 85,
+      "commits_6mo": 87,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.84,
+      "ciPassRate": 0.83,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -1169,7 +929,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-14T19:23:41Z",
+      "pushed_at": "2026-04-15T10:51:06Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1235,65 +995,70 @@
     },
     "lounge-tv": {
       "open_issues": 0,
-      "open_bugs": null,
-      "commits_6mo": 0,
+      "open_bugs": 0,
+      "commits_6mo": 25,
       "stars": 0,
-      "license": null,
-      "communityHealth": null,
-      "ciPassRate": null,
-      "vulns": null,
+      "license": "MIT",
+      "communityHealth": 85,
+      "ciPassRate": 0.9444444444444444,
+      "vulns": {
+        "count": 0,
+        "max_severity": null
+      },
       "codeScanning": null,
-      "secretScanning": null,
-      "ci": 0,
-      "released_at": null,
+      "secretScanning": {
+        "count": 0
+      },
+      "ci": 2,
+      "released_at": "2026-04-07T07:04:50Z",
       "pushed_at": "2026-04-14T19:24:28Z",
       "traffic": null,
       "computed": {
-        "tier": "bronze",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Has a license",
-            "passed": false,
+            "passed": true,
             "required_for": "silver"
           },
           {
-            "name": "Fewer than 20 open issues",
+            "name": "Fewer than 10 open bugs",
             "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Release in the last 90 days",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Community health above 80%",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Security scanning configured",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Has CI workflows",
-            "passed": false,
+            "passed": true,
             "required_for": "silver"
           },
           {
             "name": "Community health above 50%",
-            "passed": false,
+            "passed": true,
             "required_for": "silver"
           },
           {
@@ -1307,84 +1072,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Has a license"
-      }
-    },
-    "value-punter": {
-      "open_issues": 0,
-      "open_bugs": null,
-      "commits_6mo": 0,
-      "stars": 0,
-      "license": null,
-      "communityHealth": null,
-      "ciPassRate": null,
-      "vulns": null,
-      "codeScanning": null,
-      "secretScanning": null,
-      "ci": 0,
-      "released_at": null,
-      "pushed_at": "2026-04-14T16:19:04Z",
-      "traffic": null,
-      "computed": {
-        "tier": "bronze",
-        "checks": [
-          {
-            "name": "Has CI workflows (2+)",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has a license",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Fewer than 20 open issues",
-            "passed": true,
-            "required_for": "gold"
-          },
-          {
-            "name": "Release in the last 90 days",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Community health above 80%",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Security scanning configured",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Zero critical/high security findings",
-            "passed": false,
-            "required_for": "gold"
-          },
-          {
-            "name": "Has CI workflows",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Community health above 50%",
-            "passed": false,
-            "required_for": "silver"
-          },
-          {
-            "name": "Activity in the last 6 months",
-            "passed": true,
-            "required_for": "silver"
-          },
-          {
-            "name": "Some activity (within 1 year)",
-            "passed": true,
-            "required_for": "bronze"
-          }
-        ],
-        "next_step": "Has a license"
+        "next_step": null
       }
     }
   }
