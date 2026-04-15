@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-15
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 13 Gold (13 repos), with private repos now included via the installation-scoped discovery endpoint.
 
 ---
@@ -107,6 +107,18 @@ Shipped 2026-04-14. The presentation layer now lives in the personal website (is
 Research at `docs/research/2026-04-08-dynamic-dashboard-research.md`.
 
 ~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison).
+
+### Scheduled pipeline wiring
+
+The six-phase pipeline only has two phases currently wired to a trigger: OBSERVE and REPORT run daily via `self-test.yml`, and MONITOR runs every 6h via `monitor.yml`. ASSESS, UPDATE, IDEATE, and PROPOSE are effectively manual-only. `.github/roadmap.yml:6-8` declares `schedule: { assess: daily, ideate: weekly }` but no workflow honors those keys — the config is aspirational and out of sync with reality. The 2026-04-14 incident where `snapshots/latest.json` had been frozen since 2026-04-03 (because `self-test.yml` defaulted to `phase=report` with no OBSERVE) exposed this gap; the fix landed as commit `9795952` on main. The remaining work is to graduate the other phases onto real schedules.
+
+**Wire ASSESS into the daily schedule** — ASSESS (`src/assess.js`, `src/index.js:138-166`) is pure compute: one Gemini Flash call, no GitHub writes. It diffs `latest.json` vs `previous.json` and computes trends from weekly history. Nothing currently consumes the fresh snapshots the daily run writes. Change `self-test.yml` to run `observe,assess,report` — a ~five-line change with zero blast radius. Acceptance: the daily `report.html` includes an assessment narrative and trend direction populated from `context.trends`; `schedule.assess: daily` in roadmap.yml is no longer aspirational.
+
+**Weekly IDEATE workflow (dry-run first)** — IDEATE (`src/ideate.js`, `src/index.js:175-212`) is the expensive deep-Claude phase and runs the five-persona council deliberation. Too expensive for daily — a separate weekly cron is the right home. Add `.github/workflows/weekly-ideate.yml` with a Monday cron running `observe,ideate`, `dry-run: true` initially. No GitHub writes; governance findings persist to the data branch for the MCP `get_governance_findings` tool. Graduate to `observe,ideate,propose` later once the council output is trusted. Acceptance: governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality.
+
+**UPDATE in dry-run mode on the daily schedule** — UPDATE (`src/update.js`) rewrites ROADMAP.md based on merged PRs and closed issues. `src/update.js:33` already gates writes behind `dryRun`, so adding UPDATE to the daily schedule under the existing `dry-run=true` default logs what it *would* change without touching the file. Run it this way as a soak test for a week or two; if the proposed diffs look sensible, flip dry-run off and let it open PRs via git. Acceptance: daily CI logs show a proposed ROADMAP.md diff on every run; after two weeks of clean output, UPDATE graduates to writing PRs.
+
+**Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.
 
 ### Phase 5 — Portfolio Governance Engine
 
