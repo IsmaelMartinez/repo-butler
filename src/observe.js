@@ -98,9 +98,11 @@ export async function observe(context) {
 //   4. /orgs/{owner}/repos — public-only fallback for org accounts when the
 //      user endpoint 404s (owner is an org, not a user).
 //
-// The public-only fallbacks are the reason private repos were previously
-// missing from the portfolio — /users/{owner}/repos never returns them, even
-// with a token that has private-repo scope.
+// Private repos are intentionally excluded from the portfolio: reports deploy
+// to public GitHub Pages and feed a public dashboard, so surfacing private
+// repo names/metadata would be an unintended information leak. The privileged
+// discovery endpoints are still used so we see the full accessible set, but
+// private repos are filtered out before classification.
 export async function observePortfolio(context) {
   const { owner, token } = context;
   const gh = createClient(token);
@@ -136,7 +138,13 @@ export async function observePortfolio(context) {
   // owner here. Public endpoints are already owner-scoped by URL.
   const owned = repos.filter(r => !r.owner || r.owner.login === owner);
 
-  const portfolio = owned.map(r => ({
+  // Exclude private repos from the portfolio. Reports are published to a
+  // public GitHub Pages site, so including private repos would leak names,
+  // descriptions, and activity metadata. Count them for the log line only.
+  const privateCount = owned.filter(r => r.private).length;
+  const publicOnly = owned.filter(r => !r.private);
+
+  const portfolio = publicOnly.map(r => ({
     full_name: r.full_name,
     name: r.name,
     description: r.description,
@@ -151,12 +159,11 @@ export async function observePortfolio(context) {
     has_issues: r.has_issues,
     default_branch: r.default_branch,
     topics: r.topics || [],
-    private: r.private ?? false,
-    visibility: r.visibility || (r.private ? 'private' : 'public'),
+    private: false,
+    visibility: r.visibility || 'public',
   }));
 
-  const privateCount = portfolio.filter(r => r.private).length;
-  console.log(`Portfolio source: ${source} — ${portfolio.length} repos (${privateCount} private).`);
+  console.log(`Portfolio source: ${source} — ${portfolio.length} public repos (${privateCount} private hidden).`);
 
   const classification = classifyRepos(portfolio);
 

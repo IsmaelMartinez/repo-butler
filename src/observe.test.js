@@ -44,7 +44,7 @@ describe('observePortfolio — repo discovery', () => {
     ...overrides,
   });
 
-  it('uses /installation/repositories and includes private repos', async () => {
+  it('uses /installation/repositories and hides private repos', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
       if (u.includes('/installation/repositories')) {
@@ -67,14 +67,13 @@ describe('observePortfolio — repo discovery', () => {
     const { observePortfolio } = await import('./observe.js');
     const result = await observePortfolio({ owner: 'alice', token: 'fake' });
 
-    assert.equal(result.repos.length, 2);
-    const privateRepo = result.repos.find(r => r.name === 'value-punter');
-    assert.ok(privateRepo, 'private repo should be in portfolio');
-    assert.equal(privateRepo.private, true);
-    assert.equal(privateRepo.visibility, 'private');
+    assert.equal(result.repos.length, 1);
+    assert.equal(result.repos[0].name, 'public-repo');
+    assert.equal(result.repos[0].private, false);
+    assert.ok(!result.repos.find(r => r.name === 'value-punter'), 'private repo should be filtered out');
   });
 
-  it('falls back to /user/repos when installation endpoint 404s', async () => {
+  it('hides private repos returned via /user/repos fallback', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
       const headers = new Map([['x-ratelimit-remaining', '4999']]);
@@ -86,7 +85,10 @@ describe('observePortfolio — repo discovery', () => {
           ok: true,
           status: 200,
           headers,
-          json: async () => [makeRepo('pat-repo', { private: true, visibility: 'private' })],
+          json: async () => [
+            makeRepo('pat-public'),
+            makeRepo('pat-private', { private: true, visibility: 'private' }),
+          ],
         };
       }
       throw new Error(`Unexpected URL: ${u}`);
@@ -96,7 +98,8 @@ describe('observePortfolio — repo discovery', () => {
     const result = await observePortfolio({ owner: 'alice', token: 'fake' });
 
     assert.equal(result.repos.length, 1);
-    assert.equal(result.repos[0].private, true);
+    assert.equal(result.repos[0].name, 'pat-public');
+    assert.equal(result.repos[0].private, false);
   });
 
   it('filters installation results to the requested owner', async () => {
