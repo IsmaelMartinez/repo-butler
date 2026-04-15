@@ -20,6 +20,17 @@ export function validateRepoFormat(repo) {
   }
 }
 
+export function parsePhases(phase) {
+  if (phase === 'all') return PHASES;
+  const list = phase.split(',').map(p => p.trim()).filter(Boolean);
+  for (const p of list) {
+    if (!PHASES.includes(p)) {
+      throw new Error(`Unknown phase: "${p}". Valid phases: ${PHASES.join(', ')}, all.`);
+    }
+  }
+  return list;
+}
+
 async function main() {
   const phase = process.env.INPUT_PHASE
     || process.argv.find(a => a.startsWith('--phase='))?.split('=')[1]
@@ -62,7 +73,7 @@ async function main() {
 
   // Validate LLM provider early if LLM phases will run.
   const llmPhases = ['assess', 'update', 'ideate', 'monitor'];
-  const phasesToRun = phase === 'all' ? PHASES : [phase];
+  const phasesToRun = parsePhases(phase);
   const needsLLM = phasesToRun.some(p => llmPhases.includes(p));
 
   if (needsLLM && defaultProvider) {

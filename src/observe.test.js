@@ -468,3 +468,34 @@ describe('input validation', () => {
     );
   });
 });
+
+describe('parsePhases', () => {
+  it('expands "all" to every known phase', async () => {
+    const { parsePhases } = await import('./index.js');
+    assert.deepEqual(
+      parsePhases('all'),
+      ['observe', 'assess', 'update', 'ideate', 'propose', 'report', 'monitor'],
+    );
+  });
+
+  it('parses a single phase into a one-element array', async () => {
+    const { parsePhases } = await import('./index.js');
+    assert.deepEqual(parsePhases('report'), ['report']);
+  });
+
+  it('parses a comma-separated list, trimming whitespace', async () => {
+    const { parsePhases } = await import('./index.js');
+    assert.deepEqual(parsePhases('observe, report'), ['observe', 'report']);
+    assert.deepEqual(parsePhases(' observe ,report '), ['observe', 'report']);
+  });
+
+  it('preserves order of phases as given', async () => {
+    const { parsePhases } = await import('./index.js');
+    assert.deepEqual(parsePhases('report,observe'), ['report', 'observe']);
+  });
+
+  it('throws on an unknown phase name', async () => {
+    const { parsePhases } = await import('./index.js');
+    assert.throws(() => parsePhases('observe,bogus'), /Unknown phase/);
+  });
+});
