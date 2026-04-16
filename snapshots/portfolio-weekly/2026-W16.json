@@ -162,10 +162,10 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 16,
+      "open_issues": 17,
       "open_bugs": 10,
       "commits_6mo": 355,
-      "stars": 4592,
+      "stars": 4593,
       "license": "GPL-3.0",
       "communityHealth": 85,
       "ciPassRate": 0.8392857142857143,
@@ -750,7 +750,7 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 197,
+      "commits_6mo": 198,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
@@ -765,7 +765,7 @@
       },
       "ci": 5,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-15T21:35:50Z",
+      "pushed_at": "2026-04-15T22:17:03Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -836,7 +836,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.7127659574468085,
+      "ciPassRate": 0.7,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -847,7 +847,7 @@
       },
       "ci": 4,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-04-15T21:24:43Z",
+      "pushed_at": "2026-04-15T22:14:22Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -914,11 +914,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 87,
+      "commits_6mo": 88,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.83,
+      "ciPassRate": 0.82,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -927,9 +927,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 7,
+      "ci": 6,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-15T21:34:48Z",
+      "pushed_at": "2026-04-15T21:42:00Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
