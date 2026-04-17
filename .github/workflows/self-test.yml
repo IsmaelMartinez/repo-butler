@@ -18,9 +18,9 @@ on:
   workflow_dispatch:
     inputs:
       phase:
-        description: 'Phase(s) to run. Single phase, comma-separated list (e.g. "observe,assess,report"), or "all".'
+        description: 'Phase(s) to run. Single phase, comma-separated list (e.g. "observe,assess,update,report"), or "all".'
         required: false
-        default: 'observe,assess,report'
+        default: 'observe,assess,update,report'
       dry-run:
         description: 'Dry run (true/false)'
         required: false
@@ -62,7 +62,7 @@ jobs:
       - name: Run Repo Butler
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          INPUT_PHASE: ${{ github.event.inputs.phase || 'observe,assess,report' }}
+          INPUT_PHASE: ${{ github.event.inputs.phase || 'observe,assess,update,report' }}
           INPUT_CONFIG_PATH: .github/roadmap.yml
           INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
