@@ -17,6 +17,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt } from './report-shared.js';
+import { buildAgentCard } from './agent-card.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
   fetchWeeklyCommits, fetchPRAuthors, computePRCycleTime,
@@ -342,6 +343,19 @@ export async function report(context) {
     await writeFile(join(badgeDir, 'portfolio.svg'), portfolioSvg);
 
     console.log(`Generated badges for ${activeRepos.length} repos + portfolio.`);
+  }
+
+  // A2A AgentCard for capability discovery. Published alongside the dashboards
+  // so A2A-aware agents can fetch it from GitHub Pages at /.well-known/agent-card.json.
+  {
+    const pkgRaw = await fsReadFile('package.json', 'utf8').catch(() => null);
+    const version = pkgRaw ? (JSON.parse(pkgRaw).version || '0.0.0') : '0.0.0';
+    const repoSlug = context.snapshot?.repository || `${owner}/${context.repo || 'repo-butler'}`;
+    const card = buildAgentCard({ version, repo: repoSlug });
+    const wellKnownDir = join(outDir, '.well-known');
+    await mkdir(wellKnownDir, { recursive: true });
+    await writeFile(join(wellKnownDir, 'agent-card.json'), JSON.stringify(card, null, 2));
+    console.log('A2A AgentCard written to .well-known/agent-card.json');
   }
 
   // Persist hash and repo cache after successful generation.
