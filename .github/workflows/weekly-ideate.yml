@@ -1,0 +1,54 @@
+name: Repo Butler Weekly Ideate
+
+# Runs the expensive deep-provider IDEATE phase (council deliberation +
+# governance findings) on a weekly cadence. Dry-run until the council
+# output has been trusted for long enough to graduate onto PROPOSE.
+
+on:
+  schedule:
+    # Mondays at 06:00 UTC — after the daily observe/assess/report at 02:00.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Dry run (true/false)'
+        required: false
+        default: 'true'
+
+permissions:
+  issues: read
+  pull-requests: read
+  contents: write
+  security-events: read
+
+jobs:
+  ideate:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: repo-butler-weekly-ideate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Run Observe + Ideate
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          INPUT_PHASE: observe,ideate
+          INPUT_CONFIG_PATH: .github/roadmap.yml
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          TRIAGE_BOT_INGEST_SECRET: ${{ secrets.TRIAGE_BOT_INGEST_SECRET }}
+        run: node src/index.js
