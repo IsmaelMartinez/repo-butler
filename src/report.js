@@ -242,7 +242,9 @@ export async function report(context) {
         }
         const dashboardUrl = context.triageBot?.dashboardUrl || null;
         const repoDepSummary = depInventory?.repoSummaries?.[r.name] || null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits, repoDepSummary, libyear, config);
+        // Assessment narrative is scoped to the config repo's snapshot (ASSESS runs once per run).
+        const repoAssessment = r.name === context.repo ? (context.assessment?.assessment || null) : null;
+        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, dashboardUrl, openPRs, cycleTime, weeklyCommits, repoDepSummary, libyear, config, repoAssessment);
         await writeFile(join(outDir, `${r.name}.html`), html);
 
         // Save chart data to cache for future incremental runs.

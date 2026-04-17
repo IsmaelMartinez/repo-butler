@@ -1007,6 +1007,39 @@ describe('generateRepoReport restructure', () => {
     // Stars in subtitle, not in a card
     assert.ok(html.includes('5 stars'), 'stars should be in subtitle');
   });
+
+  it('renders assessment narrative when provided and escapes HTML', async () => {
+    const { generateRepoReport } = await import('./report-repo.js');
+    const snapshot = {
+      repository: 'owner/test', meta: { stars: 5, forks: 1, watchers: 2 },
+      issues: { open: [] }, releases: [],
+      community_profile: null, dependabot_alerts: null,
+      code_scanning_alerts: null, secret_scanning_alerts: null, ci_pass_rate: null,
+      pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
+      summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 0, human_prs: 0, bot_prs: 0, releases: 0, latest_release: 'none', ci_workflows: 0, bus_factor: 0, time_to_close_median: null },
+    };
+    const assessment = 'First paragraph with <script>alert(1)</script>.\n\nSecond paragraph on the roadmap.';
+    const html = generateRepoReport(snapshot, [], [], [], null, null, [], null, [], null, null, {}, assessment);
+
+    assert.ok(html.includes('<h2>Assessment</h2>'), 'renders Assessment heading');
+    assert.ok(html.includes('First paragraph with &lt;script&gt;'), 'escapes HTML in narrative');
+    assert.ok(!html.includes('<script>alert(1)'), 'no unescaped script tag');
+    assert.ok(html.includes('Second paragraph on the roadmap.'), 'renders second paragraph');
+  });
+
+  it('omits Assessment section when no narrative is provided', async () => {
+    const { generateRepoReport } = await import('./report-repo.js');
+    const snapshot = {
+      repository: 'owner/test', meta: { stars: 0, forks: 0, watchers: 0 },
+      issues: { open: [] }, releases: [],
+      community_profile: null, dependabot_alerts: null,
+      code_scanning_alerts: null, secret_scanning_alerts: null, ci_pass_rate: null,
+      pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
+      summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 0, human_prs: 0, bot_prs: 0, releases: 0, latest_release: 'none', ci_workflows: 0, bus_factor: 0, time_to_close_median: null },
+    };
+    const html = generateRepoReport(snapshot, [], [], [], null, null, [], null, [], null, null, {});
+    assert.ok(!html.includes('<h2>Assessment</h2>'), 'no Assessment heading when narrative is null');
+  });
 });
 
 describe('report cache invalidation includes report.js', () => {
