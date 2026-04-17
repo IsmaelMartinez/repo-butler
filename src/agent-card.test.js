@@ -58,9 +58,12 @@ describe('buildAgentCard', () => {
     assert.ok(SAFE_HOSTS.has(iconHost), `iconUrl host not on allowlist: ${iconHost}`);
   });
 
-  it('accepts a custom repo override and renders urls consistently', () => {
-    const card = buildAgentCard({ version: '9.9.9', repo: 'IsmaelMartinez/other-repo' });
+  it('derives provider, documentation, icon, and Pages URLs from the repo parameter', () => {
+    const card = buildAgentCard({ version: '9.9.9', repo: 'Octocat/demo-repo' });
     assert.equal(card.version, '9.9.9');
-    assert.ok(card.iconUrl.includes('other-repo.svg'));
+    assert.equal(card.provider.organization, 'Octocat');
+    assert.equal(card.provider.url, 'https://github.com/Octocat');
+    assert.equal(card.documentationUrl, 'https://github.com/Octocat/demo-repo');
+    assert.equal(card.iconUrl, 'https://octocat.github.io/demo-repo/badges/demo-repo.svg');
   });
 });

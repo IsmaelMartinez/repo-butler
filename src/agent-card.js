@@ -7,9 +7,6 @@
 // to find the code / reports / MCP server, so that A2A-aware agents can
 // reason about what the butler can do before calling it via MCP.
 
-const PAGES_BASE = 'https://ismaelmartinez.github.io/repo-butler';
-const REPO_URL = 'https://github.com/IsmaelMartinez/repo-butler';
-
 const SKILLS = [
   {
     id: 'portfolio-health',
@@ -80,17 +77,21 @@ const SKILLS = [
 ];
 
 export function buildAgentCard({ version = '0.1.0', repo = 'IsmaelMartinez/repo-butler' } = {}) {
+  const [owner, name] = repo.split('/');
+  const repoUrl = `https://github.com/${repo}`;
+  const pagesBase = `https://${owner.toLowerCase()}.github.io/${name}`;
+
   return {
     name: 'Repo Butler',
     description:
       'Continuous portfolio governance agent. Observes GitHub repos on a daily schedule, classifies health into Gold/Silver/Bronze tiers, surfaces cross-repo governance findings, and publishes dashboards. Primary programmatic interface is the MCP server (see documentationUrl); this AgentCard is discovery-only.',
     version,
     provider: {
-      organization: 'IsmaelMartinez',
-      url: `https://github.com/${repo.split('/')[0]}`,
+      organization: owner,
+      url: `https://github.com/${owner}`,
     },
-    documentationUrl: REPO_URL,
-    iconUrl: `${PAGES_BASE}/badges/${repo.split('/')[1]}.svg`,
+    documentationUrl: repoUrl,
+    iconUrl: `${pagesBase}/badges/${name}.svg`,
     capabilities: {
       streaming: false,
       pushNotifications: false,
