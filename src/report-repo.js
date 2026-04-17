@@ -649,7 +649,7 @@ function buildCalendarHeatmap(weeklyCommits) {
 
 // --- HTML generators ---
 
-export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = [], depSummary = null, libyear = null, config = {}) {
+export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, dashboardUrl, openPRs = [], cycleTime = null, weeklyCommits = [], depSummary = null, libyear = null, config = {}, assessment = null) {
   const s = snapshot.summary;
   const releases = snapshot.releases || [];
 
@@ -674,6 +674,12 @@ export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthor
   const trendsHtml = hasTrends ? `
 <h2>Trends <span style="font-size:0.8rem;color:${trends.direction === 'growing' ? '#f85149' : trends.direction === 'shrinking' ? '#7ee787' : '#8b949e'}">(issues ${trends.direction})</span></h2>
 <div class="chart-container"><div class="chart-title">Weekly Trends — Open Issues</div><canvas id="trendsChart"></canvas></div>` : '';
+
+  // Assessment narrative from the ASSESS phase (LLM-generated, sanitised before render).
+  const assessmentHtml = assessment
+    ? `<h2>Assessment</h2>
+<div class="chart-container">${assessment.split(/\n{2,}/).map(p => `<p style="margin:0 0 0.75rem 0">${escHtml(p.trim()).replace(/\n/g, '<br>')}</p>`).join('')}</div>`
+    : '';
 
   const hasMergedPrData = hasTrends && trends.weeks.some(w => w.merged_prs > 0);
   const mergedPrDataset = hasMergedPrData ? `,{label:'Merged PRs',data:[${trends.weeks.map(w => w.merged_prs).join(',')}],borderColor:'#388bfd',backgroundColor:'rgba(56,139,253,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y1'}` : '';
@@ -727,6 +733,7 @@ ${CSS}
 ${buildActionabilitySection(snapshot, openPRs)}
 ${buildHealthTierSection(snapshot, config, healthData)}
 ${buildVelocityAlert(detectVelocityImbalance(issueActivity))}
+${assessmentHtml}
 ${trendsHtml}
 ${openWorkHtml}
 <details><summary>Activity History</summary>
