@@ -53,6 +53,8 @@ The report module is split into five files. `src/report.js` is the entry point t
 
 `src/mcp.js` is a zero-dependency MCP server (JSON-RPC 2.0 over stdio) that exposes portfolio health data to AI agents. Run with `claude mcp add repo-butler node src/mcp.js`. Only starts the readline listener when run directly, not when imported for tests.
 
+`src/agent-card.js` builds an A2A AgentCard for capability discovery. The REPORT phase writes it to `reports/.well-known/agent-card.json` so Pages serves it at `ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`. Discovery-only — no live A2A transport yet; agents still consume the butler via MCP.
+
 `schemas/v1/` contains JSON Schema 2020-12 definitions for all data structures. `docs/skill.md` is a Claude Code skill teaching AI agents how to work with repo-butler.
 
 ## Project conventions
@@ -74,7 +76,7 @@ The report module is split into five files. `src/report.js` is the entry point t
 
 ## Report generation
 
-- The workflow runs daily at 2am UTC and takes ~13 minutes. Trigger manually with `gh workflow run "Repo Butler" --ref main`.
+- Three scheduled workflows: `self-test.yml` (daily 02:00 UTC, runs `observe,assess,update,report`, ~13 min), `weekly-ideate.yml` (Mondays 06:00 UTC, runs `observe,ideate` dry-run for council + governance findings), `monitor.yml` (every 6h, runs the monitor phase). Trigger the main one manually with `gh workflow run "Repo Butler" --ref main`.
 - Report caching uses a SHA-256 hash of the snapshot summary. Adding new fields to the summary object will trigger regeneration.
 - Per-repo reports get a full dashboard (charts, health section) for repos with 10+ commits, or a lightweight card for quieter ones.
 - The per-repo `repoSnapshot` in report.js is assembled inline — when adding new observation data, remember to populate it both in observe.js (for the OBSERVE→REPORT pipeline) and in the inline repoSnapshot construction in report.js (for the portfolio→per-repo path).

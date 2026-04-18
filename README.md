@@ -141,6 +141,7 @@ src/
 ├── monitor.js            # Continuous event monitoring between daily runs
 ├── onboard.js            # Auto-onboarding PRs (CLAUDE.md marker) for new repos
 ├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
+├── agent-card.js         # A2A AgentCard generator (served at .well-known/agent-card.json)
 ├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths
 ├── triage-bot.js         # Optional triage bot integration (auto-discovered)
 ├── store.js              # Snapshot + weekly history + hash persistence via Git Data API
@@ -181,6 +182,10 @@ claude mcp add repo-butler node src/mcp.js
 ```
 
 Once connected, the AI gets nine tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier/language), `get_snapshot_diff` (what changed since last run), `get_governance_findings` (standards gaps, policy drift, tier-uplift proposals), `trigger_refresh` (dispatch the workflow via `gh` CLI), `get_monitor_events` (events captured between daily runs), `get_watchlist` (council-watchlisted proposals), and `get_council_personas` (the five reviewer personas). It also exposes three resources: the latest snapshot, portfolio health summary, and campaign status.
+
+## A2A Agent Card
+
+For A2A-protocol-aware agents, the butler publishes an AgentCard at [`ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`](https://ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json). It declares the butler's skills (portfolio-health, governance-findings, campaign-status, snapshot-diff, monitor-events, council-triage) for capability discovery. The card is discovery-only — the live programmatic interface is the MCP server above.
 
 ## Design principles
 
