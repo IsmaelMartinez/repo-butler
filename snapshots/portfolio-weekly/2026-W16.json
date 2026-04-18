@@ -162,9 +162,9 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 17,
+      "open_issues": 19,
       "open_bugs": 11,
-      "commits_6mo": 356,
+      "commits_6mo": 354,
       "stars": 4598,
       "license": "GPL-3.0",
       "communityHealth": 85,
@@ -683,7 +683,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-01T12:26:05Z",
-      "pushed_at": "2026-04-17T08:24:42Z",
+      "pushed_at": "2026-04-17T22:15:59Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -750,7 +750,7 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 199,
+      "commits_6mo": 202,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
@@ -765,7 +765,7 @@
       },
       "ci": 6,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-17T21:56:54Z",
+      "pushed_at": "2026-04-18T00:41:41Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -832,11 +832,11 @@
     "wifisentinel": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 215,
+      "commits_6mo": 216,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.7011494252873564,
+      "ciPassRate": 0.7093023255813954,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -847,7 +847,7 @@
       },
       "ci": 4,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-04-17T08:00:47Z",
+      "pushed_at": "2026-04-17T22:15:32Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -914,11 +914,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 90,
+      "commits_6mo": 97,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.81,
+      "ciPassRate": 0.82,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -927,9 +927,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 5,
+      "ci": 6,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-17T08:37:01Z",
+      "pushed_at": "2026-04-18T01:14:31Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
