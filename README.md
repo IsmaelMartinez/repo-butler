@@ -141,7 +141,7 @@ src/
 ├── monitor.js            # Continuous event monitoring between daily runs
 ├── onboard.js            # Auto-onboarding PRs (CLAUDE.md marker) for new repos
 ├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
-├── agent-card.js         # A2A AgentCard generator (served at /.well-known/agent-card.json)
+├── agent-card.js         # A2A AgentCard generator (served at .well-known/agent-card.json)
 ├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths
 ├── triage-bot.js         # Optional triage bot integration (auto-discovered)
 ├── store.js              # Snapshot + weekly history + hash persistence via Git Data API
