@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-17T23:50:15.154Z",
+  "timestamp": "2026-04-18T03:05:51.010Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 0,
+    "open_issues_count": 1,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-04-17T23:50:05Z",
+    "pushed_at": "2026-04-18T00:41:41Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,20 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 121,
+        "title": "docs: note agent-card module, A2A endpoint, and weekly/monitor workflows",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-18T00:40:31Z"
+      },
+      {
+        "number": 120,
+        "title": "feat: publish A2A AgentCard for capability discovery",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-17T23:50:02Z"
+      },
       {
         "number": 119,
         "title": "feat: wire UPDATE into daily + IDEATE weekly cron (dry-run)",
@@ -1009,9 +1023,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 118,
+    "recently_merged_prs": 120,
     "bot_prs": 5,
-    "human_prs": 113,
+    "human_prs": 115,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
