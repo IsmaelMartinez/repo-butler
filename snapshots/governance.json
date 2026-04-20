@@ -1,0 +1,83 @@
+[
+  {
+    "type": "standards-gap",
+    "tool": "code-scanning",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "teams-for-linux",
+      "generator-atlassian-compass-event-catalog",
+      "bonnie-wee-plot",
+      "betis-escocia"
+    ],
+    "nonCompliant": [
+      "yourear",
+      "sound3fy",
+      "ismaelmartinez.me.uk",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv"
+    ],
+    "adoptionRate": 0.3076923076923077,
+    "priority": "high"
+  },
+  {
+    "type": "standards-gap",
+    "tool": "secret-scanning",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "teams-for-linux",
+      "ismaelmartinez.me.uk",
+      "generator-atlassian-compass-event-catalog",
+      "bonnie-wee-plot",
+      "betis-escocia",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv"
+    ],
+    "nonCompliant": [
+      "yourear",
+      "sound3fy"
+    ],
+    "adoptionRate": 0.8461538461538461,
+    "priority": "low"
+  },
+  {
+    "type": "policy-drift",
+    "category": "license",
+    "repo": "teams-for-linux",
+    "expected": "MIT",
+    "actual": "GPL-3.0",
+    "priority": "medium"
+  },
+  {
+    "type": "policy-drift",
+    "category": "license",
+    "repo": "bonnie-wee-plot",
+    "expected": "MIT",
+    "actual": "NOASSERTION",
+    "priority": "medium"
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "teams-for-linux",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Fewer than 10 open bugs",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high"
+  }
+]
