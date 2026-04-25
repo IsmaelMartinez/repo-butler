@@ -164,8 +164,8 @@
     "teams-for-linux": {
       "open_issues": 20,
       "open_bugs": 10,
-      "commits_6mo": 363,
-      "stars": 4621,
+      "commits_6mo": 362,
+      "stars": 4623,
       "license": "GPL-3.0",
       "communityHealth": 85,
       "ciPassRate": 0.9827586206896551,
@@ -765,7 +765,7 @@
       },
       "ci": 6,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-24T15:28:15Z",
+      "pushed_at": "2026-04-24T18:14:30Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -914,11 +914,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 127,
+      "commits_6mo": 129,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.82,
+      "ciPassRate": 0.83,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -929,7 +929,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-24T12:40:01Z",
+      "pushed_at": "2026-04-24T23:34:15Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
