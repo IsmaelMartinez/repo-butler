@@ -454,7 +454,7 @@ ${nextTierHtml}
 // with the neutral grey and the label is forced to 'unavailable'.
 export function buildStatCard({ title, value, color, label, available = true }) {
   const displayValue = available ? value : '—';
-  const displayColor = available ? color : '#6e7681';
+  const displayColor = available ? color : TIER_COLORS.none;
   const displayLabel = available ? label : 'unavailable';
   return `<div class="card"><h3>${title}</h3>
 <div class="stat" style="color:${displayColor}">${displayValue}</div>
@@ -489,7 +489,7 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
   const codeScanHtml = buildStatCard({
     title: 'Code Scanning',
     value: cs?.count,
-    color: cs && (cs.count === 0 ? '#7ee787' : cs.max_severity === 'critical' || cs.max_severity === 'high' ? '#f85149' : '#d29922'),
+    color: cs && (cs.count === 0 ? COLOR_SUCCESS : cs.max_severity === 'critical' || cs.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING),
     label: cs?.count === 0 ? 'No open alerts' : 'open alerts',
     available: !!cs,
   });
@@ -498,7 +498,7 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
   const secretScanHtml = buildStatCard({
     title: 'Secret Scanning',
     value: ss?.count,
-    color: ss && (ss.count === 0 ? '#7ee787' : '#f85149'),
+    color: ss && (ss.count === 0 ? COLOR_SUCCESS : COLOR_DANGER),
     label: ss?.count === 0 ? 'No open alerts' : 'open alerts',
     available: !!ss,
   });
