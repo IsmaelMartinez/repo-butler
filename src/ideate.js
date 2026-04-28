@@ -226,11 +226,8 @@ export function parseIdeas(raw) {
       if (!(name in IDEA_FIELDS)) continue;
       const key = IDEA_FIELDS[name];
       if (key === 'body') {
-        if (bodyStart === -1) {
-          bodyStart = m.index + m[0].length - m[2].length;
-          break;
-        }
-        continue;
+        bodyStart = m.index + m[0].length - m[2].length;
+        break;
       }
       if (!(key in fields)) fields[key] = m[2].trim();
     }
