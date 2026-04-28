@@ -21,7 +21,7 @@ function restoreStdout() {
 }
 
 // Dynamic import to avoid top-level side effects.
-let handleMessage, TOOLS, RESOURCES;
+let handleMessage, TOOLS, RESOURCES, callTool;
 
 describe('MCP server', async () => {
   // Import once for all tests.
@@ -29,6 +29,7 @@ describe('MCP server', async () => {
   handleMessage = mod.handleMessage;
   TOOLS = mod.TOOLS;
   RESOURCES = mod.RESOURCES;
+  callTool = mod.callTool;
 
   beforeEach(() => captureResponses());
 
@@ -250,6 +251,29 @@ describe('MCP server', async () => {
       assert.ok(r.result?.content);
       const data = JSON.parse(r.result.content[0].text);
       assert.ok(Array.isArray(data.findings));
+    });
+  });
+
+  describe('dispatch', () => {
+    it('every TOOLS entry has a handler function', () => {
+      restoreStdout();
+      assert.ok(TOOLS.length > 0);
+      for (const tool of TOOLS) {
+        assert.equal(typeof tool.handler, 'function', `${tool.name} must expose a handler function`);
+      }
+    });
+
+    it('callTool returns null for an unknown tool name', () => {
+      restoreStdout();
+      assert.equal(callTool('unknown_tool', {}), null);
+    });
+
+    it('callTool dispatches to the matching handler with the right args', () => {
+      restoreStdout();
+      const result = callTool('get_council_personas', {});
+      assert.ok(result, 'expected a result from get_council_personas');
+      assert.ok(Array.isArray(result.personas));
+      assert.ok(result.personas.some(p => p.name === 'Security'));
     });
   });
 });
