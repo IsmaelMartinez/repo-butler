@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION } from './report-shared.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -1070,7 +1070,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const cache = {
       repos: {
         'cached-repo': {
-          schemaVersion: 2,
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: '2026-04-01T00:00:00Z',
           open_issues_count: 5,
           details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null },
