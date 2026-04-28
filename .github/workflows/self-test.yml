@@ -2,10 +2,16 @@ name: Repo Butler
 
 on:
   schedule:
-    # Primary daily run. GitHub cron is best-effort — may be delayed or
-    # dropped during high-demand periods (observed ~80% miss rate on this
-    # repo). The push trigger below acts as a reliable fallback.
-    - cron: '0 2 * * *'
+    # Four runs daily across UK waking hours (no overnight runs):
+    #   07:00 UTC (08:00 BST / 07:00 GMT — morning)
+    #   11:00 UTC (12:00 BST / 11:00 GMT — midday)
+    #   16:00 UTC (17:00 BST / 16:00 GMT — late afternoon)
+    #   20:00 UTC (21:00 BST / 20:00 GMT — evening)
+    # GitHub cron is best-effort — may be delayed or dropped during high-demand
+    # periods (observed ~80% miss rate on this repo). The push trigger below
+    # acts as a reliable fallback; four cron times also gives more chances
+    # to catch a successful run per day.
+    - cron: '0 7,11,16,20 * * *'
   push:
     branches: [main]
     paths:
