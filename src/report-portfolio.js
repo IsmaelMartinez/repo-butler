@@ -363,7 +363,7 @@ export function buildCampaignSection(repos, details) {
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
     const barColor = colorByThreshold(pct, PCT_HIGH_GOOD_RANGES);
     const nonCompliantList = nonCompliant.length > 0
-      ? `<details><summary style="font-size:0.75rem;color:#8b949e;cursor:pointer">${nonCompliant.length} repo${nonCompliant.length !== 1 ? 's' : ''} need attention</summary><div class="campaign-repos" style="margin-top:0.3rem">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div></details>`
+      ? `<details><summary class="muted text-sm" style="cursor:pointer">${nonCompliant.length} repo${nonCompliant.length !== 1 ? 's' : ''} need attention</summary><div class="campaign-repos" style="margin-top:0.3rem">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div></details>`
       : `<div class="campaign-repos" style="color:${COLOR_SUCCESS}">All repos compliant</div>`;
 
     return `<div class="campaign-card">
@@ -426,7 +426,7 @@ export function buildGovernanceSection(findings) {
       .map(g => {
         const label = STANDARD_LABELS[g.tool] || g.tool;
         const scopeLabel = g.scope?.type === 'ecosystem'
-          ? `<span style="color:#8b949e;font-size:0.8rem"> (${escHtml(g.scope.language)} only)</span>`
+          ? `<span class="muted" style="font-size:0.8rem"> (${escHtml(g.scope.language)} only)</span>`
           : '';
         const pct = Math.round(g.adoptionRate * 100);
         return `<tr>
@@ -456,7 +456,7 @@ export function buildGovernanceSection(findings) {
       .map(([category, items]) => {
         const label = DRIFT_LABELS[category] || category;
         const cells = items
-          .map(d => `<a href="${escHtml(d.repo)}.html">${escHtml(d.repo)}</a> <span style="color:#8b949e;font-size:0.8rem">(${escHtml(String(d.actual))} vs ${escHtml(String(d.expected))})</span>`)
+          .map(d => `<a href="${escHtml(d.repo)}.html">${escHtml(d.repo)}</a> <span class="muted" style="font-size:0.8rem">(${escHtml(String(d.actual))} vs ${escHtml(String(d.expected))})</span>`)
           .join(', ');
         return `<tr><td><strong>${escHtml(label)}</strong></td><td>${cells}</td></tr>`;
       })
@@ -521,12 +521,12 @@ export function buildPortfolioAttentionSection(repos, details, owner, config) {
 
   if (top10.length === 0) {
     return `<h2>Attention Required</h2>
-<div class="chart-container"><p style="color:#7ee787;margin:0">All clear — nothing needs attention across the portfolio.</p></div>`;
+<div class="chart-container"><p class="text-success" style="margin:0">All clear — nothing needs attention across the portfolio.</p></div>`;
   }
 
   const effortColor = { 'quick win': '#7ee787', 'moderate': '#d29922', 'significant': '#f85149' };
   const rows = top10.map((item, i) => `<tr>
-    <td style="color:#8b949e;font-weight:600">${i + 1}</td>
+    <td class="muted" style="font-weight:600">${i + 1}</td>
     <td><a href="${escHtml(item.repo)}.html">${escHtml(item.repo)}</a></td>
     <td>${item.text}</td>
     <td><span style="color:${effortColor[item.effort] || '#8b949e'}">${item.effort}</span></td>
@@ -583,7 +583,7 @@ export function buildDependencyInventorySection(inventory) {
           `<tr><td>${escHtml(f.repo || 'unknown')}</td><td>${escHtml(f.dep || 'unknown')}</td></tr>`
         ).join('');
         return `<div class="chart-container" style="margin-bottom:1rem">
-<div class="chart-title"><span style="color:${COLOR_DANGER}">${escHtml(license)}</span> <span style="font-size:0.85rem;color:#8b949e">— ${escHtml(concern.note)}</span></div>
+<div class="chart-title"><span style="color:${COLOR_DANGER}">${escHtml(license)}</span> <span class="muted" style="font-size:0.85rem">— ${escHtml(concern.note)}</span></div>
 <table><thead><tr><th>Repo</th><th>Dependency</th></tr></thead>
 <tbody>${depRows}</tbody></table>
 </div>`;
@@ -603,9 +603,9 @@ export function buildDependencyInventorySection(inventory) {
         const uniqueDeps = [...new Set(flags.map(f => f.dep))];
         const deps = uniqueDeps.slice(0, 3).map(d => escHtml(d)).join(', ');
         const more = uniqueDeps.length > 3 ? ` +${uniqueDeps.length - 3} more` : '';
-        return `<tr><td style="color:#8b949e">${escHtml(license)}</td><td style="color:#8b949e">${deps}${more}</td><td style="color:#8b949e">${escHtml(concern.note)}</td></tr>`;
+        return `<tr><td class="muted">${escHtml(license)}</td><td class="muted">${deps}${more}</td><td class="muted">${escHtml(concern.note)}</td></tr>`;
       }).join('');
-      html += `<details style="margin-top:1rem"><summary style="color:#8b949e;cursor:pointer">Low-risk copyleft dependencies (${lowFlags.length}) — fine for non-commercial use</summary>
+      html += `<details style="margin-top:1rem"><summary class="muted" style="cursor:pointer">Low-risk copyleft dependencies (${lowFlags.length}) — fine for non-commercial use</summary>
 <table style="margin-top:0.5rem"><thead><tr><th>License</th><th>Dependencies</th><th>Note</th></tr></thead>
 <tbody>${summaryRows}</tbody></table>
 </details>`;
@@ -680,7 +680,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
 <div class="chart-container">
   <div style="font-size:2.5rem;font-weight:700;color:${goldColor};margin-bottom:0.5rem">${goldPct}% Gold</div>
   <div style="margin-bottom:0.5rem">${tierBadges}</div>
-  <div style="color:#8b949e">${classified.length} repos — ${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div>
+  <div class="muted">${classified.length} repos — ${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div>
 </div>`;
 
   // --- Simplified health table (6 columns) ---
@@ -703,7 +703,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     const firstFail = nextTier
       ? r._checks.find(c => !c.passed && (c.required_for === nextTier || (nextTier === 'gold' && c.required_for === 'silver')))
       : null;
-    const nextStep = firstFail ? `<span style="color:#8b949e;font-size:0.85em">${escHtml(firstFail.name)}</span>` : `<span style="color:${COLOR_SUCCESS};font-size:0.85em">All checks pass</span>`;
+    const nextStep = firstFail ? `<span class="muted" style="font-size:0.85em">${escHtml(firstFail.name)}</span>` : `<span style="color:${COLOR_SUCCESS};font-size:0.85em">All checks pass</span>`;
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
     return `<tr>
       <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
