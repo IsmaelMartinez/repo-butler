@@ -18,24 +18,24 @@ const PROTOCOL_VERSION = '2024-11-05';
 
 // --- Data loading ---
 
+// Run a git subcommand against the repo-butler-data branch, trying the
+// origin/-prefixed ref first and falling back to the bare local ref. The
+// caller supplies argsFor(ref) which builds the full git argv given a ref
+// name. Returns stdout, or throws if neither ref works.
+function gitShow(argsFor) {
+  const opts = { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000 };
+  try {
+    return execFileSync('git', argsFor('origin/repo-butler-data'), opts);
+  } catch {
+    return execFileSync('git', argsFor('repo-butler-data'), opts);
+  }
+}
+
 function loadFromDataBranch(path) {
   try {
-    return execFileSync('git', ['show', `origin/repo-butler-data:${path}`], {
-      encoding: 'utf8',
-      cwd: join(__dirname, '..'),
-      timeout: 5000,
-    });
+    return gitShow(ref => ['show', `${ref}:${path}`]);
   } catch {
-    // Try without origin/ prefix (local branch).
-    try {
-      return execFileSync('git', ['show', `repo-butler-data:${path}`], {
-        encoding: 'utf8',
-        cwd: join(__dirname, '..'),
-        timeout: 5000,
-      });
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -47,16 +47,7 @@ function loadSnapshot() {
 function loadPortfolioWeekly() {
   // Find the latest weekly file by listing the directory.
   try {
-    let listing;
-    try {
-      listing = execFileSync('git', ['ls-tree', '--name-only', 'origin/repo-butler-data', 'snapshots/portfolio-weekly/'], {
-        encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000,
-      }).trim();
-    } catch {
-      listing = execFileSync('git', ['ls-tree', '--name-only', 'repo-butler-data', 'snapshots/portfolio-weekly/'], {
-        encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000,
-      }).trim();
-    }
+    const listing = gitShow(ref => ['ls-tree', '--name-only', ref, 'snapshots/portfolio-weekly/']).trim();
     if (!listing) return null;
     const files = listing.split('\n').filter(f => f.endsWith('.json')).sort();
     if (files.length === 0) return null;
