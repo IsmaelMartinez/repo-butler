@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION } from './report-shared.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -1070,6 +1070,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const cache = {
       repos: {
         'cached-repo': {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: '2026-04-01T00:00:00Z',
           open_issues_count: 5,
           details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null },
@@ -1105,6 +1106,56 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
     assert.ok(apiCallCount > 0, 'should call API for changed repo');
     assert.ok(!details._cachedRepos.includes('changed-repo'), 'should not mark as cached');
+  });
+
+  it('invalidates cache when schemaVersion is missing or stale', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    let apiCallCount = 0;
+    const gh = {
+      request: () => { apiCallCount++; return Promise.resolve({ total_count: 10, license: { spdx_id: 'MIT' }, health_percentage: 80, workflow_runs: [], files: {} }); },
+      paginate: () => { apiCallCount++; return Promise.resolve([]); },
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'old-cache', pushed_at: '2026-04-01T00:00:00Z', open_issues: 5, archived: false, fork: false, stars: 10 },
+    ];
+    const cache = {
+      repos: {
+        'old-cache': {
+          pushed_at: '2026-04-01T00:00:00Z',
+          open_issues_count: 5,
+          details: { commits: 42, released_at: null },
+        },
+      },
+    };
+    const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
+    assert.ok(apiCallCount > 0, 'should re-fetch when schemaVersion is missing');
+    assert.ok(!details._cachedRepos.includes('old-cache'), 'should not mark stale-schema entry as cached');
+  });
+
+  it('skips draft releases when picking latest released_at', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        return Promise.resolve({ total_count: 0, license: { spdx_id: 'MIT' }, workflow_runs: [] });
+      },
+      paginate: (path) => {
+        if (path.includes('/releases')) {
+          return Promise.resolve([
+            { tag_name: 'v2.8.1', draft: true, published_at: null },
+            { tag_name: 'v2.8.0', draft: false, published_at: '2026-04-15T10:00:00Z' },
+          ]);
+        }
+        return Promise.resolve([]);
+      },
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'has-draft', pushed_at: '2026-04-20T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['has-draft'].released_at, '2026-04-15T10:00:00Z', 'should pick first non-draft release');
   });
 
   it('works without cache (backward compatible)', async () => {

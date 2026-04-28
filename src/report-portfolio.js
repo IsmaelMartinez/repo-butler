@@ -6,9 +6,9 @@ import { buildActionItems } from './report-repo.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
-  REPO_EXCLUSION_PATTERNS,
+  REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
-  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue,
+  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
 } from './report-shared.js';
 
 
@@ -172,7 +172,12 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
     // Incremental: skip API calls for repos unchanged since last cache.
     const cached = cache?.repos?.[r.name];
-    if (cached && cached.pushed_at === r.pushed_at && cached.open_issues_count === (r.open_issues || 0)) {
+    if (
+      cached
+      && cached.schemaVersion === REPO_CACHE_SCHEMA_VERSION
+      && cached.pushed_at === r.pushed_at
+      && cached.open_issues_count === (r.open_issues || 0)
+    ) {
       details[r.name] = cached.details;
       cachedRepos.add(r.name);
       console.log(`  ↩ ${r.name} — unchanged, using cache`);
@@ -235,8 +240,8 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         })
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
-      gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 1 })
-        .then(rels => rels[0]?.published_at ?? null)
+      gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
+        .then(rels => rels.find(isPublishedRelease)?.published_at ?? null)
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/code-scanning/alerts?state=open&per_page=100`)
         .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))
