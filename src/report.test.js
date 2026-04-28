@@ -1559,3 +1559,178 @@ describe('buildRepoSnapshot', () => {
     assert.equal(snap.releases[0].published_at, recentISO);
   });
 });
+
+describe('colorByThreshold', () => {
+  it('returns the colour of the first matching range (typical 3-range case)', async () => {
+    const { colorByThreshold } = await import('./report-shared.js');
+    const ranges = [
+      { lt: 50, color: 'red' },
+      { lt: 80, color: 'amber' },
+      { lt: Infinity, color: 'green' },
+    ];
+    assert.equal(colorByThreshold(10, ranges), 'red');
+    assert.equal(colorByThreshold(60, ranges), 'amber');
+    assert.equal(colorByThreshold(95, ranges), 'green');
+  });
+
+  it('falls into the first range for values below the lowest threshold', async () => {
+    const { colorByThreshold } = await import('./report-shared.js');
+    const ranges = [
+      { lt: 50, color: 'red' },
+      { lt: 80, color: 'amber' },
+      { lt: Infinity, color: 'green' },
+    ];
+    assert.equal(colorByThreshold(0, ranges), 'red');
+    assert.equal(colorByThreshold(-100, ranges), 'red');
+  });
+
+  it('falls into the final bucket for values above all thresholds', async () => {
+    const { colorByThreshold } = await import('./report-shared.js');
+    const ranges = [
+      { lt: 50, color: 'red' },
+      { lt: 80, color: 'amber' },
+      { lt: Infinity, color: 'green' },
+    ];
+    assert.equal(colorByThreshold(1e9, ranges), 'green');
+  });
+
+  it('lt is strictly less-than at boundary values', async () => {
+    const { colorByThreshold } = await import('./report-shared.js');
+    const ranges = [
+      { lt: 50, color: 'red' },
+      { lt: 80, color: 'amber' },
+      { lt: Infinity, color: 'green' },
+    ];
+    // 50 is NOT < 50, so it bumps to the next range
+    assert.equal(colorByThreshold(50, ranges), 'amber');
+    assert.equal(colorByThreshold(80, ranges), 'green');
+    // 49.999 IS < 50
+    assert.equal(colorByThreshold(49.999, ranges), 'red');
+  });
+
+  it('lte is less-than-or-equal at boundary values', async () => {
+    const { colorByThreshold } = await import('./report-shared.js');
+    const ranges = [
+      { lte: 7, color: 'green' },
+      { lte: 30, color: 'amber' },
+      { lte: Infinity, color: 'red' },
+    ];
+    assert.equal(colorByThreshold(7, ranges), 'green');
+    assert.equal(colorByThreshold(7.5, ranges), 'amber');
+    assert.equal(colorByThreshold(30, ranges), 'amber');
+    assert.equal(colorByThreshold(31, ranges), 'red');
+  });
+
+  it('returns the fallback for null/undefined input', async () => {
+    const { colorByThreshold } = await import('./report-shared.js');
+    const ranges = [
+      { lt: 50, color: 'red' },
+      { lt: Infinity, color: 'green' },
+    ];
+    assert.equal(colorByThreshold(null, ranges), '#6e7681');
+    assert.equal(colorByThreshold(undefined, ranges), '#6e7681');
+    assert.equal(colorByThreshold(null, ranges, 'grey'), 'grey');
+  });
+
+  it('handles a single-range case', async () => {
+    const { colorByThreshold } = await import('./report-shared.js');
+    const ranges = [{ lt: Infinity, color: 'only' }];
+    assert.equal(colorByThreshold(0, ranges), 'only');
+    assert.equal(colorByThreshold(1e9, ranges), 'only');
+    assert.equal(colorByThreshold(null, ranges), '#6e7681');
+  });
+});
+
+describe('getLibyearColor delegates to colorByThreshold', () => {
+  it('preserves original colour mapping', async () => {
+    const { getLibyearColor } = await import('./report-shared.js');
+    assert.equal(getLibyearColor(null), '#6e7681');
+    assert.equal(getLibyearColor(undefined), '#6e7681');
+    assert.equal(getLibyearColor(0), '#7ee787');
+    assert.equal(getLibyearColor(4.99), '#7ee787');
+    assert.equal(getLibyearColor(5), '#d29922');     // boundary: >= GREEN bumps to YELLOW
+    assert.equal(getLibyearColor(19.99), '#d29922');
+    assert.equal(getLibyearColor(20), '#f85149');    // boundary: >= YELLOW bumps to RED
+    assert.equal(getLibyearColor(100), '#f85149');
+  });
+});
+
+describe('portfolio report colour regressions', () => {
+  it('renders expected colours for known threshold inputs', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const recentISO = new Date().toISOString();
+    const portfolio = { repos: [
+      // Healthy repo: should render COLOR_SUCCESS for issues, PRs, CI%, vulns.
+      { name: 'healthy', stars: 1, forks: 0, open_issues: 0, pushed_at: recentISO, archived: false, fork: false, language: 'JS' },
+      // Unhealthy repo: many issues + many PRs + low CI%.
+      { name: 'troubled', stars: 1, forks: 0, open_issues: 50, pushed_at: recentISO, archived: false, fork: false, language: 'JS' },
+    ]};
+    const details = {
+      healthy: {
+        commits: 20, weekly: [1,2], license: 'MIT', ci: 2, communityHealth: 95,
+        vulns: { count: 0, max_severity: null }, ciPassRate: 0.95,
+        open_issues: 0, open_bugs: 0, open_prs: 0, released_at: recentISO,
+        codeScanning: null, secretScanning: { count: 0 },
+      },
+      troubled: {
+        commits: 20, weekly: [1,2], license: 'MIT', ci: 2, communityHealth: 30,
+        vulns: { count: 5, max_severity: 'high' }, ciPassRate: 0.5,
+        open_issues: 50, open_bugs: 30, open_prs: 12, released_at: recentISO,
+        codeScanning: null, secretScanning: { count: 0 },
+      },
+    };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    // Confirm the success/warning/danger hex strings are present in the rendered HTML.
+    assert.ok(html.includes('#7ee787'), 'should include success green');
+    assert.ok(html.includes('#d29922'), 'should include warning amber');
+    assert.ok(html.includes('#f85149'), 'should include danger red');
+    // Open issues for troubled (50) should render with danger red.
+    assert.match(html, /color:#f85149">50</, 'troubled repo open_issues 50 → danger');
+    // Open PRs for troubled (12) should render with danger red.
+    assert.match(html, /color:#f85149">12</, 'troubled repo open_prs 12 → danger');
+    // CI 50% (rounded) should render with danger red.
+    assert.match(html, /color:#f85149">50%</, 'troubled repo CI 50% → danger');
+    // Healthy repo CI 95% should render with success green.
+    assert.match(html, /color:#7ee787">95%</, 'healthy repo CI 95% → success');
+    // Healthy repo issues 0 → success green; PRs 0 → success green.
+    assert.match(html, /color:#7ee787">0</, 'healthy repo zero issues/PRs → success');
+  });
+});
+
+describe('per-repo report colour regressions', () => {
+  it('buildHealthSection renders danger red for low CI pass rate, bus factor 1 and slow time-to-close', async () => {
+    const { buildHealthSection } = await import('./report-repo.js');
+    const snapshot = {
+      community_profile: { health_percentage: 90, files: { readme: true, license: true, contributing: true, code_of_conduct: true, issue_template: true, pull_request_template: true } },
+      dependabot_alerts: { count: 0, critical: 0, high: 0, medium: 0, low: 0, max_severity: null },
+      code_scanning_alerts: null, secret_scanning_alerts: { count: 0 },
+      ci_pass_rate: { pass_rate: 0.6, total_runs: 100, passed: 60, failed: 40 },
+      sbom: null,
+      summary: { bus_factor: 1, time_to_close_median: { median_days: 60, sample_size: 10 } },
+    };
+    const html = buildHealthSection(snapshot);
+    // CI 60% rendered with danger red.
+    assert.match(html, /color:#f85149">60%</, 'CI 60% → danger');
+    // Bus factor 1 rendered with danger red.
+    assert.match(html, /color:#f85149">1</, 'bus factor 1 → danger');
+    // TTC 60d rendered with danger red.
+    assert.match(html, /color:#f85149">60d</, 'ttc 60d → danger');
+  });
+
+  it('buildHealthSection renders success green for healthy thresholds', async () => {
+    const { buildHealthSection } = await import('./report-repo.js');
+    const snapshot = {
+      community_profile: null, dependabot_alerts: null,
+      code_scanning_alerts: null, secret_scanning_alerts: null,
+      // CI 95% → success.
+      ci_pass_rate: { pass_rate: 0.95, total_runs: 100, passed: 95, failed: 5 },
+      sbom: null,
+      // bus_factor 5 → success; ttc 5d → success.
+      summary: { bus_factor: 5, time_to_close_median: { median_days: 5, sample_size: 10 } },
+    };
+    const html = buildHealthSection(snapshot);
+    assert.match(html, /color:#7ee787">95%</, 'CI 95% → success');
+    assert.match(html, /color:#7ee787">5</, 'bus factor 5 → success');
+    assert.match(html, /color:#7ee787">5d</, 'ttc 5d → success');
+  });
+});

@@ -2,10 +2,53 @@
 
 import { CSS } from './report-styles.js';
 import {
-  TIER_DISPLAY, TIER_COLORS,
+  TIER_DISPLAY, TIER_COLORS, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, fmt, countBy,
   daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
+  colorByThreshold,
 } from './report-shared.js';
+
+// Range tuples for value-to-colour mapping in per-repo dashboards.
+const CYCLE_TIME_HOURS_RANGES = [
+  { lt: 24, color: COLOR_SUCCESS },
+  { lt: 48, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_DANGER },
+];
+const CONTRIBUTOR_RATIO_RANGES = [
+  { lt: 1, color: '#8b949e' },
+  { lt: 5, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_SUCCESS },
+];
+const CI_PASS_RATE_RANGES = [
+  { lt: 0.7, color: COLOR_DANGER },
+  { lt: 0.9, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_SUCCESS },
+];
+const BUS_FACTOR_RANGES = [
+  { lte: 1, color: COLOR_DANGER },
+  { lte: 2, color: COLOR_WARNING },
+  { lte: Infinity, color: COLOR_SUCCESS },
+];
+const TIME_TO_CLOSE_DAYS_RANGES = [
+  { lte: 7, color: COLOR_SUCCESS },
+  { lte: 30, color: COLOR_WARNING },
+  { lte: Infinity, color: COLOR_DANGER },
+];
+const PR_AGE_RANGES = [
+  { lt: 14, color: '#8b949e' },
+  { lt: 30, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_DANGER },
+];
+const STALE_DAYS_RANGES = [
+  { lt: 14, color: '#8b949e' },
+  { lt: 30, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_DANGER },
+];
+const BLOCKED_AGE_RANGES = [
+  { lt: 30, color: '#8b949e' },
+  { lt: 90, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_DANGER },
+];
 
 
 // --- Data fetchers for charts ---
@@ -131,7 +174,7 @@ export function computePRCycleTime(mergedPRs) {
 function buildCycleTimeCard(cycleTime) {
   if (!cycleTime) return '';
   const h = cycleTime.median_hours;
-  const color = h < 24 ? '#7ee787' : h < 48 ? '#d29922' : '#f85149';
+  const color = colorByThreshold(h, CYCLE_TIME_HOURS_RANGES);
   const label = h < 24 ? 'elite' : h < 48 ? 'good' : 'needs attention';
   const display = h < 1 ? '<1h' : h < 24 ? `${Math.round(h)}h` : `${(h / 24).toFixed(1)}d`;
   const p90 = cycleTime.p90_hours;
@@ -157,7 +200,7 @@ function buildContributorCard(prAuthors, stargazers) {
   const authorList = stats.firstTimers.length > 0
     ? stats.firstTimers.map(a => `<span class="badge badge-active" style="font-size:0.75rem;margin:2px">${escHtml(a.author)} <span style="background:#7ee787;color:#161b22;border-radius:4px;padding:0 4px;font-size:0.65rem;margin-left:2px">new</span></span>`).join(' ')
     : '<span style="color:#8b949e">none in this period</span>';
-  const ratioColor = stats.ratio >= 5 ? '#7ee787' : stats.ratio >= 1 ? '#d29922' : '#8b949e';
+  const ratioColor = colorByThreshold(stats.ratio, CONTRIBUTOR_RATIO_RANGES);
   return `<h2>Contributors</h2>
 <div class="grid">
   <div class="card"><h3>Unique Contributors (90d)</h3><div class="stat">${stats.total}</div><div class="stat-label">${prAuthors.filter(a => isBotAuthor(a.author)).length} bots excluded</div></div>
@@ -441,17 +484,17 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
 <div class="stat-label">${ss.count === 0 ? 'No open alerts' : 'open alerts'}</div></div>` : `<div class="card"><h3>Secret Scanning</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const hasCiData = cipr?.pass_rate != null;
-  const ciColor = !hasCiData ? '#6e7681' : cipr.pass_rate >= 0.9 ? '#7ee787' : cipr.pass_rate >= 0.7 ? '#d29922' : '#f85149';
+  const ciColor = colorByThreshold(hasCiData ? cipr.pass_rate : null, CI_PASS_RATE_RANGES);
   const ciHtml = hasCiData ? `<div class="card"><h3>CI Pass Rate</h3>
 <div class="stat" style="color:${ciColor}">${Math.round(cipr.pass_rate * 100)}%</div>
 <div class="stat-label">${cipr.total_runs > 0 ? `${cipr.passed}/${cipr.total_runs} runs passed` : 'from workflow runs'}</div></div>` : `<div class="card"><h3>CI Pass Rate</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const busHtml = `<div class="card"><h3>Bus Factor</h3>
-<div class="stat" style="color:${busFactor == null ? '#6e7681' : busFactor <= 1 ? '#f85149' : busFactor <= 2 ? '#d29922' : '#7ee787'}">${busFactor != null ? busFactor : '\u2014'}</div>
+<div class="stat" style="color:${colorByThreshold(busFactor, BUS_FACTOR_RANGES)}">${busFactor != null ? busFactor : '\u2014'}</div>
 <div class="stat-label">${busFactor != null ? 'distinct contributors' : 'unavailable'}</div></div>`;
 
   const ttcHtml = `<div class="card"><h3>Time to Close</h3>
-<div class="stat" style="color:${ttc == null ? '#6e7681' : ttc.median_days <= 7 ? '#7ee787' : ttc.median_days <= 30 ? '#d29922' : '#f85149'}">${ttc != null ? ttc.median_days + 'd' : '\u2014'}</div>
+<div class="stat" style="color:${colorByThreshold(ttc?.median_days ?? null, TIME_TO_CLOSE_DAYS_RANGES)}">${ttc != null ? ttc.median_days + 'd' : '\u2014'}</div>
 <div class="stat-label">${ttc != null ? 'median days (n=' + ttc.sample_size + ')' : 'unavailable'}</div></div>`;
 
   const depHtml = buildRepoDependencyCard(snapshot.sbom, depSummary);
@@ -479,7 +522,7 @@ function buildPRTriageSection(openPRs, repoFullName) {
 
   const rows = openPRs.map(pr => {
     const stale = pr.age_days >= 30;
-    const ageColor = stale ? '#f85149' : pr.age_days >= 14 ? '#d29922' : '#8b949e';
+    const ageColor = colorByThreshold(pr.age_days, PR_AGE_RANGES);
     const authorDisplay = pr.bot ? `<span style="color:#8b949e">${escHtml(pr.author)}</span>` : escHtml(pr.author);
     const labels = pr.labels.map(l => `<span style="background:#21262d;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem">${escHtml(l)}</span>`).join(' ');
     const draftBadge = pr.draft ? '<span style="color:#8b949e;font-size:0.7rem"> draft</span>' : '';
@@ -548,7 +591,7 @@ function buildStalenessSection(snapshot) {
   if (feedbackIssues.length > 0) {
     const critical = feedbackIssues.filter(i => i.stale_days >= 30).length;
     const feedbackRows = feedbackIssues.map(i => {
-      const color = i.stale_days >= 30 ? '#f85149' : i.stale_days >= 14 ? '#d29922' : '#8b949e';
+      const color = colorByThreshold(i.stale_days, STALE_DAYS_RANGES);
       return `<tr>
         <td><a href="https://github.com/${snapshot.repository}/issues/${i.number}">#${i.number}</a></td>
         <td>${escHtml(i.title.length > 55 ? i.title.slice(0, 53) + '…' : i.title)}</td>
@@ -566,7 +609,7 @@ function buildStalenessSection(snapshot) {
   if (blockedIssues.length > 0) {
     const classified = blockedIssues.map(i => ({ ...i, reason: classifyBlocker(i.title, i.labels) }));
     const blockedRows = classified.map(i => {
-      const color = i.age_days >= 90 ? '#f85149' : i.age_days >= 30 ? '#d29922' : '#8b949e';
+      const color = colorByThreshold(i.age_days, BLOCKED_AGE_RANGES);
       const reasonColor = i.reason === 'upstream' ? '#d29922' : i.reason === 'dependency' ? '#388bfd' : '#8b949e';
       return `<tr>
         <td><a href="https://github.com/${snapshot.repository}/issues/${i.number}">#${i.number}</a></td>
