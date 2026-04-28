@@ -11,6 +11,10 @@
       "ciPassRate": 0.86,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
@@ -91,6 +95,10 @@
       "ciPassRate": 0.99,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
@@ -171,10 +179,18 @@
       "ciPassRate": 1,
       "vulns": {
         "count": 2,
+        "critical": 0,
+        "high": 0,
+        "medium": 2,
+        "low": 0,
         "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "secretScanning": {
@@ -182,7 +198,7 @@
       },
       "ci": 15,
       "released_at": "2026-04-24T14:54:11Z",
-      "pushed_at": "2026-04-28T13:36:50Z",
+      "pushed_at": "2026-04-28T14:39:12Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -256,6 +272,10 @@
       "ciPassRate": 0.88,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
@@ -338,10 +358,18 @@
       "ciPassRate": 0.989010989010989,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "secretScanning": {
@@ -423,10 +451,18 @@
       "ciPassRate": 0.88,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "secretScanning": {
@@ -508,10 +544,18 @@
       "ciPassRate": 0.89,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "secretScanning": {
@@ -593,6 +637,10 @@
       "ciPassRate": 0.8,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
@@ -675,6 +723,10 @@
       "ciPassRate": 0.9,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
@@ -750,13 +802,17 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 210,
+      "commits_6mo": 212,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
       "ciPassRate": 0.99,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
@@ -765,7 +821,7 @@
       },
       "ci": 6,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-28T14:29:34Z",
+      "pushed_at": "2026-04-28T14:48:43Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -839,6 +895,10 @@
       "ciPassRate": 0.872093023255814,
       "vulns": {
         "count": 1,
+        "critical": 0,
+        "high": 0,
+        "medium": 1,
+        "low": 0,
         "max_severity": "medium"
       },
       "codeScanning": null,
@@ -921,6 +981,10 @@
       "ciPassRate": 0.94,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
@@ -1003,6 +1067,10 @@
       "ciPassRate": 0.8571428571428571,
       "vulns": {
         "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "max_severity": null
       },
       "codeScanning": null,
