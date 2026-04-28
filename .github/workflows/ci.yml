@@ -20,7 +20,7 @@ jobs:
           node-version: '22'
 
       - name: Run tests
-        run: node --test src/**/*.test.js
+        run: npm test
 
   lint:
     runs-on: ubuntu-latest
