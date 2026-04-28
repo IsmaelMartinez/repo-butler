@@ -467,11 +467,8 @@ const WATCHLIST_PATH = 'snapshots/watchlist.json';
 
 export async function loadWatchlist(store) {
   if (!store?.readJSON) return [];
-  try {
-    return (await store.readJSON(WATCHLIST_PATH)) || [];
-  } catch {
-    return [];
-  }
+  const data = await store.readJSON(WATCHLIST_PATH);
+  return Array.isArray(data) ? data : [];
 }
 
 export async function saveWatchlist(store, watchlist) {

@@ -287,11 +287,7 @@ function classifyIssueSeverity(issue) {
 
 export async function loadCursor(store) {
   if (!store?.readJSON) return null;
-  try {
-    return await store.readJSON(CURSOR_PATH);
-  } catch {
-    return null;
-  }
+  return store.readJSON(CURSOR_PATH);
 }
 
 // Build a cursor from the current state so next run can diff against it.

@@ -275,4 +275,10 @@ describe('watchlist persistence', () => {
     await saveWatchlist(null, [{ title: 'x' }]);
     await saveWatchlist({}, [{ title: 'x' }]);
   });
+
+  it('returns [] when persisted file is non-array (corrupted)', async () => {
+    const { loadWatchlist } = await import('./council.js');
+    const store = { readJSON: async () => ({ not: 'an array' }) };
+    assert.deepEqual(await loadWatchlist(store), []);
+  });
 });
