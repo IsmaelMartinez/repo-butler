@@ -193,8 +193,11 @@ async function detectSecurityAlerts(gh, owner, repo, cursor) {
           ...scanner.buildEvent(alert),
         });
       }
-    } catch {
-      // Scanner not available for this repo / token scope — skip gracefully.
+    } catch (err) {
+      // Scanner not available for this repo / token scope — skip gracefully,
+      // but log the reason so "configured but failing" is distinguishable from
+      // "intentionally not enabled". Mirrors the wording used in observe.js.
+      console.log(`Note: ${scanner.source} alerts not available for ${owner}/${repo} (${err.message})`);
     }
   }
 

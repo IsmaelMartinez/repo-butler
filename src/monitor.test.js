@@ -232,6 +232,47 @@ describe('detectSecurityAlerts (via monitor)', () => {
     assert.equal(security[0].number, 2);
   });
 
+  it('logs a "not available" note naming the scanner and error when a fetch throws', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/dependabot/alerts')) {
+        // Throwing from fetch surfaces err.message into the catch in detectSecurityAlerts.
+        throw new Error('boom-da');
+      }
+      if (u.includes('/code-scanning/alerts')) throw new Error('boom-cs');
+      if (u.includes('/secret-scanning/alerts')) throw new Error('boom-ss');
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const logs = [];
+    const logSpy = mock.method(console, 'log', (msg) => { logs.push(String(msg)); });
+
+    try {
+      const { monitor } = await import('./monitor.js');
+      await monitor({
+        owner: 'alice', repo: 'repo', token: 'fake',
+        store: { readJSON: async () => null, writeJSON: async () => {} },
+      });
+    } finally {
+      logSpy.mock.restore();
+    }
+
+    const findNote = (source) => logs.find(l =>
+      l.includes(`Note: ${source} alerts not available for alice/repo`)
+    );
+
+    const da = findNote('dependabot');
+    const cs = findNote('code_scanning');
+    const ss = findNote('secret_scanning');
+
+    assert.ok(da, 'expected a dependabot not-available note');
+    assert.ok(da.includes('boom-da'), 'dependabot note should include the error message');
+    assert.ok(cs, 'expected a code_scanning not-available note');
+    assert.ok(cs.includes('boom-cs'), 'code_scanning note should include the error message');
+    assert.ok(ss, 'expected a secret_scanning not-available note');
+    assert.ok(ss.includes('boom-ss'), 'secret_scanning note should include the error message');
+  });
+
   it('swallows scanner errors and continues with the remaining scanners', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
