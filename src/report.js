@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION } from './report-shared.js';
+import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease } from './report-shared.js';
 import { buildAgentCard } from './agent-card.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
@@ -144,7 +144,7 @@ export async function report(context) {
 
           [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
             gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
-              .then(rels => rels.filter(rel => !rel.draft && rel.published_at))
+              .then(rels => rels.filter(isPublishedRelease))
               .catch(() => []),
             gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 100 })
               .then(issues => issues.filter(i => !i.pull_request))

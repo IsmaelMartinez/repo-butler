@@ -8,7 +8,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
-  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue,
+  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
 } from './report-shared.js';
 
 
@@ -236,7 +236,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
       gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 5 })
-        .then(rels => rels.find(rel => !rel.draft && rel.published_at)?.published_at ?? null)
+        .then(rels => rels.find(isPublishedRelease)?.published_at ?? null)
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/code-scanning/alerts?state=open&per_page=100`)
         .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))

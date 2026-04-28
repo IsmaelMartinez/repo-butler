@@ -1,5 +1,5 @@
 import { createClient } from './github.js';
-import { isBugIssue, isFeatureIssue } from './report-shared.js';
+import { isBugIssue, isFeatureIssue, isPublishedRelease } from './report-shared.js';
 
 export async function observe(context) {
   const { owner, repo, token, config } = context;
@@ -304,13 +304,12 @@ async function fetchMilestones(gh, owner, repo) {
 async function fetchReleases(gh, owner, repo, count) {
   const releases = await gh.paginate(`/repos/${owner}/${repo}/releases`, { max: count });
   return releases
-    .filter(r => !r.draft && r.published_at)
+    .filter(isPublishedRelease)
     .map(r => ({
       tag: r.tag_name,
       name: r.name,
       published_at: r.published_at,
       prerelease: r.prerelease,
-      draft: r.draft,
     }));
 }
 

@@ -1122,7 +1122,6 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const cache = {
       repos: {
         'old-cache': {
-          // No schemaVersion (pre-fix entry)
           pushed_at: '2026-04-01T00:00:00Z',
           open_issues_count: 5,
           details: { commits: 42, released_at: null },
