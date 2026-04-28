@@ -275,5 +275,14 @@ describe('MCP server', async () => {
       assert.ok(Array.isArray(result.personas));
       assert.ok(result.personas.some(p => p.name === 'Security'));
     });
+
+    it('get_council_personas matches the PERSONAS source from council.js', async () => {
+      restoreStdout();
+      const { PERSONAS } = await import('./council.js');
+      const result = callTool('get_council_personas', {});
+      const expectedNames = Object.values(PERSONAS).map(p => p.name);
+      const actualNames = result.personas.map(p => p.name);
+      assert.deepEqual(actualNames, expectedNames);
+    });
   });
 });
