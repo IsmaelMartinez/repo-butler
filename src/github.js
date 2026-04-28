@@ -127,9 +127,13 @@ export function createClient(token) {
         try {
           const existing = await request(apiPath, branch ? { params: { ref: branch } } : undefined);
           resolvedSha = existing.sha;
-        } catch {
-          // File doesn't exist — first write.
-          resolvedSha = undefined;
+        } catch (err) {
+          if (err.message?.includes(': 404')) {
+            // File doesn't exist — first write.
+            resolvedSha = undefined;
+          } else {
+            throw err;
+          }
         }
       }
 
@@ -148,7 +152,7 @@ export function createClient(token) {
         // On 409 conflict, retry once with a fresh sha lookup. If the caller
         // passed an explicit sha, the retry must also re-discover (a stale
         // explicit sha is exactly the conflict case worth retrying).
-        if (attempt === 0 && err.message?.includes('409')) {
+        if (attempt === 0 && err.message?.includes(': 409')) {
           sha = undefined;
           continue;
         }

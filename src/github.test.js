@@ -197,6 +197,20 @@ describe('createClient — putFile', () => {
     assert.equal(puts, 2, 'must give up after two PUT attempts');
   });
 
+  it('propagates non-404 read errors instead of treating them as missing-file', async () => {
+    let puts = 0;
+    globalThis.fetch = mock.fn(async (url, init) => {
+      const method = init?.method ?? 'GET';
+      if (method === 'GET') return errorResponse(403, 'Forbidden');
+      puts++;
+      return jsonResponse({});
+    });
+
+    const gh = createClient('tok');
+    await assert.rejects(gh.putFile('o', 'r', 'p', 'x', { branch: 'b' }), /403/);
+    assert.equal(puts, 0, 'must not attempt PUT when read fails with non-404');
+  });
+
   it('does not retry on non-409 errors', async () => {
     let puts = 0;
     globalThis.fetch = mock.fn(async (url, init) => {
