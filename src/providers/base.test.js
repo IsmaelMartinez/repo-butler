@@ -34,8 +34,19 @@ describe('fetchJson', () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, 'https://example.test/endpoint');
     assert.equal(calls[0].init.method, 'POST');
-    assert.deepEqual(calls[0].init.headers, { 'x-api-key': 'k' });
+    assert.deepEqual(calls[0].init.headers, { 'Content-Type': 'application/json', 'x-api-key': 'k' });
     assert.equal(calls[0].init.body, JSON.stringify({ prompt: 'hi' }));
+  });
+
+  it('defaults Content-Type to application/json (caller can override)', async () => {
+    const calls = [];
+    globalThis.fetch = mock.fn(async (url, init) => { calls.push(init); return jsonResponse({}); });
+
+    await fetchJson({ url: 'x', headers: {}, body: {}, extractText: () => null, providerName: 'p' });
+    assert.equal(calls[0].headers['Content-Type'], 'application/json');
+
+    await fetchJson({ url: 'x', headers: { 'Content-Type': 'application/x-custom' }, body: {}, extractText: () => null, providerName: 'p' });
+    assert.equal(calls[1].headers['Content-Type'], 'application/x-custom', 'caller can override the default');
   });
 
   it('passes the parsed JSON to extractText', async () => {
