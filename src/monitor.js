@@ -193,8 +193,18 @@ async function detectSecurityAlerts(gh, owner, repo, cursor) {
           ...scanner.buildEvent(alert),
         });
       }
-    } catch {
-      // Scanner not available for this repo / token scope — skip gracefully.
+    } catch (err) {
+      // Distinguish "scanner not available" (403/404 — token scope or
+      // intentionally not enabled) from real failures (5xx, network errors).
+      // The first is informational and gets a Note: log; the second deserves
+      // a warning so it's visible in monitor logs.
+      const msg = err?.message || String(err);
+      const label = scanner.source.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+      if (msg.includes('403') || msg.includes('404')) {
+        console.log(`Note: ${label} alerts not available for ${owner}/${repo} (${msg})`);
+      } else {
+        console.warn(`Monitor: failed to detect ${label} alerts for ${owner}/${repo}: ${msg}`);
+      }
     }
   }
 

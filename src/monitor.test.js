@@ -232,6 +232,74 @@ describe('detectSecurityAlerts (via monitor)', () => {
     assert.equal(security[0].number, 2);
   });
 
+  it('logs a "not available" note for 403/404 scanner errors with humanised labels', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      // Errors carry "403" / "404" in their message so detectSecurityAlerts
+      // routes them to console.log (informational, not a real failure).
+      if (u.includes('/dependabot/alerts')) throw new Error('GitHub API GET ...: 403 Forbidden');
+      if (u.includes('/code-scanning/alerts')) throw new Error('GitHub API GET ...: 404 Not Found');
+      if (u.includes('/secret-scanning/alerts')) throw new Error('GitHub API GET ...: 403 token lacks scope');
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const logs = [];
+    const logSpy = mock.method(console, 'log', (msg) => { logs.push(String(msg)); });
+
+    try {
+      const { monitor } = await import('./monitor.js');
+      await monitor({
+        owner: 'alice', repo: 'repo', token: 'fake',
+        store: { readJSON: async () => null, writeJSON: async () => {} },
+      });
+    } finally {
+      logSpy.mock.restore();
+    }
+
+    // Labels are humanised: dependabot → Dependabot, code_scanning → Code scanning, etc.
+    const findNote = (label) => logs.find(l =>
+      l.includes(`Note: ${label} alerts not available for alice/repo`)
+    );
+
+    assert.ok(findNote('Dependabot'), 'expected a Dependabot not-available note');
+    assert.ok(findNote('Code scanning'), 'expected a Code scanning not-available note');
+    assert.ok(findNote('Secret scanning'), 'expected a Secret scanning not-available note');
+    assert.ok(findNote('Dependabot').includes('403 Forbidden'), 'note should include the original error');
+  });
+
+  it('logs a warning (not a Note) for non-403/404 scanner failures', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/dependabot/alerts')) throw new Error('GitHub API GET ...: 500 Internal Server Error');
+      if (u.includes('/code-scanning/alerts')) return mockResponse([]);
+      if (u.includes('/secret-scanning/alerts')) return mockResponse([]);
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const warns = [];
+    const logs = [];
+    const warnSpy = mock.method(console, 'warn', (msg) => { warns.push(String(msg)); });
+    const logSpy = mock.method(console, 'log', (msg) => { logs.push(String(msg)); });
+
+    try {
+      const { monitor } = await import('./monitor.js');
+      await monitor({
+        owner: 'alice', repo: 'repo', token: 'fake',
+        store: { readJSON: async () => null, writeJSON: async () => {} },
+      });
+    } finally {
+      warnSpy.mock.restore();
+      logSpy.mock.restore();
+    }
+
+    const realFailure = warns.find(l => l.includes('Monitor: failed to detect Dependabot alerts'));
+    assert.ok(realFailure, 'expected a console.warn for the 500 error');
+    assert.ok(realFailure.includes('500'), 'warning should include the error message');
+    // Real failures must NOT be silently labelled "not available".
+    assert.ok(!logs.some(l => l.includes('Dependabot alerts not available')),
+      '500 must not be classified as not-available');
+  });
+
   it('swallows scanner errors and continues with the remaining scanners', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
