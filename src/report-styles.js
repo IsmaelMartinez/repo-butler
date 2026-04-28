@@ -1,13 +1,14 @@
 // CSS styles shared by all report HTML generators.
 
 export const CSS = `<style>
+:root{--color-success:#7ee787;--color-warning:#d29922;--color-danger:#f85149}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;background:#0d1117;color:#e6edf3;padding:2rem;max-width:1400px;margin:0 auto}
 h1{font-size:1.8rem;margin-bottom:0.3rem;color:#f0f6fc}
 h1 .repo-link{color:#f0f6fc;text-decoration:none}
 h1 .repo-link svg{vertical-align:middle;fill:#8b949e}
 h1 .repo-link:hover svg{fill:#e6edf3}
-h2{font-size:1.2rem;margin:2.5rem 0 1rem;color:#7ee787;border-bottom:1px solid #21262d;padding-bottom:0.5rem}
+h2{font-size:1.2rem;margin:2.5rem 0 1rem;color:var(--color-success);border-bottom:1px solid #21262d;padding-bottom:0.5rem}
 .subtitle{color:#8b949e;font-size:0.9rem;margin-bottom:2rem}
 .subtitle a{color:#58a6ff}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.2rem;margin-bottom:2rem}
@@ -40,12 +41,12 @@ a{color:#58a6ff;text-decoration:none}
 .heatmap-labels span{text-align:center;white-space:nowrap}
 .footer{text-align:center;color:#6e7681;font-size:0.8rem;margin-top:3rem;padding:1rem}
 .muted{color:#8b949e}
-.text-success{color:#7ee787}
-.text-warning{color:#d29922}
-.text-danger{color:#f85149}
+.text-success{color:var(--color-success)}
+.text-warning{color:var(--color-warning)}
+.text-danger{color:var(--color-danger)}
 .text-sm{font-size:0.75rem}
-.alert-banner{background:#161b22;border-left:4px solid #d29922;border-radius:0 8px 8px 0;padding:1rem 1.5rem;margin-bottom:1.5rem;color:#e6edf3;font-size:0.9rem}
-.alert-banner.alert-critical{border-color:#f85149}
+.alert-banner{background:#161b22;border-left:4px solid var(--color-warning);border-radius:0 8px 8px 0;padding:1rem 1.5rem;margin-bottom:1.5rem;color:#e6edf3;font-size:0.9rem}
+.alert-banner.alert-critical{border-color:var(--color-danger)}
 .campaign-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;margin-bottom:2rem}
 .campaign-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1.2rem}
 .campaign-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem}

@@ -5,9 +5,9 @@ export const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
 
 export const TIER_DISPLAY = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze', none: 'Unranked' };
 export const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
-export const COLOR_SUCCESS = '#7ee787';
-export const COLOR_WARNING = '#d29922';
-export const COLOR_DANGER = '#f85149';
+export const COLOR_SUCCESS = 'var(--color-success)';
+export const COLOR_WARNING = 'var(--color-warning)';
+export const COLOR_DANGER = 'var(--color-danger)';
 export const REPO_EXCLUSION_PATTERNS = ['shadow', 'test-repo'];
 
 // Bumped when cached repo `details` shape or its derivation logic changes,
