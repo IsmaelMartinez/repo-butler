@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals } from './governance.js';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift } from './governance.js';
 
 // --- Test helpers ---
 
@@ -221,6 +221,64 @@ describe('detectPolicyDrift', () => {
     const findings = detectPolicyDrift(repos, details);
     // d is archived — only 3 eligible repos, all MIT — no drift
     assert.equal(findings.filter(f => f.category === 'license').length, 0);
+  });
+});
+
+// --- detectMetricDrift ---
+
+describe('detectMetricDrift', () => {
+  const fmt = (v, m) => ({ expected: `${m}`, actual: `${v}` });
+  const opts = { threshold: 20, category: 'test-metric', format: fmt };
+
+  it('flags repos more than `threshold` below the median', () => {
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('c'), makeRepo('d')];
+    const values = { a: 90, b: 90, c: 90, d: 30 };
+    const findings = detectMetricDrift(repos, r => values[r.name], opts);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].repo, 'd');
+    assert.equal(findings[0].type, 'policy-drift');
+    assert.equal(findings[0].category, 'test-metric');
+    assert.equal(findings[0].priority, 'medium');
+    assert.equal(findings[0].expected, '90');
+    assert.equal(findings[0].actual, '30');
+  });
+
+  it('returns no findings when values cluster near the median', () => {
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('c'), makeRepo('d')];
+    const values = { a: 80, b: 82, c: 85, d: 88 };
+    const findings = detectMetricDrift(repos, r => values[r.name], opts);
+    assert.equal(findings.length, 0);
+  });
+
+  it('excludes repos with null values from the median and from flagging', () => {
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('c'), makeRepo('d')];
+    const values = { a: 90, b: 90, c: 90, d: null };
+    const findings = detectMetricDrift(repos, r => values[r.name], opts);
+    assert.equal(findings.length, 0);
+  });
+
+  it('treats threshold as strict (boundary equal is not flagged)', () => {
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('c'), makeRepo('d')];
+    // Median of [90,90,90,70] = 90; deviation = exactly 20 — NOT flagged (>, not >=).
+    const values = { a: 90, b: 90, c: 90, d: 70 };
+    const findings = detectMetricDrift(repos, r => values[r.name], opts);
+    assert.equal(findings.length, 0);
+    // Drop d to 69 — deviation 21 — IS flagged.
+    const values2 = { ...values, d: 69 };
+    const findings2 = detectMetricDrift(repos, r => values2[r.name], opts);
+    assert.equal(findings2.length, 1);
+    assert.equal(findings2[0].repo, 'd');
+  });
+
+  it('returns empty when fewer than 3 repos have values', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const values = { a: 90, b: 30 };
+    const findings = detectMetricDrift(repos, r => values[r.name], opts);
+    assert.equal(findings.length, 0);
+  });
+
+  it('returns empty for empty input', () => {
+    assert.deepEqual(detectMetricDrift([], () => 1, opts), []);
   });
 });
 

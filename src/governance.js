@@ -153,50 +153,53 @@ export function detectPolicyDrift(repos, details) {
   }
 
   // CI pass rate drift: flag repos >20pp below the portfolio median.
-  const passRates = eligible
-    .map(r => details?.[r.name]?.ciPassRate)
-    .filter(rate => rate != null);
-
-  if (passRates.length >= 3) {
-    const sorted = [...passRates].sort((a, b) => a - b);
-    const med = median(sorted);
-
-    for (const r of eligible) {
-      const rate = details?.[r.name]?.ciPassRate;
-      if (rate != null && med - rate > 0.2) {
-        findings.push({
-          type: 'policy-drift',
-          category: 'ci-reliability',
-          repo: r.name,
-          expected: `${Math.round(med * 100)}%`,
-          actual: `${Math.round(rate * 100)}%`,
-          priority: 'medium',
-        });
-      }
-    }
-  }
+  findings.push(...detectMetricDrift(eligible, r => details?.[r.name]?.ciPassRate, {
+    threshold: 0.2,
+    category: 'ci-reliability',
+    format: (rate, med) => ({ expected: `${Math.round(med * 100)}%`, actual: `${Math.round(rate * 100)}%` }),
+  }));
 
   // Community health drift: flag repos >20pp below the portfolio median.
-  const healthScores = eligible
-    .map(r => details?.[r.name]?.communityHealth)
-    .filter(h => h != null);
+  findings.push(...detectMetricDrift(eligible, r => details?.[r.name]?.communityHealth, {
+    threshold: 20,
+    category: 'community-health',
+    format: (health, med) => ({ expected: `${med}%`, actual: `${health}%` }),
+  }));
 
-  if (healthScores.length >= 3) {
-    const sorted = [...healthScores].sort((a, b) => a - b);
-    const med = median(sorted);
+  return findings;
+}
 
-    for (const r of eligible) {
-      const health = details?.[r.name]?.communityHealth;
-      if (health != null && med - health > 20) {
-        findings.push({
-          type: 'policy-drift',
-          category: 'community-health',
-          repo: r.name,
-          expected: `${med}%`,
-          actual: `${health}%`,
-          priority: 'medium',
-        });
-      }
+/**
+ * Generic median-deviation drift detector.
+ * Flags repos whose metric value falls more than `threshold` below the portfolio median.
+ *
+ * @param {Array} eligibleRepos — already-filtered repos (not archived/fork/excluded)
+ * @param {(repo) => (number|null|undefined)} getValue — extracts the metric per repo; return null/undefined to skip
+ * @param {{ threshold: number, category: string, format: (value: number, median: number) => { expected: string, actual: string } }} opts
+ * @returns {Array} drift findings in the same shape as the inline detectors
+ */
+export function detectMetricDrift(eligibleRepos, getValue, opts) {
+  const { threshold, category, format } = opts;
+  const findings = [];
+
+  const values = eligibleRepos.map(getValue).filter(v => v != null);
+  if (values.length < 3) return findings;
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const med = median(sorted);
+
+  for (const r of eligibleRepos) {
+    const v = getValue(r);
+    if (v != null && med - v > threshold) {
+      const { expected, actual } = format(v, med);
+      findings.push({
+        type: 'policy-drift',
+        category,
+        repo: r.name,
+        expected,
+        actual,
+        priority: 'medium',
+      });
     }
   }
 
