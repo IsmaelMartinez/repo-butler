@@ -22,7 +22,7 @@ const PROTOCOL_VERSION = '2024-11-05';
 // origin/-prefixed ref first and falling back to the bare local ref. The
 // caller supplies argsFor(ref) which builds the full git argv given a ref
 // name. Returns stdout, or throws if neither ref works.
-function gitShow(argsFor) {
+function runGitOnDataBranch(argsFor) {
   const opts = { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000 };
   try {
     return execFileSync('git', argsFor('origin/repo-butler-data'), opts);
@@ -33,7 +33,7 @@ function gitShow(argsFor) {
 
 function loadFromDataBranch(path) {
   try {
-    return gitShow(ref => ['show', `${ref}:${path}`]);
+    return runGitOnDataBranch(ref => ['show', `${ref}:${path}`]);
   } catch {
     return null;
   }
@@ -47,7 +47,7 @@ function loadSnapshot() {
 function loadPortfolioWeekly() {
   // Find the latest weekly file by listing the directory.
   try {
-    const listing = gitShow(ref => ['ls-tree', '--name-only', ref, 'snapshots/portfolio-weekly/']).trim();
+    const listing = runGitOnDataBranch(ref => ['ls-tree', '--name-only', ref, 'snapshots/portfolio-weekly/']).trim();
     if (!listing) return null;
     const files = listing.split('\n').filter(f => f.endsWith('.json')).sort();
     if (files.length === 0) return null;
