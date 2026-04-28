@@ -168,7 +168,7 @@
       "stars": 4629,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.984375,
+      "ciPassRate": 0.9838709677419355,
       "vulns": {
         "count": 2,
         "max_severity": "medium"
@@ -181,11 +181,11 @@
         "count": 0
       },
       "ci": 15,
-      "released_at": null,
+      "released_at": "2026-04-24T14:54:11Z",
       "pushed_at": "2026-04-27T20:34:28Z",
       "traffic": null,
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -204,7 +204,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -243,7 +243,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Release in the last 90 days"
+        "next_step": null
       }
     },
     "ismaelmartinez.me.uk": {
@@ -264,7 +264,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-27T04:17:43Z",
+      "pushed_at": "2026-04-28T04:19:53Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -750,7 +750,7 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 203,
+      "commits_6mo": 204,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
@@ -765,7 +765,7 @@
       },
       "ci": 6,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-27T07:00:42Z",
+      "pushed_at": "2026-04-28T07:15:31Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -914,11 +914,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 166,
+      "commits_6mo": 168,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.92,
+      "ciPassRate": 0.93,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -929,7 +929,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-27T22:57:15Z",
+      "pushed_at": "2026-04-28T07:12:42Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
