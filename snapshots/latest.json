@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-28T14:48:48.750Z",
+  "timestamp": "2026-04-28T14:49:10.943Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 1,
+    "open_issues_count": 2,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-04-28T14:48:41Z",
+    "pushed_at": "2026-04-28T14:48:53Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 134,
+        "title": "refactor: extract colorByThreshold helper (Code Health T2.2)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:48:43Z"
+      },
       {
         "number": 133,
         "title": "refactor: dedupe alert severity tallying (Code Health T2.1)",
@@ -936,9 +943,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 109,
+    "recently_merged_prs": 110,
     "bot_prs": 2,
-    "human_prs": 107,
+    "human_prs": 108,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
