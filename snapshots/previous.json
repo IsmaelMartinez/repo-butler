@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-28T14:04:06.781Z",
+  "timestamp": "2026-04-28T14:04:27.761Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 2,
+    "open_issues_count": 1,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-04-28T14:03:44Z",
+    "pushed_at": "2026-04-28T14:04:11Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 130,
+        "title": "refactor: unify repo-snapshot construction (Code Health T1.2)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:04:05Z"
+      },
       {
         "number": 129,
         "title": "refactor: route store through gh file helpers (Code Health T1.4)",
@@ -908,9 +915,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 105,
+    "recently_merged_prs": 106,
     "bot_prs": 2,
-    "human_prs": 103,
+    "human_prs": 104,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
