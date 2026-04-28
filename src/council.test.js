@@ -224,6 +224,76 @@ describe('triageEvents', () => {
   });
 });
 
+describe('bucketVerdicts', () => {
+  it('routes each verdict type into its bucket', async () => {
+    const { bucketVerdicts } = await import('./council.js');
+    const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const verdicts = [
+      { item_index: 0, verdict: 'act' },
+      { item_index: 1, verdict: 'watch' },
+      { item_index: 2, verdict: 'dismiss' },
+    ];
+
+    const result = bucketVerdicts(items, verdicts, (item) => item);
+
+    assert.equal(result.act.length, 1);
+    assert.equal(result.act[0].id, 'a');
+    assert.equal(result.watch.length, 1);
+    assert.equal(result.watch[0].id, 'b');
+    assert.equal(result.dismiss.length, 1);
+    assert.equal(result.dismiss[0].id, 'c');
+  });
+
+  it('passes both item and verdict to the enrich function', async () => {
+    const { bucketVerdicts } = await import('./council.js');
+    const items = [{ id: 'a' }];
+    const verdicts = [{ item_index: 0, verdict: 'act', summary: 'do it' }];
+    const calls = [];
+
+    const result = bucketVerdicts(items, verdicts, (item, verdict) => {
+      calls.push({ item, verdict });
+      return { ...item, summary: verdict.summary };
+    });
+
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].item, { id: 'a' });
+    assert.equal(calls[0].verdict.summary, 'do it');
+    assert.equal(result.act[0].summary, 'do it');
+  });
+
+  it('skips verdicts with no matching item', async () => {
+    const { bucketVerdicts } = await import('./council.js');
+    const items = [{ id: 'a' }];
+    const verdicts = [
+      { item_index: 0, verdict: 'act' },
+      { item_index: 5, verdict: 'act' },  // out of range
+    ];
+
+    const result = bucketVerdicts(items, verdicts, (item) => item);
+
+    assert.equal(result.act.length, 1);
+    assert.equal(result.act[0].id, 'a');
+  });
+
+  it('treats unknown verdict values as dismiss', async () => {
+    const { bucketVerdicts } = await import('./council.js');
+    const items = [{ id: 'a' }];
+    const verdicts = [{ item_index: 0, verdict: 'unrecognised' }];
+
+    const result = bucketVerdicts(items, verdicts, (item) => item);
+
+    assert.equal(result.act.length, 0);
+    assert.equal(result.watch.length, 0);
+    assert.equal(result.dismiss.length, 1);
+  });
+
+  it('returns empty buckets for empty inputs', async () => {
+    const { bucketVerdicts } = await import('./council.js');
+    const result = bucketVerdicts([], [], () => null);
+    assert.deepEqual(result, { act: [], watch: [], dismiss: [] });
+  });
+});
+
 describe('mergeWatchlist', () => {
   it('deduplicates by title when merging', async () => {
     const { mergeWatchlist } = await import('./council.js');

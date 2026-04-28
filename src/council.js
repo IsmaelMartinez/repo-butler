@@ -375,6 +375,33 @@ function parseSynthesisResponse(raw, items) {
 
 // --- Council integration with pipeline ---
 
+// Sort items into act/watch/dismiss buckets based on their corresponding verdicts.
+// `enrich(item, verdict)` produces the per-item shape pushed into each bucket.
+// Items without a matching verdict (verdict.item_index out of range) are skipped.
+// Verdicts that aren't ACT or WATCH fall through to the dismiss bucket.
+export function bucketVerdicts(items, verdicts, enrich) {
+  const act = [];
+  const watch = [];
+  const dismiss = [];
+
+  for (const verdict of verdicts) {
+    const item = items[verdict.item_index];
+    if (!item) continue;
+
+    const enriched = enrich(item, verdict);
+
+    if (verdict.verdict === VERDICTS.ACT) {
+      act.push(enriched);
+    } else if (verdict.verdict === VERDICTS.WATCH) {
+      watch.push(enriched);
+    } else {
+      dismiss.push(enriched);
+    }
+  }
+
+  return { act, watch, dismiss };
+}
+
 // Evaluate IDEATE proposals through the council before creating issues.
 export async function reviewProposals(context, ideas) {
   if (!ideas || ideas.length === 0) return { approved: [], watchlist: [], dismissed: [] };
@@ -397,31 +424,18 @@ export async function reviewProposals(context, ideas) {
     mode: context.config?.council?.mode || 'quick',
   });
 
-  const approved = [];
-  const watchlist = [];
-  const dismissed = [];
-
-  for (const verdict of result.verdicts) {
-    const idea = ideas[verdict.item_index];
-    if (!idea) continue;
-
-    const enriched = {
+  const { act: approved, watch: watchlist, dismiss: dismissed } = bucketVerdicts(
+    ideas,
+    result.verdicts,
+    (idea, verdict) => ({
       ...idea,
       council_verdict: verdict.verdict,
       council_confidence: verdict.confidence,
       council_summary: verdict.summary,
       council_action: verdict.action,
       council_dissent: verdict.dissent,
-    };
-
-    if (verdict.verdict === VERDICTS.ACT) {
-      approved.push(enriched);
-    } else if (verdict.verdict === VERDICTS.WATCH) {
-      watchlist.push(enriched);
-    } else {
-      dismissed.push(enriched);
-    }
-  }
+    }),
+  );
 
   console.log(`Council review: ${approved.length} approved, ${watchlist.length} watchlisted, ${dismissed.length} dismissed.`);
   return { approved, watchlist, dismissed };
@@ -435,24 +449,11 @@ export async function triageEvents(context, events) {
     mode: context.config?.council?.mode || 'quick',
   });
 
-  const actionable = [];
-  const watch = [];
-  const dismissed = [];
-
-  for (const verdict of result.verdicts) {
-    const event = events[verdict.item_index];
-    if (!event) continue;
-
-    const enriched = { ...event, council: verdict };
-
-    if (verdict.verdict === VERDICTS.ACT) {
-      actionable.push(enriched);
-    } else if (verdict.verdict === VERDICTS.WATCH) {
-      watch.push(enriched);
-    } else {
-      dismissed.push(enriched);
-    }
-  }
+  const { act: actionable, watch, dismiss: dismissed } = bucketVerdicts(
+    events,
+    result.verdicts,
+    (event, verdict) => ({ ...event, council: verdict }),
+  );
 
   console.log(`Council triage: ${actionable.length} actionable, ${watch.length} watching, ${dismissed.length} dismissed.`);
   return { actionable, watch, dismissed };
