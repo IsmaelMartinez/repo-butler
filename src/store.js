@@ -144,61 +144,15 @@ export function createStore(context) {
     await pruneWeeklySnapshots();
   }
 
-  async function readFile(path) {
-    try {
-      const data = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, {
-        params: { ref: DATA_BRANCH },
-      });
-      if (data.content) {
-        return Buffer.from(data.content, 'base64').toString('utf-8');
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  async function writeFile(path, content) {
-    // Retry once on 409 conflict (concurrent writes from overlapping runs).
-    for (let attempt = 0; attempt < 2; attempt++) {
-      let sha;
-      try {
-        const existing = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, {
-          params: { ref: DATA_BRANCH },
-        });
-        sha = existing.sha;
-      } catch {
-        // File doesn't exist yet — that's fine.
-      }
-
-      try {
-        await gh.request(`/repos/${owner}/${repo}/contents/${path}`, {
-          method: 'PUT',
-          body: {
-            message: `chore: update ${path}`,
-            content: Buffer.from(content).toString('base64'),
-            branch: DATA_BRANCH,
-            ...(sha ? { sha } : {}),
-          },
-        });
-        return;
-      } catch (err) {
-        if (attempt === 0 && err.message?.includes('409')) continue;
-        throw err;
-      }
-    }
-  }
-
-  async function listBranchDir(dirPath) {
-    try {
-      const data = await gh.request(`/repos/${owner}/${repo}/contents/${dirPath}`, {
-        params: { ref: DATA_BRANCH },
-      });
-      return Array.isArray(data) ? data.map(f => f.name) : [];
-    } catch {
-      return [];
-    }
-  }
+  // Thin DATA_BRANCH-bound wrappers around the github client helpers. Kept
+  // because every store call targets the same branch — inlining the option
+  // bag at every site would just be noise.
+  const readFile = (path) => gh.getFileContent(owner, repo, path, { ref: DATA_BRANCH });
+  const writeFile = (path, content) => gh.putFile(owner, repo, path, content, {
+    branch: DATA_BRANCH,
+    message: `chore: update ${path}`,
+  });
+  const listBranchDir = (dirPath) => gh.listDir(owner, repo, dirPath, { ref: DATA_BRANCH });
 
   async function readWeeklyHistory(weeks = MAX_WEEKLY_SNAPSHOTS) {
     const files = await listBranchDir(WEEKLY_DIR);
@@ -230,16 +184,9 @@ export function createStore(context) {
     const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_WEEKLY_SNAPSHOTS);
     await Promise.all(toDelete.map(async (file) => {
       try {
-        const existing = await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}/${file}`, {
-          params: { ref: DATA_BRANCH },
-        });
-        await gh.request(`/repos/${owner}/${repo}/contents/${WEEKLY_DIR}/${file}`, {
-          method: 'DELETE',
-          body: {
-            message: `chore: prune old weekly snapshot ${file}`,
-            sha: existing.sha,
-            branch: DATA_BRANCH,
-          },
+        await gh.deleteFile(owner, repo, `${WEEKLY_DIR}/${file}`, {
+          branch: DATA_BRANCH,
+          message: `chore: prune old weekly snapshot ${file}`,
         });
       } catch {
         // Ignore errors during pruning — not critical.
@@ -265,12 +212,9 @@ export function createStore(context) {
       const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_WEEKLY_SNAPSHOTS);
       await Promise.all(toDelete.map(async (file) => {
         try {
-          const existing = await gh.request(`/repos/${owner}/${repo}/contents/${PORTFOLIO_WEEKLY_DIR}/${file}`, {
-            params: { ref: DATA_BRANCH },
-          });
-          await gh.request(`/repos/${owner}/${repo}/contents/${PORTFOLIO_WEEKLY_DIR}/${file}`, {
-            method: 'DELETE',
-            body: { message: `chore: prune old portfolio snapshot ${file}`, sha: existing.sha, branch: DATA_BRANCH },
+          await gh.deleteFile(owner, repo, `${PORTFOLIO_WEEKLY_DIR}/${file}`, {
+            branch: DATA_BRANCH,
+            message: `chore: prune old portfolio snapshot ${file}`,
           });
         } catch { /* pruning is best-effort */ }
       }));
