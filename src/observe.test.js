@@ -594,3 +594,103 @@ describe('fetchMergedPRs', () => {
     assert.deepEqual(result, []);
   });
 });
+
+describe('observe — prs_merged_days config wiring', () => {
+  // Verify the prs_merged_days key is wired through to fetchMergedPRs's
+  // since cutoff (independently of issues_closed_days). Driven through
+  // observe() with a permissive globalThis.fetch mock that returns []
+  // for every endpoint except /pulls, where we return PRs with known
+  // merged_at timestamps and check which survive the cutoff filter.
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const ok = (body) => ({
+    ok: true,
+    status: 200,
+    headers: new Map(),
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  });
+  const notFound = () => ({
+    ok: false,
+    status: 404,
+    headers: new Map(),
+    json: async () => ({}),
+    text: async () => 'Not Found',
+  });
+
+  const makePR = (n, mergedAt) => ({
+    number: n,
+    title: `PR #${n}`,
+    user: { login: 'alice' },
+    labels: [],
+    merged_at: mergedAt,
+    closed_at: mergedAt,
+    updated_at: mergedAt,
+    pull_request: {},
+  });
+
+  function installFetchMock(pulls) {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = new URL(url);
+      const p = u.pathname;
+      if (p === '/repos/owner/repo/pulls') return ok(pulls);
+      if (p === '/repos/owner/repo') return ok({ stargazers_count: 0, forks_count: 0, open_issues_count: 0 });
+      // Content endpoints (roadmap, package.json) → 404 → null.
+      if (p.startsWith('/repos/owner/repo/contents/')) return notFound();
+      // Everything else (issues, labels, milestones, releases, workflows,
+      // community profile, alerts, CI runs) → empty list / null.
+      return ok([]);
+    });
+  }
+
+  it('uses prs_merged_days for the merged-PR cutoff (independent of issues_closed_days)', async () => {
+    const { observe } = await import('./observe.js');
+    const now = Date.now();
+    const isoDaysAgo = (n) => new Date(now - n * 86400000).toISOString();
+    const pulls = [
+      makePR(1, isoDaysAgo(3)),   // within a 7-day window
+      makePR(2, isoDaysAgo(20)),  // outside a 7-day window, inside 60
+    ];
+    installFetchMock(pulls);
+
+    const context = {
+      owner: 'owner',
+      repo: 'repo',
+      token: 'fake',
+      // issues_closed_days is intentionally a wide window — if the bug
+      // re-appeared, both PRs would survive. With the fix, only PR #1
+      // (3 days ago) is inside the 7-day prs_merged_days window.
+      config: { observe: { issues_closed_days: 90, prs_merged_days: 7 } },
+    };
+
+    const snapshot = await observe(context);
+    const merged = snapshot.pull_requests.recently_merged;
+    assert.equal(merged.length, 1, 'only PR #1 should fall within the 7-day prs_merged_days window');
+    assert.equal(merged[0].number, 1);
+  });
+
+  it('defaults prs_merged_days to 90 when unset', async () => {
+    const { observe } = await import('./observe.js');
+    const now = Date.now();
+    const isoDaysAgo = (n) => new Date(now - n * 86400000).toISOString();
+    const pulls = [
+      makePR(10, isoDaysAgo(30)),   // inside default 90-day window
+      makePR(11, isoDaysAgo(120)),  // outside default 90-day window
+    ];
+    installFetchMock(pulls);
+
+    const context = {
+      owner: 'owner',
+      repo: 'repo',
+      token: 'fake',
+      config: {}, // no observe.* set
+    };
+
+    const snapshot = await observe(context);
+    const merged = snapshot.pull_requests.recently_merged;
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0].number, 10);
+  });
+});

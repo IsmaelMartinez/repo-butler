@@ -32,8 +32,8 @@ export async function runObserve(context) {
 export async function observe(context) {
   const { owner, repo, token, config } = context;
   const gh = createClient(token);
-  const days = config.observe?.issues_closed_days || 90;
-  const since = daysAgo(days);
+  const issuesSince = daysAgo(config.observe?.issues_closed_days || 90);
+  const prsSince = daysAgo(config.observe?.prs_merged_days || 90);
 
   console.log(`Observing ${owner}/${repo}...`);
 
@@ -54,8 +54,8 @@ export async function observe(context) {
     ciPassRate,
   ] = await Promise.all([
     fetchOpenIssues(gh, owner, repo),
-    fetchClosedIssues(gh, owner, repo, since),
-    fetchMergedPRs(gh, owner, repo, since),
+    fetchClosedIssues(gh, owner, repo, issuesSince),
+    fetchMergedPRs(gh, owner, repo, prsSince),
     fetchLabels(gh, owner, repo),
     fetchMilestones(gh, owner, repo),
     fetchReleases(gh, owner, repo, config.observe?.releases_count || 10),
