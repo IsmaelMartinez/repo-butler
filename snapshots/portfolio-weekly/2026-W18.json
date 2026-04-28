@@ -162,8 +162,8 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 20,
-      "open_bugs": 9,
+      "open_issues": 21,
+      "open_bugs": 10,
       "commits_6mo": 368,
       "stars": 4629,
       "license": "GPL-3.0",
@@ -185,7 +185,7 @@
       "pushed_at": "2026-04-27T20:34:28Z",
       "traffic": null,
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -199,7 +199,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -243,7 +243,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Fewer than 10 open bugs"
       }
     },
     "ismaelmartinez.me.uk": {
@@ -750,11 +750,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 204,
+      "commits_6mo": 205,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.99,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -765,7 +765,7 @@
       },
       "ci": 6,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-28T07:15:51Z",
+      "pushed_at": "2026-04-28T10:16:45Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -914,11 +914,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 168,
+      "commits_6mo": 171,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.93,
+      "ciPassRate": 0.94,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -929,7 +929,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-28T07:12:42Z",
+      "pushed_at": "2026-04-28T10:16:26Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
