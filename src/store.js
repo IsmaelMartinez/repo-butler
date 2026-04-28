@@ -185,7 +185,10 @@ export function createStore(context) {
     if (jsonFiles.length <= max) return;
 
     const toDelete = jsonFiles.slice(0, jsonFiles.length - max);
-    await Promise.all(toDelete.map(async (file) => {
+    // Sequential — concurrent deletes on the same branch race for the ref
+    // update and produce 409 conflicts; deleteFile doesn't retry, so we'd
+    // silently fail to prune. Sequential is slow but reliable.
+    for (const file of toDelete) {
       try {
         await gh.deleteFile(owner, repo, `${dirPath}/${file}`, {
           branch: DATA_BRANCH,
@@ -194,7 +197,7 @@ export function createStore(context) {
       } catch {
         // pruning is best-effort
       }
-    }));
+    }
   }
 
   // Store lightweight weekly summaries for each portfolio repo.
