@@ -9,7 +9,7 @@ import {
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
-  CAMPAIGN_DEFS,
+  CAMPAIGN_DEFS, buildRepoSnapshot,
 } from './report-shared.js';
 
 
@@ -486,15 +486,7 @@ export function buildPortfolioAttentionSection(repos, details, owner, config) {
   for (const r of repos) {
     const d = details[r.name];
     if (!d) continue;
-    const snapshot = {
-      repository: `${owner}/${r.name}`,
-      dependabot_alerts: d.vulns || null,
-      code_scanning_alerts: d.codeScanning || null,
-      secret_scanning_alerts: d.secretScanning || null,
-      ci_pass_rate: d.ciPassRate != null ? { pass_rate: d.ciPassRate } : null,
-      issues: { open: [] },
-      summary: {},
-    };
+    const snapshot = buildRepoSnapshot({ owner, repo: r.name, details: d });
     const items = buildActionItems(snapshot, []);
     for (const item of items) {
       allItems.push({ ...item, repo: r.name });

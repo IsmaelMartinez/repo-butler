@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot } from './report-shared.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -1390,5 +1390,155 @@ describe('buildGovernanceSection', () => {
     ];
     const html = buildGovernanceSection(findings);
     assert.ok(html.startsWith('<h2>Governance (2)</h2>'), 'should start with h2 carrying the count');
+  });
+});
+
+describe('buildRepoSnapshot', () => {
+  it('produces the full report.js inline shape when given per-repo fetch data', () => {
+    const owner = 'octo';
+    const r = { name: 'widget', stars: 7, forks: 1, pushed_at: '2026-04-01T00:00:00Z' };
+    const meta = { stargazers_count: 7, forks_count: 1, subscribers_count: 3, default_branch: 'main', license: { spdx_id: 'MIT' } };
+    const communityProfile = { health_percentage: 85, files: { readme: true, license: true } };
+    const releases = [
+      { tag_name: 'v1.2.0', published_at: '2026-03-15T00:00:00Z', prerelease: false },
+      { tag_name: 'v1.1.0', published_at: '2026-02-01T00:00:00Z', prerelease: false },
+    ];
+    const openIssues = [
+      { number: 10, title: 'Bug: x', labels: [{ name: 'bug' }], reactions: { total_count: 2 }, comments: 1, created_at: '2026-03-01', updated_at: '2026-03-10' },
+      { number: 11, title: 'Blocked', labels: [{ name: 'blocked' }], reactions: null, comments: 0, created_at: '2026-03-02', updated_at: '2026-03-11' },
+      { number: 12, title: 'Feedback', labels: [{ name: 'awaiting-feedback' }], reactions: { total_count: 0 }, comments: 0, created_at: '2026-03-03', updated_at: '2026-03-12' },
+    ];
+    const prAuthors = [
+      { author: 'alice', count: 3 },
+      { author: 'dependabot[bot]', count: 5 },
+    ];
+    const details = {
+      license: 'MIT', ci: 4, vulns: { count: 2, max_severity: 'high' },
+      codeScanning: { count: 1, max_severity: 'medium' },
+      secretScanning: { count: 0 },
+      ciPassRate: 0.92, sbom: { count: 50, packages: [] },
+      open_bugs: 1,
+    };
+
+    const snap = buildRepoSnapshot({
+      owner, repo: r.name, details, meta, communityProfile, releases,
+      openIssues, prAuthors, busFactor: 2, timeToCloseMedian: 4.5,
+      pushedAt: r.pushed_at, stars: r.stars, forks: r.forks,
+    });
+
+    // Construct the expected output inline, mirroring the pre-refactor shape.
+    const expected = {
+      repository: 'octo/widget',
+      meta: { stars: 7, forks: 1, watchers: 3, default_branch: 'main' },
+      issues: {
+        open: [
+          { number: 10, title: 'Bug: x', labels: ['bug'], reactions: 2, comments: 1, created_at: '2026-03-01', updated_at: '2026-03-10' },
+          { number: 11, title: 'Blocked', labels: ['blocked'], reactions: 0, comments: 0, created_at: '2026-03-02', updated_at: '2026-03-11' },
+          { number: 12, title: 'Feedback', labels: ['awaiting-feedback'], reactions: 0, comments: 0, created_at: '2026-03-03', updated_at: '2026-03-12' },
+        ],
+      },
+      releases: [
+        { tag: 'v1.2.0', published_at: '2026-03-15T00:00:00Z', prerelease: false },
+        { tag: 'v1.1.0', published_at: '2026-02-01T00:00:00Z', prerelease: false },
+      ],
+      pushed_at: '2026-04-01T00:00:00Z',
+      license: 'MIT',
+      community_profile: communityProfile,
+      dependabot_alerts: { count: 2, max_severity: 'high' },
+      code_scanning_alerts: { count: 1, max_severity: 'medium' },
+      secret_scanning_alerts: { count: 0 },
+      ci_pass_rate: { pass_rate: 0.92, total_runs: 0, passed: 0, failed: 0 },
+      sbom: { count: 50, packages: [] },
+      summary: {
+        open_issues: 3, open_bugs: 1, blocked_issues: 1, awaiting_feedback: 1,
+        recently_merged_prs: 8, human_prs: 3, bot_prs: 5,
+        releases: 2, latest_release: 'v1.2.0', ci_workflows: 4,
+        bus_factor: 2, time_to_close_median: 4.5,
+      },
+    };
+    assert.deepEqual(snap, expected);
+  });
+
+  it('falls back to repo basics when meta is missing (report.js path)', () => {
+    const snap = buildRepoSnapshot({
+      owner: 'octo', repo: 'widget',
+      details: { license: 'Apache-2.0', ci: 1 },
+      meta: null, stars: 12, forks: 3, pushedAt: '2026-04-01T00:00:00Z',
+    });
+    assert.deepEqual(snap.meta, { stars: 12, forks: 3 });
+    assert.equal(snap.license, 'Apache-2.0');
+    assert.equal(snap.pushed_at, '2026-04-01T00:00:00Z');
+  });
+
+  it('produces the minimal shape used by buildPortfolioAttentionSection', () => {
+    const details = {
+      vulns: { count: 1, max_severity: 'high' },
+      codeScanning: null,
+      secretScanning: { count: 0 },
+      ciPassRate: 0.5,
+    };
+    const snap = buildRepoSnapshot({ owner: 'octo', repo: 'widget', details });
+
+    assert.equal(snap.repository, 'octo/widget');
+    assert.deepEqual(snap.dependabot_alerts, { count: 1, max_severity: 'high' });
+    assert.equal(snap.code_scanning_alerts, null);
+    assert.deepEqual(snap.secret_scanning_alerts, { count: 0 });
+    assert.equal(snap.ci_pass_rate.pass_rate, 0.5);
+    assert.deepEqual(snap.issues, { open: [] });
+    // summary defaults are safe — every key present, neutral values.
+    assert.equal(snap.summary.open_issues, 0);
+    assert.equal(snap.summary.recently_merged_prs, 0);
+    assert.equal(snap.summary.releases, 0);
+    assert.equal(snap.summary.latest_release, 'none');
+    assert.equal(snap.summary.ci_workflows, 0);
+
+    // The snapshot must be consumable by buildActionItems.
+    const items = buildActionItems(snap, []);
+    // CI pass rate < 0.8 → priority 5 action; vulns critical=undefined,high=0 → no vuln action.
+    // (Action items only fires on critical/high counts present in alert object.)
+    assert.ok(items.some(i => i.priority === 5), 'low CI pass rate should trigger action');
+  });
+
+  it('defaults all optional inputs to neutral values', () => {
+    const snap = buildRepoSnapshot({ owner: 'octo', repo: 'empty' });
+    assert.equal(snap.repository, 'octo/empty');
+    assert.deepEqual(snap.meta, { stars: 0, forks: 0 });
+    assert.deepEqual(snap.issues, { open: [] });
+    assert.deepEqual(snap.releases, []);
+    assert.equal(snap.pushed_at, null);
+    assert.equal(snap.license, null);
+    assert.equal(snap.community_profile, null);
+    assert.equal(snap.dependabot_alerts, null);
+    assert.equal(snap.code_scanning_alerts, null);
+    assert.equal(snap.secret_scanning_alerts, null);
+    assert.equal(snap.ci_pass_rate, null);
+    assert.equal(snap.sbom, null);
+    assert.equal(snap.summary.bus_factor, 0);
+    assert.equal(snap.summary.time_to_close_median, null);
+    assert.equal(snap.summary.open_bugs, null);
+  });
+
+  it('output is consumable by computeHealthTier via the snapshotToTierInput path', async () => {
+    // Build a snapshot with strong-gold inputs.
+    const recentISO = new Date(Date.now() - 30 * 86400000).toISOString();
+    const snap = buildRepoSnapshot({
+      owner: 'octo', repo: 'widget',
+      details: {
+        license: 'MIT', ci: 3, vulns: { count: 0, max_severity: null },
+        codeScanning: { count: 0, max_severity: null },
+        secretScanning: { count: 0 },
+        ciPassRate: 0.99, open_bugs: 1,
+      },
+      meta: { stargazers_count: 1, forks_count: 0, subscribers_count: 0, default_branch: 'main', license: { spdx_id: 'MIT' } },
+      communityProfile: { health_percentage: 90, files: { license: true } },
+      releases: [{ tag_name: 'v1', published_at: recentISO, prerelease: false }],
+      pushedAt: recentISO,
+    });
+
+    // Snapshot must contain every field snapshotToTierInput needs.
+    assert.ok(snap.summary, 'has summary');
+    assert.ok(snap.community_profile, 'has community_profile');
+    assert.ok(snap.releases.length > 0, 'has releases');
+    assert.equal(snap.releases[0].published_at, recentISO);
   });
 });
