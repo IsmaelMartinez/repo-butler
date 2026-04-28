@@ -1,6 +1,34 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeSnapshotHash } from './store.js';
+import { computeSnapshotHash, createStore } from './store.js';
+
+// Minimal fake gh client for exercising prune behaviour through the public
+// writePortfolioWeekly entry point. Records putFile/deleteFile calls so tests
+// can assert which files were pruned and the commit message used.
+function makeFakeGh({ existing = [], deleteThrows = false } = {}) {
+  const files = new Set(existing);
+  const calls = { put: [], delete: [] };
+  return {
+    files,
+    calls,
+    request: async (path) => {
+      if (path.includes(`/branches/repo-butler-data`)) return { name: 'repo-butler-data' };
+      throw new Error(`unexpected request ${path}`);
+    },
+    getFileContent: async () => null,
+    putFile: async (_o, _r, path) => { calls.put.push(path); files.add(path.split('/').pop()); },
+    listDir: async () => Array.from(files),
+    deleteFile: async (_o, _r, path, opts) => {
+      calls.delete.push({ path, message: opts.message });
+      if (deleteThrows) throw new Error('boom');
+    },
+  };
+}
+
+const PORTFOLIO = {
+  repos: [{ name: 'a', archived: false, fork: false, stars: 0, pushed_at: '2026-01-01T00:00:00Z', open_issues: 0 }],
+};
+const REPO_DETAILS = { a: { commits: 1, license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 1, released_at: '2026-01-01T00:00:00Z' } };
 
 describe('computeSnapshotHash', () => {
   it('returns a consistent 64-char hex string', () => {
@@ -258,5 +286,54 @@ describe('buildPortfolioSnapshot', () => {
     assert.ok(snapshot.repos.active);
     assert.equal(snapshot.repos.archived, undefined);
     assert.equal(snapshot.repos.forked, undefined);
+  });
+});
+
+describe('pruneDir (via writePortfolioWeekly)', () => {
+  it('only deletes the oldest files beyond MAX_WEEKLY_SNAPSHOTS', async () => {
+    // 14 existing weekly files (sorted lexicographically by ISO week key); after
+    // adding the new week, MAX is 12, so the 3 oldest should be pruned.
+    const existing = Array.from({ length: 14 }, (_, i) => `2025-W${String(i + 1).padStart(2, '0')}.json`);
+    const gh = makeFakeGh({ existing });
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writePortfolioWeekly(PORTFOLIO, REPO_DETAILS, {});
+
+    // 15 files now exist (14 existing + 1 new); 12 retained → 3 deleted, the 3 oldest by name.
+    assert.equal(gh.calls.delete.length, 3);
+    const deletedNames = gh.calls.delete.map(c => c.path.split('/').pop()).sort();
+    assert.deepEqual(deletedNames, ['2025-W01.json', '2025-W02.json', '2025-W03.json']);
+  });
+
+  it('uses the supplied messagePrefix in the commit message', async () => {
+    const existing = Array.from({ length: 12 }, (_, i) => `2025-W${String(i + 1).padStart(2, '0')}.json`);
+    const gh = makeFakeGh({ existing });
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writePortfolioWeekly(PORTFOLIO, REPO_DETAILS, {});
+
+    assert.equal(gh.calls.delete.length, 1);
+    assert.match(gh.calls.delete[0].message, /^chore: prune old portfolio snapshot /);
+  });
+
+  it('does not prune when file count is at or below the cap', async () => {
+    // 11 existing + 1 new = 12, exactly at the cap, so no deletes.
+    const existing = Array.from({ length: 11 }, (_, i) => `2025-W${String(i + 1).padStart(2, '0')}.json`);
+    const gh = makeFakeGh({ existing });
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writePortfolioWeekly(PORTFOLIO, REPO_DETAILS, {});
+
+    assert.equal(gh.calls.delete.length, 0);
+  });
+
+  it('swallows delete errors so pruning never propagates failure', async () => {
+    const existing = Array.from({ length: 14 }, (_, i) => `2025-W${String(i + 1).padStart(2, '0')}.json`);
+    const gh = makeFakeGh({ existing, deleteThrows: true });
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    // Should not throw despite every delete throwing.
+    await store.writePortfolioWeekly(PORTFOLIO, REPO_DETAILS, {});
+    assert.equal(gh.calls.delete.length, 3);
   });
 });
