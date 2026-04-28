@@ -280,34 +280,27 @@ async function fetchClosedIssues(gh, owner, repo, since) {
     }));
 }
 
-async function fetchMergedPRs(gh, owner, repo, since) {
-  // Use the search API to find merged PRs since a date.
-  const query = `repo:${owner}/${repo} is:pr is:merged merged:>${since}`;
-
-  const data = await gh.request('/search/issues', {
-    params: { q: query, sort: 'updated', order: 'desc', per_page: 100 },
+export async function fetchMergedPRs(gh, owner, repo, since) {
+  // Paginate the /pulls list endpoint (5000 req/hr) instead of search (30/min).
+  // Trade-off: max: 200 caps at 2 pages — repos with >200 closed PRs in the
+  // window may under-count vs search. For this portfolio's busiest repos
+  // (~20–30 merges / 90d) that's not a concern.
+  const pulls = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+    params: { state: 'closed', sort: 'updated', direction: 'desc' },
+    max: 200,
   });
 
-  let allPRs = data.items || [];
-
-  // Fetch additional pages if needed (search API caps at 100 per page).
-  if (data.total_count > 100) {
-    const totalPages = Math.min(Math.ceil(data.total_count / 100), 10);
-    for (let page = 2; page <= totalPages; page++) {
-      const pageData = await gh.request('/search/issues', {
-        params: { q: query, sort: 'updated', order: 'desc', per_page: 100, page },
-      });
-      allPRs = [...allPRs, ...(pageData.items || [])];
-    }
-  }
-
-  return allPRs.map(pr => ({
-    number: pr.number,
-    title: pr.title,
-    author: pr.user?.login,
-    labels: pr.labels.map(l => l.name),
-    merged_at: pr.pull_request?.merged_at || pr.closed_at,
-  }));
+  // /pulls returns closed PRs (merged + closed-without-merge); filter to
+  // merged-and-after-cutoff in JS.
+  return pulls
+    .filter(pr => pr.merged_at && pr.merged_at > since)
+    .map(pr => ({
+      number: pr.number,
+      title: pr.title,
+      author: pr.user?.login,
+      labels: pr.labels.map(l => l.name),
+      merged_at: pr.merged_at,
+    }));
 }
 
 async function fetchLabels(gh, owner, repo) {
