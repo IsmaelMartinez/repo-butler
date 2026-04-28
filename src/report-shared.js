@@ -160,7 +160,7 @@ export function buildRepoSnapshot({
     releases: releases.map(rel => ({
       tag: rel.tag_name, published_at: rel.published_at, prerelease: rel.prerelease,
     })),
-    pushed_at: pushedAt,
+    pushed_at: pushedAt || meta?.pushed_at || null,
     license: meta?.license?.spdx_id || details?.license || null,
     community_profile: communityProfile,
     dependabot_alerts: details?.vulns || null,

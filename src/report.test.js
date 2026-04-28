@@ -1499,6 +1499,23 @@ describe('buildRepoSnapshot', () => {
     assert.ok(items.some(i => i.priority === 5), 'low CI pass rate should trigger action');
   });
 
+  it('falls back to meta.pushed_at when explicit pushedAt is omitted', () => {
+    const snap = buildRepoSnapshot({
+      owner: 'octo', repo: 'widget',
+      meta: { stargazers_count: 1, forks_count: 0, pushed_at: '2026-04-01T00:00:00Z' },
+    });
+    assert.equal(snap.pushed_at, '2026-04-01T00:00:00Z');
+  });
+
+  it('explicit pushedAt wins over meta.pushed_at', () => {
+    const snap = buildRepoSnapshot({
+      owner: 'octo', repo: 'widget',
+      pushedAt: '2026-04-15T00:00:00Z',
+      meta: { stargazers_count: 1, forks_count: 0, pushed_at: '2026-04-01T00:00:00Z' },
+    });
+    assert.equal(snap.pushed_at, '2026-04-15T00:00:00Z');
+  });
+
   it('defaults all optional inputs to neutral values', () => {
     const snap = buildRepoSnapshot({ owner: 'octo', repo: 'empty' });
     assert.equal(snap.repository, 'octo/empty');
