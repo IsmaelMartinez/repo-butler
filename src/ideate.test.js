@@ -164,6 +164,60 @@ BODY: A useful improvement.
     const ideas = parseIdeas(raw);
     assert.equal(ideas[0].priority, 'medium');
   });
+
+  it('handles fields in mixed order', () => {
+    const raw = `---IDEA---
+PRIORITY: high
+LABELS: a, b
+TITLE: Out of order title
+SCOPE: bounded
+BODY: body content
+RATIONALE: because reasons
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas.length, 1);
+    assert.equal(ideas[0].title, 'Out of order title');
+    assert.equal(ideas[0].priority, 'high');
+    assert.deepEqual(ideas[0].labels, ['a', 'b']);
+    assert.equal(ideas[0].scope, 'bounded');
+    assert.equal(ideas[0].rationale, 'because reasons');
+    // BODY is the trailing greedy field: anything after the first BODY: line
+    // (including subsequent field-like lines) is part of the body.
+    assert.equal(ideas[0].body, 'body content\nRATIONALE: because reasons');
+  });
+
+  it('captures multi-line body including trailing field-like lines', () => {
+    const raw = `---IDEA---
+TITLE: Multi-line body
+PRIORITY: low
+LABELS: docs
+BODY: line one
+
+line two
+
+NOTE: this looks like a header but is part of the body
+final line
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas.length, 1);
+    assert.ok(ideas[0].body.startsWith('line one'));
+    assert.ok(ideas[0].body.includes('NOTE: this looks like a header'));
+    assert.ok(ideas[0].body.endsWith('final line'));
+  });
+
+  it('treats first occurrence of duplicate fields as authoritative', () => {
+    const raw = `---IDEA---
+TITLE: First title
+TITLE: Second title
+PRIORITY: high
+BODY: body
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas[0].title, 'First title');
+  });
 });
 
 describe('buildIdeatePrompt', () => {
