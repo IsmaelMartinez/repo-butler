@@ -122,11 +122,13 @@ const TOOLS = [
       },
       required: ['repo'],
     },
+    handler: (args) => toolGetHealthTier(args.repo),
   },
   {
     name: 'get_campaign_status',
     description: 'Get compliance status for all improvement campaigns across the portfolio.',
     inputSchema: { type: 'object', properties: {} },
+    handler: () => toolGetCampaignStatus(),
   },
   {
     name: 'query_portfolio',
@@ -137,16 +139,19 @@ const TOOLS = [
         tier: { type: 'string', enum: ['gold', 'silver', 'bronze', 'none'], description: 'Filter by health tier' },
       },
     },
+    handler: (args) => toolQueryPortfolio(args),
   },
   {
     name: 'get_snapshot_diff',
     description: 'Compare current snapshot against the previous one. Shows what changed since the last pipeline run.',
     inputSchema: { type: 'object', properties: {} },
+    handler: () => toolGetSnapshotDiff(),
   },
   {
     name: 'get_governance_findings',
     description: 'Get portfolio governance findings: standards gaps, policy drift, and tier uplift opportunities from the latest pipeline run.',
     inputSchema: { type: 'object', properties: {} },
+    handler: () => toolGetGovernanceFindings(),
   },
   {
     name: 'trigger_refresh',
@@ -157,6 +162,7 @@ const TOOLS = [
         phase: { type: 'string', enum: ['report', 'all', 'monitor'], default: 'report', description: 'Pipeline phase to run. "report" regenerates dashboards only, "all" runs the full pipeline, "monitor" runs continuous event detection.' },
       },
     },
+    handler: (args) => toolTriggerRefresh(args?.phase || 'report'),
   },
   {
     name: 'get_monitor_events',
@@ -167,48 +173,26 @@ const TOOLS = [
         min_severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low', 'info'], default: 'low', description: 'Minimum severity threshold for events.' },
       },
     },
+    handler: (args) => toolGetMonitorEvents(args?.min_severity || 'low'),
   },
   {
     name: 'get_watchlist',
     description: 'Get items the agent council placed on the watchlist for later re-evaluation. These are events or proposals that need more evidence before action.',
     inputSchema: { type: 'object', properties: {} },
+    handler: () => toolGetWatchlist(),
   },
   {
     name: 'get_council_personas',
     description: 'Get the agent council personas and their roles. Useful for understanding which perspectives evaluate events and proposals.',
     inputSchema: { type: 'object', properties: {} },
+    handler: () => toolGetCouncilPersonas(),
   },
 ];
 
 function callTool(name, args) {
-  if (name === 'get_health_tier') {
-    return toolGetHealthTier(args.repo);
-  }
-  if (name === 'get_campaign_status') {
-    return toolGetCampaignStatus();
-  }
-  if (name === 'query_portfolio') {
-    return toolQueryPortfolio(args);
-  }
-  if (name === 'get_snapshot_diff') {
-    return toolGetSnapshotDiff();
-  }
-  if (name === 'get_governance_findings') {
-    return toolGetGovernanceFindings();
-  }
-  if (name === 'trigger_refresh') {
-    return toolTriggerRefresh(args?.phase || 'report');
-  }
-  if (name === 'get_monitor_events') {
-    return toolGetMonitorEvents(args?.min_severity || 'low');
-  }
-  if (name === 'get_watchlist') {
-    return toolGetWatchlist();
-  }
-  if (name === 'get_council_personas') {
-    return toolGetCouncilPersonas();
-  }
-  return null;
+  const tool = TOOLS.find(t => t.name === name);
+  if (!tool) return null;
+  return tool.handler(args);
 }
 
 // --- Tool implementations ---
@@ -544,4 +528,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, computePortfolioHealth, computeCampaigns, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, computePortfolioHealth, computeCampaigns, callTool, TOOLS, RESOURCES };
