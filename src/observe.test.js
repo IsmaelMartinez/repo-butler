@@ -538,3 +538,59 @@ describe('parsePhases', () => {
     assert.throws(() => parsePhases('observe,bogus'), /Unknown phase/);
   });
 });
+
+describe('fetchMergedPRs', () => {
+  const makePR = (n, { merged_at = null, author = 'alice', labels = [], title = `PR #${n}` } = {}) => ({
+    number: n,
+    title,
+    user: { login: author },
+    labels: labels.map(name => ({ name })),
+    merged_at,
+    closed_at: '2026-04-20T00:00:00Z',
+    pull_request: {},
+  });
+
+  it('returns only merged PRs after the since cutoff in the expected shape', async () => {
+    const { fetchMergedPRs } = await import('./observe.js');
+    const gh = {
+      paginate: async (path, opts) => {
+        assert.equal(path, '/repos/owner/repo/pulls');
+        assert.equal(opts.params.state, 'closed');
+        assert.equal(opts.params.sort, 'updated');
+        assert.equal(opts.params.direction, 'desc');
+        assert.equal(opts.max, 200);
+        return [
+          makePR(1, { merged_at: '2026-04-20T00:00:00Z', author: 'alice', labels: ['bug'] }),
+          makePR(2, { merged_at: null, author: 'bob' }), // closed without merge — drop
+          makePR(3, { merged_at: '2026-01-01T00:00:00Z', author: 'carol' }), // before cutoff — drop
+          makePR(4, { merged_at: '2026-04-15T00:00:00Z', author: 'dave', labels: ['feature', 'docs'] }),
+        ];
+      },
+    };
+
+    const result = await fetchMergedPRs(gh, 'owner', 'repo', '2026-02-01');
+
+    assert.equal(result.length, 2);
+    assert.deepEqual(result[0], {
+      number: 1,
+      title: 'PR #1',
+      author: 'alice',
+      labels: ['bug'],
+      merged_at: '2026-04-20T00:00:00Z',
+    });
+    assert.deepEqual(result[1], {
+      number: 4,
+      title: 'PR #4',
+      author: 'dave',
+      labels: ['feature', 'docs'],
+      merged_at: '2026-04-15T00:00:00Z',
+    });
+  });
+
+  it('returns an empty array when no PRs match', async () => {
+    const { fetchMergedPRs } = await import('./observe.js');
+    const gh = { paginate: async () => [] };
+    const result = await fetchMergedPRs(gh, 'owner', 'repo', '2026-02-01');
+    assert.deepEqual(result, []);
+  });
+});
