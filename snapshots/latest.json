@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-28T15:44:09.382Z",
+  "timestamp": "2026-04-28T19:22:30.818Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-04-28T15:44:03Z",
+    "pushed_at": "2026-04-28T19:22:14Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,34 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 144,
+        "title": "refactor: extract buildStatCard helper (Code Health T3.9)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:14Z"
+      },
+      {
+        "number": 143,
+        "title": "refactor: simplify parseIdeas to field-loop (Code Health T3.7)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:10Z"
+      },
+      {
+        "number": 142,
+        "title": "refactor: extract bucketVerdicts helper (Code Health T3.3)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:07Z"
+      },
+      {
+        "number": 141,
+        "title": "refactor: import PERSONAS from council.js (Code Health T3.2)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:03Z"
+      },
       {
         "number": 140,
         "title": "refactor: extract htmlPage shell (Code Health T3.8)",
@@ -1121,10 +1149,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.97,
+    "pass_rate": 0.95,
     "total_runs": 100,
-    "passed": 97,
-    "failed": 3
+    "passed": 95,
+    "failed": 5
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1134,9 +1162,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 136,
+    "recently_merged_prs": 140,
     "bot_prs": 5,
-    "human_prs": 131,
+    "human_prs": 135,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
@@ -1149,7 +1177,7 @@
     "code_scanning_alert_count": null,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.97,
+    "ci_pass_rate": 0.95,
     "bus_factor": 1,
     "time_to_close_median": null
   }
