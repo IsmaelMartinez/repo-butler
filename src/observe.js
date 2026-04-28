@@ -290,6 +290,14 @@ export async function fetchMergedPRs(gh, owner, repo, since) {
     max: 200,
   });
 
+  // Truncation detection: if we hit the page cap AND the oldest item is still
+  // newer than the cutoff, the window is under-sampled — log so it's visible
+  // in the OBSERVE output. The endpoint sorts by `updated_at` desc, so the last
+  // entry has the oldest update timestamp.
+  if (pulls.length === 200 && pulls[pulls.length - 1]?.updated_at > since) {
+    console.log(`Note: fetchMergedPRs hit the 200-item cap for ${owner}/${repo} with the oldest item still after the cutoff — merged-PR count may be truncated.`);
+  }
+
   // /pulls returns closed PRs (merged + closed-without-merge); filter to
   // merged-and-after-cutoff in JS.
   return pulls
