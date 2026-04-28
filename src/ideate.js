@@ -191,6 +191,20 @@ function appendGovernanceContext(parts, findings) {
   parts.push('--- End Portfolio Governance Findings ---', '');
 }
 
+// Map of FIELD header -> output key. BODY is the trailing greedy field:
+// everything after its first occurrence belongs to the body.
+const IDEA_FIELDS = {
+  TITLE: 'title',
+  PRIORITY: 'priority',
+  LABELS: 'labels',
+  RATIONALE: 'rationale',
+  CURRENT_STATE: 'currentState',
+  PROPOSED_STATE: 'proposedState',
+  AFFECTED_FILES: 'affectedFiles',
+  SCOPE: 'scope',
+  BODY: 'body',
+};
+
 export function parseIdeas(raw) {
   const ideas = [];
   const blocks = raw.split('---IDEA---').slice(1);
@@ -199,34 +213,43 @@ export function parseIdeas(raw) {
     const content = block.split('---END---')[0]?.trim();
     if (!content) continue;
 
-    const title = content.match(/TITLE:\s*(.+)/)?.[1]?.trim();
-    const priority = content.match(/PRIORITY:\s*(.+)/)?.[1]?.trim() || 'medium';
-    const labelsRaw = content.match(/LABELS:\s*(.+)/)?.[1]?.trim() || '';
-    const rationale = content.match(/RATIONALE:\s*(.+)/)?.[1]?.trim() || null;
-    const currentState = content.match(/CURRENT_STATE:\s*(.+)/)?.[1]?.trim() || null;
-    const proposedState = content.match(/PROPOSED_STATE:\s*(.+)/)?.[1]?.trim() || null;
-    const affectedFilesRaw = content.match(/AFFECTED_FILES:\s*(.+)/)?.[1]?.trim() || null;
-    const scope = content.match(/SCOPE:\s*(.+)/)?.[1]?.trim() || null;
-    const bodyMatch = content.match(/BODY:\s*([\s\S]+)/);
-    const body = bodyMatch?.[1]?.trim() || '';
-
-    if (title) {
-      const affectedFiles = affectedFilesRaw && affectedFilesRaw.toLowerCase() !== 'unknown'
-        ? affectedFilesRaw.split(',').map(f => f.trim()).filter(Boolean)
-        : [];
-
-      ideas.push({
-        title,
-        priority,
-        labels: labelsRaw.split(',').map(l => l.trim()).filter(Boolean),
-        rationale,
-        currentState,
-        proposedState,
-        affectedFiles,
-        scope,
-        body,
-      });
+    // Scan all FIELD: headers; first occurrence of each wins. BODY captures
+    // everything from its first occurrence to the end of the block.
+    const fields = {};
+    let bodyStart = -1;
+    const headerRe = /^([A-Z_]+):[ \t]*(.*)$/gm;
+    let m;
+    while ((m = headerRe.exec(content)) !== null) {
+      const name = m[1];
+      if (!(name in IDEA_FIELDS)) continue;
+      const key = IDEA_FIELDS[name];
+      if (key === 'body') {
+        if (bodyStart === -1) bodyStart = m.index + m[0].length - m[2].length;
+        continue;
+      }
+      if (!(key in fields)) fields[key] = m[2].trim();
     }
+
+    const title = fields.title;
+    if (!title) continue;
+
+    const labelsRaw = fields.labels || '';
+    const affectedFilesRaw = fields.affectedFiles ?? null;
+    const affectedFiles = affectedFilesRaw && affectedFilesRaw.toLowerCase() !== 'unknown'
+      ? affectedFilesRaw.split(',').map(f => f.trim()).filter(Boolean)
+      : [];
+
+    ideas.push({
+      title,
+      priority: fields.priority || 'medium',
+      labels: labelsRaw.split(',').map(l => l.trim()).filter(Boolean),
+      rationale: fields.rationale ?? null,
+      currentState: fields.currentState ?? null,
+      proposedState: fields.proposedState ?? null,
+      affectedFiles,
+      scope: fields.scope ?? null,
+      body: bodyStart === -1 ? '' : content.slice(bodyStart).trim(),
+    });
   }
 
   return ideas;
