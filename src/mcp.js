@@ -445,8 +445,11 @@ function computeCampaigns() {
     week: weekly.week,
     campaigns: CAMPAIGN_DEFS.map(c => {
       const pool = c.applicable ? repos.filter(r => c.applicable(r, details)) : repos;
-      const compliant = pool.filter(r => c.test(r, details));
-      const nonCompliant = pool.filter(r => !c.test(r, details));
+      const { compliant, nonCompliant } = pool.reduce((acc, r) => {
+        if (c.test(r, details)) acc.compliant.push(r);
+        else acc.nonCompliant.push(r);
+        return acc;
+      }, { compliant: [], nonCompliant: [] });
       return {
         name: c.name,
         description: c.description,
