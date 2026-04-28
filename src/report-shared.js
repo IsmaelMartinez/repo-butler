@@ -44,7 +44,7 @@ export function getAlertSummary(alerts, getSeverity) {
     else if (sev === 'high') high++;
     else if (sev === 'medium') medium++;
     else if (sev === 'low') low++;
-    if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
+    if (sev && severityOrder[sev] !== undefined && (maxSeverity === null || severityOrder[sev] > severityOrder[maxSeverity])) {
       maxSeverity = sev;
     }
   }
