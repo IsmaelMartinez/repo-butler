@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS } from './report-shared.js';
+import { PERSONAS } from './council.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROTOCOL_VERSION = '2024-11-05';
@@ -383,16 +384,9 @@ function toolGetWatchlist() {
 }
 
 function toolGetCouncilPersonas() {
-  // Import-free — hardcode to avoid dynamic import in sync context.
   return {
     description: 'The agent council evaluates events and proposals from five specialist perspectives before deciding to act, watch, or dismiss.',
-    personas: [
-      { name: 'Product', role: 'Product Manager', focus: 'user value, feature priorities, roadmap alignment, community impact' },
-      { name: 'Development', role: 'Lead Developer', focus: 'implementation complexity, technical debt, code quality, developer experience' },
-      { name: 'Stability', role: 'SRE / Reliability Engineer', focus: 'system reliability, CI health, deployment risk, incident prevention' },
-      { name: 'Maintainability', role: 'Architecture Reviewer', focus: 'long-term maintenance burden, documentation, dependency management, bus factor' },
-      { name: 'Security', role: 'Security Engineer', focus: 'vulnerability impact, attack surface, data exposure, compliance' },
-    ],
+    personas: Object.values(PERSONAS).map(({ name, role, focus }) => ({ name, role, focus })),
     verdicts: ['act (take action now)', 'watch (re-evaluate later)', 'dismiss (no action needed)'],
     modes: ['quick (single LLM call, all perspectives)', 'full (separate call per agent + synthesis)'],
   };

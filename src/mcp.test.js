@@ -275,5 +275,14 @@ describe('MCP server', async () => {
       assert.ok(Array.isArray(result.personas));
       assert.ok(result.personas.some(p => p.name === 'Security'));
     });
+
+    it('get_council_personas matches the PERSONAS source from council.js', async () => {
+      restoreStdout();
+      const { PERSONAS } = await import('./council.js');
+      const result = callTool('get_council_personas', {});
+      const expected = Object.values(PERSONAS).map(({ name, role, focus }) => ({ name, role, focus }));
+      assert.deepEqual(result.personas, expected,
+        'persona projection must match PERSONAS exactly and not leak the internal `system` field');
+    });
   });
 });
