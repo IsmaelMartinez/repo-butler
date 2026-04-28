@@ -3,6 +3,14 @@
 import { createClient } from './github.js';
 import { validateRoadmap, sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
 
+// Thin orchestration wrapper used by the index dispatcher. Stores the
+// result on context for downstream phases / GITHUB_OUTPUT reporting.
+export async function runUpdate(context) {
+  const result = await update(context);
+  context.updateResult = result;
+  return result;
+}
+
 export async function update(context) {
   const { owner, repo, token, snapshot, assessment, provider, config, dryRun } = context;
 

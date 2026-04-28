@@ -1,7 +1,36 @@
 // ASSESS phase: compare current snapshot against previous, identify what changed.
 // No LLM needed for the diff itself — the LLM summarises the changes.
 
-import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
+import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END, validateTriageBotTrends } from './safety.js';
+
+// Thin orchestration wrapper used by the index dispatcher. Pulls triage-bot
+// trends, runs the diff/LLM assessment, and computes weekly trend direction.
+export async function runAssess(context) {
+  const { triageBot, weeklyHistory } = context;
+
+  if (triageBot) {
+    const rawTrends = await triageBot.fetchTrends();
+    if (rawTrends) {
+      const validation = validateTriageBotTrends(rawTrends);
+      if (!validation.valid) {
+        console.warn(`Triage bot trends failed validation: ${validation.error} — ignoring.`);
+      } else {
+        context.triageBotTrends = validation.sanitized;
+      }
+    }
+  }
+
+  const assessment = await assess(context);
+  context.assessment = assessment;
+  if (assessment?.assessment) console.log('Assessment:', assessment.assessment);
+
+  if (weeklyHistory?.length > 0) {
+    context.trends = computeTrends(weeklyHistory);
+    console.log(`Trend direction: ${context.trends.direction} (${context.trends.weeks.length} weeks)`);
+  }
+
+  return assessment;
+}
 
 export async function assess(context) {
   const { snapshot, previousSnapshot, provider, triageBotTrends } = context;

@@ -3,6 +3,51 @@
 
 import { appendTriageBotContext } from './assess.js';
 import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
+import { createClient } from './github.js';
+import { fetchPortfolioDetails } from './report-portfolio.js';
+import { parseStandardsConfig } from './config.js';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals } from './governance.js';
+import { reviewProposals } from './council.js';
+
+// Thin orchestration wrapper used by the index dispatcher. Enriches portfolio
+// details for governance, runs governance detection + ideation + council
+// deliberation, then persists governance findings for MCP consumption.
+export async function runIdeate(context) {
+  const { owner, token, portfolio, config, store } = context;
+
+  if (portfolio && !context.repoDetails) {
+    const gh = createClient(token);
+    context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos);
+    console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
+  }
+
+  if (portfolio && context.repoDetails) {
+    const standards = parseStandardsConfig(config);
+    const gaps = detectStandardsGaps(standards, portfolio.repos, context.repoDetails);
+    const drift = detectPolicyDrift(portfolio.repos, context.repoDetails);
+    const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
+    context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
+    console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);
+  }
+
+  const result = await ideate(context);
+  context.ideas = result?.ideas || [];
+
+  if (context.ideas.length > 0 && config.council?.enabled !== false && context.provider) {
+    console.log('\n--- Council Deliberation ---\n');
+    const councilResult = await reviewProposals(context, context.ideas);
+    context.councilResult = councilResult;
+    context.ideas = councilResult.approved;
+    context.watchlist = councilResult.watchlist;
+    console.log(`Council: ${councilResult.approved.length} approved, ${councilResult.watchlist.length} watchlisted, ${councilResult.dismissed.length} dismissed.`);
+  }
+
+  if (context.governanceFindings?.length > 0 && store) {
+    await store.writeGovernanceFindings(context.governanceFindings);
+  }
+
+  return result;
+}
 
 export async function ideate(context) {
   const { snapshot, assessment, provider, config, dryRun, triageBotTrends, governanceFindings } = context;

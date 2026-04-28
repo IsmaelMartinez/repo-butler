@@ -27,7 +27,7 @@ This is a GitHub Action (runs on the `node24` runtime, ES modules, zero npm depe
 OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT   (+ MONITOR)
 ```
 
-`src/index.js` routes phases via `--phase=` arg or `INPUT_PHASE` env var. Each phase is an independent module that receives a shared `context` object and returns results that feed into subsequent phases. The `all` phase runs them sequentially. `monitor` is a separate phase that detects new events between scheduled runs and feeds them into the council.
+`src/index.js` is a thin dispatcher: it parses the requested phase(s) from `--phase=` arg or `INPUT_PHASE` env var, builds the shared `context` object, validates the LLM provider, then loops over the selected phases calling the matching `runX(context)` wrapper. Each phase module exports both its core function (e.g. `observe`, `assess`, `update`, …) and a `runX` wrapper that handles surrounding orchestration — snapshot persistence, triage-bot ingestion, governance detection, council deliberation, and storing results back on `context` for downstream phases. Index keeps only the truly cross-cutting concerns: provider wiring, the auto-onboard pass, and the GITHUB_OUTPUT summary. The `all` phase runs the wrappers sequentially. `monitor` is a separate phase that detects new events between scheduled runs and feeds them into the council.
 
 `src/governance.js` runs after OBSERVE (when portfolio data is available) and produces three finding types — standards gaps, policy drift, and tier-uplift proposals — which are fed into the IDEATE prompt and persisted to the data branch for the MCP `get_governance_findings` tool.
 
