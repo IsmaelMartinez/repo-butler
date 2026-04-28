@@ -68,7 +68,8 @@ export function buildPortfolioSnapshot(repos, repoDetails, config) {
 
 export function createStore(context) {
   const { owner, repo, token } = context;
-  const gh = createClient(token);
+  // `context.gh` is an injection seam for tests; production callers omit it.
+  const gh = context.gh ?? createClient(token);
 
   async function ensureDataBranch() {
     try {
@@ -140,8 +141,7 @@ export function createStore(context) {
     await writeFile(`${WEEKLY_DIR}/${weekKey}.json`, JSON.stringify(snapshot, null, 2));
     console.log(`Weekly snapshot saved as ${weekKey}`);
 
-    // Prune old weekly snapshots beyond MAX_WEEKLY_SNAPSHOTS.
-    await pruneWeeklySnapshots();
+    await pruneDir(WEEKLY_DIR, MAX_WEEKLY_SNAPSHOTS, 'prune old weekly snapshot');
   }
 
   // Thin DATA_BRANCH-bound wrappers around the github client helpers. Kept
@@ -175,21 +175,24 @@ export function createStore(context) {
     return results.filter(Boolean);
   }
 
-  async function pruneWeeklySnapshots() {
-    const files = await listBranchDir(WEEKLY_DIR);
+  // Trim a snapshot directory down to the most-recent `max` JSON files.
+  // Sorted lexicographically (filenames are ISO week keys / ISO dates), so
+  // slicing off the head removes the oldest. Pruning is best-effort: any
+  // delete failure is swallowed so it never blocks the calling write.
+  async function pruneDir(dirPath, max, messagePrefix) {
+    const files = await listBranchDir(dirPath);
     const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+    if (jsonFiles.length <= max) return;
 
-    if (jsonFiles.length <= MAX_WEEKLY_SNAPSHOTS) return;
-
-    const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_WEEKLY_SNAPSHOTS);
+    const toDelete = jsonFiles.slice(0, jsonFiles.length - max);
     await Promise.all(toDelete.map(async (file) => {
       try {
-        await gh.deleteFile(owner, repo, `${WEEKLY_DIR}/${file}`, {
+        await gh.deleteFile(owner, repo, `${dirPath}/${file}`, {
           branch: DATA_BRANCH,
-          message: `chore: prune old weekly snapshot ${file}`,
+          message: `chore: ${messagePrefix} ${file}`,
         });
       } catch {
-        // Ignore errors during pruning — not critical.
+        // pruning is best-effort
       }
     }));
   }
@@ -205,20 +208,7 @@ export function createStore(context) {
     await writeFile(path, JSON.stringify(snapshot, null, 2));
     console.log(`Portfolio weekly snapshot saved as ${weekKey} (${Object.keys(snapshot.repos).length} repos)`);
 
-    // Prune old portfolio snapshots beyond retention.
-    const files = await listBranchDir(PORTFOLIO_WEEKLY_DIR);
-    const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
-    if (jsonFiles.length > MAX_WEEKLY_SNAPSHOTS) {
-      const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_WEEKLY_SNAPSHOTS);
-      await Promise.all(toDelete.map(async (file) => {
-        try {
-          await gh.deleteFile(owner, repo, `${PORTFOLIO_WEEKLY_DIR}/${file}`, {
-            branch: DATA_BRANCH,
-            message: `chore: prune old portfolio snapshot ${file}`,
-          });
-        } catch { /* pruning is best-effort */ }
-      }));
-    }
+    await pruneDir(PORTFOLIO_WEEKLY_DIR, MAX_WEEKLY_SNAPSHOTS, 'prune old portfolio snapshot');
   }
 
   // Read weekly history for a specific repo from portfolio snapshots.
