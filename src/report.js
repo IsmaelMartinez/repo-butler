@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt } from './report-shared.js';
+import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION } from './report-shared.js';
 import { buildAgentCard } from './agent-card.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
@@ -143,7 +143,9 @@ export async function report(context) {
           weeklyCommits = weeklyCommitsRaw;
 
           [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
-            gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 }).catch(() => []),
+            gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
+              .then(rels => rels.filter(rel => !rel.draft && rel.published_at))
+              .catch(() => []),
             gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 100 })
               .then(issues => issues.filter(i => !i.pull_request))
               .catch(() => []),
@@ -253,6 +255,7 @@ export async function report(context) {
         const detailsForCache = { ...details };
         delete detailsForCache.sbom;
         newRepoCache.repos[r.name] = {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: r.pushed_at,
           open_issues_count: r.open_issues || 0,
           details: detailsForCache,
@@ -281,6 +284,7 @@ export async function report(context) {
         const detailsForCache = { ...(repoDetails?.[r.name] || {}) };
         delete detailsForCache.sbom;
         newRepoCache.repos[r.name] = {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: r.pushed_at,
           open_issues_count: r.open_issues || 0,
           details: detailsForCache,

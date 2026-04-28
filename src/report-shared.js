@@ -10,6 +10,10 @@ export const COLOR_WARNING = '#d29922';
 export const COLOR_DANGER = '#f85149';
 export const REPO_EXCLUSION_PATTERNS = ['shadow', 'test-repo'];
 
+// Bumped when cached repo `details` shape or its derivation logic changes,
+// so existing per-repo cache entries are recomputed even if pushed_at is unchanged.
+export const REPO_CACHE_SCHEMA_VERSION = 2;
+
 export const LIBYEAR_THRESHOLDS = { GREEN: 5, YELLOW: 20 };
 
 export function getLibyearColor(libyearVal) {
