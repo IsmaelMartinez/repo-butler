@@ -1,5 +1,5 @@
 import { createClient } from './github.js';
-import { isBugIssue, isFeatureIssue, isPublishedRelease } from './report-shared.js';
+import { isBugIssue, isFeatureIssue, isPublishedRelease, getAlertSummary } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
 // per-repo and portfolio observation, threads results onto context, persists
@@ -407,28 +407,7 @@ async function fetchDependabotAlerts(gh, owner, repo) {
       params: { state: 'open', per_page: 100 },
     });
     const alerts = Array.isArray(data) ? data : [];
-    const severityOrder = ['critical', 'high', 'medium', 'low'];
-    let critical = 0, high = 0, medium = 0, low = 0;
-    let maxSeverityIndex = severityOrder.length;
-
-    for (const alert of alerts) {
-      const severity = alert.security_vulnerability?.severity || alert.security_advisory?.severity;
-      if (severity === 'critical') { critical++; }
-      else if (severity === 'high') { high++; }
-      else if (severity === 'medium') { medium++; }
-      else if (severity === 'low') { low++; }
-      const idx = severityOrder.indexOf(severity);
-      if (idx !== -1 && idx < maxSeverityIndex) { maxSeverityIndex = idx; }
-    }
-
-    return {
-      count: alerts.length,
-      critical,
-      high,
-      medium,
-      low,
-      max_severity: maxSeverityIndex < severityOrder.length ? severityOrder[maxSeverityIndex] : null,
-    };
+    return getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity);
   } catch (err) {
     if (err.message?.includes('403') || err.message?.includes('404')) {
       console.log(`Note: Dependabot alerts not available for ${owner}/${repo} (${err.message})`);
@@ -443,28 +422,7 @@ export async function fetchCodeScanningAlerts(gh, owner, repo) {
       params: { state: 'open', per_page: 100 },
     });
     const alerts = Array.isArray(data) ? data : [];
-    const severityOrder = ['critical', 'high', 'medium', 'low'];
-    let critical = 0, high = 0, medium = 0, low = 0;
-    let maxSeverityIndex = severityOrder.length;
-
-    for (const alert of alerts) {
-      const severity = alert.rule?.security_severity_level;
-      if (severity === 'critical') { critical++; }
-      else if (severity === 'high') { high++; }
-      else if (severity === 'medium') { medium++; }
-      else if (severity === 'low') { low++; }
-      const idx = severityOrder.indexOf(severity);
-      if (idx !== -1 && idx < maxSeverityIndex) { maxSeverityIndex = idx; }
-    }
-
-    return {
-      count: alerts.length,
-      critical,
-      high,
-      medium,
-      low,
-      max_severity: maxSeverityIndex < severityOrder.length ? severityOrder[maxSeverityIndex] : null,
-    };
+    return getAlertSummary(alerts, a => a.rule?.security_severity_level);
   } catch (err) {
     if (err.message?.includes('403') || err.message?.includes('404')) {
       console.log(`Note: Code scanning alerts not available for ${owner}/${repo} (${err.message})`);
