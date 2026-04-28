@@ -164,6 +164,52 @@ export function computeHealthTier(r, options = {}) {
   return { tier, checks };
 }
 
+// Improvement campaign definitions, shared between the portfolio dashboard
+// (buildCampaignSection in report-portfolio.js) and the MCP get_campaign_status
+// tool (mcp.js). Each entry exposes:
+//   - name, description: display strings
+//   - applicable(repo, details): whether the repo is eligible for this campaign
+//     (e.g. has the underlying data available). Defaults to all repos when omitted.
+//   - test(repo, details): whether the repo currently complies.
+// Predicates look up data via details[repo.name] so callers only need to pass
+// a repo object exposing { name } plus a details map.
+export const CAMPAIGN_DEFS = [
+  {
+    name: 'Community Health',
+    description: 'Repos with community health score >= 80%',
+    applicable: (r, details) => details[r.name]?.communityHealth != null,
+    test: (r, details) => details[r.name].communityHealth >= 80,
+  },
+  {
+    name: 'Vulnerability Free',
+    description: 'Repos with zero critical/high vulnerabilities',
+    applicable: (r, details) => details[r.name]?.vulns != null,
+    test: (r, details) => {
+      const v = details[r.name].vulns;
+      return v.max_severity !== 'critical' && v.max_severity !== 'high';
+    },
+  },
+  {
+    name: 'CI Reliability',
+    description: 'Repos with CI pass rate >= 90%',
+    applicable: (r, details) => details[r.name]?.ciPassRate != null,
+    test: (r, details) => details[r.name].ciPassRate >= 0.9,
+  },
+  {
+    name: 'License Compliance',
+    description: 'Repos with a license configured',
+    test: (r, details) => {
+      const lic = details[r.name]?.license;
+      return !!lic && lic !== 'None';
+    },
+  },
+  {
+    name: 'Issue Templates',
+    description: 'Repos with issue templates configured',
+    test: (r, details) => !!details[r.name]?.hasIssueTemplate,
+  },
+];
+
 // Generate a shields.io-style flat SVG badge showing the health tier.
 // Usage: ![health](https://ismaelmartinez.github.io/repo-butler/badges/{repo-name}.svg)
 export function generateHealthBadge(repoName, tier) {

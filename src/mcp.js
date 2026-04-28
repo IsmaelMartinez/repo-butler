@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS } from './report-shared.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROTOCOL_VERSION = '2024-11-05';
@@ -435,56 +435,28 @@ function computeCampaigns() {
   const weekly = loadPortfolioWeekly();
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
-  const entries = Object.entries(weekly.data);
-  const campaigns = [
-    {
-      name: 'Community Health',
-      description: 'Repos with community health score >= 80%',
-      test: d => (d.communityHealth ?? -1) >= 80,
-      applicable: d => d.communityHealth != null,
-    },
-    {
-      name: 'Vulnerability Free',
-      description: 'Repos with zero critical/high vulnerabilities',
-      test: d => d.vulns != null && d.vulns.max_severity !== 'critical' && d.vulns.max_severity !== 'high',
-      applicable: d => d.vulns != null,
-    },
-    {
-      name: 'CI Reliability',
-      description: 'Repos with CI pass rate >= 90%',
-      test: d => (d.ciPassRate ?? -1) >= 0.9,
-      applicable: d => d.ciPassRate != null,
-    },
-    {
-      name: 'License Compliance',
-      description: 'Repos with a license configured',
-      test: d => !!d.license && d.license !== 'None',
-      applicable: () => true,
-    },
-    {
-      name: 'Issue Templates',
-      description: 'Repos with issue templates configured',
-      test: d => !!d.hasIssueTemplate,
-      applicable: () => true,
-    },
-  ];
-
   // Filter out exclusion patterns (shadow, test-repo) to match dashboard logic.
-  const filtered = entries.filter(([name]) => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)));
+  const details = weekly.data;
+  const repos = Object.keys(details)
+    .filter(name => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)))
+    .map(name => ({ name }));
 
   return {
     week: weekly.week,
-    campaigns: campaigns.map(c => {
-      const pool = filtered.filter(([, d]) => c.applicable(d));
-      const compliant = pool.filter(([, d]) => c.test(d));
-      const nonCompliant = pool.filter(([, d]) => !c.test(d));
+    campaigns: CAMPAIGN_DEFS.map(c => {
+      const pool = c.applicable ? repos.filter(r => c.applicable(r, details)) : repos;
+      const { compliant, nonCompliant } = pool.reduce((acc, r) => {
+        if (c.test(r, details)) acc.compliant.push(r);
+        else acc.nonCompliant.push(r);
+        return acc;
+      }, { compliant: [], nonCompliant: [] });
       return {
         name: c.name,
         description: c.description,
         total: pool.length,
         compliant: compliant.length,
         percentage: pool.length > 0 ? Math.round((compliant.length / pool.length) * 100) : 0,
-        non_compliant: nonCompliant.map(([name]) => name),
+        non_compliant: nonCompliant.map(r => r.name),
       };
     }),
   };
