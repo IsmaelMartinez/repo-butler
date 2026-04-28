@@ -484,7 +484,7 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
 <div class="stat-label">${ss.count === 0 ? 'No open alerts' : 'open alerts'}</div></div>` : `<div class="card"><h3>Secret Scanning</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const hasCiData = cipr?.pass_rate != null;
-  const ciColor = colorByThreshold(hasCiData ? cipr.pass_rate : null, CI_PASS_RATE_RANGES);
+  const ciColor = colorByThreshold(cipr?.pass_rate, CI_PASS_RATE_RANGES);
   const ciHtml = hasCiData ? `<div class="card"><h3>CI Pass Rate</h3>
 <div class="stat" style="color:${ciColor}">${Math.round(cipr.pass_rate * 100)}%</div>
 <div class="stat-label">${cipr.total_runs > 0 ? `${cipr.passed}/${cipr.total_runs} runs passed` : 'from workflow runs'}</div></div>` : `<div class="card"><h3>CI Pass Rate</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
@@ -494,7 +494,7 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
 <div class="stat-label">${busFactor != null ? 'distinct contributors' : 'unavailable'}</div></div>`;
 
   const ttcHtml = `<div class="card"><h3>Time to Close</h3>
-<div class="stat" style="color:${colorByThreshold(ttc?.median_days ?? null, TIME_TO_CLOSE_DAYS_RANGES)}">${ttc != null ? ttc.median_days + 'd' : '\u2014'}</div>
+<div class="stat" style="color:${colorByThreshold(ttc?.median_days, TIME_TO_CLOSE_DAYS_RANGES)}">${ttc != null ? ttc.median_days + 'd' : '\u2014'}</div>
 <div class="stat-label">${ttc != null ? 'median days (n=' + ttc.sample_size + ')' : 'unavailable'}</div></div>`;
 
   const depHtml = buildRepoDependencyCard(snapshot.sbom, depSummary);

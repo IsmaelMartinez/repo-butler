@@ -31,8 +31,8 @@ export const LIBYEAR_THRESHOLDS = { GREEN: 5, YELLOW: 20 };
 // bucket and should use `lt: Infinity` (or `lte: Infinity`).
 //
 // If `value` is null/undefined the `fallback` colour is returned (default
-// `#6e7681`, the neutral grey used elsewhere for "unavailable" states).
-export function colorByThreshold(value, ranges, fallback = '#6e7681') {
+// `TIER_COLORS.none`, the neutral grey used elsewhere for "unavailable" states).
+export function colorByThreshold(value, ranges, fallback = TIER_COLORS.none) {
   if (value == null) return fallback;
   for (const r of ranges) {
     if (r.lt !== undefined && value < r.lt) return r.color;
