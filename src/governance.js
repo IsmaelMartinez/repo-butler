@@ -182,20 +182,21 @@ export function detectMetricDrift(eligibleRepos, getValue, opts) {
   const { threshold, category, format } = opts;
   const findings = [];
 
-  const values = eligibleRepos.map(getValue).filter(v => v != null);
-  if (values.length < 3) return findings;
+  const repoValues = eligibleRepos
+    .map(r => ({ repo: r, value: getValue(r) }))
+    .filter(item => item.value != null);
+  if (repoValues.length < 3) return findings;
 
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = repoValues.map(item => item.value).sort((a, b) => a - b);
   const med = median(sorted);
 
-  for (const r of eligibleRepos) {
-    const v = getValue(r);
-    if (v != null && med - v > threshold) {
-      const { expected, actual } = format(v, med);
+  for (const { repo, value } of repoValues) {
+    if (med - value > threshold) {
+      const { expected, actual } = format(value, med);
       findings.push({
         type: 'policy-drift',
         category,
-        repo: r.name,
+        repo: repo.name,
         expected,
         actual,
         priority: 'medium',
