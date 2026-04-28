@@ -23,11 +23,30 @@ export function isPublishedRelease(rel) {
 
 export const LIBYEAR_THRESHOLDS = { GREEN: 5, YELLOW: 20 };
 
+// Map a numeric value to a colour based on ordered threshold ranges.
+//
+// `ranges` is an array of `{ lt?, lte?, color }` entries evaluated in order;
+// the first whose upper-bound test passes wins. Use `lt` for strictly-less-than
+// and `lte` for less-than-or-equal. The final entry is the "everything else"
+// bucket and should use `lt: Infinity` (or `lte: Infinity`).
+//
+// If `value` is null/undefined the `fallback` colour is returned (default
+// `TIER_COLORS.none`, the neutral grey used elsewhere for "unavailable" states).
+export function colorByThreshold(value, ranges, fallback = TIER_COLORS.none) {
+  if (value == null) return fallback;
+  for (const r of ranges) {
+    if (r.lt !== undefined && value < r.lt) return r.color;
+    if (r.lte !== undefined && value <= r.lte) return r.color;
+  }
+  return fallback;
+}
+
 export function getLibyearColor(libyearVal) {
-  if (libyearVal == null) return '#6e7681';
-  if (libyearVal < LIBYEAR_THRESHOLDS.GREEN) return '#7ee787';
-  if (libyearVal < LIBYEAR_THRESHOLDS.YELLOW) return '#d29922';
-  return '#f85149';
+  return colorByThreshold(libyearVal, [
+    { lt: LIBYEAR_THRESHOLDS.GREEN, color: COLOR_SUCCESS },
+    { lt: LIBYEAR_THRESHOLDS.YELLOW, color: COLOR_WARNING },
+    { lt: Infinity, color: COLOR_DANGER },
+  ]);
 }
 
 // Tally an alert array into { count, critical, high, medium, low, max_severity }.

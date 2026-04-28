@@ -9,8 +9,31 @@ import {
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
-  CAMPAIGN_DEFS, buildRepoSnapshot,
+  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold,
 } from './report-shared.js';
+
+// Range tuples shared by the portfolio dashboard. Each describes a
+// "value-to-colour" mapping consumed by `colorByThreshold`.
+const PCT_HIGH_GOOD_RANGES = [
+  { lt: 50, color: COLOR_DANGER },
+  { lt: 80, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_SUCCESS },
+];
+const CI_PASS_PCT_RANGES = [
+  { lt: 70, color: COLOR_DANGER },
+  { lt: 90, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_SUCCESS },
+];
+const OPEN_ISSUES_RANGES = [
+  { lt: 1, color: COLOR_SUCCESS },
+  { lt: 20, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_DANGER },
+];
+const OPEN_PRS_RANGES = [
+  { lt: 1, color: COLOR_SUCCESS },
+  { lt: 5, color: COLOR_WARNING },
+  { lt: Infinity, color: COLOR_DANGER },
+];
 
 
 // --- SBOM / dependency inventory ---
@@ -338,7 +361,7 @@ export function buildCampaignSection(repos, details) {
     const total = pool.length;
     const count = compliant.length;
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-    const barColor = pct >= 80 ? COLOR_SUCCESS : pct >= 50 ? COLOR_WARNING : COLOR_DANGER;
+    const barColor = colorByThreshold(pct, PCT_HIGH_GOOD_RANGES);
     const nonCompliantList = nonCompliant.length > 0
       ? `<details><summary style="font-size:0.75rem;color:#8b949e;cursor:pointer">${nonCompliant.length} repo${nonCompliant.length !== 1 ? 's' : ''} need attention</summary><div class="campaign-repos" style="margin-top:0.3rem">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div></details>`
       : `<div class="campaign-repos" style="color:${COLOR_SUCCESS}">All repos compliant</div>`;
@@ -647,7 +670,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const tierCounts = countBy(classified.map(r => r._tier));
   const goldCount = tierCounts.gold || 0;
   const goldPct = classified.length > 0 ? Math.round((goldCount / classified.length) * 100) : 0;
-  const goldColor = goldPct >= 80 ? COLOR_SUCCESS : goldPct >= 50 ? COLOR_WARNING : COLOR_DANGER;
+  const goldColor = colorByThreshold(goldPct, PCT_HIGH_GOOD_RANGES);
   const tierBadges = ['gold', 'silver', 'bronze', 'none']
     .filter(t => tierCounts[t] > 0)
     .map(t => `<span class="tier-badge tier-${t}">${tierCounts[t]} ${TIER_DISPLAY[t]}</span>`)
@@ -664,7 +687,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const simplifiedRows = classified.map(r => {
     const tier = r._tier;
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
-    const ciPassColor = ciPassPct == null ? '#6e7681' : ciPassPct >= 90 ? COLOR_SUCCESS : ciPassPct >= 70 ? COLOR_WARNING : COLOR_DANGER;
+    const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
     const ciDisplay = ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span>` : '—';
     const vulnDisplay = r.vulns == null
       ? '<span style="color:#6e7681">n/a</span>'
@@ -672,9 +695,9 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
         : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
     const openIssues = r.open_issues || 0;
-    const issuesColor = openIssues === 0 ? COLOR_SUCCESS : openIssues < 20 ? COLOR_WARNING : COLOR_DANGER;
+    const issuesColor = colorByThreshold(openIssues, OPEN_ISSUES_RANGES);
     const openPRs = r._open_prs;
-    const prsColor = openPRs == null ? '#6e7681' : openPRs === 0 ? COLOR_SUCCESS : openPRs < 5 ? COLOR_WARNING : COLOR_DANGER;
+    const prsColor = colorByThreshold(openPRs, OPEN_PRS_RANGES);
     // Next Step: first failing check scoped to the repo's next tier
     const nextTier = tier === 'none' ? 'bronze' : tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
     const firstFail = nextTier
@@ -696,10 +719,10 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const fullTableRows = classified.map(r => {
     const tier = r._tier;
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
-    const communityColor = r.communityHealth == null ? '#6e7681' : r.communityHealth >= 80 ? COLOR_SUCCESS : r.communityHealth >= 50 ? COLOR_WARNING : COLOR_DANGER;
+    const communityColor = colorByThreshold(r.communityHealth, PCT_HIGH_GOOD_RANGES);
     const ciCount = r.ci || 0;
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
-    const ciPassColor = ciPassPct == null ? '#6e7681' : ciPassPct >= 90 ? COLOR_SUCCESS : ciPassPct >= 70 ? COLOR_WARNING : COLOR_DANGER;
+    const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
     const ciDisplay = ciCount === 0
       ? `<span style="color:${COLOR_DANGER}">none</span>`
       : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:#6e7681;font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
