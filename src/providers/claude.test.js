@@ -1,24 +1,7 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { ClaudeProvider } from './claude.js';
-
-function jsonResponse(body) {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  };
-}
-
-function errorResponse(status, text) {
-  return {
-    ok: false,
-    status,
-    json: async () => ({}),
-    text: async () => text,
-  };
-}
+import { jsonResponse, errorResponse } from './test-utils.js';
 
 describe('ClaudeProvider', () => {
   let originalFetch;

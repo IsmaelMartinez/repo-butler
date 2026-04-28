@@ -1,24 +1,7 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchJson, LLMProvider } from './base.js';
-
-function jsonResponse(body, { status = 200 } = {}) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  };
-}
-
-function errorResponse(status, text = '') {
-  return {
-    ok: false,
-    status,
-    json: async () => ({}),
-    text: async () => text,
-  };
-}
+import { jsonResponse, errorResponse } from './test-utils.js';
 
 describe('LLMProvider', () => {
   it('throws from generate() by default', async () => {

@@ -18,7 +18,6 @@ export class GeminiProvider extends LLMProvider {
     return fetchJson({
       url: `${API_BASE}/models/${this.model}:generateContent`,
       headers: {
-        'Content-Type': 'application/json',
         'x-goog-api-key': this.apiKey,
       },
       body: {

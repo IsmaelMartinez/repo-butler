@@ -18,7 +18,6 @@ export class ClaudeProvider extends LLMProvider {
     return fetchJson({
       url: `${API_BASE}/messages`,
       headers: {
-        'Content-Type': 'application/json',
         'x-api-key': this.apiKey,
         'anthropic-version': '2023-06-01',
       },

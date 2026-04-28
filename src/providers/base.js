@@ -18,7 +18,7 @@ export class LLMProvider {
 export async function fetchJson({ url, headers, body, extractText, providerName }) {
   const res = await fetch(url, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
 
