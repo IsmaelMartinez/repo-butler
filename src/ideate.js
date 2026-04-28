@@ -213,8 +213,10 @@ export function parseIdeas(raw) {
     const content = block.split('---END---')[0]?.trim();
     if (!content) continue;
 
-    // Scan all FIELD: headers; first occurrence of each wins. BODY captures
-    // everything from its first occurrence to the end of the block.
+    // Scan FIELD: headers; first occurrence of each wins. BODY is terminal:
+    // once matched, scanning stops and everything from that point to the end
+    // of the block becomes the body (subsequent FIELD:-like lines are body
+    // content, not parsed into separate keys).
     const fields = {};
     let bodyStart = -1;
     const headerRe = /^([A-Z_]+):[ \t]*(.*)$/gm;
@@ -224,7 +226,10 @@ export function parseIdeas(raw) {
       if (!(name in IDEA_FIELDS)) continue;
       const key = IDEA_FIELDS[name];
       if (key === 'body') {
-        if (bodyStart === -1) bodyStart = m.index + m[0].length - m[2].length;
+        if (bodyStart === -1) {
+          bodyStart = m.index + m[0].length - m[2].length;
+          break;
+        }
         continue;
       }
       if (!(key in fields)) fields[key] = m[2].trim();
