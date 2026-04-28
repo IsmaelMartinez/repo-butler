@@ -17,7 +17,7 @@
       "secretScanning": null,
       "ci": 4,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-20T20:18:26Z",
+      "pushed_at": "2026-04-27T03:30:51Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -163,12 +163,12 @@
     },
     "teams-for-linux": {
       "open_issues": 20,
-      "open_bugs": 10,
-      "commits_6mo": 364,
-      "stars": 4627,
+      "open_bugs": 9,
+      "commits_6mo": 368,
+      "stars": 4629,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9861111111111112,
+      "ciPassRate": 0.984375,
       "vulns": {
         "count": 2,
         "max_severity": "medium"
@@ -181,8 +181,8 @@
         "count": 0
       },
       "ci": 15,
-      "released_at": "2026-04-24T14:54:11Z",
-      "pushed_at": "2026-04-26T20:22:16Z",
+      "released_at": null,
+      "pushed_at": "2026-04-27T20:34:28Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -199,12 +199,12 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -243,7 +243,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Fewer than 10 open bugs"
+        "next_step": "Release in the last 90 days"
       }
     },
     "ismaelmartinez.me.uk": {
@@ -264,7 +264,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-26T04:13:05Z",
+      "pushed_at": "2026-04-27T04:17:43Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -331,7 +331,7 @@
     "generator-atlassian-compass-event-catalog": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 182,
+      "commits_6mo": 183,
       "stars": 4,
       "license": "MIT",
       "communityHealth": 85,
@@ -349,7 +349,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-20T20:38:19Z",
-      "pushed_at": "2026-04-23T12:12:15Z",
+      "pushed_at": "2026-04-27T21:12:57Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -434,7 +434,7 @@
       },
       "ci": 5,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-26T21:33:26Z",
+      "pushed_at": "2026-04-27T09:02:14Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -501,11 +501,11 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 159,
+      "commits_6mo": 157,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9,
+      "ciPassRate": 0.89,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -519,7 +519,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-24T10:38:20Z",
+      "pushed_at": "2026-04-27T08:15:41Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -668,7 +668,7 @@
     "github-issue-triage-bot": {
       "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 214,
+      "commits_6mo": 216,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -683,7 +683,7 @@
       },
       "ci": 10,
       "released_at": "2026-04-01T12:26:05Z",
-      "pushed_at": "2026-04-26T20:02:27Z",
+      "pushed_at": "2026-04-27T11:10:17Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -765,7 +765,7 @@
       },
       "ci": 6,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-26T03:09:26Z",
+      "pushed_at": "2026-04-27T07:00:42Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -832,14 +832,14 @@
     "wifisentinel": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 222,
+      "commits_6mo": 225,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.8488372093023255,
+      "ciPassRate": 0.872093023255814,
       "vulns": {
-        "count": 0,
-        "max_severity": null
+        "count": 1,
+        "max_severity": "medium"
       },
       "codeScanning": null,
       "secretScanning": {
@@ -847,7 +847,7 @@
       },
       "ci": 4,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-04-23T13:25:29Z",
+      "pushed_at": "2026-04-27T17:26:25Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -914,11 +914,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 139,
-      "stars": 1,
+      "commits_6mo": 166,
+      "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.87,
+      "ciPassRate": 0.92,
       "vulns": {
         "count": 0,
         "max_severity": null
@@ -929,7 +929,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-26T21:16:23Z",
+      "pushed_at": "2026-04-27T22:57:15Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
