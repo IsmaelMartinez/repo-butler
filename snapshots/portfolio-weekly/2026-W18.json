@@ -4,24 +4,24 @@
     "yourear": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 51,
+      "commits_6mo": 52,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
       "ciPassRate": 0.86,
       "vulns": {
-        "count": 0,
+        "count": 1,
         "critical": 0,
         "high": 0,
-        "medium": 0,
+        "medium": 1,
         "low": 0,
-        "max_severity": null
+        "max_severity": "medium"
       },
       "codeScanning": null,
       "secretScanning": null,
       "ci": 4,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-27T03:30:51Z",
+      "pushed_at": "2026-04-28T15:43:45Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -636,12 +636,12 @@
       "communityHealth": 85,
       "ciPassRate": 0.8,
       "vulns": {
-        "count": 0,
+        "count": 1,
         "critical": 0,
         "high": 0,
-        "medium": 0,
+        "medium": 1,
         "low": 0,
-        "max_severity": null
+        "max_severity": "medium"
       },
       "codeScanning": null,
       "secretScanning": {
@@ -649,7 +649,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-27T02:49:18Z",
+      "pushed_at": "2026-04-28T15:43:29Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -802,11 +802,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 212,
+      "commits_6mo": 214,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.99,
+      "ciPassRate": 0.97,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -821,7 +821,7 @@
       },
       "ci": 6,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-28T14:48:53Z",
+      "pushed_at": "2026-04-28T15:43:51Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -978,7 +978,7 @@
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.94,
+      "ciPassRate": 0.95,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -993,7 +993,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-28T12:55:52Z",
+      "pushed_at": "2026-04-28T15:41:00Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
