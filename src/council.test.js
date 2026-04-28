@@ -247,3 +247,38 @@ describe('mergeWatchlist', () => {
     assert.equal(merged.length, 1);
   });
 });
+
+describe('watchlist persistence', () => {
+  it('round-trips through a store with readJSON/writeJSON', async () => {
+    const { loadWatchlist, saveWatchlist } = await import('./council.js');
+    const persisted = {};
+    const store = {
+      readJSON: async (path) => persisted[path] ?? null,
+      writeJSON: async (path, value) => { persisted[path] = value; },
+    };
+
+    assert.deepEqual(await loadWatchlist(store), [], 'first run is empty');
+
+    const items = [{ title: 'Watch this', added_at: '2026-01-01', review_count: 0 }];
+    await saveWatchlist(store, items);
+    assert.deepEqual(await loadWatchlist(store), items, 'round-trip preserves items');
+  });
+
+  it('returns [] when store lacks readJSON', async () => {
+    const { loadWatchlist } = await import('./council.js');
+    assert.deepEqual(await loadWatchlist(null), []);
+    assert.deepEqual(await loadWatchlist({}), []);
+  });
+
+  it('saveWatchlist no-ops when store lacks writeJSON', async () => {
+    const { saveWatchlist } = await import('./council.js');
+    await saveWatchlist(null, [{ title: 'x' }]);
+    await saveWatchlist({}, [{ title: 'x' }]);
+  });
+
+  it('returns [] when persisted file is non-array (corrupted)', async () => {
+    const { loadWatchlist } = await import('./council.js');
+    const store = { readJSON: async () => ({ not: 'an array' }) };
+    assert.deepEqual(await loadWatchlist(store), []);
+  });
+});

@@ -345,7 +345,32 @@ export function createStore(context) {
     await writeFile(REPO_CACHE_PATH, JSON.stringify(cache));
   }
 
-  return { readSnapshot, readPreviousSnapshot, writeSnapshot, readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLastHash, writeHash, writeGovernanceFindings, readGovernanceFindings, readRepoCache, writeRepoCache };
+  // Generic JSON helpers for callers that own their own paths (monitor cursor,
+  // council watchlist). Returns null on any read failure so callers can treat
+  // a missing file as "first run".
+  async function readJSON(path) {
+    const content = await readFile(path);
+    if (!content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  async function writeJSON(path, value) {
+    await ensureDataBranch();
+    await writeFile(path, JSON.stringify(value, null, 2));
+  }
+
+  return {
+    readSnapshot, readPreviousSnapshot, writeSnapshot,
+    readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory,
+    readLastHash, writeHash,
+    writeGovernanceFindings, readGovernanceFindings,
+    readRepoCache, writeRepoCache,
+    readJSON, writeJSON,
+  };
 }
 
 // Return ISO week key as YYYY-WNN (e.g. "2026-W12").

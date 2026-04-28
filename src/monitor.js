@@ -285,16 +285,9 @@ function classifyIssueSeverity(issue) {
 
 // --- Cursor management ---
 
-async function loadCursor(store) {
-  if (!store) return null;
-  try {
-    const content = await store.readSnapshot();
-    // Cursor is stored alongside snapshots but at a separate path.
-    // Use the store's internal readFile if available, otherwise derive from snapshot.
-    return null; // First run — no cursor yet.
-  } catch {
-    return null;
-  }
+export async function loadCursor(store) {
+  if (!store?.readJSON) return null;
+  return store.readJSON(CURSOR_PATH);
 }
 
 // Build a cursor from the current state so next run can diff against it.
@@ -335,13 +328,10 @@ function buildCursor({ events, timestamp, owner, repo, issues, prs, security, ci
   };
 }
 
-async function saveCursor(store, cursor) {
-  if (!store) return;
+export async function saveCursor(store, cursor) {
+  if (!store?.writeJSON) return;
   try {
-    // Store cursor in the data branch alongside other snapshots.
-    if (store.writeFile) {
-      await store.writeFile(CURSOR_PATH, JSON.stringify(cursor, null, 2));
-    }
+    await store.writeJSON(CURSOR_PATH, cursor);
   } catch (err) {
     console.warn(`Monitor: failed to save cursor: ${err.message}`);
   }

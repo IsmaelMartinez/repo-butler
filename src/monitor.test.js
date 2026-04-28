@@ -2,12 +2,14 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 describe('monitor module', () => {
-  it('exports monitor, filterBySeverity, groupByType, summariseEvents', async () => {
+  it('exports monitor, filterBySeverity, groupByType, summariseEvents, loadCursor, saveCursor', async () => {
     const mod = await import('./monitor.js');
     assert.equal(typeof mod.monitor, 'function');
     assert.equal(typeof mod.filterBySeverity, 'function');
     assert.equal(typeof mod.groupByType, 'function');
     assert.equal(typeof mod.summariseEvents, 'function');
+    assert.equal(typeof mod.loadCursor, 'function');
+    assert.equal(typeof mod.saveCursor, 'function');
   });
 
   it('exports EVENT_TYPES constants', async () => {
@@ -100,5 +102,44 @@ describe('summariseEvents', () => {
 
     const summary = summariseEvents(events);
     assert.ok(summary.includes('... and 5 more'));
+  });
+});
+
+describe('cursor persistence', () => {
+  it('round-trips through a store with readJSON/writeJSON', async () => {
+    const { loadCursor, saveCursor } = await import('./monitor.js');
+    const persisted = {};
+    const store = {
+      readJSON: async (path) => persisted[path] ?? null,
+      writeJSON: async (path, value) => { persisted[path] = value; },
+    };
+
+    assert.equal(await loadCursor(store), null, 'first run has no cursor');
+
+    const cursor = {
+      timestamp: '2026-04-28T07:00:00Z',
+      repository: 'owner/repo',
+      known_issue_numbers: [1, 2, 3],
+      known_pr_numbers: [10],
+      known_dependabot_alerts: [],
+      known_code_scanning_alerts: [],
+      known_secret_scanning_alerts: [],
+      known_release_tags: ['v1.0.0'],
+      last_event_count: 4,
+    };
+    await saveCursor(store, cursor);
+    assert.deepEqual(await loadCursor(store), cursor, 'round-trip preserves cursor shape');
+  });
+
+  it('returns null when store lacks readJSON', async () => {
+    const { loadCursor } = await import('./monitor.js');
+    assert.equal(await loadCursor(null), null);
+    assert.equal(await loadCursor({}), null);
+  });
+
+  it('saveCursor no-ops when store lacks writeJSON', async () => {
+    const { saveCursor } = await import('./monitor.js');
+    await saveCursor(null, { timestamp: 'x' });
+    await saveCursor({}, { timestamp: 'x' });
   });
 });
