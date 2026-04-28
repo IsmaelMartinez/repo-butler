@@ -9,6 +9,7 @@ import {
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
+  CAMPAIGN_DEFS,
 } from './report-shared.js';
 
 
@@ -327,47 +328,10 @@ export function buildCampaignSection(repos, details) {
 
   if (eligible.length === 0) return '';
 
-  const campaigns = [
-    {
-      name: 'Community Health',
-      description: 'Repos with community health score >= 80%',
-      applicable: r => details[r.name]?.communityHealth != null,
-      test: r => details[r.name].communityHealth >= 80,
-    },
-    {
-      name: 'Vulnerability Free',
-      description: 'Repos with zero critical/high vulnerabilities',
-      applicable: r => details[r.name]?.vulns != null,
-      test: r => {
-        const v = details[r.name].vulns;
-        return v.max_severity !== 'critical' && v.max_severity !== 'high';
-      },
-    },
-    {
-      name: 'CI Reliability',
-      description: 'Repos with CI pass rate >= 90%',
-      applicable: r => details[r.name]?.ciPassRate != null,
-      test: r => details[r.name].ciPassRate >= 0.9,
-    },
-    {
-      name: 'License Compliance',
-      description: 'Repos with a license configured',
-      test: r => {
-        const lic = details[r.name]?.license;
-        return !!lic && lic !== 'None';
-      },
-    },
-    {
-      name: 'Issue Templates',
-      description: 'Repos with issue templates configured',
-      test: r => !!details[r.name]?.hasIssueTemplate,
-    },
-  ];
-
-  const cards = campaigns.map(campaign => {
-    const pool = campaign.applicable ? eligible.filter(campaign.applicable) : eligible;
+  const cards = CAMPAIGN_DEFS.map(campaign => {
+    const pool = campaign.applicable ? eligible.filter(r => campaign.applicable(r, details)) : eligible;
     const { compliant, nonCompliant } = pool.reduce((acc, r) => {
-      if (campaign.test(r)) acc.compliant.push(r);
+      if (campaign.test(r, details)) acc.compliant.push(r);
       else acc.nonCompliant.push(r);
       return acc;
     }, { compliant: [], nonCompliant: [] });

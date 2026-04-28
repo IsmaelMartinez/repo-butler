@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS } from './report-shared.js';
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {
@@ -777,6 +777,59 @@ describe('buildCampaignSection', () => {
     const html = buildCampaignSection(repos, details);
     const detailsCount = (html.match(/<details>/g) || []).length;
     assert.ok(detailsCount > 0, 'non-compliant repos should be in details elements');
+  });
+});
+
+describe('CAMPAIGN_DEFS shared definitions', () => {
+  it('exposes exactly the five expected campaigns', () => {
+    assert.equal(CAMPAIGN_DEFS.length, 5);
+    assert.deepEqual(
+      CAMPAIGN_DEFS.map(c => c.name),
+      ['Community Health', 'Vulnerability Free', 'CI Reliability', 'License Compliance', 'Issue Templates'],
+    );
+    for (const c of CAMPAIGN_DEFS) {
+      assert.equal(typeof c.name, 'string');
+      assert.equal(typeof c.description, 'string');
+      assert.equal(typeof c.test, 'function');
+      // applicable is optional (License + Issue Templates rely on the default).
+      if (c.applicable !== undefined) assert.equal(typeof c.applicable, 'function');
+    }
+  });
+
+  it('MCP get_campaign_status and buildCampaignSection agree on counts for the same fake portfolio', () => {
+    // Fake portfolio: a healthy repo, a partially-compliant repo, a non-compliant
+    // repo, and an excluded shadow repo (must be filtered identically by both).
+    const data = {
+      alpha: { communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.99, license: 'MIT', hasIssueTemplate: true },
+      beta:  { communityHealth: 70, vulns: { count: 1, max_severity: 'high' }, ciPassRate: 0.85, license: 'Apache-2.0', hasIssueTemplate: false },
+      gamma: { communityHealth: null, vulns: null, ciPassRate: null, license: 'None', hasIssueTemplate: false },
+      'my-shadow': { communityHealth: 95, vulns: { count: 0, max_severity: null }, ciPassRate: 1, license: 'MIT', hasIssueTemplate: true },
+    };
+
+    // Mirror what mcp.js computeCampaigns does:
+    const mcpRepos = Object.keys(data)
+      .filter(name => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)))
+      .map(name => ({ name }));
+    const mcpResult = CAMPAIGN_DEFS.map(c => {
+      const pool = c.applicable ? mcpRepos.filter(r => c.applicable(r, data)) : mcpRepos;
+      const compliant = pool.filter(r => c.test(r, data));
+      return { name: c.name, total: pool.length, compliant: compliant.length };
+    });
+
+    // Build the dashboard HTML for the same portfolio and parse the per-campaign
+    // ratios (rendered as `${count}/${total}` inside campaign-ratio spans).
+    const dashRepos = Object.keys(data).map(name => ({
+      name, archived: false, fork: false, pushed_at: new Date().toISOString(),
+      stars: 1, forks: 0, open_issues: 0,
+    }));
+    const html = buildCampaignSection(dashRepos, data);
+    const ratioMatches = [...html.matchAll(/<h3>([^<]+)<\/h3><span class="campaign-ratio">(\d+)\/(\d+)<\/span>/g)];
+    const dashResult = ratioMatches.map(m => ({
+      name: m[1], compliant: Number(m[2]), total: Number(m[3]),
+    }));
+
+    assert.deepEqual(dashResult, mcpResult,
+      'MCP computeCampaigns and dashboard buildCampaignSection must report identical {compliant,total} per campaign');
   });
 });
 
