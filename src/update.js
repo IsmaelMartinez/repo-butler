@@ -1,7 +1,7 @@
 // UPDATE phase: generate an updated roadmap document and open a PR.
 
 import { createClient } from './github.js';
-import { validateRoadmap, sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
+import { validateRoadmap, sanitizeForPrompt, wrapPrompt } from './safety.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Stores the
 // result on context for downstream phases / GITHUB_OUTPUT reporting.
@@ -101,15 +101,8 @@ export async function update(context) {
   return { roadmap: updatedRoadmap, pr: pr.html_url, safety };
 }
 
-function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext) {
-  const parts = [
-    'You are a roadmap writer for an open-source project. Update the roadmap document below based on the current project state.',
-    '',
-    PROMPT_DEFENCE,
-    '',
-    projectContext ? `Project context: ${projectContext}` : '',
-    '',
-    DATA_BOUNDARY_START,
+export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext) {
+  const items = [
     `Repository: ${snapshot.repository}`,
     `Current version: ${snapshot.package?.version || snapshot.summary.latest_release || 'unknown'}`,
     `Open issues: ${snapshot.summary.open_issues}`,
@@ -120,48 +113,52 @@ function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext)
   ];
 
   if (assessment?.assessment) {
-    parts.push('Recent assessment:', sanitizeForPrompt(assessment.assessment), '');
+    items.push('Recent assessment:', sanitizeForPrompt(assessment.assessment), '');
   }
 
   if (assessment?.diff?.new_issues?.length > 0) {
-    parts.push('New issues since last update:');
+    items.push('New issues since last update:');
     for (const i of assessment.diff.new_issues.slice(0, 15)) {
-      parts.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
+      items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
     }
-    parts.push('');
+    items.push('');
   }
 
   if (assessment?.diff?.resolved_issues?.length > 0) {
-    parts.push('Resolved issues:');
+    items.push('Resolved issues:');
     for (const i of assessment.diff.resolved_issues.slice(0, 15)) {
-      parts.push(`  #${i.number}: ${sanitizeForPrompt(i.title)}`);
+      items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)}`);
     }
-    parts.push('');
+    items.push('');
   }
 
   if (assessment?.diff?.new_releases?.length > 0) {
-    parts.push('New releases:');
+    items.push('New releases:');
     for (const r of assessment.diff.new_releases) {
-      parts.push(`  ${r.tag} (${r.published_at?.split('T')[0]})`);
+      items.push(`  ${r.tag} (${r.published_at?.split('T')[0]})`);
     }
-    parts.push('');
+    items.push('');
   }
 
-  parts.push('High-reaction issues:', ...(snapshot.summary.high_reaction_issues.map(i => `  ${sanitizeForPrompt(i)}`)), '');
-  parts.push('Top labels:', ...(snapshot.summary.top_open_labels.map(l => `  ${l}`)), '');
+  items.push('High-reaction issues:', ...(snapshot.summary.high_reaction_issues.map(i => `  ${sanitizeForPrompt(i)}`)), '');
+  items.push('Top labels:', ...(snapshot.summary.top_open_labels.map(l => `  ${l}`)), '');
 
   if (currentRoadmap) {
-    parts.push('--- CURRENT ROADMAP ---', sanitizeForPrompt(currentRoadmap), '--- END CURRENT ROADMAP ---', '');
+    items.push('--- CURRENT ROADMAP ---', sanitizeForPrompt(currentRoadmap), '--- END CURRENT ROADMAP ---', '');
   }
 
-  parts.push(DATA_BOUNDARY_END, '');
-  parts.push('Instructions:');
-  parts.push('- Update the roadmap to reflect the current state. Keep the same structure and tone.');
-  parts.push('- Move completed items to a "done" section if applicable.');
-  parts.push('- Add new items for newly opened issues that represent significant work.');
-  parts.push('- Update version numbers, dates, and status markers.');
-  parts.push('- Be concise — the roadmap should be scannable, not verbose.');
-  parts.push('- Output ONLY the updated roadmap document, no commentary.');
-
-  return parts.join('\n');
+  return wrapPrompt({
+    role: 'You are a roadmap writer for an open-source project. Update the roadmap document below based on the current project state.',
+    projectContext,
+    items,
+    outroLines: [
+      'Instructions:',
+      '- Update the roadmap to reflect the current state. Keep the same structure and tone.',
+      '- Move completed items to a "done" section if applicable.',
+      '- Add new items for newly opened issues that represent significant work.',
+      '- Update version numbers, dates, and status markers.',
+      '- Be concise — the roadmap should be scannable, not verbose.',
+      '- Output ONLY the updated roadmap document, no commentary.',
+    ],
+  });
 }

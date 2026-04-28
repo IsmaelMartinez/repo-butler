@@ -1,7 +1,7 @@
 // ASSESS phase: compare current snapshot against previous, identify what changed.
 // No LLM needed for the diff itself — the LLM summarises the changes.
 
-import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END, validateTriageBotTrends } from './safety.js';
+import { sanitizeForPrompt, wrapPrompt, validateTriageBotTrends } from './safety.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Pulls triage-bot
 // trends, runs the diff/LLM assessment, and computes weekly trend direction.
@@ -154,74 +154,73 @@ export function computeTrends(weeklySnapshots) {
   return { weeks, direction };
 }
 
-function buildAssessPrompt(snapshot, diff, projectContext, triageBotTrends) {
-  const parts = [
-    `You are a project health analyst. Assess the changes in ${snapshot.repository} since the last observation.`,
-    '',
-    PROMPT_DEFENCE,
-    '',
-    projectContext ? `Project context: ${projectContext}` : '',
-    '',
-    DATA_BOUNDARY_START,
+export function buildAssessPrompt(snapshot, diff, projectContext, triageBotTrends) {
+  const items = [
     `Current state: ${snapshot.summary.open_issues} open issues, ${snapshot.summary.recently_merged_prs} merged PRs (${snapshot.summary.recently_closed} issues closed) in the last 90 days.`,
     `Latest release: ${snapshot.summary.latest_release}`,
     '',
   ];
 
   if (diff.isFirstRun) {
-    parts.push('This is the first observation — no previous data to compare against.');
-    parts.push('Provide an initial health assessment based on the current state.');
+    items.push('This is the first observation — no previous data to compare against.');
+    items.push('Provide an initial health assessment based on the current state.');
   } else {
-    parts.push(`Changes since last run:`);
-    parts.push(`- ${diff.counts.new_issues} new issues opened`);
-    parts.push(`- ${diff.counts.resolved_issues} issues resolved`);
-    parts.push(`- ${diff.counts.new_merged_prs} PRs merged`);
-    parts.push(`- ${diff.counts.new_releases} new releases`);
+    items.push(`Changes since last run:`);
+    items.push(`- ${diff.counts.new_issues} new issues opened`);
+    items.push(`- ${diff.counts.resolved_issues} issues resolved`);
+    items.push(`- ${diff.counts.new_merged_prs} PRs merged`);
+    items.push(`- ${diff.counts.new_releases} new releases`);
 
     if (diff.new_issues.length > 0) {
-      parts.push('', 'New issues:');
+      items.push('', 'New issues:');
       for (const i of diff.new_issues.slice(0, 10)) {
-        parts.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
+        items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
       }
     }
 
     if (diff.new_merged_prs.length > 0) {
-      parts.push('', 'Newly merged PRs:');
+      items.push('', 'Newly merged PRs:');
       for (const p of diff.new_merged_prs.slice(0, 10)) {
-        parts.push(`  #${p.number}: ${sanitizeForPrompt(p.title)}`);
+        items.push(`  #${p.number}: ${sanitizeForPrompt(p.title)}`);
       }
     }
 
     if (diff.new_releases.length > 0) {
-      parts.push('', 'New releases:');
+      items.push('', 'New releases:');
       for (const r of diff.new_releases) {
-        parts.push(`  ${r.tag} (${r.published_at?.split('T')[0]})`);
+        items.push(`  ${r.tag} (${r.published_at?.split('T')[0]})`);
       }
     }
   }
 
   if (diff.stale_awaiting_feedback?.length > 0) {
-    parts.push('', 'Stale issues awaiting feedback (>14 days):');
+    items.push('', 'Stale issues awaiting feedback (>14 days):');
     for (const s of diff.stale_awaiting_feedback) {
-      parts.push(`  ${sanitizeForPrompt(s)}`);
+      items.push(`  ${sanitizeForPrompt(s)}`);
     }
   }
 
   if (triageBotTrends) {
-    appendTriageBotContext(parts, triageBotTrends);
+    appendTriageBotContext(items, triageBotTrends);
   }
 
-  parts.push(DATA_BOUNDARY_END);
-
-  parts.push('', 'Provide a concise assessment (3-5 paragraphs) covering:');
-  parts.push('1. What themes or patterns emerge from the changes?');
-  parts.push('2. Are there any concerns (velocity drop, growing backlog, stale issues)?');
-  parts.push('3. What should the maintainer focus on next?');
+  const outroLines = [
+    'Provide a concise assessment (3-5 paragraphs) covering:',
+    '1. What themes or patterns emerge from the changes?',
+    '2. Are there any concerns (velocity drop, growing backlog, stale issues)?',
+    '3. What should the maintainer focus on next?',
+  ];
   if (triageBotTrends) {
-    parts.push('4. How do the triage bot findings relate to the changes observed?');
+    outroLines.push('4. How do the triage bot findings relate to the changes observed?');
   }
 
-  return parts.filter(Boolean).join('\n');
+  return wrapPrompt({
+    role: `You are a project health analyst. Assess the changes in ${snapshot.repository} since the last observation.`,
+    projectContext,
+    items,
+    outroLines,
+    compact: true,
+  });
 }
 
 const RECENT_WEEKS = 4;
