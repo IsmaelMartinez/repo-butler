@@ -5,6 +5,7 @@ import {
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, validateBotUrl, detectEcosystem,
   validateTriageBotTrends, sanitizeContributorName, validateGitHubUsername,
+  wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
 } from './safety.js';
 
 describe('validateIssueTitle', () => {
@@ -486,5 +487,169 @@ describe('validateProvider', () => {
     const result = await validateProvider(mock);
     assert.equal(result.valid, false);
     assert.ok(result.error.includes('403 Forbidden'));
+  });
+});
+
+describe('wrapPrompt', () => {
+  it('emits role, defence, boundaries, and outro with no items', () => {
+    const out = wrapPrompt({
+      role: 'You are a helper.',
+      outroLines: ['Do the thing.'],
+    });
+    const expected = [
+      'You are a helper.',
+      '',
+      PROMPT_DEFENCE,
+      '',
+      DATA_BOUNDARY_START,
+      DATA_BOUNDARY_END,
+      '',
+      'Do the thing.',
+    ].join('\n');
+    assert.equal(out, expected);
+  });
+
+  it('includes Project context line when projectContext is provided', () => {
+    const out = wrapPrompt({
+      role: 'You are a helper.',
+      projectContext: 'A test project',
+      items: ['data line'],
+      outroLines: ['Do it.'],
+    });
+    const lines = out.split('\n');
+    const ctxIdx = lines.indexOf('Project context: A test project');
+    const startIdx = lines.indexOf(DATA_BOUNDARY_START);
+    const dataIdx = lines.indexOf('data line');
+    const endIdx = lines.indexOf(DATA_BOUNDARY_END);
+    assert.ok(ctxIdx >= 0);
+    assert.ok(ctxIdx < startIdx);
+    assert.ok(startIdx < dataIdx);
+    assert.ok(dataIdx < endIdx);
+  });
+
+  it('omits Project context slot entirely when projectContext is undefined', () => {
+    const out = wrapPrompt({ role: 'role', outroLines: [] });
+    assert.ok(!out.includes('Project context:'));
+  });
+
+  it('emits a blank placeholder slot when projectContext is null or empty string', () => {
+    // Preserves pre-refactor whitespace for phases that may pass an absent
+    // config.context value through (update/ideate).
+    const out = wrapPrompt({ role: 'role', projectContext: null, items: ['x'] });
+    assert.ok(!out.includes('Project context:'));
+    const lines = out.split('\n');
+    const defenceIdx = lines.indexOf(PROMPT_DEFENCE);
+    const startIdx = lines.indexOf(DATA_BOUNDARY_START);
+    // Expect: PROMPT_DEFENCE, '', '', '', DATA_BOUNDARY_START
+    assert.deepEqual(lines.slice(defenceIdx + 1, startIdx), ['', '', '']);
+  });
+
+  it('joins multiple role lines with newlines', () => {
+    const out = wrapPrompt({
+      role: ['Line one.', 'Line two.'],
+    });
+    assert.ok(out.startsWith('Line one.\nLine two.\n\n' + PROMPT_DEFENCE));
+  });
+
+  it('places items between the data boundary markers', () => {
+    const out = wrapPrompt({
+      role: 'role',
+      items: ['item a', 'item b'],
+      outroLines: ['outro'],
+    });
+    const lines = out.split('\n');
+    const startIdx = lines.indexOf(DATA_BOUNDARY_START);
+    const endIdx = lines.indexOf(DATA_BOUNDARY_END);
+    assert.deepEqual(lines.slice(startIdx + 1, endIdx), ['item a', 'item b']);
+  });
+
+  it('preserves multi-line items as single elements', () => {
+    const out = wrapPrompt({
+      role: 'role',
+      items: ['line1\nline2'],
+      outroLines: [],
+    });
+    assert.ok(out.includes('line1\nline2'));
+  });
+
+  it('coerces non-string items via String()', () => {
+    const obj = { toString: () => 'stringified' };
+    const out = wrapPrompt({ role: 'role', items: [obj] });
+    assert.ok(out.includes('stringified'));
+  });
+
+  it('omits the post-boundary blank when padDataEnd is false', () => {
+    const out = wrapPrompt({
+      role: 'role',
+      items: ['x'],
+      outroLines: ['outro'],
+      padDataEnd: false,
+    });
+    assert.ok(out.endsWith(`${DATA_BOUNDARY_END}\noutro`));
+  });
+
+  it('inserts a leading blank inside the data section when padDataStart is true', () => {
+    const out = wrapPrompt({
+      role: 'role',
+      items: ['x'],
+      padDataStart: true,
+    });
+    const lines = out.split('\n');
+    const startIdx = lines.indexOf(DATA_BOUNDARY_START);
+    assert.equal(lines[startIdx + 1], '');
+    assert.equal(lines[startIdx + 2], 'x');
+  });
+
+  it('appends intro lines between PROMPT_DEFENCE and DATA_BOUNDARY_START', () => {
+    const out = wrapPrompt({
+      role: 'role',
+      intro: ['ContextLine1', 'ContextLine2', ''],
+      items: ['x'],
+    });
+    const lines = out.split('\n');
+    const defenceIdx = lines.indexOf(PROMPT_DEFENCE);
+    const startIdx = lines.indexOf(DATA_BOUNDARY_START);
+    const between = lines.slice(defenceIdx + 1, startIdx);
+    assert.deepEqual(between, ['', 'ContextLine1', 'ContextLine2', '']);
+  });
+
+  it('filters all empty strings when compact is true', () => {
+    const out = wrapPrompt({
+      role: 'role',
+      projectContext: 'ctx',
+      items: ['a', '', 'b'],
+      outroLines: ['outro'],
+      compact: true,
+    });
+    assert.equal(out, [
+      'role',
+      PROMPT_DEFENCE,
+      'Project context: ctx',
+      DATA_BOUNDARY_START,
+      'a',
+      'b',
+      DATA_BOUNDARY_END,
+      'outro',
+    ].join('\n'));
+  });
+
+  it('handles empty items and empty outroLines with sensible defaults', () => {
+    const out = wrapPrompt({ role: 'role' });
+    assert.equal(out, [
+      'role',
+      '',
+      PROMPT_DEFENCE,
+      '',
+      DATA_BOUNDARY_START,
+      DATA_BOUNDARY_END,
+      '',
+    ].join('\n'));
+  });
+
+  it('always includes PROMPT_DEFENCE and both boundary markers', () => {
+    const out = wrapPrompt({ role: 'role' });
+    assert.ok(out.includes(PROMPT_DEFENCE));
+    assert.ok(out.includes(DATA_BOUNDARY_START));
+    assert.ok(out.includes(DATA_BOUNDARY_END));
   });
 });

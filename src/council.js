@@ -10,7 +10,7 @@
 // Each agent produces an independent assessment, then a synthesiser combines them
 // into a final verdict: act, watch, or dismiss.
 
-import { sanitizeForPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END } from './safety.js';
+import { sanitizeForPrompt, wrapPrompt } from './safety.js';
 
 // --- Agent personas ---
 
@@ -125,144 +125,141 @@ async function fullDeliberation(provider, items, context) {
 
 // --- Prompt builders ---
 
-function buildQuickDeliberationPrompt(items, context) {
-  const parts = [
+export function buildQuickDeliberationPrompt(items, context) {
+  const roleLines = [
     'You are a council of five specialist agents deliberating on repository events.',
     'Each agent evaluates from their perspective, then you synthesise a final verdict.',
     '',
     'The five agents are:',
   ];
-
   for (const [, persona] of Object.entries(PERSONAS)) {
-    parts.push(`- **${persona.name}** (${persona.role}): ${persona.focus}`);
+    roleLines.push(`- **${persona.name}** (${persona.role}): ${persona.focus}`);
   }
 
-  parts.push('', PROMPT_DEFENCE, '');
-
+  const intro = [];
   if (context?.snapshot?.repository) {
-    parts.push(`Repository: ${context.snapshot.repository}`);
+    intro.push(`Repository: ${context.snapshot.repository}`);
   }
   if (context?.snapshot?.summary) {
-    parts.push(`Open issues: ${context.snapshot.summary.open_issues}, Merged PRs (90d): ${context.snapshot.summary.recently_merged_prs}`);
+    intro.push(`Open issues: ${context.snapshot.summary.open_issues}, Merged PRs (90d): ${context.snapshot.summary.recently_merged_prs}`);
   }
+  intro.push('');
 
-  parts.push('', DATA_BOUNDARY_START, '');
-
+  const dataItems = [];
   for (let i = 0; i < items.length; i++) {
-    parts.push(`--- ITEM ${i + 1} ---`);
-    parts.push(formatItemForPrompt(items[i]));
-    parts.push('');
+    dataItems.push(`--- ITEM ${i + 1} ---`);
+    dataItems.push(formatItemForPrompt(items[i]));
+    dataItems.push('');
   }
 
-  parts.push(DATA_BOUNDARY_END, '');
-
-  parts.push('For each item, provide:');
-  parts.push('1. A brief assessment from each of the five perspectives (1-2 sentences each)');
-  parts.push('2. A final VERDICT: act / watch / dismiss');
-  parts.push('3. A CONFIDENCE score: high / medium / low');
-  parts.push('4. A SUMMARY of the reasoning (1-2 sentences)');
-  parts.push('');
-  parts.push('Use this exact format for each item:');
-  parts.push('');
-  parts.push('---VERDICT---');
-  parts.push('ITEM: <item number>');
-  parts.push('PRODUCT: <assessment>');
-  parts.push('DEVELOPMENT: <assessment>');
-  parts.push('STABILITY: <assessment>');
-  parts.push('MAINTAINABILITY: <assessment>');
-  parts.push('SECURITY: <assessment>');
-  parts.push('VERDICT: act|watch|dismiss');
-  parts.push('CONFIDENCE: high|medium|low');
-  parts.push('PRIORITY: critical|high|medium|low');
-  parts.push('SUMMARY: <synthesised reasoning>');
-  parts.push('ACTION: <specific recommended action if verdict is "act">');
-  parts.push('---END---');
-
-  return parts.join('\n');
+  return wrapPrompt({
+    role: roleLines,
+    intro,
+    items: dataItems,
+    padDataStart: true,
+    outroLines: [
+      'For each item, provide:',
+      '1. A brief assessment from each of the five perspectives (1-2 sentences each)',
+      '2. A final VERDICT: act / watch / dismiss',
+      '3. A CONFIDENCE score: high / medium / low',
+      '4. A SUMMARY of the reasoning (1-2 sentences)',
+      '',
+      'Use this exact format for each item:',
+      '',
+      '---VERDICT---',
+      'ITEM: <item number>',
+      'PRODUCT: <assessment>',
+      'DEVELOPMENT: <assessment>',
+      'STABILITY: <assessment>',
+      'MAINTAINABILITY: <assessment>',
+      'SECURITY: <assessment>',
+      'VERDICT: act|watch|dismiss',
+      'CONFIDENCE: high|medium|low',
+      'PRIORITY: critical|high|medium|low',
+      'SUMMARY: <synthesised reasoning>',
+      'ACTION: <specific recommended action if verdict is "act">',
+      '---END---',
+    ],
+  });
 }
 
-function buildPersonaPrompt(persona, items, context) {
-  const parts = [
-    persona.system,
-    '',
-    PROMPT_DEFENCE,
-    '',
-  ];
-
+export function buildPersonaPrompt(persona, items, context) {
+  const intro = [];
   if (context?.snapshot?.repository) {
-    parts.push(`Repository: ${context.snapshot.repository}`);
+    intro.push(`Repository: ${context.snapshot.repository}`);
   }
+  intro.push('');
 
-  parts.push('', DATA_BOUNDARY_START, '');
-
+  const dataItems = [];
   for (let i = 0; i < items.length; i++) {
-    parts.push(`--- ITEM ${i + 1} ---`);
-    parts.push(formatItemForPrompt(items[i]));
-    parts.push('');
+    dataItems.push(`--- ITEM ${i + 1} ---`);
+    dataItems.push(formatItemForPrompt(items[i]));
+    dataItems.push('');
   }
 
-  parts.push(DATA_BOUNDARY_END, '');
-
-  parts.push(`Evaluate each item from your perspective as ${persona.role}.`);
-  parts.push('For each item provide:');
-  parts.push('');
-  parts.push('---EVAL---');
-  parts.push('ITEM: <number>');
-  parts.push('ASSESSMENT: <your evaluation, 2-3 sentences>');
-  parts.push('CONCERN_LEVEL: high|medium|low|none');
-  parts.push('RECOMMENDATION: act|watch|dismiss');
-  parts.push('---END---');
-
-  return parts.join('\n');
+  return wrapPrompt({
+    role: persona.system,
+    intro,
+    items: dataItems,
+    padDataStart: true,
+    outroLines: [
+      `Evaluate each item from your perspective as ${persona.role}.`,
+      'For each item provide:',
+      '',
+      '---EVAL---',
+      'ITEM: <number>',
+      'ASSESSMENT: <your evaluation, 2-3 sentences>',
+      'CONCERN_LEVEL: high|medium|low|none',
+      'RECOMMENDATION: act|watch|dismiss',
+      '---END---',
+    ],
+  });
 }
 
-function buildSynthesisPrompt(items, assessments, context) {
-  const parts = [
-    'You are the synthesis agent for a council of five specialist agents.',
-    'Below are their independent assessments of repository events.',
-    'Your job is to combine their perspectives into a final verdict for each item.',
-    'Give more weight to domain-relevant agents (e.g., security agent for vulnerability alerts).',
-    '',
-    PROMPT_DEFENCE,
-    '',
-    DATA_BOUNDARY_START,
-    '',
-  ];
-
+export function buildSynthesisPrompt(items, assessments, context) {
+  const dataItems = [];
   for (let i = 0; i < items.length; i++) {
-    parts.push(`--- ITEM ${i + 1} ---`);
-    parts.push(formatItemForPrompt(items[i]));
-    parts.push('');
+    dataItems.push(`--- ITEM ${i + 1} ---`);
+    dataItems.push(formatItemForPrompt(items[i]));
+    dataItems.push('');
 
     // Include each agent's assessment.
     for (const [name, result] of Object.entries(assessments)) {
       const persona = PERSONAS[name];
       const eval_ = result.evaluations?.[i];
       if (eval_) {
-        parts.push(`  ${persona.name} (${eval_.concern_level}): ${sanitizeForPrompt(eval_.assessment)}`);
-        parts.push(`    Recommends: ${eval_.recommendation}`);
+        dataItems.push(`  ${persona.name} (${eval_.concern_level}): ${sanitizeForPrompt(eval_.assessment)}`);
+        dataItems.push(`    Recommends: ${eval_.recommendation}`);
       } else if (result.error) {
-        parts.push(`  ${persona.name}: unavailable (${result.error})`);
+        dataItems.push(`  ${persona.name}: unavailable (${result.error})`);
       }
     }
-    parts.push('');
+    dataItems.push('');
   }
 
-  parts.push(DATA_BOUNDARY_END, '');
-
-  parts.push('For each item, synthesise a final verdict. Use this format:');
-  parts.push('');
-  parts.push('---VERDICT---');
-  parts.push('ITEM: <number>');
-  parts.push('VERDICT: act|watch|dismiss');
-  parts.push('CONFIDENCE: high|medium|low');
-  parts.push('PRIORITY: critical|high|medium|low');
-  parts.push('SUMMARY: <why this verdict, referencing agent perspectives>');
-  parts.push('ACTION: <specific recommended action if verdict is "act", or "none">');
-  parts.push('DISSENT: <any notable disagreement between agents, or "none">');
-  parts.push('---END---');
-
-  return parts.join('\n');
+  return wrapPrompt({
+    role: [
+      'You are the synthesis agent for a council of five specialist agents.',
+      'Below are their independent assessments of repository events.',
+      'Your job is to combine their perspectives into a final verdict for each item.',
+      'Give more weight to domain-relevant agents (e.g., security agent for vulnerability alerts).',
+    ],
+    items: dataItems,
+    padDataStart: true,
+    outroLines: [
+      'For each item, synthesise a final verdict. Use this format:',
+      '',
+      '---VERDICT---',
+      'ITEM: <number>',
+      'VERDICT: act|watch|dismiss',
+      'CONFIDENCE: high|medium|low',
+      'PRIORITY: critical|high|medium|low',
+      'SUMMARY: <why this verdict, referencing agent perspectives>',
+      'ACTION: <specific recommended action if verdict is "act", or "none">',
+      'DISSENT: <any notable disagreement between agents, or "none">',
+      '---END---',
+    ],
+  });
 }
 
 // --- Response parsers ---
