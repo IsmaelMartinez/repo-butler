@@ -88,10 +88,12 @@ export function createClient(token) {
     return results.slice(0, max);
   }
 
-  // Fetch file content from a repo (base64-decoded).
-  async function getFileContent(owner, repo, filePath) {
+  // Fetch file content from a repo (base64-decoded). Pass { ref } to read
+  // from a non-default branch/tag/commit.
+  async function getFileContent(owner, repo, filePath, { ref } = {}) {
     try {
-      const data = await request(`/repos/${owner}/${repo}/contents/${filePath}`);
+      const opts = ref ? { params: { ref } } : undefined;
+      const data = await request(`/repos/${owner}/${repo}/contents/${filePath}`, opts);
       if (data.content) {
         return Buffer.from(data.content, 'base64').toString('utf-8');
       }
@@ -101,15 +103,73 @@ export function createClient(token) {
     }
   }
 
-  // List directory contents.
-  async function listDir(owner, repo, dirPath) {
+  // List directory contents. Pass { ref } to list on a non-default branch.
+  async function listDir(owner, repo, dirPath, { ref } = {}) {
     try {
-      const data = await request(`/repos/${owner}/${repo}/contents/${dirPath}`);
+      const opts = ref ? { params: { ref } } : undefined;
+      const data = await request(`/repos/${owner}/${repo}/contents/${dirPath}`, opts);
       return Array.isArray(data) ? data.map(f => f.name) : [];
     } catch {
       return [];
     }
   }
 
-  return { request, paginate, getFileContent, listDir };
+  // Create or update a file via the Contents API. Auto-discovers the existing
+  // sha (on the target branch) when not supplied. Retries once on 409 conflict
+  // — typical when overlapping runs race on the same path.
+  async function putFile(owner, repo, filePath, content, { branch, message, sha } = {}) {
+    const apiPath = `/repos/${owner}/${repo}/contents/${filePath}`;
+    const encoded = Buffer.from(content).toString('base64');
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let resolvedSha = sha;
+      if (resolvedSha === undefined) {
+        try {
+          const existing = await request(apiPath, branch ? { params: { ref: branch } } : undefined);
+          resolvedSha = existing.sha;
+        } catch {
+          // File doesn't exist — first write.
+          resolvedSha = undefined;
+        }
+      }
+
+      try {
+        await request(apiPath, {
+          method: 'PUT',
+          body: {
+            message: message ?? `chore: update ${filePath}`,
+            content: encoded,
+            ...(branch ? { branch } : {}),
+            ...(resolvedSha ? { sha: resolvedSha } : {}),
+          },
+        });
+        return;
+      } catch (err) {
+        // On 409 conflict, retry once with a fresh sha lookup. If the caller
+        // passed an explicit sha, the retry must also re-discover (a stale
+        // explicit sha is exactly the conflict case worth retrying).
+        if (attempt === 0 && err.message?.includes('409')) {
+          sha = undefined;
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  // Delete a file via the Contents API. Looks up the sha first.
+  async function deleteFile(owner, repo, filePath, { branch, message } = {}) {
+    const apiPath = `/repos/${owner}/${repo}/contents/${filePath}`;
+    const existing = await request(apiPath, branch ? { params: { ref: branch } } : undefined);
+    await request(apiPath, {
+      method: 'DELETE',
+      body: {
+        message: message ?? `chore: delete ${filePath}`,
+        sha: existing.sha,
+        ...(branch ? { branch } : {}),
+      },
+    });
+  }
+
+  return { request, paginate, getFileContent, listDir, putFile, deleteFile };
 }
