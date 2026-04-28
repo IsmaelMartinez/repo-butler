@@ -466,19 +466,18 @@ export async function triageEvents(context, events) {
 const WATCHLIST_PATH = 'snapshots/watchlist.json';
 
 export async function loadWatchlist(store) {
-  if (!store?.readFile) return [];
+  if (!store?.readJSON) return [];
   try {
-    const content = await store.readFile(WATCHLIST_PATH);
-    return content ? JSON.parse(content) : [];
+    return (await store.readJSON(WATCHLIST_PATH)) || [];
   } catch {
     return [];
   }
 }
 
 export async function saveWatchlist(store, watchlist) {
-  if (!store?.writeFile) return;
+  if (!store?.writeJSON) return;
   try {
-    await store.writeFile(WATCHLIST_PATH, JSON.stringify(watchlist, null, 2));
+    await store.writeJSON(WATCHLIST_PATH, watchlist);
   } catch (err) {
     console.warn(`Failed to save watchlist: ${err.message}`);
   }
