@@ -172,7 +172,12 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
   const fetches = activeRepos.slice(0, 15).map(async (r) => {
     // Incremental: skip API calls for repos unchanged since last cache.
     const cached = cache?.repos?.[r.name];
-    if (cached && cached.schemaVersion === REPO_CACHE_SCHEMA_VERSION && cached.pushed_at === r.pushed_at && cached.open_issues_count === (r.open_issues || 0)) {
+    if (
+      cached
+      && cached.schemaVersion === REPO_CACHE_SCHEMA_VERSION
+      && cached.pushed_at === r.pushed_at
+      && cached.open_issues_count === (r.open_issues || 0)
+    ) {
       details[r.name] = cached.details;
       cachedRepos.add(r.name);
       console.log(`  ↩ ${r.name} — unchanged, using cache`);
@@ -235,7 +240,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         })
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
-      gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 5 })
+      gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
         .then(rels => rels.find(isPublishedRelease)?.published_at ?? null)
         .catch(() => null),
       gh.request(`/repos/${owner}/${r.name}/code-scanning/alerts?state=open&per_page=100`)
