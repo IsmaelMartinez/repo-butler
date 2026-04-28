@@ -74,3 +74,34 @@ details summary{cursor:pointer;color:#58a6ff;font-size:1rem;font-weight:600;padd
 details summary:hover{color:#79c0ff}
 details[open] summary{margin-bottom:1rem}
 </style>`;
+
+// Full HTML page shell shared by the portfolio and per-repo reports.
+//
+// Contract: `body` and `charts` are NOT escaped. They are passed through
+// verbatim into the generated HTML. Callers are responsible for ensuring
+// any user-controlled data inside them has already been HTML-escaped (via
+// escHtml) or sanitised. `title` is interpolated as-is for the same reason
+// — all current callers pass controlled strings.
+//
+// `charts`, when provided, is JS injected just before </body>. The Chart.js
+// CDN script tag and shared `Chart.defaults` block are emitted once here so
+// individual report builders only need to supply their per-page chart inits.
+export function htmlPage({ title, body, charts }) {
+  const chartsBlock = charts
+    ? `<script>
+Chart.defaults.color='#8b949e';Chart.defaults.borderColor='#21262d';Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,monospace';
+${charts}
+</script>`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+${CSS}
+</head>
+<body>
+${body}
+${chartsBlock}</body></html>`;
+}

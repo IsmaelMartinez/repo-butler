@@ -954,6 +954,42 @@ describe('CSS includes collapsible styles', () => {
   });
 });
 
+describe('htmlPage shell template', () => {
+  it('produces a full HTML document with head, body, CSS, and Chart.js CDN', async () => {
+    const { htmlPage, CSS } = await import('./report-styles.js');
+    const html = htmlPage({ title: 'Test Title', body: '<h1>Hello</h1>' });
+    assert.ok(html.startsWith('<!DOCTYPE html>'), 'starts with DOCTYPE');
+    assert.ok(html.endsWith('</body></html>'), 'ends with closing body/html');
+    assert.ok(html.includes('<title>Test Title</title>'), 'embeds title verbatim');
+    assert.ok(html.includes(CSS), 'embeds shared CSS');
+    assert.ok(html.includes('cdn.jsdelivr.net/npm/chart.js'), 'loads Chart.js from CDN');
+    // Head must come before body.
+    assert.ok(html.indexOf('</head>') < html.indexOf('<body>'), 'head precedes body');
+    // Body content is interpolated unescaped.
+    assert.ok(html.includes('<h1>Hello</h1>'), 'body interpolated verbatim');
+  });
+
+  it('omits the chart-defaults script when no charts are provided', async () => {
+    const { htmlPage } = await import('./report-styles.js');
+    const html = htmlPage({ title: 'No Charts', body: '<p>plain</p>' });
+    assert.ok(!html.includes('Chart.defaults'), 'no defaults block when charts absent');
+  });
+
+  it('injects Chart.defaults and per-page chart code before </body>', async () => {
+    const { htmlPage } = await import('./report-styles.js');
+    const charts = "new Chart(document.getElementById('x'),{});";
+    const html = htmlPage({ title: 'Charted', body: '<canvas id="x"></canvas>', charts });
+    assert.ok(html.includes("Chart.defaults.color='#8b949e'"), 'sets default colour once');
+    assert.ok(html.includes("Chart.defaults.borderColor='#21262d'"), 'sets default border colour once');
+    assert.ok(html.includes(charts), 'injects per-page chart code verbatim');
+    // Defaults must appear once, not twice.
+    const matches = html.match(/Chart\.defaults\.color/g) || [];
+    assert.equal(matches.length, 1, 'Chart.defaults block appears exactly once');
+    // Charts script must be inside body (before </body>).
+    assert.ok(html.indexOf(charts) < html.indexOf('</body>'), 'charts script before </body>');
+  });
+});
+
 describe('buildPortfolioAttentionSection', () => {
   it('shows all-clear when no actions needed', async () => {
     const { buildPortfolioAttentionSection } = await import('./report-portfolio.js');
