@@ -449,6 +449,18 @@ ${nextTierHtml}
 
 // --- Health section ---
 
+// Render a single dashboard card with a coloured stat and a label. When
+// `available` is false the value falls back to an em-dash placeholder coloured
+// with the neutral grey and the label is forced to 'unavailable'.
+export function buildStatCard({ title, value, color, label, available = true }) {
+  const displayValue = available ? value : '—';
+  const displayColor = available ? color : TIER_COLORS.none;
+  const displayLabel = available ? label : 'unavailable';
+  return `<div class="card"><h3>${title}</h3>
+<div class="stat" style="color:${displayColor}">${displayValue}</div>
+<div class="stat-label">${displayLabel}</div></div>`;
+}
+
 export function buildHealthSection(snapshot, depSummary = null, libyear = null) {
   const cp = snapshot.community_profile;
   const da = snapshot.dependabot_alerts;
@@ -474,28 +486,47 @@ ${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>`
 </div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const cs = snapshot.code_scanning_alerts;
-  const codeScanHtml = cs ? `<div class="card"><h3>Code Scanning</h3>
-<div class="stat" style="color:${cs.count === 0 ? '#7ee787' : cs.max_severity === 'critical' || cs.max_severity === 'high' ? '#f85149' : '#d29922'}">${cs.count}</div>
-<div class="stat-label">${cs.count === 0 ? 'No open alerts' : 'open alerts'}</div></div>` : `<div class="card"><h3>Code Scanning</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+  const codeScanHtml = buildStatCard({
+    title: 'Code Scanning',
+    value: cs?.count,
+    color: cs && (cs.count === 0 ? COLOR_SUCCESS : cs.max_severity === 'critical' || cs.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING),
+    label: cs?.count === 0 ? 'No open alerts' : 'open alerts',
+    available: !!cs,
+  });
 
   const ss = snapshot.secret_scanning_alerts;
-  const secretScanHtml = ss ? `<div class="card"><h3>Secret Scanning</h3>
-<div class="stat" style="color:${ss.count === 0 ? '#7ee787' : '#f85149'}">${ss.count}</div>
-<div class="stat-label">${ss.count === 0 ? 'No open alerts' : 'open alerts'}</div></div>` : `<div class="card"><h3>Secret Scanning</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+  const secretScanHtml = buildStatCard({
+    title: 'Secret Scanning',
+    value: ss?.count,
+    color: ss && (ss.count === 0 ? COLOR_SUCCESS : COLOR_DANGER),
+    label: ss?.count === 0 ? 'No open alerts' : 'open alerts',
+    available: !!ss,
+  });
 
   const hasCiData = cipr?.pass_rate != null;
-  const ciColor = colorByThreshold(cipr?.pass_rate, CI_PASS_RATE_RANGES);
-  const ciHtml = hasCiData ? `<div class="card"><h3>CI Pass Rate</h3>
-<div class="stat" style="color:${ciColor}">${Math.round(cipr.pass_rate * 100)}%</div>
-<div class="stat-label">${cipr.total_runs > 0 ? `${cipr.passed}/${cipr.total_runs} runs passed` : 'from workflow runs'}</div></div>` : `<div class="card"><h3>CI Pass Rate</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+  const ciHtml = buildStatCard({
+    title: 'CI Pass Rate',
+    value: hasCiData ? `${Math.round(cipr.pass_rate * 100)}%` : null,
+    color: colorByThreshold(cipr?.pass_rate, CI_PASS_RATE_RANGES),
+    label: hasCiData && (cipr.total_runs > 0 ? `${cipr.passed}/${cipr.total_runs} runs passed` : 'from workflow runs'),
+    available: hasCiData,
+  });
 
-  const busHtml = `<div class="card"><h3>Bus Factor</h3>
-<div class="stat" style="color:${colorByThreshold(busFactor, BUS_FACTOR_RANGES)}">${busFactor != null ? busFactor : '\u2014'}</div>
-<div class="stat-label">${busFactor != null ? 'distinct contributors' : 'unavailable'}</div></div>`;
+  const busHtml = buildStatCard({
+    title: 'Bus Factor',
+    value: busFactor,
+    color: colorByThreshold(busFactor, BUS_FACTOR_RANGES),
+    label: 'distinct contributors',
+    available: busFactor != null,
+  });
 
-  const ttcHtml = `<div class="card"><h3>Time to Close</h3>
-<div class="stat" style="color:${colorByThreshold(ttc?.median_days, TIME_TO_CLOSE_DAYS_RANGES)}">${ttc != null ? ttc.median_days + 'd' : '\u2014'}</div>
-<div class="stat-label">${ttc != null ? 'median days (n=' + ttc.sample_size + ')' : 'unavailable'}</div></div>`;
+  const ttcHtml = buildStatCard({
+    title: 'Time to Close',
+    value: ttc != null ? ttc.median_days + 'd' : null,
+    color: colorByThreshold(ttc?.median_days, TIME_TO_CLOSE_DAYS_RANGES),
+    label: ttc != null ? `median days (n=${ttc.sample_size})` : null,
+    available: ttc != null,
+  });
 
   const depHtml = buildRepoDependencyCard(snapshot.sbom, depSummary);
   const libyearHtml = buildLibyearCard(libyear);

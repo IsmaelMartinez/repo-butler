@@ -1770,3 +1770,49 @@ describe('per-repo report colour regressions', () => {
     assert.match(html, /color:#7ee787">5d</, 'ttc 5d → success');
   });
 });
+
+describe('buildStatCard', () => {
+  it('renders a typical card with value, colour and label', async () => {
+    const { buildStatCard } = await import('./report-repo.js');
+    const html = buildStatCard({
+      title: 'Bus Factor',
+      value: 4,
+      color: '#7ee787',
+      label: 'distinct contributors',
+      available: true,
+    });
+    assert.strictEqual(
+      html,
+      '<div class="card"><h3>Bus Factor</h3>\n<div class="stat" style="color:#7ee787">4</div>\n<div class="stat-label">distinct contributors</div></div>',
+    );
+  });
+
+  it('renders an em-dash placeholder and "unavailable" label when available=false', async () => {
+    const { buildStatCard } = await import('./report-repo.js');
+    const html = buildStatCard({
+      title: 'CI Pass Rate',
+      value: '95%',
+      color: '#7ee787',
+      label: 'from workflow runs',
+      available: false,
+    });
+    // Value, colour and label are all overridden by the unavailable branch.
+    assert.match(html, /<h3>CI Pass Rate<\/h3>/);
+    assert.match(html, /style="color:#6e7681">—</);
+    assert.match(html, /<div class="stat-label">unavailable<\/div>/);
+    assert.ok(!html.includes('95%'), 'value should not appear when unavailable');
+    assert.ok(!html.includes('from workflow runs'), 'label should not appear when unavailable');
+  });
+
+  it('defaults available to true when omitted', async () => {
+    const { buildStatCard } = await import('./report-repo.js');
+    const html = buildStatCard({
+      title: 'Code Scanning',
+      value: 0,
+      color: '#7ee787',
+      label: 'No open alerts',
+    });
+    assert.match(html, /style="color:#7ee787">0</);
+    assert.match(html, /<div class="stat-label">No open alerts<\/div>/);
+  });
+});
