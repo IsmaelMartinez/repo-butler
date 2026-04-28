@@ -958,10 +958,16 @@ describe('CSS utility colour classes', () => {
   it('defines .muted, .text-success, .text-warning, .text-danger and .text-sm with the expected values', async () => {
     const { CSS } = await import('./report-styles.js');
     assert.ok(CSS.includes('.muted{color:#8b949e}'), 'CSS should define .muted');
-    assert.ok(CSS.includes('.text-success{color:#7ee787}'), 'CSS should define .text-success');
-    assert.ok(CSS.includes('.text-warning{color:#d29922}'), 'CSS should define .text-warning');
-    assert.ok(CSS.includes('.text-danger{color:#f85149}'), 'CSS should define .text-danger');
+    assert.ok(CSS.includes('.text-success{color:var(--color-success)}'), 'CSS should define .text-success');
+    assert.ok(CSS.includes('.text-warning{color:var(--color-warning)}'), 'CSS should define .text-warning');
+    assert.ok(CSS.includes('.text-danger{color:var(--color-danger)}'), 'CSS should define .text-danger');
     assert.ok(CSS.includes('.text-sm{font-size:0.75rem}'), 'CSS should define .text-sm');
+  });
+
+  it('defines :root design tokens for success/warning/danger colours', async () => {
+    const { CSS } = await import('./report-styles.js');
+    assert.ok(CSS.includes(':root{--color-success:#7ee787;--color-warning:#d29922;--color-danger:#f85149}'),
+      'CSS should declare :root custom properties resolving to the canonical hex values');
   });
 });
 
@@ -1693,12 +1699,12 @@ describe('getLibyearColor delegates to colorByThreshold', () => {
     const { getLibyearColor } = await import('./report-shared.js');
     assert.equal(getLibyearColor(null), '#6e7681');
     assert.equal(getLibyearColor(undefined), '#6e7681');
-    assert.equal(getLibyearColor(0), '#7ee787');
-    assert.equal(getLibyearColor(4.99), '#7ee787');
-    assert.equal(getLibyearColor(5), '#d29922');     // boundary: >= GREEN bumps to YELLOW
-    assert.equal(getLibyearColor(19.99), '#d29922');
-    assert.equal(getLibyearColor(20), '#f85149');    // boundary: >= YELLOW bumps to RED
-    assert.equal(getLibyearColor(100), '#f85149');
+    assert.equal(getLibyearColor(0), 'var(--color-success)');
+    assert.equal(getLibyearColor(4.99), 'var(--color-success)');
+    assert.equal(getLibyearColor(5), 'var(--color-warning)');     // boundary: >= GREEN bumps to YELLOW
+    assert.equal(getLibyearColor(19.99), 'var(--color-warning)');
+    assert.equal(getLibyearColor(20), 'var(--color-danger)');     // boundary: >= YELLOW bumps to RED
+    assert.equal(getLibyearColor(100), 'var(--color-danger)');
   });
 });
 
@@ -1727,20 +1733,20 @@ describe('portfolio report colour regressions', () => {
       },
     };
     const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
-    // Confirm the success/warning/danger hex strings are present in the rendered HTML.
-    assert.ok(html.includes('#7ee787'), 'should include success green');
-    assert.ok(html.includes('#d29922'), 'should include warning amber');
-    assert.ok(html.includes('#f85149'), 'should include danger red');
+    // Confirm the success/warning/danger CSS custom-property tokens are present in the rendered HTML.
+    assert.ok(html.includes('var(--color-success)'), 'should include success green token');
+    assert.ok(html.includes('var(--color-warning)'), 'should include warning amber token');
+    assert.ok(html.includes('var(--color-danger)'), 'should include danger red token');
     // Open issues for troubled (50) should render with danger red.
-    assert.match(html, /color:#f85149">50</, 'troubled repo open_issues 50 → danger');
+    assert.match(html, /color:var\(--color-danger\)">50</, 'troubled repo open_issues 50 → danger');
     // Open PRs for troubled (12) should render with danger red.
-    assert.match(html, /color:#f85149">12</, 'troubled repo open_prs 12 → danger');
+    assert.match(html, /color:var\(--color-danger\)">12</, 'troubled repo open_prs 12 → danger');
     // CI 50% (rounded) should render with danger red.
-    assert.match(html, /color:#f85149">50%</, 'troubled repo CI 50% → danger');
+    assert.match(html, /color:var\(--color-danger\)">50%</, 'troubled repo CI 50% → danger');
     // Healthy repo CI 95% should render with success green.
-    assert.match(html, /color:#7ee787">95%</, 'healthy repo CI 95% → success');
+    assert.match(html, /color:var\(--color-success\)">95%</, 'healthy repo CI 95% → success');
     // Healthy repo issues 0 → success green; PRs 0 → success green.
-    assert.match(html, /color:#7ee787">0</, 'healthy repo zero issues/PRs → success');
+    assert.match(html, /color:var\(--color-success\)">0</, 'healthy repo zero issues/PRs → success');
   });
 });
 
@@ -1757,11 +1763,11 @@ describe('per-repo report colour regressions', () => {
     };
     const html = buildHealthSection(snapshot);
     // CI 60% rendered with danger red.
-    assert.match(html, /color:#f85149">60%</, 'CI 60% → danger');
+    assert.match(html, /color:var\(--color-danger\)">60%</, 'CI 60% → danger');
     // Bus factor 1 rendered with danger red.
-    assert.match(html, /color:#f85149">1</, 'bus factor 1 → danger');
+    assert.match(html, /color:var\(--color-danger\)">1</, 'bus factor 1 → danger');
     // TTC 60d rendered with danger red.
-    assert.match(html, /color:#f85149">60d</, 'ttc 60d → danger');
+    assert.match(html, /color:var\(--color-danger\)">60d</, 'ttc 60d → danger');
   });
 
   it('buildHealthSection renders success green for healthy thresholds', async () => {
@@ -1776,9 +1782,9 @@ describe('per-repo report colour regressions', () => {
       summary: { bus_factor: 5, time_to_close_median: { median_days: 5, sample_size: 10 } },
     };
     const html = buildHealthSection(snapshot);
-    assert.match(html, /color:#7ee787">95%</, 'CI 95% → success');
-    assert.match(html, /color:#7ee787">5</, 'bus factor 5 → success');
-    assert.match(html, /color:#7ee787">5d</, 'ttc 5d → success');
+    assert.match(html, /color:var\(--color-success\)">95%</, 'CI 95% → success');
+    assert.match(html, /color:var\(--color-success\)">5</, 'bus factor 5 → success');
+    assert.match(html, /color:var\(--color-success\)">5d</, 'ttc 5d → success');
   });
 });
 
