@@ -189,10 +189,10 @@ const TOOLS = [
   },
 ];
 
-function callTool(name, args) {
+function callTool(name, args = {}) {
   const tool = TOOLS.find(t => t.name === name);
   if (!tool) return null;
-  return tool.handler(args);
+  return tool.handler(args || {});
 }
 
 // --- Tool implementations ---
