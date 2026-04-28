@@ -181,10 +181,35 @@ RATIONALE: because reasons
     assert.equal(ideas[0].priority, 'high');
     assert.deepEqual(ideas[0].labels, ['a', 'b']);
     assert.equal(ideas[0].scope, 'bounded');
-    assert.equal(ideas[0].rationale, 'because reasons');
-    // BODY is the trailing greedy field: anything after the first BODY: line
-    // (including subsequent field-like lines) is part of the body.
+    // BODY is terminal: anything after the first BODY: line — including
+    // subsequent FIELD:-like lines — is body content, not parsed as separate
+    // keys. Because RATIONALE: appears after BODY: in source order here, it
+    // is captured into the body and rationale stays null.
+    assert.equal(ideas[0].rationale, null);
     assert.equal(ideas[0].body, 'body content\nRATIONALE: because reasons');
+  });
+
+  it('treats FIELD: lines after BODY: as body content, not separate keys', () => {
+    const raw = `---IDEA---
+TITLE: foo
+PRIORITY: high
+BODY: hello world
+RATIONALE: this should NOT be parsed
+SCOPE: nor this
+CURRENT_STATE: nor this
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas.length, 1);
+    assert.equal(ideas[0].title, 'foo');
+    assert.equal(ideas[0].priority, 'high');
+    assert.equal(ideas[0].rationale, null);
+    assert.equal(ideas[0].scope, null);
+    assert.equal(ideas[0].currentState, null);
+    assert.equal(
+      ideas[0].body,
+      'hello world\nRATIONALE: this should NOT be parsed\nSCOPE: nor this\nCURRENT_STATE: nor this',
+    );
   });
 
   it('captures multi-line body including trailing field-like lines', () => {
