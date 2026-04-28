@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-28T20:30:03.345Z",
+  "timestamp": "2026-04-28T21:11:26.130Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 0,
+    "open_issues_count": 1,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-04-28T20:01:34Z",
+    "pushed_at": "2026-04-28T21:11:19Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,34 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 151,
+        "title": "refactor: CSS custom properties for colour tokens (Code Health follow-up)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:22Z"
+      },
+      {
+        "number": 150,
+        "title": "feat: monitor scanner logging (Code Health follow-up)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:19Z"
+      },
+      {
+        "number": 149,
+        "title": "fix: parseIdeas BODY-then-stop (Code Health follow-up)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:15Z"
+      },
+      {
+        "number": 148,
+        "title": "ops: dashboard refresh 4× daily during UK waking hours",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:11Z"
+      },
       {
         "number": 147,
         "title": "docs: mark Code Health Sprint shipped + deferred follow-ups",
@@ -1170,10 +1198,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.95,
+    "pass_rate": 0.94,
     "total_runs": 100,
-    "passed": 95,
-    "failed": 5
+    "passed": 94,
+    "failed": 6
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1183,9 +1211,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 143,
+    "recently_merged_prs": 147,
     "bot_prs": 5,
-    "human_prs": 138,
+    "human_prs": 142,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
@@ -1198,7 +1226,7 @@
     "code_scanning_alert_count": null,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.95,
+    "ci_pass_rate": 0.94,
     "bus_factor": 1,
     "time_to_close_median": null
   }
