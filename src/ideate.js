@@ -17,7 +17,8 @@ export async function runIdeate(context) {
 
   if (portfolio && !context.repoDetails) {
     const gh = createClient(token);
-    context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos);
+    const repoCache = store ? await store.readRepoCache() : null;
+    context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos, { cache: repoCache });
     console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
   }
 
