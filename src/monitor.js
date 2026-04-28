@@ -3,8 +3,25 @@
 // Designed to run frequently (every 15 min via cron or on webhook events).
 
 import { createClient } from './github.js';
+import { triageEvents } from './council.js';
 
 const CURSOR_PATH = 'snapshots/monitor-cursor.json';
+
+// Thin orchestration wrapper used by the index dispatcher. Runs the monitor
+// detection phase and, if events were detected and a provider is configured,
+// runs the council triage step.
+export async function runMonitor(context) {
+  const monitorResult = await monitor(context);
+  context.monitorEvents = monitorResult.events;
+
+  if (monitorResult.events.length > 0 && context.provider) {
+    const triage = await triageEvents(context, monitorResult.events);
+    context.triageResult = triage;
+    console.log(`Monitor triage: ${triage.actionable.length} actionable, ${triage.watch.length} watching, ${triage.dismissed.length} dismissed.`);
+  }
+
+  return monitorResult;
+}
 
 // Event types the monitor can detect.
 export const EVENT_TYPES = {

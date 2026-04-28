@@ -169,6 +169,13 @@ export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6
   return matches.sort((a, b) => b.similarity - a.similarity);
 }
 
+// Thin orchestration wrapper used by the index dispatcher.
+export async function runPropose(context) {
+  const result = await propose(context);
+  context.proposeResult = result;
+  return result;
+}
+
 export async function propose(context) {
   const { owner, repo, token, ideas, config, dryRun } = context;
 

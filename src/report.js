@@ -36,6 +36,13 @@ export { generateHealthBadge, computeHealthTier } from './report-shared.js';
 export { buildActionItems, computeContributorStats } from './report-repo.js';
 export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection, buildGovernanceSection } from './report-portfolio.js';
 
+// Thin orchestration wrapper used by the index dispatcher.
+export async function runReport(context) {
+  const result = await report(context);
+  context.reportResult = result;
+  return result;
+}
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';

@@ -1,18 +1,30 @@
+import { appendFileSync } from 'node:fs';
 import { loadConfig } from './config.js';
-import { observe, observePortfolio } from './observe.js';
-import { assess, computeTrends } from './assess.js';
-import { update } from './update.js';
-import { ideate } from './ideate.js';
-import { propose } from './propose.js';
-import { report } from './report.js';
+import { runObserve } from './observe.js';
+import { runAssess } from './assess.js';
+import { runUpdate } from './update.js';
+import { runIdeate } from './ideate.js';
+import { runPropose } from './propose.js';
+import { runReport } from './report.js';
+import { runMonitor } from './monitor.js';
 import { createStore } from './store.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ClaudeProvider } from './providers/claude.js';
 import { createTriageBotClient } from './triage-bot.js';
-import { monitor } from './monitor.js';
-import { reviewProposals, triageEvents } from './council.js';
+import { validateProvider } from './safety.js';
+import { onboard } from './onboard.js';
 
 const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report', 'monitor'];
+
+const PHASE_RUNNERS = {
+  observe: runObserve,
+  assess: runAssess,
+  update: runUpdate,
+  ideate: runIdeate,
+  propose: runPropose,
+  report: runReport,
+  monitor: runMonitor,
+};
 
 export function validateRepoFormat(repo) {
   if (!repo.includes('/')) {
@@ -29,6 +41,14 @@ export function parsePhases(phase) {
     }
   }
   return list;
+}
+
+// Pick the LLM provider for a given phase. ASSESS/UPDATE use the default
+// provider; IDEATE and MONITOR use the deep provider for richer reasoning.
+function providerForPhase(phase, defaultProvider, deepProvider) {
+  if (phase === 'ideate' || phase === 'monitor') return deepProvider;
+  if (phase === 'assess' || phase === 'update') return defaultProvider;
+  return null;
 }
 
 async function main() {
@@ -67,17 +87,15 @@ async function main() {
   if (geminiKey) providers.gemini = new GeminiProvider(geminiKey);
   if (claudeKey) providers.claude = new ClaudeProvider(claudeKey);
 
-  // Default provider for ASSESS/UPDATE; deep provider for IDEATE.
   const defaultProvider = providers[config.providers?.default] || providers.gemini || null;
   const deepProvider = providers[config.providers?.deep] || providers.claude || defaultProvider;
 
-  // Validate LLM provider early if LLM phases will run.
+  // Validate LLM provider early if any LLM phase will run.
   const llmPhases = ['assess', 'update', 'ideate', 'monitor'];
   const phasesToRun = parsePhases(phase);
   const needsLLM = phasesToRun.some(p => llmPhases.includes(p));
 
   if (needsLLM && defaultProvider) {
-    const { validateProvider } = await import('./safety.js');
     console.log(`Validating ${defaultProvider.name} provider...`);
     const check = await validateProvider(defaultProvider);
     if (!check.valid) {
@@ -87,166 +105,22 @@ async function main() {
     console.log('Provider OK.');
   }
 
-  // Initialise snapshot store.
-  const store = createStore(context);
-  context.store = store;
-
-  // Auto-discover triage bot integration (optional, fails gracefully).
-  const triageBot = await createTriageBotClient(context);
-  context.triageBot = triageBot;
+  context.store = createStore(context);
+  context.triageBot = await createTriageBotClient(context);
 
   for (const p of phasesToRun) {
     console.log(`\n=== Phase: ${p.toUpperCase()} ===\n`);
-
-    switch (p) {
-      case 'observe': {
-        const snapshot = await observe(context);
-        context.snapshot = snapshot;
-
-        // Also run portfolio observation if this is the config repo.
-        const portfolio = await observePortfolio(context);
-        context.portfolio = portfolio;
-
-        // Load previous snapshot for ASSESS.
-        context.previousSnapshot = await store.readSnapshot();
-
-        // Persist current snapshot.
-        await store.writeSnapshot(snapshot);
-
-        // Send observation to triage bot if available.
-        if (triageBot) {
-          await triageBot.ingestEvents(snapshot);
-        }
-
-        // Read weekly history for trend analysis.
-        context.weeklyHistory = await store.readWeeklyHistory();
-        console.log(`Loaded ${context.weeklyHistory.length} weekly snapshots for trends.`);
-
-        // Fetch enriched portfolio details early when IDEATE will run (for governance).
-        if (portfolio && phasesToRun.includes('ideate')) {
-          const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-          const gh = (await import('./github.js')).createClient(token);
-          context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos);
-          console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
-        }
-
-        console.log('Repo summary:', JSON.stringify(snapshot.summary, null, 2));
-        console.log('Portfolio classification:', JSON.stringify(portfolio.classification, null, 2));
-        break;
-      }
-
-      case 'assess': {
-        // Fetch triage bot synthesis findings if available.
-        if (triageBot) {
-          const rawTrends = await triageBot.fetchTrends();
-          if (rawTrends) {
-            const { validateTriageBotTrends } = await import('./safety.js');
-            const validation = validateTriageBotTrends(rawTrends);
-            if (!validation.valid) {
-              console.warn(`Triage bot trends failed validation: ${validation.error} — ignoring.`);
-            } else {
-              context.triageBotTrends = validation.sanitized;
-            }
-          }
-        }
-
-        context.provider = defaultProvider;
-        const assessment = await assess(context);
-        context.assessment = assessment;
-        if (assessment?.assessment) {
-          console.log('Assessment:', assessment.assessment);
-        }
-
-        // Compute trends from weekly history if available.
-        if (context.weeklyHistory?.length > 0) {
-          context.trends = computeTrends(context.weeklyHistory);
-          console.log(`Trend direction: ${context.trends.direction} (${context.trends.weeks.length} weeks)`);
-        }
-        break;
-      }
-
-      case 'update': {
-        context.provider = defaultProvider;
-        const result = await update(context);
-        context.updateResult = result;
-        break;
-      }
-
-      case 'ideate': {
-        context.provider = deepProvider;
-
-        // Run governance detection if portfolio data is available.
-        if (context.portfolio && context.repoDetails) {
-          const { parseStandardsConfig } = await import('./config.js');
-          const { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals } = await import('./governance.js');
-
-          const standards = parseStandardsConfig(config);
-          const gaps = detectStandardsGaps(standards, context.portfolio.repos, context.repoDetails);
-          const drift = detectPolicyDrift(context.portfolio.repos, context.repoDetails);
-          const uplift = generateUpliftProposals(context.portfolio.repos, context.repoDetails, config);
-
-          context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
-          console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);
-        }
-
-        const result = await ideate(context);
-        context.ideas = result?.ideas || [];
-
-        // Run council deliberation on proposals if enabled.
-        if (context.ideas.length > 0 && config.council?.enabled !== false && deepProvider) {
-          console.log('\n--- Council Deliberation ---\n');
-          context.provider = deepProvider;
-          const councilResult = await reviewProposals(context, context.ideas);
-          context.councilResult = councilResult;
-          // Replace ideas with only the council-approved ones.
-          context.ideas = councilResult.approved;
-          context.watchlist = councilResult.watchlist;
-          console.log(`Council: ${councilResult.approved.length} approved, ${councilResult.watchlist.length} watchlisted, ${councilResult.dismissed.length} dismissed.`);
-        }
-
-        // Persist governance findings for MCP consumption.
-        if (context.governanceFindings?.length > 0 && store) {
-          await store.writeGovernanceFindings(context.governanceFindings);
-        }
-        break;
-      }
-
-      case 'propose': {
-        const result = await propose(context);
-        context.proposeResult = result;
-        break;
-      }
-
-      case 'report': {
-        const result = await report(context);
-        context.reportResult = result;
-        break;
-      }
-
-      case 'monitor': {
-        // Continuous monitoring: detect new events since last check.
-        const monitorResult = await monitor(context);
-        context.monitorEvents = monitorResult.events;
-
-        // Run council triage on detected events if LLM is available.
-        if (monitorResult.events.length > 0 && deepProvider) {
-          context.provider = deepProvider;
-          const triage = await triageEvents(context, monitorResult.events);
-          context.triageResult = triage;
-          console.log(`Monitor triage: ${triage.actionable.length} actionable, ${triage.watch.length} watching, ${triage.dismissed.length} dismissed.`);
-        }
-        break;
-      }
-
-      default:
-        console.error(`Unknown phase: ${p}`);
-        process.exit(1);
+    const runner = PHASE_RUNNERS[p];
+    if (!runner) {
+      console.error(`Unknown phase: ${p}`);
+      process.exit(1);
     }
+    context.provider = providerForPhase(p, defaultProvider, deepProvider);
+    await runner(context);
   }
 
   // Auto-onboard new portfolio repos that lack the CLAUDE.md marker.
   if (context.portfolio && !dryRun) {
-    const { onboard } = await import('./onboard.js');
     const activeRepos = context.portfolio.repos
       .filter(r => !r.archived && !r.fork)
       .map(r => r.full_name);
@@ -264,7 +138,6 @@ async function main() {
 
   // Output summary for GitHub Actions.
   if (process.env.GITHUB_OUTPUT) {
-    const { appendFileSync } = await import('node:fs');
     const summary = {
       snapshot_summary: context.snapshot?.summary,
       portfolio: context.portfolio?.classification,

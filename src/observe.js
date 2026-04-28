@@ -1,6 +1,34 @@
 import { createClient } from './github.js';
 import { isBugIssue, isFeatureIssue, isPublishedRelease } from './report-shared.js';
 
+// Thin orchestration wrapper used by the index dispatcher. Runs both the
+// per-repo and portfolio observation, threads results onto context, persists
+// the snapshot, and loads the weekly history needed by ASSESS.
+export async function runObserve(context) {
+  const { store, triageBot } = context;
+
+  const snapshot = await observe(context);
+  context.snapshot = snapshot;
+
+  const portfolio = await observePortfolio(context);
+  context.portfolio = portfolio;
+
+  context.previousSnapshot = await store.readSnapshot();
+  await store.writeSnapshot(snapshot);
+
+  if (triageBot) await triageBot.ingestEvents(snapshot);
+
+  context.weeklyHistory = await store.readWeeklyHistory();
+  console.log(`Loaded ${context.weeklyHistory.length} weekly snapshots for trends.`);
+
+  console.log('Repo summary:', JSON.stringify(snapshot.summary, null, 2));
+  if (portfolio) {
+    console.log('Portfolio classification:', JSON.stringify(portfolio.classification, null, 2));
+  }
+
+  return { snapshot, portfolio };
+}
+
 export async function observe(context) {
   const { owner, repo, token, config } = context;
   const gh = createClient(token);
