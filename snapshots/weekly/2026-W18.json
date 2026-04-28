@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-27T07:00:38.380Z",
+  "timestamp": "2026-04-28T03:08:34.886Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-04-27T03:10:47Z",
+    "pushed_at": "2026-04-27T07:00:42Z",
     "archived": false
   },
   "issues": {
@@ -375,27 +375,6 @@
         "merged_at": "2026-04-01T06:53:05Z"
       },
       {
-        "number": 72,
-        "title": "fix: detect Dependabot config via file fallback",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-31T22:57:04Z"
-      },
-      {
-        "number": 71,
-        "title": "docs: rename consumer guide, add Phase 10 agent swarm",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-31T22:54:14Z"
-      },
-      {
-        "number": 70,
-        "title": "docs: add consumer guide skill for portfolio repos",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-31T21:08:49Z"
-      },
-      {
         "number": 69,
         "title": "fix: fail fast on 403 permission errors",
         "author": "IsmaelMartinez",
@@ -532,26 +511,6 @@
         "merged_at": "2026-03-26T12:30:40Z"
       },
       {
-        "number": 48,
-        "title": "build(deps): Bump actions/setup-node from 4 to 6",
-        "author": "dependabot[bot]",
-        "labels": [
-          "dependencies",
-          "github_actions"
-        ],
-        "merged_at": "2026-03-26T12:29:18Z"
-      },
-      {
-        "number": 47,
-        "title": "build(deps): Bump actions/checkout from 4 to 6",
-        "author": "dependabot[bot]",
-        "labels": [
-          "dependencies",
-          "github_actions"
-        ],
-        "merged_at": "2026-03-26T12:27:12Z"
-      },
-      {
         "number": 50,
         "title": "fix: group Dependabot minor/patch updates",
         "author": "IsmaelMartinez",
@@ -559,56 +518,11 @@
         "merged_at": "2026-03-25T18:30:28Z"
       },
       {
-        "number": 46,
-        "title": "build(deps): Bump actions/upload-pages-artifact from 3 to 4",
-        "author": "dependabot[bot]",
-        "labels": [
-          "dependencies",
-          "github_actions"
-        ],
-        "merged_at": "2026-03-25T18:28:41Z"
-      },
-      {
         "number": 49,
         "title": "docs: ADR-002 portfolio governance boundary",
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-25T11:04:30Z"
-      },
-      {
-        "number": 45,
-        "title": "feat: add Dependabot config and prepare v1 release packaging",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-24T21:55:16Z"
-      },
-      {
-        "number": 44,
-        "title": "feat: add community health files for 80%+ profile score",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-24T21:55:03Z"
-      },
-      {
-        "number": 42,
-        "title": "feat: duplicate detection and structured issue body",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-24T21:29:50Z"
-      },
-      {
-        "number": 43,
-        "title": "docs: mark Phase 4 as shipped",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-24T21:30:47Z"
-      },
-      {
-        "number": 41,
-        "title": "feat: structured issue specs with signal rationale",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-24T21:29:37Z"
       },
       {
         "number": 40,
@@ -693,13 +607,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-23T22:53:26Z"
-      },
-      {
-        "number": 28,
-        "title": "feat: blocked issue context (upstream vs dependency)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-23T20:07:39Z"
       },
       {
         "number": 27,
@@ -819,62 +726,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-21T00:14:52Z"
-      },
-      {
-        "number": 9,
-        "title": "feat: report caching via snapshot hashing",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T20:46:56Z"
-      },
-      {
-        "number": 8,
-        "title": "feat: historical trend charts with weekly snapshots",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T20:44:28Z"
-      },
-      {
-        "number": 7,
-        "title": "feat: safety layer for LLM output validation",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T16:27:15Z"
-      },
-      {
-        "number": 6,
-        "title": "docs: ADR-001 triage bot boundary + roadmap update",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T15:11:38Z"
-      },
-      {
-        "number": 5,
-        "title": "docs: update README and ROADMAP",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T10:55:23Z"
-      },
-      {
-        "number": 4,
-        "title": "feat: per-repo reports for every portfolio repo",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T10:17:56Z"
-      },
-      {
-        "number": 3,
-        "title": "fix: report phase auto-runs observe when standalone",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T09:55:07Z"
-      },
-      {
-        "number": 2,
-        "title": "feat: auto-generated HTML reports with GitHub Pages",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T09:51:40Z"
       },
       {
         "number": 1,
@@ -1030,9 +881,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 121,
-    "bot_prs": 5,
-    "human_prs": 116,
+    "recently_merged_prs": 101,
+    "bot_prs": 2,
+    "human_prs": 99,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
