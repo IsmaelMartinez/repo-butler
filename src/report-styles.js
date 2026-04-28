@@ -39,6 +39,11 @@ a{color:#58a6ff;text-decoration:none}
 .heatmap-labels{display:grid;gap:2px;margin-top:4px;font-size:0.6rem;color:#8b949e}
 .heatmap-labels span{text-align:center;white-space:nowrap}
 .footer{text-align:center;color:#6e7681;font-size:0.8rem;margin-top:3rem;padding:1rem}
+.muted{color:#8b949e}
+.text-success{color:#7ee787}
+.text-warning{color:#d29922}
+.text-danger{color:#f85149}
+.text-sm{font-size:0.75rem}
 .alert-banner{background:#161b22;border-left:4px solid #d29922;border-radius:0 8px 8px 0;padding:1rem 1.5rem;margin-bottom:1.5rem;color:#e6edf3;font-size:0.9rem}
 .alert-banner.alert-critical{border-color:#f85149}
 .campaign-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;margin-bottom:2rem}

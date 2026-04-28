@@ -199,7 +199,7 @@ function buildContributorCard(prAuthors, stargazers) {
   const stats = computeContributorStats(prAuthors, stargazers);
   const authorList = stats.firstTimers.length > 0
     ? stats.firstTimers.map(a => `<span class="badge badge-active" style="font-size:0.75rem;margin:2px">${escHtml(a.author)} <span style="background:#7ee787;color:#161b22;border-radius:4px;padding:0 4px;font-size:0.65rem;margin-left:2px">new</span></span>`).join(' ')
-    : '<span style="color:#8b949e">none in this period</span>';
+    : '<span class="muted">none in this period</span>';
   const ratioColor = colorByThreshold(stats.ratio, CONTRIBUTOR_RATIO_RANGES);
   return `<h2>Contributors</h2>
 <div class="grid">
@@ -371,13 +371,13 @@ function buildActionabilitySection(snapshot, openPRs) {
   const impactColor = { 'high': '#f85149', 'medium': '#d29922', 'low': '#8b949e' };
 
   const rows = items.map((item, i) => `<tr>
-    <td style="color:#8b949e;font-weight:600">${i + 1}</td>
+    <td class="muted" style="font-weight:600">${i + 1}</td>
     <td>${item.text}</td>
     <td><span style="color:${effortColor[item.effort] || '#8b949e'}">${item.effort}</span></td>
     <td><span style="color:${impactColor[item.impact] || '#8b949e'}">${item.impact} impact</span></td>
   </tr>`).join('');
 
-  return `<h2>What To Do Next <span style="font-size:0.8rem;color:#8b949e">(${items.length} action${items.length !== 1 ? 's' : ''})</span></h2>
+  return `<h2>What To Do Next <span class="muted" style="font-size:0.8rem">(${items.length} action${items.length !== 1 ? 's' : ''})</span></h2>
 <div class="chart-container">
 <table><thead><tr><th>#</th><th>Action</th><th>Effort</th><th>Impact</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -422,7 +422,7 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
     const iconColor = c.passed ? '#7ee787' : '#f85149';
     const tierLabel = c.required_for === 'gold' ? 'Gold' : c.required_for === 'silver' ? 'Silver' : 'Bronze';
     const detail = healthData[c.name] || '';
-    const detailHtml = detail ? `<span style="color:#8b949e">${escHtml(detail)}</span>` : '';
+    const detailHtml = detail ? `<span class="muted">${escHtml(detail)}</span>` : '';
     return `<tr>
       <td style="color:${iconColor};font-weight:600;text-align:center">${icon}</td>
       <td>${c.name}</td>
@@ -432,10 +432,10 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
 
   const nextTierHtml = nextTier && failedForNext.length > 0
     ? `<div style="margin-top:1rem;padding:1rem;background:#0d1117;border-radius:6px;border:1px solid #21262d">
-<div style="font-size:0.85rem;color:#8b949e;margin-bottom:0.5rem">To reach <span class="tier-badge tier-${nextTier}">${TIER_DISPLAY[nextTier]}</span>:</div>
-${failedForNext.map(c => `<div style="color:#f85149;font-size:0.85rem;margin-left:0.5rem">\u2717 ${c.name}</div>`).join('')}
+<div class="muted" style="font-size:0.85rem;margin-bottom:0.5rem">To reach <span class="tier-badge tier-${nextTier}">${TIER_DISPLAY[nextTier]}</span>:</div>
+${failedForNext.map(c => `<div class="text-danger" style="font-size:0.85rem;margin-left:0.5rem">\u2717 ${c.name}</div>`).join('')}
 </div>`
-    : tier === 'gold' ? '<div style="margin-top:1rem;color:#7ee787;font-size:0.85rem">All criteria met. This repo has achieved Gold tier.</div>' : '';
+    : tier === 'gold' ? '<div class="text-success" style="margin-top:1rem;font-size:0.85rem">All criteria met. This repo has achieved Gold tier.</div>' : '';
 
   return `<h2>Health Tier</h2>
 <div class="chart-container" style="text-align:center;padding-bottom:0.5rem">
@@ -482,7 +482,7 @@ ${['readme', 'license', 'contributing', 'code_of_conduct', 'issue_template', 'pu
   const vulnHtml = da ? `<div class="card"><h3>Dependabot Alerts</h3>
 <div class="stat" style="color:${da.count === 0 ? '#7ee787' : da.critical > 0 || da.high > 0 ? '#f85149' : '#d29922'}">${da.count}</div>
 <div class="stat-label" style="margin-top:0.5rem;line-height:1.8">
-${da.critical ? `<span style="color:#f85149">${da.critical} critical</span><br>` : ''}${da.high ? `<span style="color:#f85149">${da.high} high</span><br>` : ''}${da.medium ? `<span style="color:#d29922">${da.medium} medium</span><br>` : ''}${da.low ? `<span style="color:#7ee787">${da.low} low</span>` : ''}${da.count === 0 ? 'No open alerts' : ''}
+${da.critical ? `<span class="text-danger">${da.critical} critical</span><br>` : ''}${da.high ? `<span class="text-danger">${da.high} high</span><br>` : ''}${da.medium ? `<span class="text-warning">${da.medium} medium</span><br>` : ''}${da.low ? `<span class="text-success">${da.low} low</span>` : ''}${da.count === 0 ? 'No open alerts' : ''}
 </div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const cs = snapshot.code_scanning_alerts;
@@ -554,9 +554,9 @@ function buildPRTriageSection(openPRs, repoFullName) {
   const rows = openPRs.map(pr => {
     const stale = pr.age_days >= 30;
     const ageColor = colorByThreshold(pr.age_days, PR_AGE_RANGES);
-    const authorDisplay = pr.bot ? `<span style="color:#8b949e">${escHtml(pr.author)}</span>` : escHtml(pr.author);
+    const authorDisplay = pr.bot ? `<span class="muted">${escHtml(pr.author)}</span>` : escHtml(pr.author);
     const labels = pr.labels.map(l => `<span style="background:#21262d;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem">${escHtml(l)}</span>`).join(' ');
-    const draftBadge = pr.draft ? '<span style="color:#8b949e;font-size:0.7rem"> draft</span>' : '';
+    const draftBadge = pr.draft ? '<span class="muted" style="font-size:0.7rem"> draft</span>' : '';
 
     return `<tr>
       <td><a href="https://github.com/${repoFullName}/pull/${pr.number}">#${pr.number}</a>${draftBadge}</td>
@@ -576,10 +576,10 @@ function buildPRTriageSection(openPRs, repoFullName) {
     toReview > 0 ? `${toReview} awaiting review` : null,
     drafts > 0 ? `${drafts} draft` : null,
     botPRs > 0 ? `${botPRs} bot` : null,
-    stale > 0 ? `<span style="color:#f85149">${stale} stale</span>` : null,
+    stale > 0 ? `<span class="text-danger">${stale} stale</span>` : null,
   ].filter(Boolean).join(', ');
 
-  return `<h2>Open Pull Requests <span style="font-size:0.8rem;color:#8b949e">(${summary})</span></h2>
+  return `<h2>Open Pull Requests <span class="muted" style="font-size:0.8rem">(${summary})</span></h2>
 <div class="chart-container">
 <table><thead><tr><th>PR</th><th>Title</th><th>Author</th><th>Age</th><th>Labels</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -631,7 +631,7 @@ function buildStalenessSection(snapshot) {
     }).join('');
 
     html += `<div class="chart-container">
-<div class="chart-title">Awaiting Feedback <span style="font-size:0.8rem;color:#8b949e">(${feedbackIssues.length} issues${critical > 0 ? `, <span style="color:#f85149">${critical} stale 30d+</span>` : ''})</span></div>
+<div class="chart-title">Awaiting Feedback <span class="muted" style="font-size:0.8rem">(${feedbackIssues.length} issues${critical > 0 ? `, <span class="text-danger">${critical} stale 30d+</span>` : ''})</span></div>
 <table><thead><tr><th>Issue</th><th>Title</th><th>Waiting</th><th>Comments</th></tr></thead>
 <tbody>${feedbackRows}</tbody></table>
 </div>`;
@@ -654,7 +654,7 @@ function buildStalenessSection(snapshot) {
     const blockedSummary = upstreamCount > 0 ? `${blockedIssues.length} total, ${upstreamCount} upstream` : `${blockedIssues.length}`;
 
     html += `<div class="chart-container">
-<div class="chart-title">Blocked Issues <span style="font-size:0.8rem;color:#8b949e">(${blockedSummary})</span></div>
+<div class="chart-title">Blocked Issues <span class="muted" style="font-size:0.8rem">(${blockedSummary})</span></div>
 <table><thead><tr><th>Issue</th><th>Title</th><th>Blocked on</th><th>Age</th><th>Comments</th></tr></thead>
 <tbody>${blockedRows}</tbody></table>
 </div>`;
@@ -786,7 +786,7 @@ new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${tr
   const stalenessHtml = (buildStalenessSection(snapshot) || '').replace(/<h2>/g, '<h3>').replace(/<\/h2>/g, '</h3>');
   const openWorkHtml = prTriageHtml || stalenessHtml
     ? `<h2>Open Work</h2>${prTriageHtml}${stalenessHtml}`
-    : '<h2>Open Work</h2><p style="color:#8b949e;font-size:0.9rem">No open work</p>';
+    : '<h2>Open Work</h2><p class="muted" style="font-size:0.9rem">No open work</p>';
 
   const body = `<h1><a href="https://github.com/${snapshot.repository}" class="repo-link">${snapshot.repository} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
 <div class="subtitle">${fmt(snapshot.meta?.stars)} stars · ${fmt(snapshot.meta?.forks)} forks · ${fmt(snapshot.meta?.watchers)} watchers — ${now} — <a href="index.html">portfolio</a> — <a href="digest.html">digest</a></div>
@@ -844,7 +844,7 @@ ${CSS}
   <div class="card"><h3>CI Workflows</h3><div class="stat">${ci}</div></div>
   <div class="card"><h3>Last Push</h3><div class="stat stat-sm">${pushed}</div></div>
 </div>
-<div class="chart-container" style="text-align:center;padding:3rem;color:#8b949e">
+<div class="chart-container muted" style="text-align:center;padding:3rem">
   This repo has fewer than 10 commits in the last 6 months.<br>
   Full charts are generated for repos with more activity.
 </div>

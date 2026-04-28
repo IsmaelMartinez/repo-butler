@@ -954,6 +954,17 @@ describe('CSS includes collapsible styles', () => {
   });
 });
 
+describe('CSS utility colour classes', () => {
+  it('defines .muted, .text-success, .text-warning, .text-danger and .text-sm with the expected values', async () => {
+    const { CSS } = await import('./report-styles.js');
+    assert.ok(CSS.includes('.muted{color:#8b949e}'), 'CSS should define .muted');
+    assert.ok(CSS.includes('.text-success{color:#7ee787}'), 'CSS should define .text-success');
+    assert.ok(CSS.includes('.text-warning{color:#d29922}'), 'CSS should define .text-warning');
+    assert.ok(CSS.includes('.text-danger{color:#f85149}'), 'CSS should define .text-danger');
+    assert.ok(CSS.includes('.text-sm{font-size:0.75rem}'), 'CSS should define .text-sm');
+  });
+});
+
 describe('htmlPage shell template', () => {
   it('produces a full HTML document with head, body, CSS, and Chart.js CDN', async () => {
     const { htmlPage, CSS } = await import('./report-styles.js');
