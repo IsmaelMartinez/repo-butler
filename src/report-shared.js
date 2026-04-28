@@ -30,17 +30,25 @@ export function getLibyearColor(libyearVal) {
   return '#f85149';
 }
 
+// Tally an alert array into { count, critical, high, medium, low, max_severity }.
+// `getSeverity(alert)` returns one of 'critical' | 'high' | 'medium' | 'low' (or
+// anything else / falsy, which is ignored). Single source of truth for both the
+// observe.js fetchers and the report-portfolio.js inline aggregations.
 export function getAlertSummary(alerts, getSeverity) {
-  const count = alerts.length;
-  let maxSeverity = null;
   const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+  let critical = 0, high = 0, medium = 0, low = 0;
+  let maxSeverity = null;
   for (const a of alerts) {
     const sev = getSeverity(a);
+    if (sev === 'critical') critical++;
+    else if (sev === 'high') high++;
+    else if (sev === 'medium') medium++;
+    else if (sev === 'low') low++;
     if (sev && (maxSeverity === null || (severityOrder[sev] || 0) > (severityOrder[maxSeverity] || 0))) {
       maxSeverity = sev;
     }
   }
-  return { count, max_severity: maxSeverity };
+  return { count: alerts.length, critical, high, medium, low, max_severity: maxSeverity };
 }
 
 const BUG_LABELS = ['bug', 'defect', 'bugfix', 'bug-fix', 'type: bug', 'type:bug', 'kind/bug'];

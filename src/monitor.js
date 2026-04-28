@@ -136,84 +136,66 @@ async function detectNewPRs(gh, owner, repo, cursor) {
   }
 }
 
+// Scanner config for detectSecurityAlerts. Each entry describes one GitHub
+// security scanning surface: the API path, the cursor field that holds known
+// alert IDs, and how to map an alert into a SECURITY_ALERT event. Adding a new
+// scanner is a one-entry change.
+export const SCANNERS = [
+  {
+    source: 'dependabot',
+    path: '/repos/{owner}/{repo}/dependabot/alerts',
+    knownField: 'known_dependabot_alerts',
+    buildEvent: (a) => ({
+      severity: a.security_vulnerability?.severity || a.security_advisory?.severity || 'medium',
+      title: `Dependabot: ${a.security_advisory?.summary || `Alert #${a.number}`}`,
+      package: a.dependency?.package?.name,
+    }),
+  },
+  {
+    source: 'code_scanning',
+    path: '/repos/{owner}/{repo}/code-scanning/alerts',
+    knownField: 'known_code_scanning_alerts',
+    buildEvent: (a) => ({
+      severity: a.rule?.security_severity_level || 'medium',
+      title: `Code scanning: ${a.rule?.description || `Alert #${a.number}`}`,
+      rule: a.rule?.id,
+    }),
+  },
+  {
+    source: 'secret_scanning',
+    path: '/repos/{owner}/{repo}/secret-scanning/alerts',
+    knownField: 'known_secret_scanning_alerts',
+    buildEvent: (a) => ({
+      severity: 'critical',
+      title: `Secret exposed: ${a.secret_type_display_name || a.secret_type}`,
+    }),
+  },
+];
+
 async function detectSecurityAlerts(gh, owner, repo, cursor) {
   const events = [];
 
-  // Dependabot alerts.
-  try {
-    const data = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts`, {
-      params: { state: 'open', per_page: 100 },
-    });
-    const alerts = Array.isArray(data) ? data : [];
-    const knownAlerts = new Set(cursor?.known_dependabot_alerts || []);
+  for (const scanner of SCANNERS) {
+    try {
+      const path = scanner.path.replace('{owner}', owner).replace('{repo}', repo);
+      const data = await gh.request(path, { params: { state: 'open', per_page: 100 } });
+      const alerts = Array.isArray(data) ? data : [];
+      const knownAlerts = new Set(cursor?.[scanner.knownField] || []);
 
-    for (const alert of alerts) {
-      if (knownAlerts.has(alert.number)) continue;
-      const severity = alert.security_vulnerability?.severity
-        || alert.security_advisory?.severity || 'medium';
-      events.push({
-        type: EVENT_TYPES.SECURITY_ALERT,
-        severity,
-        title: `Dependabot: ${alert.security_advisory?.summary || `Alert #${alert.number}`}`,
-        number: alert.number,
-        source: 'dependabot',
-        package: alert.dependency?.package?.name,
-        url: alert.html_url,
-        created_at: alert.created_at,
-      });
+      for (const alert of alerts) {
+        if (knownAlerts.has(alert.number)) continue;
+        events.push({
+          type: EVENT_TYPES.SECURITY_ALERT,
+          source: scanner.source,
+          number: alert.number,
+          url: alert.html_url,
+          created_at: alert.created_at,
+          ...scanner.buildEvent(alert),
+        });
+      }
+    } catch {
+      // Scanner not available for this repo / token scope — skip gracefully.
     }
-  } catch {
-    // Dependabot not available — skip gracefully.
-  }
-
-  // Code scanning alerts.
-  try {
-    const data = await gh.request(`/repos/${owner}/${repo}/code-scanning/alerts`, {
-      params: { state: 'open', per_page: 100 },
-    });
-    const alerts = Array.isArray(data) ? data : [];
-    const knownAlerts = new Set(cursor?.known_code_scanning_alerts || []);
-
-    for (const alert of alerts) {
-      if (knownAlerts.has(alert.number)) continue;
-      const severity = alert.rule?.security_severity_level || 'medium';
-      events.push({
-        type: EVENT_TYPES.SECURITY_ALERT,
-        severity,
-        title: `Code scanning: ${alert.rule?.description || `Alert #${alert.number}`}`,
-        number: alert.number,
-        source: 'code_scanning',
-        rule: alert.rule?.id,
-        url: alert.html_url,
-        created_at: alert.created_at,
-      });
-    }
-  } catch {
-    // Code scanning not available — skip gracefully.
-  }
-
-  // Secret scanning alerts.
-  try {
-    const data = await gh.request(`/repos/${owner}/${repo}/secret-scanning/alerts`, {
-      params: { state: 'open', per_page: 100 },
-    });
-    const alerts = Array.isArray(data) ? data : [];
-    const knownAlerts = new Set(cursor?.known_secret_scanning_alerts || []);
-
-    for (const alert of alerts) {
-      if (knownAlerts.has(alert.number)) continue;
-      events.push({
-        type: EVENT_TYPES.SECURITY_ALERT,
-        severity: 'critical',
-        title: `Secret exposed: ${alert.secret_type_display_name || alert.secret_type}`,
-        number: alert.number,
-        source: 'secret_scanning',
-        url: alert.html_url,
-        created_at: alert.created_at,
-      });
-    }
-  } catch {
-    // Secret scanning not available — skip gracefully.
   }
 
   return events;

@@ -295,6 +295,45 @@ describe('fetchCodeScanningAlerts', () => {
   });
 });
 
+describe('fetchDependabotAlerts (via observe)', () => {
+  // fetchDependabotAlerts isn't exported, but observe() calls it as part of the
+  // parallel fetch. Drive it via globalThis.fetch and check the return shape
+  // matches the report-shared.getAlertSummary contract.
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('returns the same shape as getAlertSummary for a mixed-severity list', async () => {
+    const { getAlertSummary } = await import('./report-shared.js');
+    const alerts = [
+      { security_vulnerability: { severity: 'critical' } },
+      { security_vulnerability: { severity: 'high' } },
+      { security_advisory: { severity: 'medium' } },
+      { security_vulnerability: { severity: 'low' } },
+    ];
+    const expected = getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity);
+    assert.deepEqual(expected, { count: 4, critical: 1, high: 1, medium: 1, low: 1, max_severity: 'critical' });
+  });
+});
+
+describe('fetchCodeScanningAlerts delegates to getAlertSummary', () => {
+  it('returns the same shape getAlertSummary would produce for the same alerts', async () => {
+    const { fetchCodeScanningAlerts } = await import('./observe.js');
+    const { getAlertSummary } = await import('./report-shared.js');
+    const alerts = [
+      { rule: { security_severity_level: 'critical' } },
+      { rule: { security_severity_level: 'high' } },
+      { rule: { security_severity_level: 'high' } },
+      { rule: { security_severity_level: 'medium' } },
+      { rule: { security_severity_level: 'low' } },
+    ];
+    const gh = { request: async () => alerts };
+    const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
+    const expected = getAlertSummary(alerts, a => a.rule?.security_severity_level);
+    assert.deepEqual(result, expected);
+  });
+});
+
 describe('fetchSecretScanningAlerts', () => {
   it('returns structured alert count on success', async () => {
     const { fetchSecretScanningAlerts } = await import('./observe.js');

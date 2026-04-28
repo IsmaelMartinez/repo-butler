@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 describe('monitor module', () => {
@@ -102,6 +102,159 @@ describe('summariseEvents', () => {
 
     const summary = summariseEvents(events);
     assert.ok(summary.includes('... and 5 more'));
+  });
+});
+
+describe('detectSecurityAlerts (via monitor)', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  function mockResponse(body) {
+    return {
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      json: async () => body,
+    };
+  }
+  function failingResponse() {
+    return {
+      ok: false,
+      status: 404,
+      headers: new Map(),
+      text: async () => 'Not Found',
+      json: async () => ({}),
+    };
+  }
+
+  it('SCANNERS table covers dependabot, code_scanning, and secret_scanning', async () => {
+    const { SCANNERS } = await import('./monitor.js');
+    const sources = SCANNERS.map(s => s.source).sort();
+    assert.deepEqual(sources, ['code_scanning', 'dependabot', 'secret_scanning']);
+    // Each entry must declare the four fields the loop relies on.
+    for (const s of SCANNERS) {
+      assert.equal(typeof s.source, 'string');
+      assert.equal(typeof s.path, 'string');
+      assert.equal(typeof s.knownField, 'string');
+      assert.equal(typeof s.buildEvent, 'function');
+    }
+  });
+
+  it('emits an event per scanner success path with the right source/severity/title', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/dependabot/alerts')) {
+        return mockResponse([{
+          number: 1,
+          security_vulnerability: { severity: 'high' },
+          security_advisory: { summary: 'CVE-2026-0001' },
+          dependency: { package: { name: 'left-pad' } },
+          html_url: 'https://example/da/1',
+          created_at: '2026-04-28T00:00:00Z',
+        }]);
+      }
+      if (u.includes('/code-scanning/alerts')) {
+        return mockResponse([{
+          number: 2,
+          rule: { security_severity_level: 'medium', description: 'SQL injection', id: 'js/sql-injection' },
+          html_url: 'https://example/cs/2',
+          created_at: '2026-04-28T00:00:00Z',
+        }]);
+      }
+      if (u.includes('/secret-scanning/alerts')) {
+        return mockResponse([{
+          number: 3,
+          secret_type_display_name: 'AWS Access Key',
+          secret_type: 'aws_access_key_id',
+          html_url: 'https://example/ss/3',
+          created_at: '2026-04-28T00:00:00Z',
+        }]);
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { monitor } = await import('./monitor.js');
+    const result = await monitor({
+      owner: 'alice', repo: 'repo', token: 'fake',
+      store: { readJSON: async () => null, writeJSON: async () => {} },
+    });
+
+    const security = result.events.filter(e => e.type === 'security_alert');
+    assert.equal(security.length, 3);
+
+    const da = security.find(e => e.source === 'dependabot');
+    assert.equal(da.severity, 'high');
+    assert.equal(da.title, 'Dependabot: CVE-2026-0001');
+    assert.equal(da.package, 'left-pad');
+    assert.equal(da.number, 1);
+
+    const cs = security.find(e => e.source === 'code_scanning');
+    assert.equal(cs.severity, 'medium');
+    assert.equal(cs.title, 'Code scanning: SQL injection');
+    assert.equal(cs.rule, 'js/sql-injection');
+
+    const ss = security.find(e => e.source === 'secret_scanning');
+    assert.equal(ss.severity, 'critical');
+    assert.equal(ss.title, 'Secret exposed: AWS Access Key');
+  });
+
+  it('skips alerts whose number is in the known-set for that scanner', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/dependabot/alerts')) {
+        return mockResponse([
+          { number: 1, security_vulnerability: { severity: 'high' }, html_url: 'x', created_at: 'x' },
+          { number: 2, security_vulnerability: { severity: 'low' }, html_url: 'x', created_at: 'x' },
+        ]);
+      }
+      // Make the other scanners return nothing so they don't pollute the result.
+      if (u.includes('/code-scanning/alerts') || u.includes('/secret-scanning/alerts')) {
+        return failingResponse();
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { monitor } = await import('./monitor.js');
+    const result = await monitor({
+      owner: 'alice', repo: 'repo', token: 'fake',
+      store: {
+        readJSON: async () => ({
+          timestamp: '2026-04-27T00:00:00Z',
+          known_dependabot_alerts: [1],
+        }),
+        writeJSON: async () => {},
+      },
+    });
+
+    const security = result.events.filter(e => e.type === 'security_alert');
+    assert.equal(security.length, 1);
+    assert.equal(security[0].number, 2);
+  });
+
+  it('swallows scanner errors and continues with the remaining scanners', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/dependabot/alerts')) return failingResponse();
+      if (u.includes('/code-scanning/alerts')) {
+        return mockResponse([{
+          number: 9, rule: { security_severity_level: 'high', description: 'XSS', id: 'js/xss' },
+          html_url: 'x', created_at: 'x',
+        }]);
+      }
+      if (u.includes('/secret-scanning/alerts')) return failingResponse();
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { monitor } = await import('./monitor.js');
+    const result = await monitor({
+      owner: 'alice', repo: 'repo', token: 'fake',
+      store: { readJSON: async () => null, writeJSON: async () => {} },
+    });
+
+    const security = result.events.filter(e => e.type === 'security_alert');
+    assert.equal(security.length, 1);
+    assert.equal(security[0].source, 'code_scanning');
   });
 });
 
