@@ -377,7 +377,7 @@ function parseSynthesisResponse(raw, items) {
 
 // Sort items into act/watch/dismiss buckets based on their corresponding verdicts.
 // `enrich(item, verdict)` produces the per-item shape pushed into each bucket.
-// Items without a matching verdict (verdict.item_index out of range) are skipped.
+// Verdicts with an out-of-range item_index are skipped.
 // Verdicts that aren't ACT or WATCH fall through to the dismiss bucket.
 export function bucketVerdicts(items, verdicts, enrich) {
   const act = [];
@@ -385,8 +385,8 @@ export function bucketVerdicts(items, verdicts, enrich) {
   const dismiss = [];
 
   for (const verdict of verdicts) {
+    if (!(verdict.item_index in items)) continue;
     const item = items[verdict.item_index];
-    if (!item) continue;
 
     const enriched = enrich(item, verdict);
 
