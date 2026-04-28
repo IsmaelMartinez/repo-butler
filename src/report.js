@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease } from './report-shared.js';
+import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot } from './report-shared.js';
 import { buildAgentCard } from './agent-card.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
@@ -186,45 +186,21 @@ export async function report(context) {
         const details = repoDetails?.[r.name];
         const mergedPRsForBusFactor = prAuthors.flatMap(a => Array.from({ length: a.count }, () => ({ author: a.author })));
 
-        const repoSnapshot = {
-          repository: `${owner}/${r.name}`,
-          meta: meta ? {
-            stars: meta.stargazers_count, forks: meta.forks_count,
-            watchers: meta.subscribers_count, default_branch: meta.default_branch,
-          } : { stars: r.stars, forks: r.forks },
-          issues: {
-            open: openIssues.map(i => ({
-              number: i.number, title: i.title, labels: i.labels.map(l => l.name),
-              reactions: i.reactions?.total_count || 0, comments: i.comments,
-              created_at: i.created_at, updated_at: i.updated_at,
-            })),
-          },
-          releases: releases.map(rel => ({
-            tag: rel.tag_name, published_at: rel.published_at, prerelease: rel.prerelease,
-          })),
-          pushed_at: r.pushed_at,
-          license: meta?.license?.spdx_id || details?.license || null,
-          community_profile: communityProfile,
-          dependabot_alerts: details?.vulns || null,
-          code_scanning_alerts: details?.codeScanning ?? null,
-          secret_scanning_alerts: details?.secretScanning ?? null,
-          ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
-          sbom: details?.sbom || null,
-          summary: {
-            open_issues: openIssues.length,
-            open_bugs: details?.open_bugs ?? null,
-            blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
-            awaiting_feedback: openIssues.filter(i => i.labels.some(l => l.name.includes('feedback'))).length,
-            recently_merged_prs: prAuthors.reduce((s, a) => s + a.count, 0),
-            human_prs: prAuthors.filter(a => !isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0),
-            bot_prs: prAuthors.filter(a => isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0),
-            releases: releases.length,
-            latest_release: releases[0]?.tag_name || 'none',
-            ci_workflows: details?.ci || 0,
-            bus_factor: computeBusFactor(mergedPRsForBusFactor),
-            time_to_close_median: computeTimeToCloseMedian(closedIssues),
-          },
-        };
+        const repoSnapshot = buildRepoSnapshot({
+          owner,
+          repo: r.name,
+          details,
+          meta,
+          communityProfile,
+          releases,
+          openIssues,
+          prAuthors,
+          busFactor: computeBusFactor(mergedPRsForBusFactor),
+          timeToCloseMedian: computeTimeToCloseMedian(closedIssues),
+          pushedAt: r.pushed_at,
+          stars: r.stars,
+          forks: r.forks,
+        });
 
         // Reuse libyear from portfolio details (already computed in fetchPortfolioDetails).
         const libyear = details?.libyear || null;

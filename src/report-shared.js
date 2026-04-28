@@ -110,6 +110,81 @@ export function last12Months() {
   return months;
 }
 
+// Build the canonical per-repo snapshot shape consumed by computeHealthTier
+// (via snapshotToTierInput in report-repo.js), buildActionItems, and the
+// persisted repoSnapshot JSON. Each call site passes only the source data it
+// has; missing inputs default to neutral values so the output is always a
+// safe superset.
+//
+// Required inputs:
+//   owner, repo            — used to populate `repository`
+// Optional inputs (default to neutral values):
+//   details                — entry from fetchPortfolioDetails (vulns, ci, etc)
+//   meta                   — GitHub /repos/{owner}/{repo} response
+//   communityProfile       — { health_percentage, files: { license, ... } }
+//   releases               — array of release objects (already filtered)
+//   openIssues             — array of open issue objects
+//   prAuthors              — array of { author, count } (90-day merged PR authors)
+//   busFactor              — precomputed bus factor (number)
+//   timeToCloseMedian      — precomputed median time-to-close (number|null)
+//   pushedAt               — repo pushed_at timestamp (defaults to meta?.pushed_at)
+//   stars, forks           — repo basics (used when meta is missing)
+export function buildRepoSnapshot({
+  owner,
+  repo,
+  details = null,
+  meta = null,
+  communityProfile = null,
+  releases = [],
+  openIssues = [],
+  prAuthors = [],
+  busFactor = 0,
+  timeToCloseMedian = null,
+  pushedAt = null,
+  stars = 0,
+  forks = 0,
+} = {}) {
+  return {
+    repository: `${owner}/${repo}`,
+    meta: meta ? {
+      stars: meta.stargazers_count, forks: meta.forks_count,
+      watchers: meta.subscribers_count, default_branch: meta.default_branch,
+    } : { stars, forks },
+    issues: {
+      open: openIssues.map(i => ({
+        number: i.number, title: i.title, labels: i.labels.map(l => l.name),
+        reactions: i.reactions?.total_count || 0, comments: i.comments,
+        created_at: i.created_at, updated_at: i.updated_at,
+      })),
+    },
+    releases: releases.map(rel => ({
+      tag: rel.tag_name, published_at: rel.published_at, prerelease: rel.prerelease,
+    })),
+    pushed_at: pushedAt || meta?.pushed_at || null,
+    license: meta?.license?.spdx_id || details?.license || null,
+    community_profile: communityProfile,
+    dependabot_alerts: details?.vulns || null,
+    code_scanning_alerts: details?.codeScanning ?? null,
+    secret_scanning_alerts: details?.secretScanning ?? null,
+    ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
+    sbom: details?.sbom || null,
+    summary: {
+      open_issues: openIssues.length,
+      open_bugs: details?.open_bugs ?? null,
+      blocked_issues: openIssues.filter(i => i.labels.some(l => l.name === 'blocked')).length,
+      awaiting_feedback: openIssues.filter(i => i.labels.some(l => l.name.includes('feedback'))).length,
+      recently_merged_prs: prAuthors.reduce((s, a) => s + a.count, 0),
+      human_prs: prAuthors.filter(a => !isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0),
+      bot_prs: prAuthors.filter(a => isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0),
+      releases: releases.length,
+      latest_release: releases[0]?.tag_name || 'none',
+      ci_workflows: details?.ci || 0,
+      bus_factor: busFactor,
+      time_to_close_median: timeToCloseMedian,
+    },
+  };
+}
+
 // Compute health tier for a classified repo object.
 // Returns { tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed, required_for }] }
 export function computeHealthTier(r, options = {}) {
