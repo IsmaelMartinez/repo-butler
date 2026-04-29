@@ -841,7 +841,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.94,
+      "ciPassRate": 0.95,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -863,7 +863,7 @@
       },
       "ci": 7,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-29T13:25:36Z",
+      "pushed_at": "2026-04-29T18:25:32Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,7 +1023,7 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 198,
+      "commits_6mo": 199,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
@@ -1049,7 +1049,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-29T13:25:50Z",
+      "pushed_at": "2026-04-29T18:48:51Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
