@@ -17,11 +17,18 @@
         "low": 0,
         "max_severity": "medium"
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": null,
-      "ci": 4,
+      "ci": 5,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-28T15:45:01Z",
+      "pushed_at": "2026-04-29T13:24:46Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -101,11 +108,18 @@
         "low": 0,
         "max_severity": null
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": null,
-      "ci": 5,
+      "ci": 6,
       "released_at": "2025-12-20T09:59:52Z",
-      "pushed_at": "2026-04-28T19:57:58Z",
+      "pushed_at": "2026-04-29T13:24:53Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -173,7 +187,7 @@
       "open_issues": 22,
       "open_bugs": 11,
       "commits_6mo": 367,
-      "stars": 4637,
+      "stars": 4638,
       "license": "GPL-3.0",
       "communityHealth": 85,
       "ciPassRate": 1,
@@ -278,13 +292,20 @@
         "low": 0,
         "max_severity": "medium"
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 6,
+      "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-29T04:17:01Z",
+      "pushed_at": "2026-04-29T13:24:59Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -448,7 +469,7 @@
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.86,
+      "ciPassRate": 0.87,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -470,7 +491,7 @@
       },
       "ci": 5,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-28T17:36:46Z",
+      "pushed_at": "2026-04-29T16:27:08Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -634,7 +655,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.85,
+      "ciPassRate": 0.87,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -643,13 +664,20 @@
         "low": 0,
         "max_severity": null
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 6,
+      "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-28T15:50:27Z",
+      "pushed_at": "2026-04-29T13:25:06Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -720,7 +748,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.91,
+      "ciPassRate": 0.93,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -729,13 +757,20 @@
         "low": 0,
         "max_severity": null
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 10,
+      "ci": 11,
       "released_at": "2026-04-01T12:26:05Z",
-      "pushed_at": "2026-04-27T11:10:17Z",
+      "pushed_at": "2026-04-29T13:25:41Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -815,13 +850,20 @@
         "low": 0,
         "max_severity": null
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 6,
+      "ci": 7,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-04-29T07:45:42Z",
+      "pushed_at": "2026-04-29T13:25:36Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -892,7 +934,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.872093023255814,
+      "ciPassRate": 0.8705882352941177,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -901,13 +943,20 @@
         "low": 0,
         "max_severity": "medium"
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 4,
+      "ci": 5,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-04-28T15:45:21Z",
+      "pushed_at": "2026-04-29T13:25:18Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -974,11 +1023,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 181,
+      "commits_6mo": 198,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.96,
+      "ciPassRate": 0.94,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -987,13 +1036,20 @@
         "low": 0,
         "max_severity": null
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 6,
+      "ci": 7,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-04-29T09:19:01Z",
+      "pushed_at": "2026-04-29T13:25:50Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1064,7 +1120,7 @@
       "stars": 0,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.8571428571428571,
+      "ciPassRate": 0.8636363636363636,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1073,13 +1129,20 @@
         "low": 0,
         "max_severity": null
       },
-      "codeScanning": null,
+      "codeScanning": {
+        "count": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "max_severity": null
+      },
       "secretScanning": {
         "count": 0
       },
-      "ci": 2,
+      "ci": 3,
       "released_at": "2026-04-07T07:04:50Z",
-      "pushed_at": "2026-04-17T08:34:45Z",
+      "pushed_at": "2026-04-29T13:25:57Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
