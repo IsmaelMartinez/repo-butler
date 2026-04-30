@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-04-18
+**Last Updated:** 2026-04-29
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 10 Gold + 3 Silver (13 repos); the Silver tier holds `teams-for-linux` (>10 open bugs), `betis-escocia`, and `ai-model-advisor` (both blocked by a critical vuln). Private repos now included via the installation-scoped discovery endpoint.
 
 ---
@@ -145,6 +145,26 @@ CSS custom properties for design tokens. The three `COLOR_*` hex values are dupl
 `prs_merged_days` config key never read. `src/config.js` defines `observe.prs_merged_days: 90` as a separate key from `issues_closed_days: 90`, but `observe.js fetchMergedPRs` is called with `daysAgo(config.observe?.issues_closed_days || 90)`. Anyone overriding only `prs_merged_days` in `.github/roadmap.yml` would see no effect. Either wire the key through (preferred) or document that the two share the issues key.
 
 Monitor scanner-not-available logging. `src/monitor.js detectSecurityAlerts` (post #133) drives all three security scanners through a `SCANNERS` table with `try { ... } catch { }` swallow-on-error. When a scanner is configured-but-failing vs intentionally-not-enabled the user can't tell from the logs. `observe.js` already has a `console.log('Note: ... not available for ${owner}/${repo} (${err.message})')` pattern worth mirroring.
+
+### Portfolio Hardening Sweep — 2026-04-29
+
+A one-shot sweep to close the highest-leverage governance findings flagged by the 2026-04-29 briefing. Detection works (Phase 5 governance engine surfaces the gaps); execution still happens by hand. This sweep does the manual pass and informs the cross-repo PR automation backlog below.
+
+**Code-scanning rollout** — Add CodeQL to the nine repos missing it: `yourear`, `sound3fy`, `ismaelmartinez.me.uk`, `ai-model-advisor`, `github-issue-triage-bot`, `repo-butler`, `wifisentinel`, `votescot`, `lounge-tv`. Standard CodeQL Action workflow, weekly schedule + on push to main. Closes the high-priority `code-scanning` standards gap (4/13 → 13/13) and unlocks the Gold security-trifecta check across the portfolio.
+
+**Dependabot config audit** — Verify every repo has `.github/dependabot.yml` configured for `npm` (where applicable) + `github-actions`, weekly. Add where missing. This is the durable layer — once configured, dependency updates are automated forever.
+
+**Licence policy update** — Two of the `policy-drift` findings are by design, not bugs. `teams-for-linux` is GPL-3.0 deliberately. `bonnie-wee-plot` ships a custom Community Allotment Licence (non-commercial for third parties), which GitHub correctly reports as `NOASSERTION`. The fix is to update the licence policy in `.github/roadmap.yml` (or the governance allowlist) to whitelist these two divergences rather than overwrite the LICENSE files. Closes both `policy-drift` findings cleanly.
+
+**Out of scope here** — `teams-for-linux` Silver→Gold (11 open bugs is a triage problem, not a sweep).
+
+### Cross-repo PR automation (follow-up)
+
+The sweep above does by hand what should be automated. The remaining gap, also called out under Phase 5, is:
+
+`governance:apply` — A new pipeline phase or workflow that reads governance findings from `repo-butler-data` and opens templated PRs across affected repos. Standards-gap findings (e.g. "code-scanning enabled on 4/13 repos") should produce one PR per non-compliant repo using a shared workflow template. Requires the GitHub App cross-repo token already noted in Phase 5. Always opt-in via config, always behind `require_approval`, never auto-merge.
+
+`dependabot:audit` — Lightweight monitor pass: which repos lack `.github/dependabot.yml`, which have stale unmerged Dependabot PRs (>30d). Surface in the Governance dashboard section.
 
 ### Phase 5 — Portfolio Governance Engine
 
