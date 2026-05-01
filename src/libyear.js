@@ -31,7 +31,13 @@ export function filterNpmDeps(sbomPackages) {
  */
 async function fetchVersionDates(packageName, currentVersion, signal) {
   try {
-    const url = `${REGISTRY_BASE}/${encodeURIComponent(packageName).replace('%40', '@')}`;
+    // npm registry expects scoped packages as `@scope/name` (literal `@` and `/`).
+    // Encode each path segment so other unsafe characters are escaped without
+    // relying on a post-hoc string replacement.
+    const encodedName = packageName.startsWith('@')
+      ? `@${packageName.slice(1).split('/').map(encodeURIComponent).join('/')}`
+      : encodeURIComponent(packageName);
+    const url = `${REGISTRY_BASE}/${encodedName}`;
     const resp = await fetch(url, {
       headers: { Accept: 'application/json' },
       signal,

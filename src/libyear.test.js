@@ -175,4 +175,32 @@ describe('computeLibyearWithTimeout', () => {
     const result = await computeLibyearWithTimeout(packages, 5000);
     assert.equal(result, null);
   });
+
+  it('builds registry URLs that preserve scope and slash without leftover encoding', async () => {
+    const seenUrls = [];
+    globalThis.fetch = mock.fn(async (url) => {
+      seenUrls.push(url);
+      return {
+        ok: true,
+        json: async () => ({
+          'dist-tags': { latest: '1.0.0' },
+          time: { '1.0.0': '2024-01-01T00:00:00Z' },
+        }),
+      };
+    });
+    const packages = [
+      { name: '@babel/core', version: '1.0.0', purl: 'pkg:npm/%40babel/core@1.0.0' },
+      // Adversarial: scoped name with characters that need encoding; the
+      // legacy single-replace left %2F (the encoded slash) in the URL.
+      { name: '@scope/weird name', version: '1.0.0', purl: 'pkg:npm/%40scope/weird%20name@1.0.0' },
+    ];
+    await computeLibyearWithTimeout(packages, 5000);
+    assert.equal(seenUrls.length, 2);
+    assert.equal(seenUrls[0], 'https://registry.npmjs.org/@babel/core');
+    assert.equal(seenUrls[1], 'https://registry.npmjs.org/@scope/weird%20name');
+    for (const u of seenUrls) {
+      assert.ok(!u.includes('%40'), `URL still contains %40: ${u}`);
+      assert.ok(!u.includes('%2F'), `URL still contains %2F: ${u}`);
+    }
+  });
 });
