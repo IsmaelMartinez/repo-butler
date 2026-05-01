@@ -106,13 +106,13 @@ describe('applyGovernanceFindings', () => {
   });
 
   const baseFindings = [
-    { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], ecosystem: 'JavaScript' },
+    { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
   ];
   const baseConfig = { limits: { require_approval: true } };
 
   it('skips repos with invalid names', async () => {
     const findings = [
-      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['valid-repo', 'bad repo!', '../evil'], ecosystem: 'JavaScript' },
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['valid-repo', 'bad repo!', '../evil'], repoEcosystems: { 'valid-repo': 'JavaScript' } },
     ];
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: false });
     assert.equal(result.status, 'completed');
@@ -154,7 +154,7 @@ describe('applyGovernanceFindings', () => {
 
   it('enforces batch cap', async () => {
     const findings = [
-      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'], ecosystem: 'JavaScript' },
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'], repoEcosystems: { r1: 'JavaScript', r2: 'JavaScript', r3: 'JavaScript', r4: 'JavaScript', r5: 'JavaScript', r6: 'JavaScript', r7: 'JavaScript' } },
     ];
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: false, maxPerRun: 3 });
     assert.equal(result.status, 'completed');
@@ -182,7 +182,7 @@ describe('applyGovernanceFindings', () => {
 
   it('handles per-repo error without aborting batch', async () => {
     const findings = [
-      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['fail-repo', 'ok-repo'], ecosystem: 'JavaScript' },
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['fail-repo', 'ok-repo'], repoEcosystems: { 'fail-repo': 'JavaScript', 'ok-repo': 'JavaScript' } },
     ];
     let callCount = 0;
     const errorGh = {
@@ -224,8 +224,8 @@ describe('applyGovernanceFindings', () => {
 
   it('filters findings by tools option', async () => {
     const findings = [
-      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], ecosystem: 'JavaScript' },
-      { type: 'standards-gap', tool: 'dependabot', nonCompliant: ['repo-b'], ecosystem: 'JavaScript' },
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+      { type: 'standards-gap', tool: 'dependabot', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
     ];
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: false, tools: ['dependabot'] });
     assert.equal(result.status, 'completed');
