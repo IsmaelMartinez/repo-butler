@@ -110,7 +110,7 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
         console.warn(`apply: skipping repo with invalid name: ${repo}`);
         continue;
       }
-      pairs.push({ repo, tool: f.tool, ecosystem: f.ecosystem });
+      pairs.push({ repo, tool: f.tool, ecosystem: f.repoEcosystems?.[repo] || null });
     }
   }
 

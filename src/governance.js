@@ -97,12 +97,19 @@ export function detectStandardsGaps(standards, repos, details) {
 
     if (nonCompliant.length > 0) {
       const adoptionRate = compliant.length / applicable.length;
+      const repoEcosystems = {};
+      for (const name of nonCompliant) {
+        const repo = applicable.find(r => r.name === name);
+        const ecos = repo ? detectEcosystem(repo) : new Set();
+        repoEcosystems[name] = ecos.size > 0 ? [...ecos][0] : null;
+      }
       findings.push({
         type: 'standards-gap',
         tool: standard.tool,
         scope: standard.scope,
         compliant,
         nonCompliant,
+        repoEcosystems,
         adoptionRate,
         priority: adoptionPriority(adoptionRate),
       });
