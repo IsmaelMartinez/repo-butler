@@ -4,11 +4,11 @@
     "yourear": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 55,
+      "commits_6mo": 57,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.8585858585858586,
+      "ciPassRate": 0.8969072164948454,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -28,7 +28,7 @@
       "secretScanning": null,
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-04-30T08:32:20Z",
+      "pushed_at": "2026-05-01T12:31:01Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -187,10 +187,10 @@
       "open_issues": 24,
       "open_bugs": 13,
       "commits_6mo": 368,
-      "stars": 4644,
+      "stars": 4645,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9074074074074074,
+      "ciPassRate": 0.8846153846153846,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -212,7 +212,7 @@
       },
       "ci": 16,
       "released_at": "2026-04-24T14:54:11Z",
-      "pushed_at": "2026-05-01T06:50:26Z",
+      "pushed_at": "2026-05-01T14:33:25Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -465,11 +465,11 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 404,
+      "commits_6mo": 412,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.8645833333333334,
+      "ciPassRate": 0.88,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -491,7 +491,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-01T06:08:07Z",
+      "pushed_at": "2026-05-01T12:59:24Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -558,11 +558,11 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 154,
+      "commits_6mo": 155,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.8762886597938144,
+      "ciPassRate": 0.8526315789473684,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -584,7 +584,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-01T06:08:28Z",
+      "pushed_at": "2026-05-01T12:34:19Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -651,11 +651,11 @@
     "ai-model-advisor": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 173,
+      "commits_6mo": 174,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9587628865979382,
+      "ciPassRate": 0.9789473684210527,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -677,7 +677,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-01T06:02:39Z",
+      "pushed_at": "2026-05-01T12:33:11Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -837,11 +837,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 234,
+      "commits_6mo": 242,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9693877551020408,
+      "ciPassRate": 0.9759036144578314,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -861,9 +861,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 8,
+      "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-01T07:48:44Z",
+      "pushed_at": "2026-05-01T15:46:52Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,7 +1023,7 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 221,
+      "commits_6mo": 222,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
@@ -1049,7 +1049,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-01T08:42:45Z",
+      "pushed_at": "2026-05-01T12:39:11Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
