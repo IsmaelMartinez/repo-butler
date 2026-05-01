@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-01T11:26:01.796Z",
+  "timestamp": "2026-05-01T12:46:52.868Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-01T07:48:44Z",
+    "pushed_at": "2026-05-01T12:46:12Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 157,
+        "title": "feat(governance): policy-drift-exempt config for by-design divergences",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T12:46:11Z"
+      },
       {
         "number": 156,
         "title": "fix(security): make libyear sanitization complete (CodeQL high)",
@@ -1250,10 +1257,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9693877551020408,
-    "total_runs": 98,
-    "passed": 95,
-    "failed": 3
+    "pass_rate": 0.9791666666666666,
+    "total_runs": 96,
+    "passed": 94,
+    "failed": 2
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1263,9 +1270,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 152,
+    "recently_merged_prs": 153,
     "bot_prs": 5,
-    "human_prs": 147,
+    "human_prs": 148,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
@@ -1278,7 +1285,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9693877551020408,
+    "ci_pass_rate": 0.9791666666666666,
     "bus_factor": 1,
     "time_to_close_median": null
   }
