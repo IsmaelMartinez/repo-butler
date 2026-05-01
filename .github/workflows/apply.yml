@@ -1,0 +1,43 @@
+name: Governance Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Dry run (log only, no PRs)'
+        default: 'true'
+      tools:
+        description: 'Comma-separated tools to apply (blank = all actionable)'
+        required: false
+      max-apply-per-run:
+        description: 'Max PRs to open (default 5)'
+        required: false
+        default: '5'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Run apply phase
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          INPUT_PHASE: apply
+          INPUT_CONFIG_PATH: .github/roadmap.yml
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+          INPUT_TOOLS: ${{ github.event.inputs.tools || '' }}
+          INPUT_MAX_APPLY_PER_RUN: ${{ github.event.inputs.max-apply-per-run || '5' }}
+        run: node src/index.js
