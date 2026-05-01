@@ -82,7 +82,7 @@ describe('applyGovernanceFindings', () => {
       request: async (path, opts) => {
         calls.push({ type: 'request', path, opts });
         if (path.includes('/pulls') && opts?.method === 'POST') {
-          return { html_url: `https://github.com/owner/repo/pull/1` };
+          return { number: 1, html_url: `https://github.com/owner/repo/pull/1` };
         }
         if (path.includes('/repos/') && !path.includes('/git/') && !path.includes('/contents/') && !path.includes('/pulls')) {
           return { default_branch: 'main' };
@@ -193,7 +193,7 @@ describe('applyGovernanceFindings', () => {
           throw new Error('403 Forbidden');
         }
         if (path.includes('/pulls') && opts?.method === 'POST') {
-          return { html_url: 'https://github.com/owner/ok-repo/pull/1' };
+          return { number: 1, html_url: 'https://github.com/owner/ok-repo/pull/1' };
         }
         if (path.includes('/repos/') && !path.includes('/git/') && !path.includes('/contents/') && !path.includes('/pulls')) {
           return { default_branch: 'main' };

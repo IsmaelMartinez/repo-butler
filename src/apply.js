@@ -99,34 +99,10 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
-  // Dry-run fail-closed: only literal false disables dry-run
-  if (dryRun !== false) {
-    const validated = validateFindings(findings);
-    const actionable = validated.filter(f => TEMPLATES[f.tool]);
-    const filtered = tools ? actionable.filter(f => tools.includes(f.tool)) : actionable;
-    const pairs = [];
-    for (const f of filtered) {
-      for (const repo of f.nonCompliant) {
-        if (REPO_NAME_PATTERN.test(repo)) {
-          pairs.push({ repo, tool: f.tool });
-        }
-      }
-    }
-    console.log(`apply [DRY RUN]: would open PRs for ${pairs.length} (repo, tool) pairs`);
-    for (const p of pairs.slice(0, maxPerRun)) {
-      console.log(`  - ${owner}/${p.repo}: ${p.tool}`);
-    }
-    if (pairs.length > maxPerRun) {
-      console.log(`  ... ${pairs.length - maxPerRun} more deferred to next run`);
-    }
-    return { status: 'dry-run', pairs: pairs.slice(0, maxPerRun) };
-  }
-
+  // Build (repo, tool) pairs from validated findings
   const validated = validateFindings(findings);
   const actionable = validated.filter(f => TEMPLATES[f.tool]);
   const filtered = tools ? actionable.filter(f => tools.includes(f.tool)) : actionable;
-
-  // Build (repo, tool) pairs
   const pairs = [];
   for (const f of filtered) {
     for (const repo of f.nonCompliant) {
@@ -136,6 +112,18 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
       }
       pairs.push({ repo, tool: f.tool, ecosystem: f.ecosystem });
     }
+  }
+
+  // Dry-run fail-closed: only literal false disables dry-run
+  if (dryRun !== false) {
+    console.log(`apply [DRY RUN]: would open PRs for ${pairs.length} (repo, tool) pairs`);
+    for (const p of pairs.slice(0, maxPerRun)) {
+      console.log(`  - ${owner}/${p.repo}: ${p.tool}`);
+    }
+    if (pairs.length > maxPerRun) {
+      console.log(`  ... ${pairs.length - maxPerRun} more deferred to next run`);
+    }
+    return { status: 'dry-run', pairs: pairs.slice(0, maxPerRun) };
   }
 
   // Enforce batch cap
@@ -221,7 +209,7 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
     },
   });
 
-  // Open PR
+  // Open PR (labels must be added separately — the pulls API ignores them)
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
     method: 'POST',
     body: {
@@ -229,9 +217,18 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
       head: branchName,
       base: defaultBranch,
       body: `## Governance: add ${tool}\n\nThis repo was identified as missing ${tool} configuration by the portfolio governance scan.\n\nThis PR adds the standard template. Review and merge when ready.\n\n---\n*Opened automatically by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler)*`,
-      labels: ['governance-apply'],
     },
   });
+
+  // Add label via the issues endpoint (PRs are issues for labelling purposes)
+  try {
+    await gh.request(`/repos/${owner}/${repo}/issues/${pr.number}/labels`, {
+      method: 'POST',
+      body: { labels: ['governance-apply'] },
+    });
+  } catch {
+    // Non-fatal: PR is open, label is cosmetic
+  }
 
   console.log(`apply: ${owner}/${repo} — PR created: ${pr.html_url}`);
   return { repo, tool, status: 'created', pr: pr.html_url };
