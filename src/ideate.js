@@ -15,9 +15,9 @@ import { reviewProposals } from './council.js';
 // deliberation, then persists governance findings for MCP consumption.
 export async function runIdeate(context) {
   const { owner, token, portfolio, config, store } = context;
+  const gh = createClient(token);
 
   if (portfolio && !context.repoDetails) {
-    const gh = createClient(token);
     const repoCache = store ? await store.readRepoCache() : null;
     context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos, { cache: repoCache });
     console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
@@ -35,7 +35,6 @@ export async function runIdeate(context) {
   // Stale Dependabot PR audit — runs outside the fetchPortfolioDetails cache
   // gate because PR age advances without changing pushed_at.
   if (portfolio) {
-    const gh = createClient(token);
     const stale = await auditDependabot(gh, owner, portfolio.repos);
     if (stale.length > 0) {
       context.governanceFindings = [...(context.governanceFindings || []), ...stale];
@@ -197,6 +196,9 @@ function appendGovernanceContext(parts, findings) {
       parts.push(`Drift: ${f.repo} uses ${f.actual} (expected: ${f.expected}, category: ${f.category})`);
     } else if (f.type === 'tier-uplift') {
       parts.push(`Uplift: ${f.repo} is ${f.currentTier}, needs [${f.failingChecks.map(c => c.name).join(', ')}] for ${f.targetTier}`);
+    } else if (f.type === 'dependabot-stale') {
+      const oldest = Math.max(...f.stalePRs.map(p => p.age));
+      parts.push(`Stale Dependabot PRs: ${f.repo} has ${f.stalePRs.length} PRs older than 30d (oldest: ${oldest}d)`);
     }
   }
 
