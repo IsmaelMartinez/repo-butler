@@ -24,7 +24,7 @@ export async function auditDependabot(gh, owner, repos) {
   const results = await Promise.all(eligible.map(async (repo) => {
     try {
       const prs = await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
-        params: { state: 'open', per_page: 100 },
+        params: { state: 'open' },
         max: 100,
       });
 
