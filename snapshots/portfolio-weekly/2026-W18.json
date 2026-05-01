@@ -190,7 +190,7 @@
       "stars": 4644,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9642857142857143,
+      "ciPassRate": 0.9056603773584906,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -212,7 +212,7 @@
       },
       "ci": 16,
       "released_at": "2026-04-24T14:54:11Z",
-      "pushed_at": "2026-05-01T06:02:05Z",
+      "pushed_at": "2026-05-01T06:50:26Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -469,7 +469,7 @@
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.875,
+      "ciPassRate": 0.8645833333333334,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -863,7 +863,7 @@
       },
       "ci": 8,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-01T06:03:31Z",
+      "pushed_at": "2026-05-01T07:03:16Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,11 +1023,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 218,
+      "commits_6mo": 220,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9578947368421052,
+      "ciPassRate": 0.9891304347826086,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1037,22 +1037,22 @@
         "max_severity": null
       },
       "codeScanning": {
-        "count": 1,
+        "count": 0,
         "critical": 0,
-        "high": 1,
+        "high": 0,
         "medium": 0,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": null
       },
       "secretScanning": {
         "count": 0
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-01T06:04:01Z",
+      "pushed_at": "2026-05-01T07:12:14Z",
       "traffic": null,
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -1086,7 +1086,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -1110,7 +1110,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "lounge-tv": {
