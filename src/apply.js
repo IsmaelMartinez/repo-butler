@@ -191,8 +191,9 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
       method: 'POST',
       body: { ref: `refs/heads/${branchName}`, sha: ref.object.sha },
     });
-  } catch {
-    // Branch already exists — update it
+  } catch (err) {
+    // 422 means the ref already exists — update it; rethrow anything else
+    if (!err.message?.includes('422')) throw err;
     await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, {
       method: 'PATCH',
       body: { sha: ref.object.sha, force: true },
