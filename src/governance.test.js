@@ -222,6 +222,40 @@ describe('detectPolicyDrift', () => {
     // d is archived — only 3 eligible repos, all MIT — no drift
     assert.equal(findings.filter(f => f.category === 'license').length, 0);
   });
+
+  it('respects policy-drift-exempt for license category', () => {
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('c'), makeRepo('d'), makeRepo('e')];
+    const details = makeDetails(repos, { e: { license: 'Apache-2.0' } });
+    const config = { 'policy-drift-exempt': { license: 'e' } };
+    const findings = detectPolicyDrift(repos, details, config);
+    assert.equal(findings.filter(f => f.category === 'license').length, 0);
+  });
+
+  it('exempt repos do not skew the majority calculation', () => {
+    // 4 MIT + 1 Apache non-exempt = 4/5 = 80% MIT majority (threshold met).
+    // 2 GPL exempt — without exemption MIT would be 4/7 = 57% and miss the
+    // 80% threshold, so f's drift would NOT be flagged. With exemption it
+    // gets correctly surfaced.
+    const repos = ['a','b','c','d','e','f','g'].map(n => makeRepo(n));
+    const details = makeDetails(repos, {
+      e: { license: 'GPL-3.0' },
+      f: { license: 'Apache-2.0' },
+      g: { license: 'GPL-3.0' },
+    });
+    const config = { 'policy-drift-exempt': { license: 'e,g' } };
+    const findings = detectPolicyDrift(repos, details, config);
+    const licenseDrift = findings.filter(f => f.category === 'license');
+    assert.equal(licenseDrift.length, 1);
+    assert.equal(licenseDrift[0].repo, 'f');
+  });
+
+  it('respects policy-drift-exempt for ci-reliability category', () => {
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('c'), makeRepo('d')];
+    const details = makeDetails(repos, { d: { ciPassRate: 0.5 } });
+    const config = { 'policy-drift-exempt': { 'ci-reliability': 'd' } };
+    const findings = detectPolicyDrift(repos, details, config);
+    assert.equal(findings.filter(f => f.category === 'ci-reliability').length, 0);
+  });
 });
 
 // --- detectMetricDrift ---
