@@ -7,6 +7,7 @@ import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
 import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals } from './governance.js';
+import { auditDependabot } from './dependabot-audit.js';
 import { reviewProposals } from './council.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Enriches portfolio
@@ -29,6 +30,17 @@ export async function runIdeate(context) {
     const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
     context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
     console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);
+  }
+
+  // Stale Dependabot PR audit — runs outside the fetchPortfolioDetails cache
+  // gate because PR age advances without changing pushed_at.
+  if (portfolio) {
+    const gh = createClient(token);
+    const stale = await auditDependabot(gh, owner, portfolio.repos);
+    if (stale.length > 0) {
+      context.governanceFindings = [...(context.governanceFindings || []), ...stale];
+      console.log(`Dependabot audit: ${stale.length} repos with stale PRs.`);
+    }
   }
 
   const result = await ideate(context);
