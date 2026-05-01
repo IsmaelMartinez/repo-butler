@@ -205,7 +205,11 @@ export function detectMetricDrift(eligibleRepos, getValue, opts) {
   const { threshold, category, format, exempt } = opts;
   const findings = [];
 
+  // Exempt repos are dropped before computing the median, mirroring the
+  // license-drift handling above — otherwise an exempt outlier would skew
+  // the median and either silence real drift or fabricate it.
   const repoValues = eligibleRepos
+    .filter(r => !exempt?.has(r.name))
     .map(r => ({ repo: r, value: getValue(r) }))
     .filter(item => item.value != null);
   if (repoValues.length < 3) return findings;
@@ -214,7 +218,6 @@ export function detectMetricDrift(eligibleRepos, getValue, opts) {
   const med = median(sorted);
 
   for (const { repo, value } of repoValues) {
-    if (exempt?.has(repo.name)) continue;
     if (med - value > threshold) {
       const { expected, actual } = format(value, med);
       findings.push({
