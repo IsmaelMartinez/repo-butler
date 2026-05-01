@@ -134,29 +134,13 @@ Tier 3 (local cleanups): #137 collapsed the `mcp.js` 9-arm `callTool` switch by 
 
 Side outcomes from the sprint: a latent CI bug surfaced and was fixed inside #131 (the `npm test` glob `src/**/*.test.js` only matched the providers subdirectory once subdirectory test files appeared, so CI was silently running 15 tests instead of 496). The `repo-butler-data` per-repo cache schema was bumped to invalidate stale entries when `released_at` shape changed (#126 precursor). Items deliberately left untouched: `config.js` hand-rolled YAML parser (well-scoped to CLAUDE.md's flat + one-level-nested contract), `libyear.js` cohesion (single-purpose, single caller), and any further file splitting (the 5-file report split is intentional).
 
-### Code Health Sprint — deferred follow-ups
+### ~~Code Health Sprint — deferred follow-ups~~ SHIPPED
 
-Four follow-ups surfaced during the sprint that the agents deliberately left out of scope. None are urgent; each is small enough to be its own session.
+All four follow-ups shipped across PRs #149–#152: parseIdeas BODY-then-stop (#149), monitor scanner logging (#150), CSS custom properties (#151), prs_merged_days config wiring (#152).
 
-`parseIdeas` BODY-then-stop. Today, lines after `BODY:` are captured greedily into the body string AND any field-like line within that text still gets parsed into its own field — so `BODY: hello\nRATIONALE: foo` produces `body: 'hello\nRATIONALE: foo'` and also `rationale: 'foo'`. The `IDEA_FIELDS`-driven loop in #143 preserves this exactly to keep the refactor byte-equivalent. The fix is a one-line `break` in the loop once `BODY:` is matched, plus updating the `handles fields in mixed order` test in `src/ideate.test.js`. Worth a quick check that no LLM prompt or downstream consumer relies on the duplicated form first.
+### ~~Portfolio Hardening Sweep — 2026-04-29~~ SHIPPED
 
-CSS custom properties for design tokens. The three `COLOR_*` hex values are duplicated between `src/report-shared.js` (used by JS for inline `style="color:..."` interpolation in dynamic-colour sites) and `src/report-styles.js` (the new `.text-success`/`.text-warning`/`.text-danger` utility classes from #146). A proper single source of truth needs CSS custom properties (`--color-success: #7ee787`) plus refactoring `colorByThreshold` and friends to return variable names instead of hex strings. Bigger than it first appears because every dynamic-colour site needs the switch.
-
-`prs_merged_days` config key never read. `src/config.js` defines `observe.prs_merged_days: 90` as a separate key from `issues_closed_days: 90`, but `observe.js fetchMergedPRs` is called with `daysAgo(config.observe?.issues_closed_days || 90)`. Anyone overriding only `prs_merged_days` in `.github/roadmap.yml` would see no effect. Either wire the key through (preferred) or document that the two share the issues key.
-
-Monitor scanner-not-available logging. `src/monitor.js detectSecurityAlerts` (post #133) drives all three security scanners through a `SCANNERS` table with `try { ... } catch { }` swallow-on-error. When a scanner is configured-but-failing vs intentionally-not-enabled the user can't tell from the logs. `observe.js` already has a `console.log('Note: ... not available for ${owner}/${repo} (${err.message})')` pattern worth mirroring.
-
-### Portfolio Hardening Sweep — 2026-04-29
-
-A one-shot sweep to close the highest-leverage governance findings flagged by the 2026-04-29 briefing. Detection works (Phase 5 governance engine surfaces the gaps); execution still happens by hand. This sweep does the manual pass and informs the cross-repo PR automation backlog below.
-
-**Code-scanning rollout** — Add CodeQL to the nine repos missing it: `yourear`, `sound3fy`, `ismaelmartinez.me.uk`, `ai-model-advisor`, `github-issue-triage-bot`, `repo-butler`, `wifisentinel`, `votescot`, `lounge-tv`. Standard CodeQL Action workflow, weekly schedule + on push to main. Closes the high-priority `code-scanning` standards gap (4/13 → 13/13) and unlocks the Gold security-trifecta check across the portfolio.
-
-**Dependabot config audit** — Verify every repo has `.github/dependabot.yml` configured for `npm` (where applicable) + `github-actions`, weekly. Add where missing. This is the durable layer — once configured, dependency updates are automated forever.
-
-**Licence policy update** — Two of the `policy-drift` findings are by design, not bugs. `teams-for-linux` is GPL-3.0 deliberately. `bonnie-wee-plot` ships a custom Community Allotment Licence (non-commercial for third parties), which GitHub correctly reports as `NOASSERTION`. The fix is to update the licence policy in `.github/roadmap.yml` (or the governance allowlist) to whitelist these two divergences rather than overwrite the LICENSE files. Closes both `policy-drift` findings cleanly.
-
-**Out of scope here** — `teams-for-linux` Silver→Gold (11 open bugs is a triage problem, not a sweep).
+Shipped 2026-05-01. Code-scanning rollout (13/13 repos, security alerts zeroed across portfolio via 10 fix PRs), Dependabot config audit (all repos now have npm + github-actions, 4 PRs merged), and licence policy update (policy-drift-exempt config added in PR #157 whitelisting teams-for-linux GPL-3.0 and bonnie-wee-plot Community Allotment Licence). Zero open vulnerabilities across the portfolio as of snapshot 2026-W18.
 
 ### Cross-repo PR automation (follow-up)
 
