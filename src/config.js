@@ -21,6 +21,7 @@ const DEFAULTS = {
   },
   standards: {},
   'standards-exclude': {},
+  'policy-drift-exempt': {},
   release_exempt: '',
 };
 

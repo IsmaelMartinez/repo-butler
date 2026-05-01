@@ -25,7 +25,7 @@ export async function runIdeate(context) {
   if (portfolio && context.repoDetails) {
     const standards = parseStandardsConfig(config);
     const gaps = detectStandardsGaps(standards, portfolio.repos, context.repoDetails);
-    const drift = detectPolicyDrift(portfolio.repos, context.repoDetails);
+    const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
     const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
     context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
     console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);

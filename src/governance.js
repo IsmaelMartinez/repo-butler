@@ -116,28 +116,49 @@ export function detectStandardsGaps(standards, repos, details) {
 }
 
 /**
+ * Parse the `policy-drift-exempt` config block into per-category Sets of repo names.
+ * Input: { license: 'teams-for-linux,bonnie-wee-plot', 'community-health': 'foo' }
+ * Output: { license: Set('teams-for-linux','bonnie-wee-plot'), 'community-health': Set('foo') }
+ */
+function parseExemptions(config) {
+  const raw = config?.['policy-drift-exempt'] || {};
+  const out = {};
+  for (const [category, value] of Object.entries(raw)) {
+    out[category] = new Set(String(value).split(',').map(s => s.trim()).filter(Boolean));
+  }
+  return out;
+}
+
+/**
  * Detect repos that diverge from the portfolio majority on key attributes.
  * @param {Array} repos — portfolio repos
  * @param {Object} details — enriched details from fetchPortfolioDetails()
+ * @param {Object} [config] — optional config carrying `policy-drift-exempt` whitelists
  * @returns {Array} drift findings
  */
-export function detectPolicyDrift(repos, details) {
+export function detectPolicyDrift(repos, details, config) {
   const eligible = eligibleRepos(repos);
   if (eligible.length < 3) return []; // Too few repos for meaningful drift detection
 
+  const exempt = parseExemptions(config);
   const findings = [];
 
   // License drift: flag repos that differ from the majority license.
+  // Exempt repos do not count toward the majority calculation either, so a
+  // single legitimate divergence (e.g. a GPL fork) cannot accidentally
+  // re-anchor the majority.
+  const licenseExempt = exempt.license || new Set();
+  const nonExempt = eligible.filter(r => !licenseExempt.has(r.name));
   const licenseCounts = {};
-  for (const r of eligible) {
+  for (const r of nonExempt) {
     const lic = details?.[r.name]?.license || 'None';
     licenseCounts[lic] = (licenseCounts[lic] || 0) + 1;
   }
   const majorityLicense = Object.entries(licenseCounts)
     .sort((a, b) => b[1] - a[1])[0] || null;
 
-  if (majorityLicense && majorityLicense[1] / eligible.length >= 0.8) {
-    for (const r of eligible) {
+  if (majorityLicense && nonExempt.length > 0 && majorityLicense[1] / nonExempt.length >= 0.8) {
+    for (const r of nonExempt) {
       const lic = details?.[r.name]?.license || 'None';
       if (lic !== majorityLicense[0]) {
         findings.push({
@@ -157,6 +178,7 @@ export function detectPolicyDrift(repos, details) {
     threshold: 0.2,
     category: 'ci-reliability',
     format: (rate, med) => ({ expected: `${Math.round(med * 100)}%`, actual: `${Math.round(rate * 100)}%` }),
+    exempt: exempt['ci-reliability'],
   }));
 
   // Community health drift: flag repos >20pp below the portfolio median.
@@ -164,6 +186,7 @@ export function detectPolicyDrift(repos, details) {
     threshold: 20,
     category: 'community-health',
     format: (health, med) => ({ expected: `${med}%`, actual: `${health}%` }),
+    exempt: exempt['community-health'],
   }));
 
   return findings;
@@ -175,14 +198,18 @@ export function detectPolicyDrift(repos, details) {
  *
  * @param {Array} eligibleRepos — already-filtered repos (not archived/fork/excluded)
  * @param {(repo) => (number|null|undefined)} getValue — extracts the metric per repo; return null/undefined to skip
- * @param {{ threshold: number, category: string, format: (value: number, median: number) => { expected: string, actual: string } }} opts
+ * @param {{ threshold: number, category: string, format: (value: number, median: number) => { expected: string, actual: string }, exempt?: Set<string> }} opts
  * @returns {Array} drift findings in the same shape as the inline detectors
  */
 export function detectMetricDrift(eligibleRepos, getValue, opts) {
-  const { threshold, category, format } = opts;
+  const { threshold, category, format, exempt } = opts;
   const findings = [];
 
+  // Exempt repos are dropped before computing the median, mirroring the
+  // license-drift handling above — otherwise an exempt outlier would skew
+  // the median and either silence real drift or fabricate it.
   const repoValues = eligibleRepos
+    .filter(r => !exempt?.has(r.name))
     .map(r => ({ repo: r, value: getValue(r) }))
     .filter(item => item.value != null);
   if (repoValues.length < 3) return findings;

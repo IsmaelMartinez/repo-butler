@@ -39,3 +39,14 @@ standards:
   secret-scanning: universal
 
 release_exempt: sound3fy
+
+# By-design divergences from the portfolio policy. Each key is a drift
+# category (license, ci-reliability, community-health) and the value is a
+# comma-separated list of repos exempt from that check.
+#   - teams-for-linux is GPL-3.0 by design (Electron app, copyleft fits the
+#     project's distribution model)
+#   - bonnie-wee-plot ships a custom Community Allotment Licence
+#     (non-commercial for third parties), which GitHub correctly reports as
+#     NOASSERTION rather than a SPDX identifier
+policy-drift-exempt:
+  license: teams-for-linux,bonnie-wee-plot
