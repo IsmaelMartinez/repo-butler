@@ -13,8 +13,29 @@ import { ClaudeProvider } from './providers/claude.js';
 import { createTriageBotClient } from './triage-bot.js';
 import { validateProvider } from './safety.js';
 import { onboard } from './onboard.js';
+import { createClient } from './github.js';
 
 const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report', 'monitor'];
+
+async function runApply(context) {
+  const { owner, token, config, store } = context;
+  const gh = createClient(token);
+  const findings = store ? await store.readGovernanceFindings() : [];
+  if (!findings || findings.length === 0) {
+    console.log('No governance findings to apply.');
+    return;
+  }
+  const maxPerRun = parseInt(process.env.INPUT_MAX_APPLY_PER_RUN || '5', 10);
+  const tools = (process.env.INPUT_TOOLS || '').split(',').map(s => s.trim()).filter(Boolean);
+  const isDryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
+  const { applyGovernanceFindings } = await import('./apply.js');
+  const results = await applyGovernanceFindings(gh, owner, findings, config, {
+    dryRun: isDryRun,
+    maxPerRun,
+    tools: tools.length > 0 ? tools : null,
+  });
+  console.log(`Apply complete: ${results?.length || 0} repos processed.`);
+}
 
 const PHASE_RUNNERS = {
   observe: runObserve,
@@ -24,6 +45,7 @@ const PHASE_RUNNERS = {
   propose: runPropose,
   report: runReport,
   monitor: runMonitor,
+  apply: runApply,
 };
 
 export function validateRepoFormat(repo) {
@@ -36,8 +58,8 @@ export function parsePhases(phase) {
   if (phase === 'all') return PHASES;
   const list = phase.split(',').map(p => p.trim()).filter(Boolean);
   for (const p of list) {
-    if (!PHASES.includes(p)) {
-      throw new Error(`Unknown phase: "${p}". Valid phases: ${PHASES.join(', ')}, all.`);
+    if (!PHASE_RUNNERS[p]) {
+      throw new Error(`Unknown phase: "${p}". Valid phases: ${Object.keys(PHASE_RUNNERS).join(', ')}, all.`);
     }
   }
   return list;
