@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-30T20:25:12.493Z",
+  "timestamp": "2026-05-01T06:11:18.686Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-04-30T18:24:50Z",
+    "pushed_at": "2026-05-01T06:03:31Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,20 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 156,
+        "title": "fix(security): make libyear sanitization complete (CodeQL high)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T06:03:29Z"
+      },
+      {
+        "number": 84,
+        "title": "fix: tune down license concern severity in dashboard",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-04T15:06:15Z"
+      },
       {
         "number": 155,
         "title": "chore: auto-merge dependabot PRs (non-major)",
@@ -496,13 +510,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-04T15:46:06Z"
-      },
-      {
-        "number": 84,
-        "title": "fix: tune down license concern severity in dashboard",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-04T15:06:15Z"
       },
       {
         "number": 83,
@@ -1232,20 +1239,20 @@
     "max_severity": null
   },
   "code_scanning_alerts": {
-    "count": 1,
+    "count": 0,
     "critical": 0,
-    "high": 1,
+    "high": 0,
     "medium": 0,
     "low": 0,
-    "max_severity": "high"
+    "max_severity": null
   },
   "secret_scanning_alerts": {
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9696969696969697,
-    "total_runs": 99,
-    "passed": 96,
+    "pass_rate": 0.9693877551020408,
+    "total_runs": 98,
+    "passed": 95,
     "failed": 3
   },
   "summary": {
@@ -1256,9 +1263,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 151,
+    "recently_merged_prs": 152,
     "bot_prs": 5,
-    "human_prs": 146,
+    "human_prs": 147,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
@@ -1268,10 +1275,10 @@
     "community_health": 85,
     "dependabot_alert_count": 0,
     "dependabot_max_severity": null,
-    "code_scanning_alert_count": 1,
-    "code_scanning_max_severity": "high",
+    "code_scanning_alert_count": 0,
+    "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9696969696969697,
+    "ci_pass_rate": 0.9693877551020408,
     "bus_factor": 1,
     "time_to_close_median": null
   }
