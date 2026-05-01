@@ -24,7 +24,7 @@ async function runApply(context) {
     console.log('No governance findings to apply.');
     return;
   }
-  const maxPerRun = parseInt(process.env.INPUT_MAX_APPLY_PER_RUN || '5', 10);
+  const maxPerRun = parseInt(process.env.INPUT_MAX_APPLY_PER_RUN, 10) || 5;
   const tools = (process.env.INPUT_TOOLS || '').split(',').map(s => s.trim()).filter(Boolean);
   const isDryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
   let applyGovernanceFindings;
