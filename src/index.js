@@ -19,7 +19,6 @@ const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report', 'm
 
 async function runApply(context) {
   const { owner, token, config, store } = context;
-  const gh = createClient(token);
   const findings = store ? await store.readGovernanceFindings() : [];
   if (!findings || findings.length === 0) {
     console.log('No governance findings to apply.');
@@ -28,7 +27,14 @@ async function runApply(context) {
   const maxPerRun = parseInt(process.env.INPUT_MAX_APPLY_PER_RUN || '5', 10);
   const tools = (process.env.INPUT_TOOLS || '').split(',').map(s => s.trim()).filter(Boolean);
   const isDryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
-  const { applyGovernanceFindings } = await import('./apply.js');
+  let applyGovernanceFindings;
+  try {
+    ({ applyGovernanceFindings } = await import('./apply.js'));
+  } catch {
+    console.error('Apply module not available yet (src/apply.js). Skipping.');
+    return;
+  }
+  const gh = createClient(token);
   const results = await applyGovernanceFindings(gh, owner, findings, config, {
     dryRun: isDryRun,
     maxPerRun,
