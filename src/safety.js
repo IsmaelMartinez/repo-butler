@@ -334,6 +334,14 @@ export function detectEcosystem(repo) {
   return confirmed;
 }
 
+// Strict regex for repo names interpolated into YAML/Markdown templates by
+// onboard.js and apply.js. Defends against template injection via crafted
+// repo names containing shell metacharacters, backticks, or newlines.
+// Lives here (not in apply.js) because it's a security boundary used by
+// multiple write-path modules — safety.js is the documented home for
+// "every external string that reaches GitHub" gates.
+export const REPO_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+
 // Sanitise contributor names for CODEOWNERS and governance proposals.
 // Strips characters unsafe for CODEOWNERS syntax. Returns cleaned string or null.
 export function sanitizeContributorName(name) {

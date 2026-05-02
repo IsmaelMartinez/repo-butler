@@ -6,8 +6,7 @@
 // If no repos are specified, reads ONBOARD_REPOS env var (comma-separated).
 
 import { createClient } from './github.js';
-import { validateGitHubUsername } from './safety.js';
-import { REPO_NAME_PATTERN } from './apply.js';
+import { validateGitHubUsername, REPO_NAME_PATTERN } from './safety.js';
 
 const BRANCH_NAME = 'repo-butler/onboard';
 const MARKER = 'repo-butler';
