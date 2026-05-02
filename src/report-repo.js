@@ -6,7 +6,7 @@ import {
   TIER_DISPLAY, TIER_COLORS, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, fmt, countBy,
   daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
-  colorByThreshold, nextTier, isHighSeverity,
+  colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
 } from './report-shared.js';
 
 // Range tuples for value-to-colour mapping in per-repo dashboards.
@@ -415,7 +415,7 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
 
   const next = nextTier(tier);
   const failedForNext = next
-    ? checks.filter(c => !c.passed && (c.required_for === next || (next === 'gold' && c.required_for === 'silver')))
+    ? checks.filter(c => !c.passed && isCheckRequiredForTier(c, next))
     : [];
 
   const checkRows = checks.map(c => {

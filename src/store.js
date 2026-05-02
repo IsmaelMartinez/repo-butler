@@ -3,7 +3,7 @@
 
 import { createClient } from './github.js';
 import { createHash } from 'node:crypto';
-import { computeHealthTier, isReleaseExempt, nextTier } from './report-shared.js';
+import { computeHealthTier, isReleaseExempt, nextTier, isCheckRequiredForTier } from './report-shared.js';
 
 const HASH_PATH = 'snapshots/hash.txt';
 const GOVERNANCE_PATH = 'snapshots/governance.json';
@@ -28,7 +28,7 @@ export function enrichPortfolioSummary(summary, repoName, config) {
   const { tier, checks } = computeHealthTier(summary, { releaseExempt: isReleaseExempt(repoName, config) });
   const next = nextTier(tier);
   const firstFail = next
-    ? checks.find(c => !c.passed && (c.required_for === next || (next === 'gold' && c.required_for === 'silver')))
+    ? checks.find(c => !c.passed && isCheckRequiredForTier(c, next))
     : null;
   return {
     ...summary,

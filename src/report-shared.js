@@ -14,6 +14,16 @@ export function nextTier(tier) {
   if (tier === 'silver') return 'gold';
   return null;
 }
+
+// True if a check counts toward reaching `tier`. Gold tier inherits silver
+// requirements (a Gold repo must pass everything Silver requires plus the
+// Gold-specific checks), so a check.required_for of 'silver' also counts
+// when targeting 'gold'. Centralised here so the rule lives in one place.
+export function isCheckRequiredForTier(check, tier) {
+  if (check.required_for === tier) return true;
+  if (tier === 'gold' && check.required_for === 'silver') return true;
+  return false;
+}
 export const COLOR_SUCCESS = 'var(--color-success)';
 export const COLOR_WARNING = 'var(--color-warning)';
 export const COLOR_DANGER = 'var(--color-danger)';

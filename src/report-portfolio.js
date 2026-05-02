@@ -9,7 +9,7 @@ import {
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION, isExcludedRepo,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
-  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity,
+  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
 } from './report-shared.js';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
@@ -724,7 +724,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     // Next Step: first failing check scoped to the repo's next tier
     const next = nextTier(tier);
     const firstFail = next
-      ? r._checks.find(c => !c.passed && (c.required_for === next || (next === 'gold' && c.required_for === 'silver')))
+      ? r._checks.find(c => !c.passed && isCheckRequiredForTier(c, next))
       : null;
     const nextStep = firstFail ? `<span class="muted" style="font-size:0.85em">${escHtml(firstFail.name)}</span>` : `<span style="color:${COLOR_SUCCESS};font-size:0.85em">All checks pass</span>`;
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
