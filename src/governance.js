@@ -16,7 +16,10 @@ import { auditDependabot } from './dependabot-audit.js';
 export async function runGovernance(context) {
   const { owner, token, portfolio, config, store } = context;
   if (!portfolio) return;
-  if (context.governanceFindings) return;
+  if (context.governanceFindings) {
+    console.log(`Governance: ${context.governanceFindings.length} findings already present, skipping detection.`);
+    return;
+  }
 
   const gh = createClient(token);
 
