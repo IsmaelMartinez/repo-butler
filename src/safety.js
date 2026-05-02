@@ -40,6 +40,9 @@ const BLOCKED_PATTERNS = [
   /\bAIza[a-zA-Z0-9_-]{30,}\b/,      // Google API keys
   /\bghp_[a-zA-Z0-9]{36}\b/,         // GitHub personal access tokens
   /\bghs_[a-zA-Z0-9]{36}\b/,         // GitHub server tokens
+  /\bgithub_pat_[a-zA-Z0-9_]{20,}\b/, // GitHub fine-grained PATs
+  /-----BEGIN RSA PRIVATE KEY-----/,  // RSA private key (e.g. GitHub App)
+  /-----BEGIN EC PRIVATE KEY-----/,   // EC private key
   /\bpassword\s*[:=]\s*\S+/i,        // Password assignments
   /<script[\s>]/i,                     // Script injection
   /javascript:/i,                      // JS protocol

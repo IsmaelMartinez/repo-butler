@@ -31,6 +31,10 @@ OBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT  
 
 `src/governance.js` runs as a first-class GOVERNANCE phase between UPDATE and IDEATE, producing four finding types — standards gaps, policy drift, tier-uplift proposals, and stale-Dependabot-PR audits — which are persisted to the data branch for the MCP `get_governance_findings` tool, the dashboard, and the `governance:apply` workflow. Detection is pure deterministic JS (no LLM cost), so the daily pipeline runs it 4×/day to keep findings fresh; the weekly IDEATE run picks up the same fresh findings via `runGovernance`'s idempotency guard inside `runIdeate`.
 
+`src/dependabot-audit.js` is the stale Dependabot PR detector called by GOVERNANCE; it flags long-open dependency update PRs so they surface as findings.
+
+`src/apply.js` is the Governance Apply phase: it opens remediation PRs on target repos for actionable governance findings (manual dispatch only, dry-run by default, max 5 PRs per run).
+
 `src/council.js` is an agent-council deliberation layer. Five personas (Product, Development, Stability, Maintainability, Security) vote on ideated proposals (`reviewProposals`) and monitor events (`triageEvents`), producing approved / watchlisted / dismissed decisions.
 
 `src/monitor.js` detects new events (PRs opened, issues filed, CI failures) between daily runs and hands them to the council for triage. Scheduled separately via `.github/workflows/monitor.yml`.
@@ -76,7 +80,7 @@ The report module is split into five files. `src/report.js` is the entry point t
 
 ## Report generation
 
-- Three scheduled workflows: `self-test.yml` (daily 02:00 UTC, runs `observe,assess,update,report`, ~13 min), `weekly-ideate.yml` (Mondays 06:00 UTC, runs `observe,ideate` dry-run for council + governance findings), `monitor.yml` (every 6h, runs the monitor phase). Trigger the main one manually with `gh workflow run "Repo Butler" --ref main`.
+- Scheduled and dispatch workflows: `self-test.yml` (cron `0 7,11,16,20 * * *`, runs `observe,assess,update,governance,report`, ~13 min), `weekly-ideate.yml` (Mondays 06:00 UTC, runs `observe,ideate` dry-run for council deliberation only; reads governance findings refreshed by the daily pipeline), `monitor.yml` (every 6h, runs the monitor phase), `apply.yml` (manual-dispatch governance remediation, dry-run by default, max 5 PRs/run), `onboard.yml` (workflow_dispatch + GitHub App webhook on installation). Trigger the main one manually with `gh workflow run "Repo Butler" --ref main`.
 - Report caching uses a SHA-256 hash of the snapshot summary. Adding new fields to the summary object will trigger regeneration.
 - Per-repo reports get a full dashboard (charts, health section) for repos with 10+ commits, or a lightweight card for quieter ones.
 - The per-repo `repoSnapshot` in report.js is assembled inline — when adding new observation data, remember to populate it both in observe.js (for the OBSERVE→REPORT pipeline) and in the inline repoSnapshot construction in report.js (for the portfolio→per-repo path).
@@ -84,3 +88,9 @@ The report module is split into five files. `src/report.js` is the entry point t
 ## MCP server
 
 `src/mcp.js` is a zero-dependency MCP server over stdio. It reads data from the `repo-butler-data` branch via `git show`. The readline listener only starts when run directly (`node src/mcp.js`), not when imported for testing. Tools: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`, `get_governance_findings`, `trigger_refresh`, `get_monitor_events`, `get_watchlist`, `get_council_personas`. The `trigger_refresh` tool uses `gh` CLI to dispatch the workflow. Campaign definitions live in `CAMPAIGN_DEFS` (`src/report-shared.js`); both the MCP `get_campaign_status` tool and the portfolio dashboard's `buildCampaignSection()` map over the same array, so adding a new campaign in one place picks up in both.
+
+## Further reading
+
+- `docs/architecture.md` — visual pipeline diagram + data flow
+- `SECURITY.md` — trust model and reporting
+- `docs/decisions/` — ADRs
