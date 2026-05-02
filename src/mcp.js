@@ -533,19 +533,26 @@ function toolGetOpenGovernancePrs() {
   const repos = Object.keys(unwrapWeeklyRepos(weekly.data)).filter(isValidRepoName);
 
   const prs = [];
+  const warnings = [];
+  let ghMissing = false;
+
   for (const repo of repos) {
+    if (ghMissing) break; // gh isn't installed — no point retrying every repo
+
     try {
+      // gh's --head is exact-match, not prefix-match. List ALL open PRs and
+      // filter client-side for our prefix. Modest per-repo cost; the pre-filter
+      // approach silently returned empty for every repo.
       const output = execFileSync('gh', [
         'pr', 'list',
         '--repo', `${owner}/${repo}`,
-        '--head', 'repo-butler/apply-',
         '--state', 'open',
         '--json', 'number,url,headRefName,createdAt',
+        '--limit', '50',
       ], { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 10000 });
 
       const list = JSON.parse(output || '[]');
       for (const pr of list) {
-        // gh's --head is a prefix match, but double-check the branch name.
         if (typeof pr.headRefName !== 'string' || !pr.headRefName.startsWith('repo-butler/apply-')) continue;
         const tool = pr.headRefName.replace(/^repo-butler\/apply-/, '').split('/')[0] || null;
         prs.push({
@@ -556,12 +563,22 @@ function toolGetOpenGovernancePrs() {
           opened_at: pr.createdAt,
         });
       }
-    } catch {
-      // Per-repo errors are swallowed by design — missing repo, no auth, etc.
+    } catch (err) {
+      // Distinguish "gh not installed" (single global warning) from per-repo
+      // failures (auth, missing repo, rate limit). Surface both — silently
+      // returning empty made "no PRs" indistinguishable from "infra broken".
+      if (err.code === 'ENOENT') {
+        warnings.push({ kind: 'gh_unavailable', message: 'gh CLI not found in PATH' });
+        ghMissing = true;
+      } else {
+        warnings.push({ kind: 'repo_query_failed', repo, message: err.message?.split('\n')[0] || 'unknown error' });
+      }
     }
   }
 
-  return { owner, count: prs.length, prs };
+  return warnings.length > 0
+    ? { owner, count: prs.length, prs, warnings }
+    : { owner, count: prs.length, prs };
 }
 
 function toolListStaleDependabotPrs(minAgeArg) {
@@ -587,10 +604,14 @@ function toolListStaleDependabotPrs(minAgeArg) {
     for (const pr of finding.stalePRs || []) {
       const age = Number(pr.age);
       if (!Number.isFinite(age) || age < minAgeDays) continue;
+      // pr.number comes from a data-branch JSON file; validate before
+      // interpolating into a URL to prevent path traversal (e.g. "1/../settings").
+      const prNumber = Number(pr.number);
+      if (!Number.isInteger(prNumber) || prNumber < 1) continue;
       prs.push({
         repo,
-        pr_number: pr.number,
-        pr_url: owner ? `https://github.com/${owner}/${repo}/pull/${pr.number}` : null,
+        pr_number: prNumber,
+        pr_url: owner ? `https://github.com/${owner}/${repo}/pull/${prNumber}` : null,
         age_days: age,
         title: pr.title ?? null,
       });
