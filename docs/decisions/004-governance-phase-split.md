@@ -11,12 +11,12 @@ The Governance Apply workflow specifically suffered from this coupling. An admin
 
 ## Decision
 
-Split governance detection into a first-class GOVERNANCE phase that runs between UPDATE and IDEATE in the main pipeline. Because detection is pure deterministic JavaScript with no LLM cost, the daily pipeline runs it four times per day at no incremental token spend.
+Promote governance detection to a first-class GOVERNANCE phase that runs between UPDATE and IDEATE in the main pipeline. Because detection is pure deterministic JavaScript with no LLM cost, the daily pipeline runs it four times per day at no incremental token spend.
 
-The weekly IDEATE run delegates to the same `runGovernance` wrapper via an idempotency guard. If findings were populated by an earlier phase in the same turn, detection is skipped and the council reads the fresh findings the daily pipeline produced. This keeps a single source of truth for the detection logic and avoids re-running it twice on Mondays.
+`runIdeate` still calls `runGovernance(context)` at the top of its body — the call was deliberately left in place rather than removed. This serves two purposes: it preserves the weekly-ideate workflow's existing `INPUT_PHASE: observe,ideate` shape (no workflow changes required), and it acts as a safety net for any future workflow that runs IDEATE without explicitly listing GOVERNANCE first. The idempotency guard inside `runGovernance` makes the call a no-op when findings were already populated in the same turn (the typical daily-pipeline path), so there is no cost to the redundant call. This keeps a single source of truth for the detection logic and avoids re-running it twice on Mondays.
 
 ## Consequences
 
-`governance.json` now reflects current portfolio state on every daily run instead of weekly. The apply workflow can act on fresh data, eliminating the stale-findings failure mode. Weekly-ideate cost is unchanged because governance detection has no LLM call, and `runIdeate` becomes simpler now that it is no longer responsible for orchestrating detection.
+`governance.json` now reflects current portfolio state on every daily run instead of weekly. The apply workflow can act on fresh data, eliminating the stale-findings failure mode. Weekly-ideate cost is unchanged because governance detection has no LLM call. `runIdeate` retains the `runGovernance` call as a delegation rather than as the orchestration site — the inline detection logic moved to `runGovernance` and `runIdeate` is now a thin caller.
 
 The arrangement is asymmetric: governance is implicit in `weekly-ideate.yml`'s `INPUT_PHASE` rather than explicit, because IDEATE delegates to it internally. This is documented in a comment in `weekly-ideate.yml` so the implicit dependency does not surprise anyone reading the workflow file in isolation.
