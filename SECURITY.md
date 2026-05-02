@@ -18,7 +18,7 @@ LLM provider keys (`GEMINI_API_KEY`, `CLAUDE_API_KEY`), used to call hosted LLMs
 
 An optional `TRIAGE_BOT_INGEST_SECRET` for posting snapshots to a separately-deployed triage bot. Compromise allows a third party to post arbitrary `/ingest` payloads to the configured bot.
 
-All three are stored as GitHub Actions secrets. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded API keys (`sk-`, `AIza`, `ghp_`, `ghs_`) — `safety.js` and `*.test.js` are excluded from the grep because they contain detection patterns and fixtures.
+All three are stored as GitHub Actions secrets. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded API keys (patterns `AIza`, `sk-ant-`, and `sk-[a-zA-Z0-9]{40}`) — `safety.js` and `*.test.js` are excluded because they contain detection patterns and fixtures. Runtime output validation in `safety.js` covers a broader set of patterns including GitHub PATs (`ghp_`, `ghs_`) and is applied to all LLM output before it reaches GitHub.
 
 ## Trust boundaries
 

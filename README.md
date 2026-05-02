@@ -95,7 +95,7 @@ The portfolio page (`index.html`) is the landing page with a stacked weekly comm
 
 Per-repo pages (`{repo-name}.html`) are generated for every active, non-fork, non-test repo. Repos with 10 or more commits in the last 6 months get full charts covering PR merge velocity (12 months), issues opened vs closed (12 months), release cadence, PR author distribution, open issues by label, and weekly trend lines when history is available. Repos with less activity get a lightweight summary card.
 
-Reports regenerate daily at 2am UTC and are deployed to GitHub Pages automatically. Caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day runs from ~15 minutes to seconds.
+Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day runs from ~15 minutes to seconds.
 
 ## Triage bot integration
 

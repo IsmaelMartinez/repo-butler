@@ -89,10 +89,9 @@ repo-butler-data branch:
     weekly/YYYY-Www.json      ← ASSESS appends (12-week rolling cap)
     portfolio-weekly/…json    ← OBSERVE writes (per-week portfolio shape)
     governance.json           ← GOVERNANCE writes (4×/day, can be empty array)
-    monitor-cursor.json       ← MONITOR writes (last-seen event marker)
-    monitor-events.json       ← MONITOR writes (council triage output)
+    monitor-cursor.json       ← MONITOR writes (last-seen event marker + counts)
     repo-cache.json           ← OBSERVE/REPORT cache (per-repo enrichment)
-    hash.json                 ← REPORT cache key (snapshot summary SHA-256)
+    hash.txt                  ← REPORT cache key (snapshot summary SHA-256, plain hex)
   reports/                    ← REPORT writes, deployed to GitHub Pages
     index.html                ← portfolio dashboard
     {repo}.html               ← per-repo dashboards
