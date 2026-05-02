@@ -2,7 +2,7 @@
 // Manual-dispatch only — never on cron. Reads findings from the data branch,
 // validates shape, generates templated config files, and opens PRs.
 
-const REPO_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+export const REPO_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
 
 const TEMPLATES = {
   'code-scanning': {

@@ -270,8 +270,8 @@ function formatItemForPrompt(item) {
   if (item.type) lines.push(`Type: ${item.type}`);
   if (item.severity) lines.push(`Severity: ${item.severity}`);
   if (item.title) lines.push(`Title: ${sanitizeForPrompt(item.title)}`);
-  if (item.labels?.length) lines.push(`Labels: ${item.labels.join(', ')}`);
-  if (item.author) lines.push(`Author: ${item.author}`);
+  if (item.labels?.length) lines.push(`Labels: ${item.labels.map(l => sanitizeForPrompt(String(l))).join(', ')}`);
+  if (item.author) lines.push(`Author: ${sanitizeForPrompt(String(item.author))}`);
   if (item.body) lines.push(`Body: ${sanitizeForPrompt(item.body).slice(0, 500)}`);
   if (item.priority) lines.push(`Priority: ${item.priority}`);
   if (item.rationale) lines.push(`Rationale: ${sanitizeForPrompt(item.rationale)}`);
