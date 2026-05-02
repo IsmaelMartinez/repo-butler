@@ -32,11 +32,19 @@ INPUT_DRY_RUN=true npm start
 
 ## Project Conventions
 
-All source code lives in `src/`. The pipeline runs six phases (OBSERVE, ASSESS, UPDATE, IDEATE, PROPOSE, REPORT), each as an independent module. `src/github.js` is the shared API client, and `src/safety.js` validates all LLM output before it reaches GitHub.
+All source code lives in `src/`. The pipeline runs seven phases (OBSERVE, ASSESS, UPDATE, GOVERNANCE, IDEATE, PROPOSE, REPORT), each as an independent module. `src/github.js` is the shared API client, and `src/safety.js` validates all LLM output before it reaches GitHub.
 
 When working with the GitHub API, prefer list/paginate endpoints over the search API to stay within rate limits. New API fetchers in `observe.js` should follow the existing try/catch pattern and return `null` on failure.
 
 Config lives in `.github/roadmap.yml` with defaults in `src/config.js`.
+
+## Further Reading
+
+For a visual map of how the four scheduled workflows + on-demand `apply` and `onboard` interleave, plus the data flow through the `repo-butler-data` orphan branch, see [`docs/architecture.md`](docs/architecture.md).
+
+Architecture decisions live in [`docs/decisions/`](docs/decisions/). The current ADRs cover the boundary between Repo Butler and the issue triage bot (ADR-001), the portfolio governance scope (ADR-002), and the interoperability layer with other AI agents via MCP and A2A (ADR-003). Read these before proposing changes that cross those boundaries.
+
+Security expectations and the trust model for the `repo-butler-data` branch and the GitHub App token are documented in [`SECURITY.md`](SECURITY.md).
 
 ## Pull Request Process
 
