@@ -1,8 +1,14 @@
 name: Repo Butler Weekly Ideate
 
-# Runs the expensive deep-provider IDEATE phase (council deliberation +
-# governance findings) on a weekly cadence. Dry-run until the council
-# output has been trusted for long enough to graduate onto PROPOSE.
+# Runs the expensive deep-provider IDEATE phase (council deliberation) on
+# a weekly cadence. Dry-run until the council output has been trusted for
+# long enough to graduate onto PROPOSE.
+#
+# Note: governance detection runs implicitly inside `runIdeate` via
+# `runGovernance` (idempotent — no-op if already populated this turn).
+# We don't list `governance` explicitly in INPUT_PHASE because the daily
+# pipeline already runs it 4x/day; the weekly run gets fresh findings
+# either way via the implicit delegation.
 
 on:
   schedule:

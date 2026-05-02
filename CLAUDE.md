@@ -21,15 +21,15 @@ Never merge a PR before AI code review bots (CodeRabbit, Gemini Code Assist) hav
 
 ## Architecture
 
-This is a GitHub Action (runs on the `node24` runtime, ES modules, zero npm dependencies) that runs a six-phase pipeline plus a continuous monitor:
+This is a GitHub Action (runs on the `node24` runtime, ES modules, zero npm dependencies) that runs a seven-phase pipeline plus a continuous monitor:
 
 ```
-OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT   (+ MONITOR)
+OBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT   (+ MONITOR)
 ```
 
 `src/index.js` is a thin dispatcher: it parses the requested phase(s) from `--phase=` arg or `INPUT_PHASE` env var, builds the shared `context` object, validates the LLM provider, then loops over the selected phases calling the matching `runX(context)` wrapper. Each phase module exports both its core function (e.g. `observe`, `assess`, `update`, …) and a `runX` wrapper that handles surrounding orchestration — snapshot persistence, triage-bot ingestion, governance detection, council deliberation, and storing results back on `context` for downstream phases. Index keeps only the truly cross-cutting concerns: provider wiring, the auto-onboard pass, and the GITHUB_OUTPUT summary. The `all` phase runs the wrappers sequentially. `monitor` is a separate phase that detects new events between scheduled runs and feeds them into the council.
 
-`src/governance.js` runs after OBSERVE (when portfolio data is available) and produces three finding types — standards gaps, policy drift, and tier-uplift proposals — which are fed into the IDEATE prompt and persisted to the data branch for the MCP `get_governance_findings` tool.
+`src/governance.js` runs as a first-class GOVERNANCE phase between UPDATE and IDEATE, producing four finding types — standards gaps, policy drift, tier-uplift proposals, and stale-Dependabot-PR audits — which are persisted to the data branch for the MCP `get_governance_findings` tool, the dashboard, and the `governance:apply` workflow. Detection is pure deterministic JS (no LLM cost), so the daily pipeline runs it 4×/day to keep findings fresh; the weekly IDEATE run picks up the same fresh findings via `runGovernance`'s idempotency guard inside `runIdeate`.
 
 `src/council.js` is an agent-council deliberation layer. Five personas (Product, Development, Stability, Maintainability, Security) vote on ideated proposals (`reviewProposals`) and monitor events (`triageEvents`), producing approved / watchlisted / dismissed decisions.
 

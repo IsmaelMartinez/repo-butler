@@ -513,7 +513,7 @@ describe('parsePhases', () => {
     const { parsePhases } = await import('./index.js');
     assert.deepEqual(
       parsePhases('all'),
-      ['observe', 'assess', 'update', 'ideate', 'propose', 'report', 'monitor'],
+      ['observe', 'assess', 'update', 'governance', 'ideate', 'propose', 'report', 'monitor'],
     );
   });
 
