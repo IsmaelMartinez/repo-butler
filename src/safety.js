@@ -37,6 +37,7 @@ const INJECTION_PATTERNS = [
 // Patterns that should never appear in generated output.
 const BLOCKED_PATTERNS = [
   /\bsk-[a-zA-Z0-9]{20,}\b/,         // OpenAI-style API keys
+  /\bsk-ant-[a-zA-Z0-9_-]{20,}\b/,   // Anthropic API keys (Claude)
   /\bAIza[a-zA-Z0-9_-]{30,}\b/,      // Google API keys
   /\bghp_[a-zA-Z0-9]{36}\b/,         // GitHub personal access tokens
   /\bghs_[a-zA-Z0-9]{36}\b/,         // GitHub server tokens
