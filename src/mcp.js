@@ -585,13 +585,13 @@ function toolListStaleDependabotPrs(minAgeArg) {
   const minAgeDays = clampInt(minAgeArg, 30, 1, 365);
 
   const raw = loadFromDataBranch('snapshots/governance.json');
-  if (!raw) return { prs: [], message: 'No governance findings available — run the governance phase first.' };
+  if (!raw) return { min_age_days: minAgeDays, count: 0, prs: [], message: 'No governance findings available — run the governance phase first.' };
 
   let findings;
   try {
     findings = JSON.parse(raw);
   } catch {
-    return { prs: [], error: 'Failed to parse governance findings.' };
+    return { min_age_days: minAgeDays, count: 0, prs: [], error: 'Failed to parse governance findings.' };
   }
 
   const owner = getRepoSlug()?.split('/')[0] || null;
