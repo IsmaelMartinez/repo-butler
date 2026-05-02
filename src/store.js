@@ -253,7 +253,7 @@ export function createStore(context) {
   }
 
   async function writeGovernanceFindings(findings) {
-    if (!findings || findings.length === 0) return;
+    if (!Array.isArray(findings)) return;
     await ensureDataBranch();
     await writeFile(GOVERNANCE_PATH, JSON.stringify(findings, null, 2));
     console.log(`Governance findings saved (${findings.length} findings).`);

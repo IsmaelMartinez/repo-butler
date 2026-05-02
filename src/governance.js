@@ -42,7 +42,10 @@ export async function runGovernance(context) {
     console.log(`Dependabot audit: ${stale.length} repos with stale PRs.`);
   }
 
-  if (store && context.governanceFindings.length > 0) {
+  if (store) {
+    // Always persist — even an empty array — so the data branch reflects
+    // the current portfolio state. Otherwise stale findings linger after
+    // remediation and the dashboard/MCP/apply read out-of-date data.
     await store.writeGovernanceFindings(context.governanceFindings);
   }
 }
