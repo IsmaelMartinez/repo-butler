@@ -177,3 +177,14 @@ export function createClient(token) {
 
   return { request, paginate, getFileContent, listDir, putFile, deleteFile };
 }
+
+// Paginate /repos/{owner}/{repo}/issues and filter out PRs (which the GitHub
+// issues endpoint includes). Single source of truth for the "real issues only"
+// pattern used by observe, propose, and report fetchers.
+//
+// `params` is forwarded to gh.paginate (e.g. { state: 'open', since, sort }).
+// `max` caps the number of items fetched (default 200).
+export async function paginateIssues(gh, owner, repo, { params = {}, max = 200 } = {}) {
+  const items = await gh.paginate(`/repos/${owner}/${repo}/issues`, { params, max });
+  return items.filter(i => !i.pull_request);
+}

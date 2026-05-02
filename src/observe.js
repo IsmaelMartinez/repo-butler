@@ -1,4 +1,4 @@
-import { createClient } from './github.js';
+import { createClient, paginateIssues } from './github.js';
 import { isBugIssue, isFeatureIssue, isPublishedRelease, getAlertSummary } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
@@ -242,13 +242,11 @@ async function fetchUserRepos(gh) {
 // --- Data fetchers ---
 
 async function fetchOpenIssues(gh, owner, repo) {
-  const issues = await gh.paginate(`/repos/${owner}/${repo}/issues`, {
+  const issues = await paginateIssues(gh, owner, repo, {
     params: { state: 'open', sort: 'updated', direction: 'desc' },
     max: 200,
   });
-  // The issues endpoint includes PRs — filter them out.
   return issues
-    .filter(i => !i.pull_request)
     .map(i => ({
       number: i.number,
       title: i.title,
@@ -264,12 +262,11 @@ async function fetchOpenIssues(gh, owner, repo) {
 }
 
 async function fetchClosedIssues(gh, owner, repo, since) {
-  const issues = await gh.paginate(`/repos/${owner}/${repo}/issues`, {
+  const issues = await paginateIssues(gh, owner, repo, {
     params: { state: 'closed', since, sort: 'updated', direction: 'desc' },
     max: 200,
   });
   return issues
-    .filter(i => !i.pull_request)
     .map(i => ({
       number: i.number,
       title: i.title,

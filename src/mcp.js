@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier } from './report-shared.js';
 import { PERSONAS } from './council.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -253,15 +253,15 @@ function toolGetHealthTier(repoName) {
 
   const { tier, checks } = computeHealthTier(repoData);
   const failing = checks.filter(c => !c.passed);
-  const nextTier = tier === 'none' ? 'bronze' : tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
-  const needed = nextTier ? failing.filter(c => c.required_for === nextTier || (nextTier === 'gold' && c.required_for === 'silver')) : [];
+  const next = nextTier(tier);
+  const needed = next ? failing.filter(c => c.required_for === next || (next === 'gold' && c.required_for === 'silver')) : [];
 
   return {
     repo: repoName,
     tier,
     week: weekly.week,
     checks,
-    next_tier: nextTier,
+    next_tier: next,
     needed_for_next: needed.map(c => c.name),
   };
 }

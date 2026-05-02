@@ -6,10 +6,10 @@ import { buildActionItems } from './report-repo.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
-  REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION,
+  REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION, isExcludedRepo,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
-  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold,
+  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity,
 } from './report-shared.js';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
@@ -649,7 +649,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const now = new Date().toISOString().split('T')[0];
 
   function status(r) {
-    if (r.name.includes('shadow') || r.name.includes('test-repo')) return 'test';
+    if (isExcludedRepo(r.name)) return 'test';
     const pushed = new Date(r.pushed_at);
     if (pushed < ONE_YEAR_AGO) return 'archive';
     if (pushed < SIX_MONTHS_AGO) return 'dormant';
@@ -716,15 +716,15 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       ? '<span style="color:#6e7681">n/a</span>'
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
-        : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
+        : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
     const openIssues = r.open_issues || 0;
     const issuesColor = colorByThreshold(openIssues, OPEN_ISSUES_RANGES);
     const openPRs = r._open_prs;
     const prsColor = colorByThreshold(openPRs, OPEN_PRS_RANGES);
     // Next Step: first failing check scoped to the repo's next tier
-    const nextTier = tier === 'none' ? 'bronze' : tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
-    const firstFail = nextTier
-      ? r._checks.find(c => !c.passed && (c.required_for === nextTier || (nextTier === 'gold' && c.required_for === 'silver')))
+    const next = nextTier(tier);
+    const firstFail = next
+      ? r._checks.find(c => !c.passed && (c.required_for === next || (next === 'gold' && c.required_for === 'silver')))
       : null;
     const nextStep = firstFail ? `<span class="muted" style="font-size:0.85em">${escHtml(firstFail.name)}</span>` : `<span style="color:${COLOR_SUCCESS};font-size:0.85em">All checks pass</span>`;
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
@@ -753,7 +753,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:#6e7681;cursor:help">n/a</span>'
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
-        : `<span style="color:${r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
+        : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
     const libyearVal = r.libyear?.total_libyear;
     const libyearColor = getLibyearColor(libyearVal);
     const depDisplay = r.sbom
@@ -821,7 +821,7 @@ export function generateDigestReport(owner, repos, repoDetails) {
   // Classify repos the same way as the portfolio report.
   const active = repos.filter(r => {
     if (r.archived || r.fork) return false;
-    if (r.name.includes('shadow') || r.name.includes('test-repo')) return false;
+    if (isExcludedRepo(r.name)) return false;
     return new Date(r.pushed_at) >= sixMonthsAgo;
   });
 
@@ -902,7 +902,7 @@ export function generateDigestReport(owner, repos, repoDetails) {
   // Vulnerability alerts card.
   if (vulnRepos.length > 0) {
     const lines = vulnRepos.map(r => {
-      const sevClass = r.vulns.max_severity === 'critical' || r.vulns.max_severity === 'high' ? 'text-alert' : 'text-warning';
+      const sevClass = isHighSeverity(r.vulns) ? 'text-alert' : 'text-warning';
       return `<tr><td><a href="${r.name}.html">${escHtml(r.name)}</a></td>` +
         `<td class="${sevClass}">${r.vulns.count} (${r.vulns.max_severity || 'unknown'})</td></tr>`;
     }).join('');

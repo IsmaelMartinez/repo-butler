@@ -3,7 +3,7 @@
 // Pure functions that receive portfolio data and return governance findings.
 
 import { detectEcosystem } from './safety.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
@@ -305,19 +305,8 @@ export function generateUpliftProposals(repos, details, config = null) {
     if (tier === 'gold') continue; // Already at top
 
     // Determine which tier to target and which checks fail for it.
-    let targetTier;
-    let failingChecks;
-
-    if (tier === 'silver') {
-      targetTier = 'gold';
-      failingChecks = checks.filter(c => c.required_for === 'gold' && !c.passed);
-    } else if (tier === 'bronze') {
-      targetTier = 'silver';
-      failingChecks = checks.filter(c => c.required_for === 'silver' && !c.passed);
-    } else {
-      targetTier = 'bronze';
-      failingChecks = checks.filter(c => c.required_for === 'bronze' && !c.passed);
-    }
+    const targetTier = nextTier(tier);
+    const failingChecks = checks.filter(c => c.required_for === targetTier && !c.passed);
 
     // Only propose when the gap is small enough to be actionable.
     if (failingChecks.length > 0 && failingChecks.length <= 3) {
