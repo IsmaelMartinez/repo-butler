@@ -4,6 +4,45 @@
 
 import { detectEcosystem } from './safety.js';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt } from './report-shared.js';
+import { createClient } from './github.js';
+import { fetchPortfolioDetails } from './report-portfolio.js';
+import { parseStandardsConfig } from './config.js';
+import { auditDependabot } from './dependabot-audit.js';
+
+// Thin orchestration wrapper: enriches portfolio details, runs all detectors,
+// runs the dependabot audit, and persists findings to the data branch.
+// Idempotent — if context.governanceFindings is already populated this turn
+// (e.g. by an earlier phase), skips re-detection.
+export async function runGovernance(context) {
+  const { owner, token, portfolio, config, store } = context;
+  if (!portfolio) return;
+  if (context.governanceFindings) return;
+
+  const gh = createClient(token);
+
+  if (!context.repoDetails) {
+    const repoCache = store ? await store.readRepoCache() : null;
+    context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos, { cache: repoCache });
+    console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
+  }
+
+  const standards = parseStandardsConfig(config);
+  const gaps = detectStandardsGaps(standards, portfolio.repos, context.repoDetails);
+  const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
+  const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
+  context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
+  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);
+
+  const stale = await auditDependabot(gh, owner, portfolio.repos);
+  if (stale.length > 0) {
+    context.governanceFindings.push(...stale);
+    console.log(`Dependabot audit: ${stale.length} repos with stale PRs.`);
+  }
+
+  if (store && context.governanceFindings.length > 0) {
+    await store.writeGovernanceFindings(context.governanceFindings);
+  }
+}
 
 // Built-in detectors map standard tool names to compliance checks.
 // Each detector receives (repo, details) and returns boolean.

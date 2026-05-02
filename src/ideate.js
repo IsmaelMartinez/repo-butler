@@ -3,44 +3,16 @@
 
 import { appendTriageBotContext } from './assess.js';
 import { sanitizeForPrompt, wrapPrompt } from './safety.js';
-import { createClient } from './github.js';
-import { fetchPortfolioDetails } from './report-portfolio.js';
-import { parseStandardsConfig } from './config.js';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals } from './governance.js';
-import { auditDependabot } from './dependabot-audit.js';
+import { runGovernance } from './governance.js';
 import { reviewProposals } from './council.js';
 
-// Thin orchestration wrapper used by the index dispatcher. Enriches portfolio
-// details for governance, runs governance detection + ideation + council
-// deliberation, then persists governance findings for MCP consumption.
+// Thin orchestration wrapper used by the index dispatcher. Ensures governance
+// findings exist (delegates to runGovernance, which is a no-op if a prior phase
+// already populated them), then runs ideation + council deliberation.
 export async function runIdeate(context) {
-  const { owner, token, portfolio, config, store } = context;
-  const gh = createClient(token);
+  const { config } = context;
 
-  if (portfolio && !context.repoDetails) {
-    const repoCache = store ? await store.readRepoCache() : null;
-    context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos, { cache: repoCache });
-    console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
-  }
-
-  if (portfolio && context.repoDetails) {
-    const standards = parseStandardsConfig(config);
-    const gaps = detectStandardsGaps(standards, portfolio.repos, context.repoDetails);
-    const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
-    const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
-    context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
-    console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);
-  }
-
-  // Stale Dependabot PR audit — runs outside the fetchPortfolioDetails cache
-  // gate because PR age advances without changing pushed_at.
-  if (portfolio) {
-    const stale = await auditDependabot(gh, owner, portfolio.repos);
-    if (stale.length > 0) {
-      context.governanceFindings = [...(context.governanceFindings || []), ...stale];
-      console.log(`Dependabot audit: ${stale.length} repos with stale PRs.`);
-    }
-  }
+  await runGovernance(context);
 
   const result = await ideate(context);
   context.ideas = result?.ideas || [];
@@ -52,10 +24,6 @@ export async function runIdeate(context) {
     context.ideas = councilResult.approved;
     context.watchlist = councilResult.watchlist;
     console.log(`Council: ${councilResult.approved.length} approved, ${councilResult.watchlist.length} watchlisted, ${councilResult.dismissed.length} dismissed.`);
-  }
-
-  if (context.governanceFindings?.length > 0 && store) {
-    await store.writeGovernanceFindings(context.governanceFindings);
   }
 
   return result;

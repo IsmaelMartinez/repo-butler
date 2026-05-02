@@ -7,6 +7,7 @@ import { runIdeate } from './ideate.js';
 import { runPropose } from './propose.js';
 import { runReport } from './report.js';
 import { runMonitor } from './monitor.js';
+import { runGovernance } from './governance.js';
 import { createStore } from './store.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ClaudeProvider } from './providers/claude.js';
@@ -15,7 +16,7 @@ import { validateProvider } from './safety.js';
 import { onboard } from './onboard.js';
 import { createClient } from './github.js';
 
-const PHASES = ['observe', 'assess', 'update', 'ideate', 'propose', 'report', 'monitor'];
+const PHASES = ['observe', 'assess', 'update', 'governance', 'ideate', 'propose', 'report', 'monitor'];
 
 async function runApply(context) {
   const { owner, token, config, store } = context;
@@ -47,6 +48,7 @@ const PHASE_RUNNERS = {
   observe: runObserve,
   assess: runAssess,
   update: runUpdate,
+  governance: runGovernance,
   ideate: runIdeate,
   propose: runPropose,
   report: runReport,
