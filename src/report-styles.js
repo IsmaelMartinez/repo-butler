@@ -40,6 +40,16 @@ a{color:#58a6ff;text-decoration:none}
 .heatmap-labels{display:grid;gap:2px;margin-top:4px;font-size:0.6rem;color:#8b949e}
 .heatmap-labels span{text-align:center;white-space:nowrap}
 .footer{text-align:center;color:#6e7681;font-size:0.8rem;margin-top:3rem;padding:1rem}
+.site-footer{margin-top:3rem;padding:1.5rem 1rem;border-top:1px solid #21262d;color:#8b949e;font-size:0.85rem;display:flex;flex-direction:column;gap:0.6rem;align-items:center;text-align:center}
+.site-footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:0.4rem 1.2rem}
+.site-footer-links a{color:#58a6ff}
+.site-footer-meta{color:#6e7681;font-size:0.8rem}
+.hero-intro{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1.2rem 1.5rem;margin-bottom:1.5rem;color:#c9d1d9;font-size:0.95rem;line-height:1.6}
+.hero-intro a{color:#58a6ff}
+.about-phases{margin:0;padding:0;list-style:none}
+.about-phases li{padding:0.4rem 0;border-bottom:1px solid #21262d;font-size:0.9rem;color:#c9d1d9}
+.about-phases li:last-child{border-bottom:none}
+.about-phases strong{color:#f0f6fc;font-family:-apple-system,BlinkMacSystemFont,monospace;letter-spacing:0.03em}
 .muted{color:#8b949e}
 .text-success{color:var(--color-success)}
 .text-warning{color:var(--color-warning)}
@@ -81,6 +91,20 @@ details summary:hover{color:#79c0ff}
 details[open] summary{margin-bottom:1rem}
 </style>`;
 
+// Shared site-wide footer block. Rendered on every page (portfolio dashboard,
+// per-repo reports, light reports, weekly digest) so any visitor can navigate
+// to the architecture, security model, ADRs, and source repo. Static HTML —
+// no JS, no external resources beyond the canonical GitHub URLs.
+export const SITE_FOOTER = `<footer class="site-footer">
+<div class="site-footer-links">
+<a href="https://github.com/IsmaelMartinez/repo-butler">GitHub repo</a>
+<a href="https://github.com/IsmaelMartinez/repo-butler/blob/main/docs/architecture.md">Architecture</a>
+<a href="https://github.com/IsmaelMartinez/repo-butler/blob/main/SECURITY.md">Security</a>
+<a href="https://github.com/IsmaelMartinez/repo-butler/tree/main/docs/decisions">ADRs</a>
+</div>
+<div class="site-footer-meta">Built with zero dependencies, Node 22, on GitHub Actions</div>
+</footer>`;
+
 // Full HTML page shell shared by the portfolio and per-repo reports.
 //
 // Contract: `body` and `charts` are NOT escaped. They are passed through
@@ -109,5 +133,6 @@ ${CSS}
 </head>
 <body>
 ${body}
+${SITE_FOOTER}
 ${chartsBlock}</body></html>`;
 }
