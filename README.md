@@ -201,6 +201,10 @@ For A2A-protocol-aware agents, the butler publishes an AgentCard at [`ismaelmart
 - Free to run. GitHub Actions is unlimited for public repos, Gemini Flash free tier for LLM calls.
 - Self-dogfooding. This repo uses itself as its own planner.
 
+## Security
+
+To report a vulnerability, see [`SECURITY.md`](SECURITY.md). It also documents the trust model — GitHub App token scope, untrusted-data boundaries, the `repo-butler-data` branch treatment, and cross-repo write gates.
+
 ## License
 
 MIT

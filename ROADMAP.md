@@ -14,15 +14,16 @@ The competitive landscape confirms this is a unique niche. Implementation agents
 ## Architecture
 
 ```text
-OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT
+OBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT
 ```
 
 1. **OBSERVE** — Gather project state via GitHub API. Portfolio-level classification. Consume data from installed tools. No LLM needed.
 2. **ASSESS** — Diff snapshots, compute trends, detect health gaps. Optionally summarise with Gemini Flash.
 3. **UPDATE** — Generate an updated roadmap document and open a PR. Safety-validated.
-4. **IDEATE** — Generate improvement ideas informed by triage bot intelligence and health signals.
-5. **PROPOSE** — Create GitHub issues from ideas, safety-filtered, capped and labelled.
-6. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
+4. **GOVERNANCE** — Run deterministic detectors over the portfolio (standards gaps, policy drift, tier-uplift, stale Dependabot PRs). No LLM cost; runs 4×/day on the daily pipeline.
+5. **IDEATE** — Generate improvement ideas informed by triage bot intelligence, health signals, and fresh governance findings.
+6. **PROPOSE** — Create GitHub issues from ideas, safety-filtered, capped and labelled.
+7. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.
 
 See [ADR-001](docs/decisions/001-repo-butler-vs-triage-bot.md) for the boundary between this project and the triage bot.
 
