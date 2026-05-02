@@ -21,17 +21,42 @@ export function buildRoadmapPrBody(assessmentText) {
   ].join('\n');
 }
 
+// Conservative ceiling for the assessment text inside the PR body. Leaves
+// headroom under safety.js's MAX_BODY_LENGTH (8000) for surrounding header
+// and footer. Long-but-benign assessments are truncated rather than dropped
+// — distinguishes "too verbose" from "blocked content" so operators can tell
+// the false-positive from a real injection in the logs.
+const MAX_ASSESSMENT_LENGTH = 6000;
+
+// Strip user-controlled content from validation error strings before they
+// reach CI logs. Safety errors include the matched @mention handle, URL host,
+// or other adversary-supplied substring; logging those verbatim reproduces
+// the leak in a different sink. Keep the category prefix (everything up to
+// the first ':') and replace the remainder with [REDACTED].
+export function redactErrorForLog(err) {
+  const idx = err.indexOf(':');
+  if (idx === -1) return err;
+  return `${err.slice(0, idx)} [REDACTED]`;
+}
+
 // Build a safety-validated PR body. If the assessment-bearing body fails
 // validation (blocked URLs, @mentions, key patterns, length, etc.), fall back
 // to the assessment-free body so the roadmap PR can still ship with safe text.
+// Truncates over-long assessments first so verbose-but-benign output doesn't
+// trigger the fallback path.
 export function buildSafePrBody(assessmentText) {
-  const withAssessment = buildRoadmapPrBody(assessmentText);
-  if (!assessmentText) return { body: withAssessment, redacted: false, errors: [] };
+  if (!assessmentText) {
+    return { body: buildRoadmapPrBody(null), redacted: false, truncated: false, errors: [] };
+  }
+
+  const truncated = assessmentText.length > MAX_ASSESSMENT_LENGTH;
+  const safeText = truncated ? assessmentText.slice(0, MAX_ASSESSMENT_LENGTH) : assessmentText;
+  const withAssessment = buildRoadmapPrBody(safeText);
 
   const result = validateIssueBody(withAssessment);
-  if (result.valid) return { body: withAssessment, redacted: false, errors: [] };
+  if (result.valid) return { body: withAssessment, redacted: false, truncated, errors: [] };
 
-  return { body: buildRoadmapPrBody(null), redacted: true, errors: result.errors };
+  return { body: buildRoadmapPrBody(null), redacted: true, truncated, errors: result.errors };
 }
 
 // Thin orchestration wrapper used by the index dispatcher. Stores the
@@ -112,10 +137,15 @@ export async function update(context) {
   // Build the PR body, validating any LLM-supplied assessment text. The
   // assessment text reaches GitHub directly, so it must pass the same safety
   // checks as any other LLM output (blocked URLs, @mentions, API keys, …).
-  const { body: prBody, redacted, errors: bodyErrors } = buildSafePrBody(assessment?.assessment);
+  const { body: prBody, redacted, truncated, errors: bodyErrors } = buildSafePrBody(assessment?.assessment);
+  if (truncated && !redacted) {
+    console.log(`SAFETY: Assessment truncated to ${6000} chars before validation (verbose but benign).`);
+  }
   if (redacted) {
     console.warn('SAFETY: Roadmap PR body assessment failed validation, using safe fallback body:');
-    for (const err of bodyErrors) console.warn(`  - ${err}`);
+    // Redact user-controlled content from each error string before logging
+    // (otherwise an @mention or URL host blocked here would just leak into CI logs).
+    for (const err of bodyErrors) console.warn(`  - ${redactErrorForLog(err)}`);
   }
 
   // Create PR.

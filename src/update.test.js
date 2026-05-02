@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt } from './update.js';
+import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -65,6 +65,39 @@ describe('buildSafePrBody', () => {
     const result = buildSafePrBody(benign);
     assert.equal(result.redacted, false);
     assert.ok(result.body.includes('github.com'));
+  });
+
+  it('truncates over-long but benign assessments instead of dropping them', () => {
+    // Verbose-but-benign assessments would previously trigger fallback
+    // (length > MAX_BODY_LENGTH = 8000). Now we truncate before validation
+    // so operators can distinguish "too verbose" from "blocked content".
+    const verbose = 'A '.repeat(4000); // 8000 chars, all benign
+    const result = buildSafePrBody(verbose);
+    assert.equal(result.redacted, false, 'verbose-but-benign should not redact');
+    assert.equal(result.truncated, true, 'should be marked truncated');
+    assert.ok(result.body.length < 8000, 'body should be under MAX_BODY_LENGTH');
+  });
+});
+
+describe('redactErrorForLog', () => {
+  it('redacts the value portion of an @mention error', () => {
+    const err = 'Body contains @mention: @victim — LLM should not ping real users';
+    const out = redactErrorForLog(err);
+    assert.ok(!out.includes('@victim'), 'mention handle should be redacted');
+    assert.ok(out.includes('Body contains @mention'), 'category prefix should remain');
+    assert.ok(out.includes('[REDACTED]'), 'should mark redaction');
+  });
+
+  it('redacts the value portion of a URL error', () => {
+    const err = 'Body contains disallowed URL host: phishing.example.com';
+    const out = redactErrorForLog(err);
+    assert.ok(!out.includes('phishing.example.com'), 'host should be redacted');
+    assert.ok(out.includes('disallowed URL host'), 'category prefix should remain');
+  });
+
+  it('passes errors with no colon through unchanged', () => {
+    const err = 'Some unstructured warning';
+    assert.equal(redactErrorForLog(err), err);
   });
 });
 
