@@ -4,3 +4,4 @@ node_modules/
 data-*.json
 *.log
 reports
+.claude/

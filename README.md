@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       phase:
-        description: 'Phase to run (observe, assess, update, ideate, propose, report, or all)'
+        description: 'Phase to run (observe, assess, update, governance, ideate, propose, report, or all)'
         default: 'report'
 permissions:
   contents: write
@@ -42,7 +42,7 @@ The only required input is `github-token`. The `gemini-api-key` is needed for LL
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `github-token` | yes | `${{ github.token }}` | GitHub token with `contents`, `issues`, `pull-requests`, and `pages` write access |
-| `phase` | no | `all` | Which phase to run: observe, assess, update, ideate, propose, report, or all |
+| `phase` | no | `all` | Which phase to run: observe, assess, update, governance, ideate, propose, report, or all |
 | `config-path` | no | `.github/roadmap.yml` | Path to the roadmap config file |
 | `gemini-api-key` | no | — | Gemini API key (free tier: 10 RPM, 250 RPD) |
 | `claude-api-key` | no | — | Claude API key (for deep reasoning in ideate phase) |
@@ -77,14 +77,17 @@ The `schedule` section controls how often each phase runs. Setting `assess: dail
 
 ## How it works
 
-Repo Butler follows a six-phase loop: **OBSERVE → ASSESS → UPDATE → IDEATE → PROPOSE → REPORT**
+Repo Butler follows a seven-phase loop: **OBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT**
 
 - **OBSERVE** gathers project state via the GitHub API (issues, PRs, releases, labels, workflows, roadmap content) and classifies all portfolio repos by activity level. No LLM needed.
 - **ASSESS** diffs the current snapshot against the previous run, computes weekly trends (growing/shrinking/stable), and optionally summarises changes with Gemini Flash.
 - **UPDATE** generates an updated roadmap document, validates it through a safety layer, and opens a PR.
-- **IDEATE** generates improvement ideas using an LLM (Claude for deeper reasoning, Gemini Flash as default).
+- **GOVERNANCE** runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.
+- **IDEATE** generates improvement ideas using an LLM (Claude for deeper reasoning, Gemini Flash as default), feeding off the fresh governance findings.
 - **PROPOSE** safety-filters ideas (URL allowlist, @mention blocking, secret detection), then creates GitHub issues capped at `max_issues_per_run`, sorted by priority, labelled for human review.
 - **REPORT** generates HTML dashboards for every active repo in the portfolio, deployed to GitHub Pages.
+
+For a visual map of how the four scheduled workflows + on-demand `apply` and `onboard` interleave, see [`docs/architecture.md`](docs/architecture.md).
 
 ## Reports
 
@@ -92,7 +95,7 @@ The portfolio page (`index.html`) is the landing page with a stacked weekly comm
 
 Per-repo pages (`{repo-name}.html`) are generated for every active, non-fork, non-test repo. Repos with 10 or more commits in the last 6 months get full charts covering PR merge velocity (12 months), issues opened vs closed (12 months), release cadence, PR author distribution, open issues by label, and weekly trend lines when history is available. Repos with less activity get a lightweight summary card.
 
-Reports regenerate daily at 2am UTC and are deployed to GitHub Pages automatically. Caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day runs from ~15 minutes to seconds.
+Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day runs from ~15 minutes to seconds.
 
 ## Triage bot integration
 
@@ -129,6 +132,8 @@ src/
 ├── observe.js            # OBSERVE: GitHub API data gathering + portfolio classification
 ├── assess.js             # ASSESS: snapshot diffing, trend computation, LLM summarisation
 ├── update.js             # UPDATE: roadmap PR generation with safety validation
+├── governance.js         # GOVERNANCE: standards-gap, policy-drift, tier-uplift, dependabot-stale detection (deterministic)
+├── dependabot-audit.js   # Stale Dependabot PR detector (called by governance)
 ├── ideate.js             # IDEATE: LLM idea generation with structured parsing
 ├── propose.js            # PROPOSE: GitHub issue creation with safety filtering + approval gate
 ├── report.js             # REPORT: entry point, orchestrates report generation
@@ -136,7 +141,7 @@ src/
 ├── report-portfolio.js   # Portfolio reports, campaigns, dependency inventory
 ├── report-repo.js        # Per-repo charts, health sections, data fetchers
 ├── report-styles.js      # CSS template
-├── governance.js         # Standards-gap, policy-drift, tier-uplift detection
+├── apply.js              # Governance Apply: opens remediation PRs on target repos (manual dispatch)
 ├── council.js            # Agent-council deliberation on proposals and events
 ├── monitor.js            # Continuous event monitoring between daily runs
 ├── onboard.js            # Auto-onboarding PRs (CLAUDE.md marker) for new repos
@@ -195,6 +200,10 @@ For A2A-protocol-aware agents, the butler publishes an AgentCard at [`ismaelmart
 - Safe. All LLM output validated before publishing — URL allowlist, @mention blocking, secret detection, XSS prevention.
 - Free to run. GitHub Actions is unlimited for public repos, Gemini Flash free tier for LLM calls.
 - Self-dogfooding. This repo uses itself as its own planner.
+
+## Security
+
+To report a vulnerability, see [`SECURITY.md`](SECURITY.md). It also documents the trust model — GitHub App token scope, untrusted-data boundaries, the `repo-butler-data` branch treatment, and cross-repo write gates.
 
 ## License
 

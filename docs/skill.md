@@ -2,7 +2,7 @@
 
 ## What it is
 
-Repo Butler is a zero-dependency GitHub Action (Node 22, ES modules) that runs a six-phase pipeline against a GitHub repository. It observes project health via REST API, generates LLM-assisted assessments, rewrites a living roadmap, proposes GitHub issues, and deploys HTML dashboards to GitHub Pages. Its unique value is the portfolio-wide cross-repo view: it sees which tools are configured where, which repos are out of alignment, and can propose governance corrections across an entire org.
+Repo Butler is a zero-dependency GitHub Action (Node 22, ES modules) that runs a seven-phase pipeline against a GitHub repository. It observes project health via REST API, generates LLM-assisted assessments, rewrites a living roadmap, proposes GitHub issues, and deploys HTML dashboards to GitHub Pages. Its unique value is the portfolio-wide cross-repo view: it sees which tools are configured where, which repos are out of alignment, and can propose governance corrections across an entire org.
 
 Live reports: `https://ismaelmartinez.github.io/repo-butler/`
 Data branch: `repo-butler-data` (orphan branch, JSON snapshots)
@@ -10,7 +10,7 @@ Config repo: `IsmaelMartinez/repo-butler`
 
 ---
 
-## Six-Phase Pipeline
+## Seven-Phase Pipeline
 
 Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phase=` CLI arg. Default is `all`.
 
@@ -20,7 +20,9 @@ Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phas
 
 `UPDATE` — Rewrites `ROADMAP.md` and opens a PR. All LLM-generated content passes through `src/safety.js` validators before publication.
 
-`IDEATE` — Generates improvement proposals. Uses deep LLM provider (Claude Sonnet if configured, else falls back to default). Input is snapshot + portfolio context + triage bot intelligence. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
+`GOVERNANCE` — Runs deterministic detectors over the portfolio: standards-gap, policy-drift, tier-uplift proposals, and stale Dependabot PR audits. No LLM cost. Findings persist to `snapshots/governance.json` on the data branch and feed both the IDEATE prompt and the `get_governance_findings` MCP tool. Daily pipeline runs it 4×/day.
+
+`IDEATE` — Generates improvement proposals. Uses deep LLM provider (Claude Sonnet if configured, else falls back to default). Input is snapshot + portfolio context + triage bot intelligence + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
 
 `PROPOSE` — Creates GitHub issues from IDEATE output. Applies Jaccard similarity duplicate detection (threshold 0.6, title word comparison normalized to lowercase). Capped at `config.limits.max_issues_per_run` (default 3). Labels: `roadmap-proposal`, `agent-generated`.
 
