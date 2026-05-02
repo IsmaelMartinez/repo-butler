@@ -59,6 +59,29 @@ function loadPortfolioWeekly() {
   }
 }
 
+// List portfolio-weekly files (basenames like "2026-W18.json"), sorted oldest→newest.
+function listPortfolioWeeklyFiles() {
+  try {
+    const listing = runGitOnDataBranch(ref => ['ls-tree', '--name-only', ref, 'snapshots/portfolio-weekly/']).trim();
+    if (!listing) return [];
+    return listing.split('\n')
+      .map(p => p.replace(/^snapshots\/portfolio-weekly\//, ''))
+      .filter(f => f.endsWith('.json'))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+// Normalize a parsed weekly snapshot to a flat { repoName: data } map.
+// Supports both v1 envelope ({ schema_version, repos }) and legacy flat format.
+function unwrapWeeklyRepos(parsed) {
+  if (!parsed) return {};
+  if (parsed.repos && typeof parsed.repos === 'object') return parsed.repos;
+  // Legacy flat shape — keys are repo names directly.
+  return parsed;
+}
+
 
 // --- Resource definitions ---
 
@@ -178,6 +201,35 @@ const TOOLS = [
     description: 'Get the agent council personas and their roles. Useful for understanding which perspectives evaluate events and proposals.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetCouncilPersonas(),
+  },
+  {
+    name: 'get_weekly_trend',
+    description: 'Get a weekly time-series of health metrics (open issues, CI pass rate, community health, tier) for a single repo, or aggregate metrics across the whole portfolio when no repo is specified.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repo: { type: 'string', description: 'Repository name (without owner). Omit or pass null for portfolio-wide aggregate.' },
+        weeks: { type: 'number', description: 'Number of recent weeks to include (1–12, default 12).' },
+      },
+    },
+    handler: (args) => toolGetWeeklyTrend(args?.repo ?? null, args?.weeks),
+  },
+  {
+    name: 'get_open_governance_prs',
+    description: 'List outstanding repo-butler/apply-* governance PRs across the active portfolio. Reads the latest weekly snapshot for the repo list, then queries the gh CLI for open PRs on that branch prefix per repo.',
+    inputSchema: { type: 'object', properties: {} },
+    handler: () => toolGetOpenGovernancePrs(),
+  },
+  {
+    name: 'list_stale_dependabot_prs',
+    description: 'List stale Dependabot PRs detected by the dependabot-stale governance audit. Projects findings from snapshots/governance.json filtered by minimum age in days.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        min_age_days: { type: 'number', description: 'Minimum PR age in days (1–365, default 30).' },
+      },
+    },
+    handler: (args) => toolListStaleDependabotPrs(args?.min_age_days),
   },
 ];
 
@@ -381,6 +433,173 @@ function toolGetCouncilPersonas() {
     verdicts: ['act (take action now)', 'watch (re-evaluate later)', 'dismiss (no action needed)'],
     modes: ['quick (single LLM call, all perspectives)', 'full (separate call per agent + synthesis)'],
   };
+}
+
+// --- Input validators ---
+
+// GitHub repo names: alphanumerics, dots, hyphens, underscores; 1–100 chars.
+const REPO_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+
+function isValidRepoName(name) {
+  return typeof name === 'string' && REPO_NAME_RE.test(name);
+}
+
+function clampInt(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+// --- New read-only tools ---
+
+function projectWeekRow(week, data) {
+  if (!data) return null;
+  const { tier } = computeHealthTier(data);
+  return {
+    week,
+    open_issues: data.open_issues ?? null,
+    ci_pass_rate: data.ciPassRate ?? null,
+    community_health: data.communityHealth ?? null,
+    tier,
+  };
+}
+
+function toolGetWeeklyTrend(repoName, weeksArg) {
+  const weeks = clampInt(weeksArg, 12, 1, 12);
+
+  if (repoName !== null && repoName !== undefined && !isValidRepoName(repoName)) {
+    return { error: 'Invalid repo name. Must match [A-Za-z0-9][A-Za-z0-9._-]{0,99}.' };
+  }
+
+  const files = listPortfolioWeeklyFiles();
+  if (files.length === 0) return { error: 'No portfolio-weekly snapshots available.' };
+
+  const selected = files.slice(-weeks);
+  const parsed = selected.map(file => {
+    const week = file.match(/(\d{4}-W\d{2})/)?.[1] ?? file.replace(/\.json$/, '');
+    const raw = loadFromDataBranch(`snapshots/portfolio-weekly/${file}`);
+    if (!raw) return null;
+    try {
+      return { week, repos: unwrapWeeklyRepos(JSON.parse(raw)) };
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+
+  if (parsed.length === 0) return { error: 'Could not parse any weekly snapshots.' };
+
+  // Per-repo time-series.
+  if (repoName) {
+    const series = parsed
+      .map(({ week, repos }) => projectWeekRow(week, repos[repoName]))
+      .filter(Boolean);
+    return { repo: repoName, weeks: series.length, series };
+  }
+
+  // Portfolio-wide aggregate per week.
+  const aggregate = parsed.map(({ week, repos }) => {
+    const entries = Object.values(repos);
+    const tierCounts = { gold: 0, silver: 0, bronze: 0, none: 0 };
+    let totalOpenIssues = 0;
+    let ciSum = 0, ciCount = 0;
+    let chSum = 0, chCount = 0;
+    for (const data of entries) {
+      const { tier } = computeHealthTier(data);
+      if (tierCounts[tier] !== undefined) tierCounts[tier]++;
+      if (typeof data.open_issues === 'number') totalOpenIssues += data.open_issues;
+      if (typeof data.ciPassRate === 'number') { ciSum += data.ciPassRate; ciCount++; }
+      if (typeof data.communityHealth === 'number') { chSum += data.communityHealth; chCount++; }
+    }
+    return {
+      week,
+      repos: entries.length,
+      total_open_issues: totalOpenIssues,
+      avg_ci_pass_rate: ciCount > 0 ? ciSum / ciCount : null,
+      avg_community_health: chCount > 0 ? chSum / chCount : null,
+      tier_distribution: tierCounts,
+    };
+  });
+
+  return { weeks: aggregate.length, series: aggregate };
+}
+
+function toolGetOpenGovernancePrs() {
+  const weekly = loadPortfolioWeekly();
+  if (!weekly?.data) return { prs: [], error: 'No portfolio data available.' };
+
+  const owner = getRepoSlug()?.split('/')[0];
+  if (!owner) return { prs: [], error: 'Could not determine repo owner from git remote.' };
+
+  const repos = Object.keys(unwrapWeeklyRepos(weekly.data)).filter(isValidRepoName);
+
+  const prs = [];
+  for (const repo of repos) {
+    try {
+      const output = execFileSync('gh', [
+        'pr', 'list',
+        '--repo', `${owner}/${repo}`,
+        '--head', 'repo-butler/apply-',
+        '--state', 'open',
+        '--json', 'number,url,headRefName,createdAt',
+      ], { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 10000 });
+
+      const list = JSON.parse(output || '[]');
+      for (const pr of list) {
+        // gh's --head is a prefix match, but double-check the branch name.
+        if (typeof pr.headRefName !== 'string' || !pr.headRefName.startsWith('repo-butler/apply-')) continue;
+        const tool = pr.headRefName.replace(/^repo-butler\/apply-/, '').split('/')[0] || null;
+        prs.push({
+          repo,
+          pr_number: pr.number,
+          pr_url: pr.url,
+          tool,
+          opened_at: pr.createdAt,
+        });
+      }
+    } catch {
+      // Per-repo errors are swallowed by design — missing repo, no auth, etc.
+    }
+  }
+
+  return { owner, count: prs.length, prs };
+}
+
+function toolListStaleDependabotPrs(minAgeArg) {
+  const minAgeDays = clampInt(minAgeArg, 30, 1, 365);
+
+  const raw = loadFromDataBranch('snapshots/governance.json');
+  if (!raw) return { prs: [], message: 'No governance findings available — run the governance phase first.' };
+
+  let findings;
+  try {
+    findings = JSON.parse(raw);
+  } catch {
+    return { prs: [], error: 'Failed to parse governance findings.' };
+  }
+
+  const owner = getRepoSlug()?.split('/')[0] || null;
+  const prs = [];
+
+  for (const finding of findings) {
+    if (finding?.type !== 'dependabot-stale') continue;
+    const repo = finding.repo;
+    if (!isValidRepoName(repo)) continue;
+    for (const pr of finding.stalePRs || []) {
+      const age = Number(pr.age);
+      if (!Number.isFinite(age) || age < minAgeDays) continue;
+      prs.push({
+        repo,
+        pr_number: pr.number,
+        pr_url: owner ? `https://github.com/${owner}/${repo}/pull/${pr.number}` : null,
+        age_days: age,
+        title: pr.title ?? null,
+      });
+    }
+  }
+
+  prs.sort((a, b) => b.age_days - a.age_days);
+
+  return { min_age_days: minAgeDays, count: prs.length, prs };
 }
 
 // --- Portfolio computation helpers ---
