@@ -186,11 +186,11 @@
     "teams-for-linux": {
       "open_issues": 24,
       "open_bugs": 13,
-      "commits_6mo": 368,
+      "commits_6mo": 372,
       "stars": 4646,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.8431372549019608,
+      "ciPassRate": 0.9803921568627451,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -212,7 +212,7 @@
       },
       "ci": 16,
       "released_at": "2026-04-24T14:54:11Z",
-      "pushed_at": "2026-05-01T17:57:56Z",
+      "pushed_at": "2026-05-02T21:47:37Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -305,7 +305,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-02T07:32:06Z",
+      "pushed_at": "2026-05-03T04:22:23Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -837,11 +837,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 243,
+      "commits_6mo": 244,
       "stars": 3,
       "license": "MIT",
-      "communityHealth": 85,
-      "ciPassRate": 0.975609756097561,
+      "communityHealth": 100,
+      "ciPassRate": 0.9333333333333333,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-02T18:13:41Z",
+      "pushed_at": "2026-05-03T06:46:11Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,11 +1023,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 228,
+      "commits_6mo": 229,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9782608695652174,
+      "ciPassRate": 0.967391304347826,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1049,7 +1049,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-02T18:34:44Z",
+      "pushed_at": "2026-05-03T07:07:53Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1120,7 +1120,7 @@
       "stars": 0,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9615384615384616,
+      "ciPassRate": 0.95,
       "vulns": {
         "count": 0,
         "critical": 0,
