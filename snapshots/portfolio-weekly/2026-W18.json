@@ -837,11 +837,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 244,
+      "commits_6mo": 250,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9333333333333333,
+      "ciPassRate": 0.935064935064935,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-03T06:46:11Z",
+      "pushed_at": "2026-05-03T07:45:15Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
