@@ -21,6 +21,19 @@ export function buildRoadmapPrBody(assessmentText) {
   ].join('\n');
 }
 
+const ROADMAP_BRANCH_PREFIX = 'repo-butler/roadmap-update-';
+
+// Find an open roadmap-update PR. Returns the first match or null. Exported
+// for testing. Uses the paginate helper's default cap (500) — a stale roadmap
+// PR could otherwise be hidden behind 100+ unrelated PRs in busy consumer
+// repos and cause the dedup to silently miss.
+export async function findOpenRoadmapPr(gh, owner, repo) {
+  const open = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+    params: { state: 'open' },
+  });
+  return open.find(pr => pr.head?.ref?.startsWith(ROADMAP_BRANCH_PREFIX)) || null;
+}
+
 // Conservative ceiling for the assessment text inside the PR body. Leaves
 // headroom under safety.js's MAX_BODY_LENGTH (8000) for surrounding header
 // and footer. Long-but-benign assessments are truncated rather than dropped
@@ -83,6 +96,19 @@ export async function update(context) {
   const roadmapPath = config.roadmap?.path || 'ROADMAP.md';
   const currentRoadmap = snapshot.roadmap?.content || '';
 
+  const gh = createClient(token);
+
+  // Idempotency: the daily pipeline runs 4×/day. Without this guard, every
+  // run opens a fresh roadmap PR. If a previous run's PR is still open, treat
+  // it as the authoritative draft and skip — the next run after merge/close
+  // will open a new one with current state. Run before the LLM call so
+  // skipped runs cost zero tokens.
+  const existing = await findOpenRoadmapPr(gh, owner, repo);
+  if (existing) {
+    console.log(`Open roadmap PR already exists: ${existing.html_url} — skipping.`);
+    return { roadmap: null, pr: existing.html_url, safety: null, deduped: true };
+  }
+
   const prompt = buildUpdatePrompt(currentRoadmap, snapshot, assessment, config.context);
   const updatedRoadmap = await provider.generate(prompt);
 
@@ -101,8 +127,7 @@ export async function update(context) {
     return { roadmap: updatedRoadmap, pr: null, safety };
   }
 
-  const gh = createClient(token);
-  const branchName = `repo-butler/roadmap-update-${Date.now()}`;
+  const branchName = `${ROADMAP_BRANCH_PREFIX}${Date.now()}`;
   const defaultBranch = snapshot.meta?.default_branch || 'main';
 
   // Create branch from default branch.
