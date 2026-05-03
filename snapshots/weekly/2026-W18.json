@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-03T07:45:31.664Z",
+  "timestamp": "2026-05-03T07:51:35.961Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 1,
+    "open_issues_count": 0,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-03T07:45:15Z",
+    "pushed_at": "2026-05-03T07:51:15Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 173,
+        "title": "refactor: extract shared helpers and remove dead import",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:51:14Z"
+      },
       {
         "number": 172,
         "title": "feat(report): polish dashboard with intro, About section, and shared footer",
@@ -1380,9 +1387,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 168,
+    "recently_merged_prs": 169,
     "bot_prs": 5,
-    "human_prs": 163,
+    "human_prs": 164,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
