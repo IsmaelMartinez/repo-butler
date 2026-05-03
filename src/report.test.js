@@ -1148,6 +1148,97 @@ describe('generateRepoReport restructure', () => {
   });
 });
 
+describe('dashboard inspiration polish', () => {
+  // Canonical doc URLs that should appear in every page footer so visitors
+  // can navigate to the architecture, security model, ADRs, and source.
+  const FOOTER_LINKS = [
+    'https://github.com/IsmaelMartinez/repo-butler',
+    'https://github.com/IsmaelMartinez/repo-butler/blob/main/docs/architecture.md',
+    'https://github.com/IsmaelMartinez/repo-butler/blob/main/SECURITY.md',
+    'https://github.com/IsmaelMartinez/repo-butler/tree/main/docs/decisions',
+  ];
+
+  function minimalPortfolio() {
+    const portfolio = { repos: [
+      { name: 'a', stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ]};
+    const details = { a: { commits: 5, weekly: [1], license: 'MIT', ci: 1, communityHealth: 80, vulns: { count: 0, max_severity: null }, ciPassRate: 1.0, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    return { portfolio, details };
+  }
+
+  function minimalRepoSnapshot() {
+    return {
+      repository: 'owner/test', meta: { stars: 0, forks: 0, watchers: 0 },
+      issues: { open: [] }, releases: [],
+      community_profile: null, dependabot_alerts: null,
+      code_scanning_alerts: null, secret_scanning_alerts: null, ci_pass_rate: null,
+      pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
+      summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 0, human_prs: 0, bot_prs: 0, releases: 0, latest_release: 'none', ci_workflows: 0, bus_factor: 0, time_to_close_median: null },
+    };
+  }
+
+  it('portfolio dashboard shows the hero intro with a link to the source repo', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = minimalPortfolio();
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('class="hero-intro"'), 'should render hero intro block');
+    assert.ok(html.includes('seven-phase pipeline'), 'intro should mention the seven-phase pipeline');
+    assert.ok(html.includes('https://github.com/IsmaelMartinez/repo-butler'), 'intro should link to the source repo');
+  });
+
+  it('portfolio dashboard shows the collapsible About section with all seven phases', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = minimalPortfolio();
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('About — How it works'), 'should have About summary');
+    assert.ok(html.includes('class="about-phases"'), 'should render the phase list');
+    for (const phase of ['OBSERVE', 'ASSESS', 'UPDATE', 'GOVERNANCE', 'IDEATE', 'PROPOSE', 'REPORT']) {
+      assert.ok(html.includes(`<strong>${phase}</strong>`), `About section should list the ${phase} phase`);
+    }
+  });
+
+  it('portfolio dashboard renders the site footer with all documentation links', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = minimalPortfolio();
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('class="site-footer"'), 'should render the site footer');
+    for (const link of FOOTER_LINKS) {
+      assert.ok(html.includes(link), `footer should link to ${link}`);
+    }
+    assert.ok(html.includes('Built with zero dependencies, Node 22, on GitHub Actions'), 'footer should include the tagline');
+  });
+
+  it('per-repo report renders the site footer with all documentation links', async () => {
+    const { generateRepoReport } = await import('./report-repo.js');
+    const html = generateRepoReport(minimalRepoSnapshot(), [], [], [], null, null, [], null, [], null, null, {});
+    assert.ok(html.includes('class="site-footer"'), 'per-repo report should render the site footer');
+    for (const link of FOOTER_LINKS) {
+      assert.ok(html.includes(link), `per-repo footer should link to ${link}`);
+    }
+  });
+
+  it('light per-repo report renders the site footer with all documentation links', async () => {
+    const { generateLightRepoReport } = await import('./report-repo.js');
+    const repo = { name: 'quiet', description: 'A quiet repo', stars: 0, forks: 0, open_issues: 0, language: 'JS', pushed_at: new Date().toISOString() };
+    const html = generateLightRepoReport('owner', repo, { commits: 1, ci: 0, license: 'MIT' });
+    assert.ok(html.includes('class="site-footer"'), 'light report should render the site footer');
+    for (const link of FOOTER_LINKS) {
+      assert.ok(html.includes(link), `light report footer should link to ${link}`);
+    }
+  });
+
+  it('weekly digest renders the site footer with all documentation links', async () => {
+    const { generateDigestReport } = await import('./report-portfolio.js');
+    const repos = [{ name: 'a', stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' }];
+    const repoDetails = { a: { commits: 5, weekly: [1], vulns: null, ciPassRate: 1.0, open_issues: 0 } };
+    const html = generateDigestReport('owner', repos, repoDetails);
+    assert.ok(html.includes('class="site-footer"'), 'digest should render the site footer');
+    for (const link of FOOTER_LINKS) {
+      assert.ok(html.includes(link), `digest footer should link to ${link}`);
+    }
+  });
+});
+
 describe('report cache invalidation includes report.js', () => {
   it('templateFiles array includes src/report.js', async () => {
     const { readFile } = await import('node:fs/promises');
