@@ -128,7 +128,7 @@ describe('MCP server', async () => {
       assert.equal(responses.length, 1);
       const tools = responses[0].result.tools;
       assert.ok(Array.isArray(tools));
-      assert.equal(tools.length, 9);
+      assert.equal(tools.length, 12);
 
       const names = tools.map(t => t.name);
       assert.ok(names.includes('get_health_tier'));
@@ -140,6 +140,9 @@ describe('MCP server', async () => {
       assert.ok(names.includes('get_monitor_events'));
       assert.ok(names.includes('get_watchlist'));
       assert.ok(names.includes('get_council_personas'));
+      assert.ok(names.includes('get_weekly_trend'));
+      assert.ok(names.includes('get_open_governance_prs'));
+      assert.ok(names.includes('list_stale_dependabot_prs'));
 
       // Every tool must have an inputSchema.
       for (const tool of tools) {
@@ -251,6 +254,105 @@ describe('MCP server', async () => {
       assert.ok(r.result?.content);
       const data = JSON.parse(r.result.content[0].text);
       assert.ok(Array.isArray(data.findings));
+    });
+
+    it('get_weekly_trend returns a series for an aggregate query', () => {
+      restoreStdout();
+      const result = callTool('get_weekly_trend', {});
+      assert.ok(result, 'expected a result');
+      // Either real data is available (series array) or a clear error payload.
+      if (Array.isArray(result.series)) {
+        assert.equal(typeof result.weeks, 'number');
+        for (const row of result.series) {
+          assert.ok(typeof row.week === 'string', 'each row must have a week label');
+          assert.ok(row.tier_distribution, 'aggregate row must include tier_distribution');
+          assert.ok(typeof row.repos === 'number');
+        }
+      } else {
+        assert.ok(result.error, 'when no series, an error must be present');
+      }
+    });
+
+    it('get_weekly_trend per-repo query returns repo-keyed series', () => {
+      restoreStdout();
+      const result = callTool('get_weekly_trend', { repo: 'repo-butler', weeks: 4 });
+      assert.ok(result);
+      if (Array.isArray(result.series)) {
+        assert.equal(result.repo, 'repo-butler');
+        for (const row of result.series) {
+          assert.ok(typeof row.week === 'string');
+          assert.ok(['gold', 'silver', 'bronze', 'none'].includes(row.tier));
+        }
+      } else {
+        assert.ok(result.error);
+      }
+    });
+
+    it('get_weekly_trend rejects invalid repo names', () => {
+      restoreStdout();
+      const result = callTool('get_weekly_trend', { repo: '../etc/passwd' });
+      assert.ok(result?.error, 'expected an error for invalid repo name');
+      assert.match(result.error, /Invalid repo name/);
+    });
+
+    it('get_weekly_trend clamps weeks beyond the 1–12 range', () => {
+      restoreStdout();
+      const result = callTool('get_weekly_trend', { weeks: 9999 });
+      assert.ok(result);
+      if (Array.isArray(result.series)) {
+        // Should never exceed 12 weeks even when caller asks for more.
+        assert.ok(result.series.length <= 12);
+      } else {
+        assert.ok(result.error);
+      }
+    });
+
+    it('get_open_governance_prs returns a prs array', () => {
+      restoreStdout();
+      const result = callTool('get_open_governance_prs', {});
+      assert.ok(result);
+      // Either we get a prs array (possibly empty) or an error explaining why we couldn't list.
+      if (Array.isArray(result.prs)) {
+        for (const pr of result.prs) {
+          assert.ok(typeof pr.repo === 'string');
+          assert.ok(typeof pr.pr_number === 'number');
+          assert.ok(typeof pr.pr_url === 'string');
+          assert.ok('opened_at' in pr);
+        }
+      } else {
+        assert.ok(result.error);
+      }
+    });
+
+    it('list_stale_dependabot_prs returns a prs array projected from governance.json', () => {
+      restoreStdout();
+      const result = callTool('list_stale_dependabot_prs', {});
+      assert.ok(result);
+      if (Array.isArray(result.prs)) {
+        assert.equal(result.min_age_days, 30);
+        for (const pr of result.prs) {
+          assert.ok(typeof pr.repo === 'string');
+          assert.ok(typeof pr.pr_number === 'number');
+          assert.ok(typeof pr.age_days === 'number');
+          assert.ok(pr.age_days >= 30, 'age must respect min_age_days threshold');
+        }
+      } else {
+        assert.ok(result.message || result.error);
+      }
+    });
+
+    it('list_stale_dependabot_prs honours a custom min_age_days', () => {
+      restoreStdout();
+      const result = callTool('list_stale_dependabot_prs', { min_age_days: 60 });
+      assert.ok(result);
+      if (Array.isArray(result.prs)) {
+        assert.equal(result.min_age_days, 60);
+        for (const pr of result.prs) {
+          assert.ok(pr.age_days >= 60);
+        }
+      } else {
+        assert.ok(result.message || result.error);
+      }
     });
   });
 
