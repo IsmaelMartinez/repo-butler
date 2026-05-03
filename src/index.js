@@ -87,7 +87,7 @@ async function main() {
     || 'all';
 
   const configPath = process.env.INPUT_CONFIG_PATH || '.github/roadmap.yml';
-  const dryRun = (process.env.INPUT_DRY_RUN || 'false') === 'true';
+  const dryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
   const token = process.env.INPUT_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
 
   if (!token) {
