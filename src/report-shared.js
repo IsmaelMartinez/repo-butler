@@ -5,10 +5,35 @@ export const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
 
 export const TIER_DISPLAY = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze', none: 'Unranked' };
 export const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
+
+// Return the next tier above `tier` in the gold > silver > bronze > none ladder,
+// or null if `tier` is already 'gold' (or unrecognised).
+export function nextTier(tier) {
+  if (tier === 'none') return 'bronze';
+  if (tier === 'bronze') return 'silver';
+  if (tier === 'silver') return 'gold';
+  return null;
+}
+
+// True if a check counts toward reaching `tier`. Gold tier inherits silver
+// requirements (a Gold repo must pass everything Silver requires plus the
+// Gold-specific checks), so a check.required_for of 'silver' also counts
+// when targeting 'gold'. Centralised here so the rule lives in one place.
+export function isCheckRequiredForTier(check, tier) {
+  if (check.required_for === tier) return true;
+  if (tier === 'gold' && check.required_for === 'silver') return true;
+  return false;
+}
 export const COLOR_SUCCESS = 'var(--color-success)';
 export const COLOR_WARNING = 'var(--color-warning)';
 export const COLOR_DANGER = 'var(--color-danger)';
 export const REPO_EXCLUSION_PATTERNS = ['shadow', 'test-repo'];
+
+// True when a repo name matches any exclusion pattern (test/shadow repos that
+// should be filtered out of dashboards, governance, MCP listings, etc.).
+export function isExcludedRepo(name) {
+  return REPO_EXCLUSION_PATTERNS.some(p => name.includes(p));
+}
 
 // Bumped when cached repo `details` shape or its derivation logic changes,
 // so existing per-repo cache entries are recomputed even if pushed_at is unchanged.
@@ -47,6 +72,12 @@ export function getLibyearColor(libyearVal) {
     { lt: LIBYEAR_THRESHOLDS.YELLOW, color: COLOR_WARNING },
     { lt: Infinity, color: COLOR_DANGER },
   ]);
+}
+
+// True when an alert summary's max_severity is 'critical' or 'high'. Accepts
+// the shape returned by `getAlertSummary` (or null/undefined → false).
+export function isHighSeverity(summary) {
+  return summary?.max_severity === 'critical' || summary?.max_severity === 'high';
 }
 
 // Tally an alert array into { count, critical, high, medium, low, max_severity }.

@@ -1,11 +1,12 @@
 // Per-repo report generation: full dashboard and lightweight reports.
 
+import { paginateIssues } from './github.js';
 import { CSS, SITE_FOOTER, htmlPage } from './report-styles.js';
 import {
   TIER_DISPLAY, TIER_COLORS, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, fmt, countBy,
   daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
-  colorByThreshold,
+  colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
 } from './report-shared.js';
 
 // Range tuples for value-to-colour mapping in per-repo dashboards.
@@ -72,14 +73,14 @@ export async function fetchMonthlyPRActivity(gh, owner, repo) {
 export async function fetchMonthlyIssueActivity(gh, owner, repo) {
   const since = daysAgoISO(365);
   const [created, closed] = await Promise.all([
-    gh.paginate(`/repos/${owner}/${repo}/issues`, {
+    paginateIssues(gh, owner, repo, {
       params: { state: 'all', since, sort: 'created', direction: 'desc' },
       max: 500,
-    }).then(items => items.filter(i => !i.pull_request)),
-    gh.paginate(`/repos/${owner}/${repo}/issues`, {
+    }),
+    paginateIssues(gh, owner, repo, {
       params: { state: 'closed', since, sort: 'updated', direction: 'desc' },
       max: 500,
-    }).then(items => items.filter(i => !i.pull_request)),
+    }),
   ]);
   const months = last12Months();
   return months.map(({ label, start, end }) => ({
@@ -412,9 +413,9 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
   const color = TIER_COLORS[tier] || TIER_COLORS.none;
   const display = TIER_DISPLAY[tier] || 'Unranked';
 
-  const nextTier = tier === 'none' ? 'bronze' : tier === 'bronze' ? 'silver' : tier === 'silver' ? 'gold' : null;
-  const failedForNext = nextTier
-    ? checks.filter(c => !c.passed && (c.required_for === nextTier || (nextTier === 'gold' && c.required_for === 'silver')))
+  const next = nextTier(tier);
+  const failedForNext = next
+    ? checks.filter(c => !c.passed && isCheckRequiredForTier(c, next))
     : [];
 
   const checkRows = checks.map(c => {
@@ -430,9 +431,9 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
       <td>${detailHtml}</td></tr>`;
   }).join('');
 
-  const nextTierHtml = nextTier && failedForNext.length > 0
+  const nextTierHtml = next && failedForNext.length > 0
     ? `<div style="margin-top:1rem;padding:1rem;background:#0d1117;border-radius:6px;border:1px solid #21262d">
-<div class="muted" style="font-size:0.85rem;margin-bottom:0.5rem">To reach <span class="tier-badge tier-${nextTier}">${TIER_DISPLAY[nextTier]}</span>:</div>
+<div class="muted" style="font-size:0.85rem;margin-bottom:0.5rem">To reach <span class="tier-badge tier-${next}">${TIER_DISPLAY[next]}</span>:</div>
 ${failedForNext.map(c => `<div class="text-danger" style="font-size:0.85rem;margin-left:0.5rem">\u2717 ${c.name}</div>`).join('')}
 </div>`
     : tier === 'gold' ? '<div class="text-success" style="margin-top:1rem;font-size:0.85rem">All criteria met. This repo has achieved Gold tier.</div>' : '';
@@ -489,7 +490,7 @@ ${da.critical ? `<span class="text-danger">${da.critical} critical</span><br>` :
   const codeScanHtml = buildStatCard({
     title: 'Code Scanning',
     value: cs?.count,
-    color: cs && (cs.count === 0 ? COLOR_SUCCESS : cs.max_severity === 'critical' || cs.max_severity === 'high' ? COLOR_DANGER : COLOR_WARNING),
+    color: cs && (cs.count === 0 ? COLOR_SUCCESS : isHighSeverity(cs) ? COLOR_DANGER : COLOR_WARNING),
     label: cs?.count === 0 ? 'No open alerts' : 'open alerts',
     available: !!cs,
   });

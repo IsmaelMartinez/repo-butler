@@ -7,7 +7,7 @@
 //   report-shared.js    — shared helpers, constants, computeHealthTier, generateHealthBadge
 //   report-styles.js    — CSS template literal
 
-import { createClient } from './github.js';
+import { createClient, paginateIssues } from './github.js';
 import { observe, observePortfolio, computeBusFactor, computeTimeToCloseMedian } from './observe.js';
 import { computeSnapshotHash } from './store.js';
 import { computeTrends } from './assess.js';
@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot } from './report-shared.js';
+import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot, isExcludedRepo } from './report-shared.js';
 import { buildAgentCard } from './agent-card.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
@@ -28,7 +28,6 @@ import {
   fetchPortfolioDetails, analyzeDependencyInventory,
   generatePortfolioReport, generateDigestReport,
   generateSparklineSVG, buildCampaignSection,
-  buildPortfolioAttentionSection,
 } from './report-portfolio.js';
 
 // Re-export everything that tests and other modules need from report.js
@@ -99,7 +98,7 @@ export async function report(context) {
   // Generate per-repo reports first to collect contributor data for portfolio table.
   if (portfolio) {
     const activeRepos = portfolio.repos
-      .filter(r => !r.archived && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo'))
+      .filter(r => !r.archived && !r.fork && !isExcludedRepo(r.name))
       .sort((a, b) => (repoDetails?.[b.name]?.commits || 0) - (repoDetails?.[a.name]?.commits || 0));
 
     let freshCount = 0;
@@ -153,11 +152,10 @@ export async function report(context) {
             gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
               .then(rels => rels.filter(isPublishedRelease))
               .catch(() => []),
-            gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 100 })
-              .then(issues => issues.filter(i => !i.pull_request))
+            paginateIssues(gh, owner, r.name, { params: { state: 'open' }, max: 100 })
               .catch(() => []),
-            gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'closed', since: daysAgoISO(90), sort: 'updated', direction: 'desc' }, max: 200 })
-              .then(issues => issues.filter(i => !i.pull_request).map(i => ({ created_at: i.created_at, closed_at: i.closed_at })))
+            paginateIssues(gh, owner, r.name, { params: { state: 'closed', since: daysAgoISO(90), sort: 'updated', direction: 'desc' }, max: 200 })
+              .then(issues => issues.map(i => ({ created_at: i.created_at, closed_at: i.closed_at })))
               .catch(() => []),
             gh.request(`/repos/${owner}/${r.name}`).catch(() => null),
             gh.request(`/repos/${owner}/${r.name}/community/profile`)
@@ -298,7 +296,7 @@ export async function report(context) {
   // Generate SVG health badges for each active repo and portfolio overall.
   if (portfolio) {
     const activeRepos = portfolio.repos
-      .filter(r => !r.archived && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo'))
+      .filter(r => !r.archived && !r.fork && !isExcludedRepo(r.name))
       .sort((a, b) => (repoDetails?.[b.name]?.commits || 0) - (repoDetails?.[a.name]?.commits || 0));
 
     // Generate SVG health badges for each active repo and portfolio overall.
@@ -316,7 +314,7 @@ export async function report(context) {
       const svg = generateHealthBadge(r.name, tier);
       await writeFile(join(badgeDir, `${r.name}.svg`), svg);
       const pushed = new Date(r.pushed_at);
-      const isActive = pushed >= SIX_MONTHS_AGO && !r.fork && !r.name.includes('shadow') && !r.name.includes('test-repo');
+      const isActive = pushed >= SIX_MONTHS_AGO && !r.fork && !isExcludedRepo(r.name);
       if (isActive) {
         tierSum += tierOrder[tier] || 0;
         scoredCount++;
