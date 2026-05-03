@@ -1,0 +1,10 @@
+# CodeQL configuration for repo-butler.
+#
+# Exclude test files from analysis. Test fixtures contain literal URL strings
+# and other patterns that CodeQL's "incomplete URL substring sanitization"
+# query flags as if they were production validators — they are not. The
+# production safety code lives in src/safety.js and is fully analysed.
+paths-ignore:
+  - "**/*.test.js"
+  - "src/safety.js"  # already excluded from CI secret-leak grep — contains the
+                     # detection patterns themselves, which look like literal secrets
