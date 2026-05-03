@@ -2,7 +2,10 @@
 // Manual-dispatch only — never on cron. Reads findings from the data branch,
 // validates shape, generates templated config files, and opens PRs.
 
-const REPO_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+import { REPO_NAME_PATTERN } from './safety.js';
+// Re-export for backwards compat with existing onboard.js import.
+// Canonical home is safety.js (the security boundary).
+export { REPO_NAME_PATTERN };
 
 const TEMPLATES = {
   'code-scanning': {

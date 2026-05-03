@@ -6,7 +6,7 @@
 // If no repos are specified, reads ONBOARD_REPOS env var (comma-separated).
 
 import { createClient } from './github.js';
-import { sanitizeContributorName, validateGitHubUsername } from './safety.js';
+import { validateGitHubUsername, REPO_NAME_PATTERN } from './safety.js';
 
 const BRANCH_NAME = 'repo-butler/onboard';
 const MARKER = 'repo-butler';
@@ -63,9 +63,8 @@ export async function onboard(token, repos) {
       console.warn(`Skipping repo with invalid owner: ${repoFullName}`);
       continue;
     }
-    const safeName = sanitizeContributorName(repo);
-    if (!safeName) {
-      console.warn(`Skipping repo with unsafe name: ${repoFullName}`);
+    if (!REPO_NAME_PATTERN.test(repo)) {
+      console.warn(`onboard: skipping repo with invalid name: ${repoFullName}`);
       continue;
     }
 

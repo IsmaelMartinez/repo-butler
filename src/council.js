@@ -270,8 +270,16 @@ function formatItemForPrompt(item) {
   if (item.type) lines.push(`Type: ${item.type}`);
   if (item.severity) lines.push(`Severity: ${item.severity}`);
   if (item.title) lines.push(`Title: ${sanitizeForPrompt(item.title)}`);
-  if (item.labels?.length) lines.push(`Labels: ${item.labels.join(', ')}`);
-  if (item.author) lines.push(`Author: ${item.author}`);
+  if (item.labels?.length) {
+    // Drop empty entries left behind when sanitizeForPrompt strips an
+    // injection-shaped label entirely, otherwise we get "Labels: , bug".
+    const safeLabels = item.labels.map(l => sanitizeForPrompt(String(l))).filter(Boolean);
+    if (safeLabels.length) lines.push(`Labels: ${safeLabels.join(', ')}`);
+  }
+  if (item.author) {
+    const safeAuthor = sanitizeForPrompt(String(item.author));
+    if (safeAuthor) lines.push(`Author: ${safeAuthor}`);
+  }
   if (item.body) lines.push(`Body: ${sanitizeForPrompt(item.body).slice(0, 500)}`);
   if (item.priority) lines.push(`Priority: ${item.priority}`);
   if (item.rationale) lines.push(`Rationale: ${sanitizeForPrompt(item.rationale)}`);
