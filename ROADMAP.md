@@ -117,7 +117,7 @@ Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS,
 
 ~~**Weekly IDEATE workflow (dry-run first)**~~ — SHIPPED. `.github/workflows/weekly-ideate.yml` runs `observe,ideate` every Monday at 06:00 UTC with `dry-run: true`. No issue or PR writes; governance findings still persist to the `repo-butler-data` branch for the MCP `get_governance_findings` tool. Graduate to `observe,ideate,propose` later once the council output is trusted. Acceptance (pending): governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality.
 
-~~**UPDATE in dry-run mode on the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js:33` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file.
+~~**UPDATE in dry-run mode on the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file.
 
 ~~**Graduate UPDATE off dry-run**~~ — SHIPPED 2026-05-03. After 2+ weeks of clean soak-test output, UPDATE now writes a real ROADMAP PR on the daily pipeline. Because the workflow runs 4×/day, `update.js` first calls `findOpenRoadmapPr()` and skips if a previous run's PR is still open — the next run after merge/close opens a fresh one. `self-test.yml` `INPUT_DRY_RUN` fallback is now `'false'` and the workflow_dispatch default flipped to match.
 
