@@ -143,13 +143,13 @@ All four follow-ups shipped across PRs #149–#152: parseIdeas BODY-then-stop (#
 
 Shipped 2026-05-01. Code-scanning rollout (13/13 repos, security alerts zeroed across portfolio via 10 fix PRs), Dependabot config audit (all repos now have npm + github-actions, 4 PRs merged), and licence policy update (policy-drift-exempt config added in PR #157 whitelisting teams-for-linux GPL-3.0 and bonnie-wee-plot Community Allotment Licence). Zero open vulnerabilities across the portfolio as of snapshot 2026-W18.
 
-### Cross-repo PR automation (follow-up)
+### ~~Cross-repo PR automation (follow-up)~~ SHIPPED
 
-The sweep above does by hand what should be automated. The remaining gap, also called out under Phase 5, is:
+Shipped 2026-05-01 via `src/apply.js`, `.github/workflows/apply.yml`, and `src/dependabot-audit.js`.
 
-`governance:apply` — A new pipeline phase or workflow that reads governance findings from `repo-butler-data` and opens templated PRs across affected repos. Standards-gap findings (e.g. "code-scanning enabled on 4/13 repos") should produce one PR per non-compliant repo using a shared workflow template. Requires the GitHub App cross-repo token already noted in Phase 5. Always opt-in via config, always behind `require_approval`, never auto-merge.
+~~`governance:apply`~~ — SHIPPED. `applyGovernanceFindings` reads findings from the data branch, validates shape, generates templated config files for code-scanning + dependabot, opens PRs on target repos with the `governance-apply` label. Manual-dispatch only via `apply.yml`, dry-run by default (fail-closed semantics), batch-cap of 5 PRs per run, behind `require_approval`. See [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md) for the full layered-gate rationale.
 
-`dependabot:audit` — Lightweight monitor pass: which repos lack `.github/dependabot.yml`, which have stale unmerged Dependabot PRs (>30d). Surface in the Governance dashboard section.
+~~`dependabot:audit`~~ — SHIPPED. `auditDependabot` at `src/dependabot-audit.js` flags repos with stale unmerged Dependabot PRs (>30d high-priority, >60d critical). Findings persist as `dependabot-stale` entries in `governance.json` and are surfaced via the MCP `list_stale_dependabot_prs` tool plus the dashboard's Governance section.
 
 ### Phase 5 — Portfolio Governance Engine
 
@@ -171,7 +171,7 @@ Detection engine shipped (`src/governance.js`). The pipeline runs `detectStandar
 
 ~~**Governance findings dashboard**~~ — SHIPPED. `buildGovernanceSection` at `src/report-portfolio.js:421` renders a Governance section on the portfolio report with three tables: Standards Gaps (by tool, sorted by adoption rate), Policy Drift (by category), and Tier Uplift Opportunities (silver→gold prioritised, listing remaining checks per repo).
 
-**Cross-repo PR creation** — The remaining gap. Uses a GitHub App (preferred over fine-grained PATs for auto-expiring 1-hour tokens, no manual rotation, and audit trail under the app's identity). Install the app on target repos and use `actions/create-github-app-token` in the workflow. Governance proposals should be opt-in via config and always respect `require_approval` (proposals only, never auto-merge).
+~~**Cross-repo PR creation**~~ — SHIPPED. `src/apply.js` + `.github/workflows/apply.yml`. Uses the GitHub App token (`actions/create-github-app-token`) for cross-repo writes, dispatch-only, dry-run fail-closed, `require_approval` gated, batch-capped at 5 PRs per run. See ADR-005 for the layered-gate rationale.
 
 ~~**Auto-onboarding**~~ — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.
 
