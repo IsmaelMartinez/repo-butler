@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, redactErrorForLog } from './update.js';
+import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, findOpenRoadmapPr, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -98,6 +98,45 @@ describe('redactErrorForLog', () => {
   it('passes errors with no colon through unchanged', () => {
     const err = 'Some unstructured warning';
     assert.equal(redactErrorForLog(err), err);
+  });
+});
+
+describe('findOpenRoadmapPr', () => {
+  const fakeGh = (prs) => ({
+    paginate: async () => prs,
+  });
+
+  it('returns the first open PR with a roadmap-update branch', async () => {
+    const prs = [
+      { head: { ref: 'feature/something' }, html_url: 'https://x/1' },
+      { head: { ref: 'repo-butler/roadmap-update-12345' }, html_url: 'https://x/2' },
+      { head: { ref: 'repo-butler/roadmap-update-67890' }, html_url: 'https://x/3' },
+    ];
+    const found = await findOpenRoadmapPr(fakeGh(prs), 'o', 'r');
+    assert.equal(found.html_url, 'https://x/2');
+  });
+
+  it('returns null when no roadmap-update PR is open', async () => {
+    const prs = [
+      { head: { ref: 'feature/x' }, html_url: 'https://x/1' },
+      { head: { ref: 'fix/y' }, html_url: 'https://x/2' },
+    ];
+    const found = await findOpenRoadmapPr(fakeGh(prs), 'o', 'r');
+    assert.equal(found, null);
+  });
+
+  it('returns null when there are no open PRs at all', async () => {
+    const found = await findOpenRoadmapPr(fakeGh([]), 'o', 'r');
+    assert.equal(found, null);
+  });
+
+  it('ignores PRs with a similar but non-matching prefix', async () => {
+    const prs = [
+      { head: { ref: 'repo-butler/roadmap-other' }, html_url: 'https://x/1' },
+      { head: { ref: 'roadmap-update-99' }, html_url: 'https://x/2' },
+    ];
+    const found = await findOpenRoadmapPr(fakeGh(prs), 'o', 'r');
+    assert.equal(found, null);
   });
 });
 

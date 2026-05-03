@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-04-29
+**Last Updated:** 2026-05-03
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 10 Gold + 3 Silver (13 repos); the Silver tier holds `teams-for-linux` (>10 open bugs), `betis-escocia`, and `ai-model-advisor` (both blocked by a critical vuln). Private repos now included via the installation-scoped discovery endpoint.
 
 ---
@@ -117,7 +117,9 @@ Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS,
 
 ~~**Weekly IDEATE workflow (dry-run first)**~~ — SHIPPED. `.github/workflows/weekly-ideate.yml` runs `observe,ideate` every Monday at 06:00 UTC with `dry-run: true`. No issue or PR writes; governance findings still persist to the `repo-butler-data` branch for the MCP `get_governance_findings` tool. Graduate to `observe,ideate,propose` later once the council output is trusted. Acceptance (pending): governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality.
 
-~~**UPDATE in dry-run mode on the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js:33` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file. After two weeks of clean soak-test output, UPDATE can graduate to writing PRs by flipping the workflow default to `dry-run: false`. Acceptance: daily CI logs show a proposed ROADMAP.md diff on every run.
+~~**UPDATE in dry-run mode on the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js:33` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file.
+
+~~**Graduate UPDATE off dry-run**~~ — SHIPPED 2026-05-03. After 2+ weeks of clean soak-test output, UPDATE now writes a real ROADMAP PR on the daily pipeline. Because the workflow runs 4×/day, `update.js` first calls `findOpenRoadmapPr()` and skips if a previous run's PR is still open — the next run after merge/close opens a fresh one. `self-test.yml` `INPUT_DRY_RUN` fallback is now `'false'` and the workflow_dispatch default flipped to match.
 
 **Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.
 
@@ -215,7 +217,7 @@ A2A v0.3 Agent Card published at `/.well-known/agent.json` for capability discov
 
 ~~**Agent Card**~~ — SHIPPED. `src/agent-card.js` builds an A2A AgentCard and the REPORT phase writes it to `reports/.well-known/agent-card.json` so it deploys to Pages at `ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`. Declares six skills (portfolio-health, governance-findings, campaign-status, snapshot-diff, monitor-events, council-triage), capability flags, provider, and documentation URL. The card is discovery-only for now — the butler's primary programmatic interface remains the MCP server from Phase 7. `supportedInterfaces` stays empty until an A2A transport is actually exposed.
 
-**Triage bot contract** — Replace the current implicit auto-discovery with an explicit typed contract. Define `TriageBotEvent` schemas for health summaries and issue signals. Both sides validate against the schema, preventing silent breakage when the triage bot changes its output format.
+**Triage bot contract** — PAUSED 2026-05-03. The integration is shipping no signal in practice: only 2 of 14 portfolio repos carry `.github/butler.json` (`teams-for-linux`, `triage-bot-test-repo`), `repo-butler` itself does not, and `TRIAGE_BOT_INGEST_SECRET` is unset in the production workflow so the `/ingest` path is a no-op even where butler.json exists. Hardening a typed contract for traffic that does not flow is premature. Resume when at least 3 portfolio repos opt in and the ingest secret is wired — at that point define `TriageBotEvent` schemas for health summaries and issue signals so both sides validate against the same shape. Existing runtime validators in `safety.js` (`validateTriageBotTrends`) and the auto-discovery in `triage-bot.js` stay in place; this entry is about deferring the formalisation, not retiring the integration.
 
 **Security prerequisites** — ~~Bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting~~, ~~LLM prompt injection defence~~, ~~triage bot response validation~~ (all shipped in PR #63). Remaining: GitHub App for cross-repo auth, contributor name sanitisation for CODEOWNERS.
 
