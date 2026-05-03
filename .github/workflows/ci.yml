@@ -35,7 +35,7 @@ jobs:
         run: |
           # Ensure no API keys are hardcoded in source files
           # Exclude safety.js and test files (they contain patterns and fixtures, not real keys)
-          if grep -rn 'AIza\|sk-ant-\|sk-[a-zA-Z0-9]\{40\}' src/ --include='*.js' --exclude='safety.js' --exclude='*.test.js'; then
+          if grep -rn 'AIza\|sk-ant-\|sk-[a-zA-Z0-9]\{40\}\|-----BEGIN RSA PRIVATE KEY-----\|-----BEGIN EC PRIVATE KEY-----\|github_pat_' src/ --include='*.js' --exclude='safety.js' --exclude='*.test.js'; then
             echo "ERROR: Potential API key found in source code"
             exit 1
           fi

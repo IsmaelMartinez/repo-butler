@@ -72,6 +72,26 @@ describe('validateIssueBody', () => {
     assert.equal(validateIssueBody(body).valid, false);
   });
 
+  it('rejects bodies with fine-grained PATs', () => {
+    const body = `Token: github_pat_${'a'.repeat(22)}`;
+    assert.equal(validateIssueBody(body).valid, false);
+  });
+
+  it('rejects bodies with RSA private key headers (App key shape)', () => {
+    const body = 'Key:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...';
+    assert.equal(validateIssueBody(body).valid, false);
+  });
+
+  it('rejects bodies with EC private key headers', () => {
+    const body = 'Key:\n-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIB...';
+    assert.equal(validateIssueBody(body).valid, false);
+  });
+
+  it('rejects bodies with Anthropic API keys (sk-ant-)', () => {
+    const body = `Use sk-ant-api03-${'a'.repeat(20)} to authenticate.`;
+    assert.equal(validateIssueBody(body).valid, false);
+  });
+
   it('rejects bodies over 8000 chars', () => {
     const body = 'A'.repeat(8001);
     assert.equal(validateIssueBody(body).valid, false);
