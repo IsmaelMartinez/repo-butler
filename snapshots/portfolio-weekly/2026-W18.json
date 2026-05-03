@@ -184,13 +184,13 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 24,
+      "open_issues": 25,
       "open_bugs": 13,
-      "commits_6mo": 372,
+      "commits_6mo": 374,
       "stars": 4646,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9803921568627451,
+      "ciPassRate": 0.9818181818181818,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -212,7 +212,7 @@
       },
       "ci": 16,
       "released_at": "2026-04-24T14:54:11Z",
-      "pushed_at": "2026-05-02T21:47:37Z",
+      "pushed_at": "2026-05-03T08:31:59Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -744,7 +744,7 @@
     "github-issue-triage-bot": {
       "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 222,
+      "commits_6mo": 226,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -770,7 +770,7 @@
       },
       "ci": 12,
       "released_at": "2026-04-01T12:26:05Z",
-      "pushed_at": "2026-05-01T06:02:57Z",
+      "pushed_at": "2026-05-03T09:50:42Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -837,7 +837,7 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 251,
+      "commits_6mo": 253,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-03T07:51:38Z",
+      "pushed_at": "2026-05-03T10:33:29Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,7 +1023,7 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 229,
+      "commits_6mo": 230,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
@@ -1049,7 +1049,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-03T07:07:53Z",
+      "pushed_at": "2026-05-03T08:37:00Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
