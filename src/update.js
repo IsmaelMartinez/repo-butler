@@ -41,6 +41,28 @@ export async function findOpenRoadmapPr(gh, owner, repo) {
 // the false-positive from a real injection in the logs.
 const MAX_ASSESSMENT_LENGTH = 6000;
 
+// Minimum fraction of the input roadmap length the LLM output must preserve.
+// PR #176 produced ~19% of the input (277 lines → 53). 80% leaves slack for
+// genuine compaction (e.g. moving a few completed items to a "done" section)
+// while catching destructive rewrites. Tune if false-positives appear.
+const MIN_LENGTH_PRESERVATION = 0.8;
+
+// Compare output length against input length and reject obvious rewrites.
+// Empty inputs (first run, missing roadmap) are exempt — there is no prior
+// document to preserve. Exported for testing.
+export function checkLengthPreservation(input, output) {
+  if (!input || input.length === 0) return { valid: true };
+  const ratio = (output?.length || 0) / input.length;
+  if (ratio < MIN_LENGTH_PRESERVATION) {
+    return {
+      valid: false,
+      ratio,
+      error: `Roadmap output length is ${(ratio * 100).toFixed(1)}% of input (${output?.length || 0}/${input.length} chars), below the ${(MIN_LENGTH_PRESERVATION * 100).toFixed(0)}% preservation threshold`,
+    };
+  }
+  return { valid: true, ratio };
+}
+
 // Strip user-controlled content from validation error strings before they
 // reach CI logs. Safety errors include the matched @mention handle, URL host,
 // or other adversary-supplied substring; logging those verbatim reproduces
@@ -111,6 +133,17 @@ export async function update(context) {
 
   const prompt = buildUpdatePrompt(currentRoadmap, snapshot, assessment, config.context);
   const updatedRoadmap = await provider.generate(prompt);
+
+  // Length-preservation guard: PR #176 exposed that the LLM will happily
+  // rewrite a 277-line roadmap down to 53 lines, deleting SHIPPED records
+  // and Future entries. Treat any output that drops below 80% of the input
+  // length as a destructive rewrite and refuse the PR. Symmetric with the
+  // validateRoadmap safety check below.
+  const preservation = checkLengthPreservation(currentRoadmap, updatedRoadmap);
+  if (!preservation.valid) {
+    console.error(`SAFETY: ${preservation.error} — refusing PR (suspected destructive rewrite).`);
+    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [preservation.error] } };
+  }
 
   // Safety check before publishing.
   const safety = validateRoadmap(updatedRoadmap);
@@ -188,8 +221,12 @@ export async function update(context) {
   return { roadmap: updatedRoadmap, pr: pr.html_url, safety };
 }
 
-export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext) {
+export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext, now = new Date()) {
+  // Inject today's date as a literal so the LLM never has to guess it from
+  // its training cutoff. PR #176 hallucinated `Last Updated: 2024-07-20`.
+  const today = now.toISOString().slice(0, 10);
   const items = [
+    `Today: ${today}`,
     `Repository: ${snapshot.repository}`,
     `Current version: ${snapshot.package?.version || snapshot.summary.latest_release || 'unknown'}`,
     `Open issues: ${snapshot.summary.open_issues}`,
@@ -235,17 +272,17 @@ export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectC
   }
 
   return wrapPrompt({
-    role: 'You are a roadmap writer for an open-source project. Update the roadmap document below based on the current project state.',
+    role: 'You are an editor maintaining an existing roadmap document for an open-source project. Apply the smallest set of edits to the roadmap below to reflect the current project state. The roadmap is the project history; preserve it.',
     projectContext,
     items,
     outroLines: [
       'Instructions:',
-      '- Update the roadmap to reflect the current state. Keep the same structure and tone.',
-      '- Move completed items to a "done" section if applicable.',
-      '- Add new items for newly opened issues that represent significant work.',
-      '- Update version numbers, dates, and status markers.',
-      '- Be concise — the roadmap should be scannable, not verbose.',
-      '- Output ONLY the updated roadmap document, no commentary.',
+      '- Make the smallest set of changes needed. Do not delete or summarise existing SHIPPED records, completed entries, ADR references, or section headings.',
+      '- Append new entries; do not rewrite old ones. If a section already exists, add to it rather than replacing it.',
+      '- Update status markers, version numbers, and the "Last Updated" line. Use the literal date provided above ("Today: …") — do not guess or use a different date.',
+      '- Add new items only for newly opened issues that represent significant work. Do not invent new sections.',
+      '- Preserve the original structure, tone, headings, and approximate length. The output must be at least as long as the input minus minor compaction.',
+      '- Output ONLY the updated roadmap document, no commentary, no explanation.',
     ],
   });
 }

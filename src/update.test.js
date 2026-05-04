@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, findOpenRoadmapPr, redactErrorForLog } from './update.js';
+import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, checkLengthPreservation, findOpenRoadmapPr, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -141,23 +141,101 @@ describe('findOpenRoadmapPr', () => {
 });
 
 describe('buildUpdatePrompt', () => {
+  const baseSnapshot = {
+    repository: 'owner/repo',
+    package: { version: '1.0.0' },
+    summary: {
+      open_issues: 3,
+      blocked_issues: 0,
+      awaiting_feedback: 1,
+      recently_merged_prs: 5,
+      latest_release: 'v1.0.0',
+      high_reaction_issues: [],
+      top_open_labels: ['bug'],
+    },
+  };
+
   it('builds a prompt with the standard defence scaffolding', () => {
-    const snapshot = {
-      repository: 'owner/repo',
-      package: { version: '1.0.0' },
-      summary: {
-        open_issues: 3,
-        blocked_issues: 0,
-        awaiting_feedback: 1,
-        recently_merged_prs: 5,
-        latest_release: 'v1.0.0',
-        high_reaction_issues: [],
-        top_open_labels: ['bug'],
-      },
-    };
-    const prompt = buildUpdatePrompt('# Roadmap', snapshot, null, null);
+    const prompt = buildUpdatePrompt('# Roadmap', baseSnapshot, null, null);
     assert.ok(prompt.includes('BEGIN REPOSITORY DATA'));
     assert.ok(prompt.includes('END REPOSITORY DATA'));
     assert.ok(prompt.includes('owner/repo'));
+  });
+
+  it('injects today\'s date as a literal so the LLM cannot hallucinate it', () => {
+    // PR #176 produced `Last Updated: 2024-07-20` from the training cutoff.
+    // The fix: inject the date deterministically.
+    const fixedNow = new Date('2026-05-03T10:00:00Z');
+    const prompt = buildUpdatePrompt('# Roadmap', baseSnapshot, null, null, fixedNow);
+    assert.ok(prompt.includes('Today: 2026-05-03'), 'prompt should include literal today date');
+  });
+
+  it('instructs the LLM to edit, not rewrite, and to preserve SHIPPED records', () => {
+    // PR #176 deleted every Phase 1–7 SHIPPED record because the old prompt
+    // said "be concise". Lock down the instruction text so a future edit
+    // can't silently regress it.
+    const prompt = buildUpdatePrompt('# Roadmap', baseSnapshot, null, null);
+    assert.ok(prompt.includes('smallest set of changes'), 'must instruct minimal edits');
+    assert.ok(prompt.includes('SHIPPED'), 'must explicitly mention preserving SHIPPED records');
+    assert.ok(prompt.includes('Append new entries'), 'must instruct append-not-rewrite');
+    assert.ok(!prompt.includes('Be concise'), 'must NOT contain old "Be concise" framing');
+  });
+
+  it('passes existing roadmap content through to the prompt verbatim', () => {
+    // The prompt-builder must hand the LLM the actual SHIPPED markers and
+    // section headings — if it strips or reformats them, the LLM cannot
+    // preserve what it never saw.
+    const fixtureRoadmap = [
+      '# ROADMAP',
+      '',
+      '### ~~Code Health Sprint~~ SHIPPED',
+      '',
+      'Shipped 2026-04-28 across PRs #127–#146.',
+      '',
+      '### Future',
+      '',
+      '- Item A',
+      '- Item B',
+    ].join('\n');
+    const prompt = buildUpdatePrompt(fixtureRoadmap, baseSnapshot, null, null);
+    assert.ok(prompt.includes('### ~~Code Health Sprint~~ SHIPPED'), 'SHIPPED heading must survive');
+    assert.ok(prompt.includes('### Future'), 'Future heading must survive');
+    assert.ok(prompt.includes('Shipped 2026-04-28'), 'shipped record body must survive');
+    assert.ok(prompt.includes('--- CURRENT ROADMAP ---'), 'roadmap delimiter must be present');
+  });
+});
+
+describe('checkLengthPreservation', () => {
+  it('passes when the output is the same length as the input', () => {
+    const result = checkLengthPreservation('a'.repeat(1000), 'b'.repeat(1000));
+    assert.equal(result.valid, true);
+  });
+
+  it('passes when the output is at the 80% threshold', () => {
+    const result = checkLengthPreservation('a'.repeat(1000), 'b'.repeat(800));
+    assert.equal(result.valid, true);
+  });
+
+  it('rejects output below 80% of input length (suspected destructive rewrite)', () => {
+    // PR #176 produced 53 lines from 277 lines (~19%). Catch that.
+    const result = checkLengthPreservation('a'.repeat(1000), 'b'.repeat(199));
+    assert.equal(result.valid, false);
+    assert.ok(result.error.includes('19.9%'));
+    assert.ok(result.error.includes('80%'));
+  });
+
+  it('exempts empty input (first run, missing roadmap)', () => {
+    const result = checkLengthPreservation('', 'a fresh roadmap');
+    assert.equal(result.valid, true);
+  });
+
+  it('exempts null input', () => {
+    const result = checkLengthPreservation(null, 'a fresh roadmap');
+    assert.equal(result.valid, true);
+  });
+
+  it('rejects empty output against non-empty input', () => {
+    const result = checkLengthPreservation('a'.repeat(1000), '');
+    assert.equal(result.valid, false);
   });
 });
