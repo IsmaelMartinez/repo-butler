@@ -25,7 +25,7 @@ Claude Code stores session data in `~/.claude/projects/{project-dir-hash}/`. The
 The skill would:
 
 1. Scan `history.jsonl` for today's entries, group by sessionId and project.
-2. For each session, read the session JSONL and extract: user messages (the intent), tool calls (what was done — especially git commits, file edits, bash commands), and assistant summaries.
+2. For each session, read the session JSONL and any subagent transcripts under `{sessionId}/subagents/agent-{id}.jsonl` to extract: user messages (the intent), tool calls (what was done — especially git commits, file edits, bash commands), and assistant summaries. Subagent transcripts often hold the substantive work for delegated tasks and would be missed otherwise.
 3. Feed the extracted data to a local model (Gemma 4 via Ollama) with a prompt like: "Summarise this Claude Code session in 3-5 bullet points. Focus on what was built, fixed, or shipped. Include PR numbers and repo names."
 4. Aggregate the summaries into Reginald's comic format.
 
@@ -39,9 +39,9 @@ Alternative: instead of summarising the full transcript, extract only the git co
 
 For the initial version, skip the local model entirely. Use git history as the primary data source:
 
-1. For each project directory, run `git log --since="today" --oneline --all` to get today's commits.
-2. Cross-reference with `history.jsonl` to know which projects had Claude sessions today.
-3. Count PRs opened/merged today via `gh pr list --state all --json createdAt,mergedAt,number,title`.
+1. Parse `history.jsonl` first to identify which project directories had Claude sessions today — this is the cheap index. Iterating every project dir blind would do unnecessary disk I/O.
+2. For each active project, run `git log --since="today" --oneline --all` to get today's commits.
+3. Count PRs opened/merged today via `gh pr list --state all --limit 50 --json createdAt,mergedAt,number,title` (the `--limit` keeps the request bounded for repos with large PR histories).
 4. Present the data as Reginald's evening debrief.
 
 This avoids the Ollama dependency entirely. If richer summaries are needed later, add the local model as an enhancement.
