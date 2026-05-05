@@ -38,6 +38,7 @@ resolve_owner() {
 
 REPO=$(resolve_repo_butler) || { echo "Reginald cannot locate the repo-butler checkout, sir."; exit 1; }
 OWNER=$(resolve_owner "$REPO")
+[ -n "$OWNER" ] || { echo "Reginald cannot determine the repository owner, sir."; exit 1; }
 ```
 
 ## Steps
@@ -130,17 +131,19 @@ gh workflow run "Governance Apply" \
 
 ```bash
 for i in $(seq 1 30); do
-  RUN=$(gh run list --repo "$OWNER/repo-butler" \
+  STATUS=$(gh run list --repo "$OWNER/repo-butler" \
     --workflow "Governance Apply" \
     --limit 1 \
-    --json databaseId,status,conclusion,url 2>/dev/null)
-  STATUS=$(echo "$RUN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d)[0]?.status||'')}catch{}})")
+    --json status --jq '.[0].status' 2>/dev/null)
   if [ -n "$STATUS" ] && [ "$STATUS" != "queued" ] && [ "$STATUS" != "in_progress" ]; then
     break
   fi
   sleep 10
 done
-echo "$RUN"
+gh run list --repo "$OWNER/repo-butler" \
+  --workflow "Governance Apply" \
+  --limit 1 \
+  --json databaseId,status,conclusion,url
 ```
 
 10. Render a closing panel with the run URL, status, and conclusion (or "in progress" if conclusion is null):

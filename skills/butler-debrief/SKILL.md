@@ -38,6 +38,7 @@ resolve_owner() {
 
 REPO=$(resolve_repo_butler) || { echo "Reginald cannot locate the repo-butler checkout, sir."; exit 1; }
 OWNER=$(resolve_owner "$REPO")
+[ -n "$OWNER" ] || { echo "Reginald cannot determine the repository owner, sir."; exit 1; }
 ```
 
 ## Steps
@@ -105,9 +106,19 @@ fi
 
 TODAY=$(date +%Y-%m-%d)
 for repo in $PORTFOLIO; do
-  merged=$(gh pr list --repo "$OWNER/$repo" --state merged --json number,title,mergedAt --jq "[.[] | select(.mergedAt | startswith(\"$TODAY\"))] | length" 2>/dev/null)
-  opened=$(gh pr list --repo "$OWNER/$repo" --state all --json number,title,createdAt --jq "[.[] | select(.createdAt | startswith(\"$TODAY\"))] | length" 2>/dev/null)
-  closed=$(gh pr list --repo "$OWNER/$repo" --state closed --json number,title,closedAt --jq "[.[] | select(.closedAt != null and (.closedAt | startswith(\"$TODAY\")))] | length" 2>/dev/null)
+  # Single network call per repo: fetch all PRs (state all) and tally locally
+  counts=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
+    --json createdAt,mergedAt,closedAt 2>/dev/null \
+    | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+        try {
+          const a=JSON.parse(d), t='$TODAY';
+          const m=a.filter(p=>p.mergedAt?.startsWith(t)).length;
+          const o=a.filter(p=>p.createdAt?.startsWith(t)).length;
+          const c=a.filter(p=>p.closedAt?.startsWith(t) && !p.mergedAt?.startsWith(t)).length;
+          console.log(\`\${m} \${o} \${c}\`);
+        } catch { console.log('0 0 0'); }
+      })" 2>/dev/null)
+  read merged opened closed <<<"$counts"
   if [ "$merged" != "0" ] || [ "$opened" != "0" ] || [ "$closed" != "0" ]; then
     echo "GH:$repo|MERGED:$merged|OPENED:$opened|CLOSED:$closed"
   fi

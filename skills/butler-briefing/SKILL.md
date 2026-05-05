@@ -38,6 +38,7 @@ resolve_owner() {
 
 REPO=$(resolve_repo_butler) || { echo "Reginald cannot locate the repo-butler checkout, sir."; exit 1; }
 OWNER=$(resolve_owner "$REPO")
+[ -n "$OWNER" ] || { echo "Reginald cannot determine the repository owner, sir."; exit 1; }
 ```
 
 If `resolve_repo_butler` returns non-zero, render a single panel with Reginald saying "I cannot locate the repo-butler residence, sir. Set REPO_BUTLER_PATH or run me from inside the checkout." and stop.
