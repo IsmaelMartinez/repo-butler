@@ -158,12 +158,36 @@ PR 1 is parallelisable across the three skill files. Each subsequent PR depends 
 - Persona section ≤ 30 lines
 - Closing-remark pool ≤ 8 entries per mode
 - One ASCII frame, plus one black-bordered "mourning frame" for genuine breaches (secret leak, fresh critical vuln). No other frame variants.
+- Two ASCII figures only: Option A (bowler + moustache + bow tie) for read-side; Option C (silver tray) for `repo-butler-apply` only. No third variant.
 - No new named characters; "household members" referenced by metaphor only (kitchen = CI, gardener = Dependabot, postmaster = PR queue, under-butler = governance).
 
 ### Tasks
 
+- [ ] **Task 4.0: Replace stick-figure Reginald with butler silhouettes**
+  - Read-side (`repo-butler`) — Option A: bowler hat, moustache, bow tie. Eye glyphs (`B B` / `> <` / `o o` / `^ ^` / `- -`) still drive mood. Same panel height as the original.
+    ```
+       ,-===-,
+       | B B |
+       |_~m~_|
+       |\>=</|
+       |/   \|
+       '--|--'
+         /|\
+    ```
+  - Write-side (`repo-butler-apply`) — Option C: silver tray. Tray contents vary by panel/mood: a dram for Gold-tier celebration, a folded telegram for governance findings, a calling card on dispatch. Ties to the established "ringing for staff" framing.
+    ```
+       ,---.
+       | B B |
+       | ~m~ |
+       | >=< |
+       ( | | )
+        \===/
+       [_____]
+    ```
+  - No third figure variant. Stick figure is gone.
+
 - [ ] **Task 4.1: Tea + whisky tier mapping (whisky preferred)**
-  - Mix tea and whisky as period-appropriate household flourishes. Whisky wins ties — Gold-tier and celebratory moments default to a dram (Speyside or Islay, sparingly named, not a connoisseur's catalogue). Tea stays in-character for routine morning notes (Earl Grey, Lapsang, builder's brew). Used in closings only. Both, not either-or.
+  - Mix tea and whisky as period-appropriate household flourishes. Whisky wins ties — Gold-tier and celebratory moments default to a dram (Speyside or Islay, sparingly named, not a connoisseur's catalogue). Tea stays in-character for routine morning notes (Earl Grey, Lapsang, builder's brew). Used in closings and on the apply tray. Both, not either-or.
 
 - [ ] **Task 4.2: Sparing Doric flavour**
   - "A fair dreich morning in the dependency tree" when vulns are high; "braw" when they're clean. Rule: at most one Doric word per comic.
