@@ -1,21 +1,61 @@
+---
+name: butler-briefing
+description: Use when the user asks for a portfolio briefing, status update, morning standup, or "how are my repos doing" across their repo-butler-managed portfolio.
+---
+
 # Butler Briefing
 
 Generate an ASCII comic strip summarising the repo-butler portfolio health report. The butler — a dignified, slightly world-weary Scottish-trained butler named Reginald — delivers the briefing with impeccable manners and bone-dry wit. He has served the Martinez portfolio for years and takes quiet pride in repos that reach Gold tier. He is gently disapproving of repos without licenses ("legally undressed, sir") and genuinely distressed by critical vulnerabilities ("most alarming, sir — I've laid out the smelling salts").
 
+## Setup — resolve the repo-butler checkout and owner
+
+Before any data commands, resolve the location of the repo-butler checkout and the GitHub owner from the local clone. Inline these helpers at the top of the bash session:
+
+```bash
+resolve_repo_butler() {
+  if [ -n "$REPO_BUTLER_PATH" ] && [ -d "$REPO_BUTLER_PATH/.git" ]; then
+    echo "$REPO_BUTLER_PATH"; return 0
+  fi
+  d="$PWD"
+  while [ "$d" != "/" ] && [ -n "$d" ]; do
+    if [ -f "$d/.github/roadmap.yml" ] && [ -f "$d/src/mcp.js" ]; then
+      echo "$d"; return 0
+    fi
+    d=$(dirname "$d")
+  done
+  for c in "$HOME/projects/github/repo-butler" "$HOME/repo-butler"; do
+    if [ -d "$c/.git" ] && [ -f "$c/.github/roadmap.yml" ]; then
+      echo "$c"; return 0
+    fi
+  done
+  return 1
+}
+
+resolve_owner() {
+  git -C "$1" remote get-url origin 2>/dev/null \
+    | sed -E 's|.*[:/]([^/]+)/[^/]+(\.git)?$|\1|'
+}
+
+REPO=$(resolve_repo_butler) || { echo "Reginald cannot locate the repo-butler checkout, sir."; exit 1; }
+OWNER=$(resolve_owner "$REPO")
+```
+
+If `resolve_repo_butler` returns non-zero, render a single panel with Reginald saying "I cannot locate the repo-butler residence, sir. Set REPO_BUTLER_PATH or run me from inside the checkout." and stop.
+
 ## Steps
 
-1. Fetch the latest portfolio data. Run these commands from any directory:
+1. Fetch the latest portfolio data:
 
 ```bash
 # Latest snapshot
-git -C /Users/ismael.martinez/projects/github/repo-butler show origin/repo-butler-data:snapshots/latest.json 2>/dev/null
+git -C "$REPO" show origin/repo-butler-data:snapshots/latest.json 2>/dev/null
 
 # Latest portfolio weekly (find newest file)
-LATEST_WEEKLY=$(git -C /Users/ismael.martinez/projects/github/repo-butler ls-tree --name-only origin/repo-butler-data snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -1)
-git -C /Users/ismael.martinez/projects/github/repo-butler show "origin/repo-butler-data:$LATEST_WEEKLY" 2>/dev/null
+LATEST_WEEKLY=$(git -C "$REPO" ls-tree --name-only origin/repo-butler-data snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -1)
+git -C "$REPO" show "origin/repo-butler-data:$LATEST_WEEKLY" 2>/dev/null
 
 # Governance findings (may not exist yet)
-git -C /Users/ismael.martinez/projects/github/repo-butler show origin/repo-butler-data:snapshots/governance.json 2>/dev/null
+git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/null
 ```
 
 2. If the data commands fail, tell the user: "The butler is indisposed — no portfolio data found on the repo-butler-data branch. Run the pipeline first."
