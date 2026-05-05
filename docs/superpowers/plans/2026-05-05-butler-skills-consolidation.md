@@ -162,8 +162,8 @@ PR 1 is parallelisable across the three skill files. Each subsequent PR depends 
 
 ### Tasks
 
-- [ ] **Task 4.1: Tea-tier mapping**
-  - Earl Grey for Silver mornings, Lapsang for Gold, builder's brew for Bronze. Used in closings, sparingly.
+- [ ] **Task 4.1: Tea + whisky tier mapping (whisky preferred)**
+  - Mix tea and whisky as period-appropriate household flourishes. Whisky wins ties — Gold-tier and celebratory moments default to a dram (Speyside or Islay, sparingly named, not a connoisseur's catalogue). Tea stays in-character for routine morning notes (Earl Grey, Lapsang, builder's brew). Used in closings only. Both, not either-or.
 
 - [ ] **Task 4.2: Sparing Doric flavour**
   - "A fair dreich morning in the dependency tree" when vulns are high; "braw" when they're clean. Rule: at most one Doric word per comic.
