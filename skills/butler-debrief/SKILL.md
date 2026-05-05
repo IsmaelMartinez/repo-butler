@@ -1,6 +1,45 @@
+---
+name: butler-debrief
+description: Use when the user asks for an evening debrief, end-of-day summary, "what did I do today", or session activity recap across their repos.
+---
+
 # Butler Debrief
 
 Generate an ASCII comic strip summarising today's Claude Code session activity. The butler — Reginald, the same dignified, Scottish-trained butler from the butler-briefing — reviews what was accomplished across all repos today and presents the evening debrief.
+
+## Setup — resolve the repo-butler checkout and owner
+
+Before any data commands, resolve the location of the repo-butler checkout and the GitHub owner from the local clone. Inline these helpers at the top of the bash session:
+
+```bash
+resolve_repo_butler() {
+  if [ -n "$REPO_BUTLER_PATH" ] && [ -d "$REPO_BUTLER_PATH/.git" ]; then
+    echo "$REPO_BUTLER_PATH"; return 0
+  fi
+  d="$PWD"
+  while [ "$d" != "/" ] && [ -n "$d" ]; do
+    if [ -f "$d/.github/roadmap.yml" ] && [ -f "$d/src/mcp.js" ]; then
+      echo "$d"; return 0
+    fi
+    d=$(dirname "$d")
+  done
+  for c in "$HOME/projects/github/repo-butler" "$HOME/repo-butler"; do
+    if [ -d "$c/.git" ] && [ -f "$c/.github/roadmap.yml" ]; then
+      echo "$c"; return 0
+    fi
+  done
+  return 1
+}
+
+resolve_owner() {
+  git -C "$1" remote get-url origin 2>/dev/null \
+    | sed -E 's|.*[:/]([^/]+)/[^/]+(\.git)?$|\1|'
+}
+
+REPO=$(resolve_repo_butler) || { echo "Reginald cannot locate the repo-butler checkout, sir."; exit 1; }
+OWNER=$(resolve_owner "$REPO")
+[ -n "$OWNER" ] || { echo "Reginald cannot determine the repository owner, sir."; exit 1; }
+```
 
 ## Steps
 
@@ -52,14 +91,34 @@ find ~/projects/github ~/projects/gitlab -maxdepth 5 -name ".git" -type d 2>/dev
 done
 ```
 
-3. Gather today's PR/MR activity across GitHub repos:
+3. Gather today's PR activity across the portfolio's GitHub repos. The portfolio list comes from the latest snapshot on the data branch (with a `gh repo list` fallback if the data branch is bare):
 
 ```bash
-for repo in repo-butler teams-for-linux votescot local-brain sound3fy generator-atlassian-compass-event-catalog bonnie-wee-plot yourear ismaelmartinez.me.uk ai-model-advisor lounge-tv betis-escocia wifisentinel github-issue-triage-bot; do
-  TODAY=$(date +%Y-%m-%d)
-  merged=$(gh pr list --repo IsmaelMartinez/$repo --state merged --json number,title,mergedAt --jq "[.[] | select(.mergedAt | startswith(\"$TODAY\"))] | length" 2>/dev/null)
-  opened=$(gh pr list --repo IsmaelMartinez/$repo --state all --json number,title,createdAt --jq "[.[] | select(.createdAt | startswith(\"$TODAY\"))] | length" 2>/dev/null)
-  closed=$(gh pr list --repo IsmaelMartinez/$repo --state closed --json number,title,closedAt --jq "[.[] | select(.closedAt != null and (.closedAt | startswith(\"$TODAY\")))] | length" 2>/dev/null)
+# Read portfolio from snapshot if available, otherwise list public repos
+PORTFOLIO=$(git -C "$REPO" show origin/repo-butler-data:snapshots/latest.json 2>/dev/null \
+  | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{
+      try { const j=JSON.parse(d); console.log(Object.keys(j.portfolio||{}).join(' ')); }
+      catch { process.exit(1); }
+    })" 2>/dev/null)
+if [ -z "$PORTFOLIO" ]; then
+  PORTFOLIO=$(gh repo list "$OWNER" --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
+fi
+
+TODAY=$(date +%Y-%m-%d)
+for repo in $PORTFOLIO; do
+  # Single network call per repo: fetch all PRs (state all) and tally locally
+  counts=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
+    --json createdAt,mergedAt,closedAt 2>/dev/null \
+    | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+        try {
+          const a=JSON.parse(d), t='$TODAY';
+          const m=a.filter(p=>p.mergedAt?.startsWith(t)).length;
+          const o=a.filter(p=>p.createdAt?.startsWith(t)).length;
+          const c=a.filter(p=>p.closedAt?.startsWith(t) && !p.mergedAt?.startsWith(t)).length;
+          console.log(\`\${m} \${o} \${c}\`);
+        } catch { console.log('0 0 0'); }
+      })" 2>/dev/null)
+  read merged opened closed <<<"$counts"
   if [ "$merged" != "0" ] || [ "$opened" != "0" ] || [ "$closed" != "0" ]; then
     echo "GH:$repo|MERGED:$merged|OPENED:$opened|CLOSED:$closed"
   fi
@@ -102,7 +161,7 @@ If `glab` is not authenticated, skip this step — the git commit data from step
    - Top commit messages (to understand what was done)
    - Which repos saw the most activity
 
-6. Optionally, if Ollama is available with a suitable model, generate richer summaries:
+7. Optionally, if Ollama is available with a suitable model, generate richer summaries:
 
 ```bash
 # Check if Ollama is running and has a model
@@ -116,7 +175,7 @@ fi
 
 If Ollama is not available, skip this step — the git data is sufficient.
 
-7. Generate the ASCII comic. Use EXACTLY this format with 4-5 panels. Replace all placeholders with real data.
+8. Generate the ASCII comic. Use EXACTLY this format with 4-5 panels. Replace all placeholders with real data.
 
 ```
 +================================================================+
