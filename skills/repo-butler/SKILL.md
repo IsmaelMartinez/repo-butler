@@ -27,7 +27,7 @@ case "$MODE" in
 |     /|\                                                        |
 +================================================================+
 EOF
-    exit 0
+    exit 1
     ;;
 esac
 ```
@@ -115,7 +115,7 @@ node -e "
 const fs = require('fs');
 const path = process.env.HOME + '/.claude/history.jsonl';
 if (!fs.existsSync(path)) { console.log('[]'); process.exit(0); }
-const lines = fs.readFileSync(path, 'utf8').trim().split('\n');
+const lines = fs.readFileSync(path, 'utf8').split('\n').filter(l => l.trim());
 const todayStart = new Date(); todayStart.setHours(0,0,0,0);
 const todayMs = todayStart.getTime();
 const sessions = {};
@@ -143,7 +143,7 @@ console.log(JSON.stringify(result));
 # Today's git activity across all repos (GitHub + GitLab)
 find "$HOME/projects/github" "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read gitdir; do
   dir=$(dirname "$gitdir")
-  repo=$(echo "$dir" | sed "s|$HOME/projects/||")
+  repo=$(basename "$dir")
   commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null)
   if [ -n "$commits" ]; then
     count=$(echo "$commits" | wc -l | tr -d ' ')
@@ -184,7 +184,7 @@ done
 # Today's GitLab MR activity (only for repos with commits today; skip if glab missing)
 find "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read gitdir; do
   dir=$(dirname "$gitdir")
-  repo=$(echo "$dir" | sed "s|$HOME/projects/gitlab/||")
+  repo=$(basename "$dir")
   has_commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null | head -1)
   if [ -n "$has_commits" ]; then
     remote=$(git -C "$dir" remote get-url origin 2>/dev/null)
