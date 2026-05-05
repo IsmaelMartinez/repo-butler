@@ -1,9 +1,9 @@
 ---
-name: butler-apply
-description: Surface actionable repo-butler governance findings, confirm with the user, then dispatch the Governance Apply workflow. Reginald presents the proposed work as an ASCII comic strip before pulling the lever.
+name: repo-butler-apply
+description: Use when the user wants to act on governance findings, open remediation PRs, fix standards gaps, or apply tier-uplift / policy-drift / stale-Dependabot fixes across the portfolio.
 ---
 
-# Butler Apply
+# Repo Butler Apply
 
 Surface actionable governance findings from repo-butler and, with your blessing, dispatch the Governance Apply workflow to open the corresponding remediation PRs across the portfolio. Reginald — the same dignified, Scottish-trained butler from butler-briefing — presents the proposed work, awaits explicit confirmation, then rings for the workflow.
 
@@ -106,17 +106,43 @@ git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/nul
 |  .-------.                                                     |
 |  | B   B |  "Shall I ring for the apply workflow, sir?"         |
 |  |  \_/  |                                                     |
-|  | /   \ |  "Reply 'yes' to dispatch, or any other word         |
-|  '---|---'   to leave the tray on the sideboard."              |
+|  | /   \ |  "Shall I ring for the staff, sir? (yes/no)"        |
+|  '---|---'                                                     |
 |      |                                                         |
 |     /|\                                      -- Reginald       |
 |                                                                |
 +================================================================+
 ```
 
-7. After rendering, ask the user to confirm. Wait for an explicit affirmative ("yes", "go", "dispatch", "apply"). Anything else means abort — Reginald replies "Very good, sir. The tray remains on the sideboard." and stops.
+7. After rendering, ask the user to confirm. Lowercase the reply and trim whitespace; treat any of `yes`, `y`, `go`, or `dispatch` as affirmative. Anything else means abort — Reginald replies "Very good, sir. The tray remains on the sideboard." and stops.
 
-8. On confirmation, dispatch the workflow with the comma-separated list of tools that had actionable findings:
+8. Before dispatching, verify the active `gh` identity matches `$OWNER`. If `gh` is signed in as someone else, render the abort comic below and stop without dispatching:
+
+```bash
+GH_LOGIN=$(gh api user --jq .login 2>/dev/null)
+if [ -z "$GH_LOGIN" ] || [ "$GH_LOGIN" != "$OWNER" ]; then
+  # render the auth-mismatch comic and exit
+  exit 0
+fi
+```
+
+```
++================================================================+
+|  THE WRONG KEYS                                   {date}       |
++================================================================+
+|                                                                |
+|  .-------.                                                     |
+|  | >   < |  "I cannot proceed, sir — the wrong steward         |
+|  |  \_/  |   holds the keys."                                  |
+|  | /   \ |                                                     |
+|  '---|---'   gh is authenticated as: {gh_login}                |
+|      |       repository owner is:    {owner}                   |
+|     /|\                                      -- Reginald       |
+|                                                                |
++================================================================+
+```
+
+9. On confirmation and matching auth, dispatch the workflow with the comma-separated list of tools that had actionable findings:
 
 ```bash
 TOOLS="<comma-joined-tools>"  # e.g. "code-scanning,dependabot"
@@ -127,7 +153,7 @@ gh workflow run "Governance Apply" \
   -f tools="$TOOLS"
 ```
 
-9. Poll for the dispatched run to register and complete (or move past `queued`/`in_progress`), with a 5-minute ceiling:
+10. Poll for the dispatched run to register and complete (or move past `queued`/`in_progress`), with a 5-minute ceiling:
 
 ```bash
 for i in $(seq 1 30); do
@@ -146,7 +172,7 @@ gh run list --repo "$OWNER/repo-butler" \
   --json databaseId,status,conclusion,url
 ```
 
-10. Render a closing panel with the run URL, status, and conclusion (or "in progress" if conclusion is null):
+11. Render a closing panel with the run URL, status, and conclusion (or "in progress" if conclusion is null):
 
 ```
 +================================================================+
