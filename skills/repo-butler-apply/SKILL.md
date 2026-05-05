@@ -104,9 +104,9 @@ git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/nul
 +----------------------------------------------------------------+
 |                                                                |
 |  .-------.                                                     |
-|  | B   B |  "Shall I ring for the apply workflow, sir?"         |
+|  | B   B |  "Shall I ring for the staff, sir? (yes/no)"        |
 |  |  \_/  |                                                     |
-|  | /   \ |  "Shall I ring for the staff, sir? (yes/no)"        |
+|  | /   \ |                                                     |
 |  '---|---'                                                     |
 |      |                                                         |
 |     /|\                                      -- Reginald       |
@@ -122,6 +122,7 @@ git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/nul
 GH_LOGIN=$(gh api user --jq .login 2>/dev/null)
 if [ -z "$GH_LOGIN" ] || [ "$GH_LOGIN" != "$OWNER" ]; then
   # render the auth-mismatch comic and exit
+  # if GH_LOGIN is empty, substitute "(not logged in)" for {gh_login}
   exit 0
 fi
 ```
