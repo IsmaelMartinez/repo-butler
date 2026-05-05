@@ -101,14 +101,14 @@ describe('prompt builder golden snapshots', () => {
 
   it('buildUpdatePrompt — with assessment and roadmap', () => {
     assert.equal(
-      buildUpdatePrompt('Existing roadmap.', snapshot, assessment, 'A widget toolkit'),
+      buildUpdatePrompt('Existing roadmap.', snapshot, assessment, 'A widget toolkit', new Date('2026-05-03T00:00:00Z')),
       golden('update.txt')
     );
   });
 
   it('buildUpdatePrompt — null projectContext preserves the blank slot', () => {
     assert.equal(
-      buildUpdatePrompt('Existing roadmap.', snapshot, assessment, null),
+      buildUpdatePrompt('Existing roadmap.', snapshot, assessment, null, new Date('2026-05-03T00:00:00Z')),
       golden('update-no-context.txt')
     );
   });
