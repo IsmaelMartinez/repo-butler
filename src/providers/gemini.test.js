@@ -31,7 +31,8 @@ describe('GeminiProvider', () => {
     const body = JSON.parse(calls[0].init.body);
     assert.deepEqual(body.contents, [{ parts: [{ text: 'prompt-text' }] }]);
     assert.equal(body.generationConfig.temperature, 0.7);
-    assert.equal(body.generationConfig.maxOutputTokens, 4096);
+    assert.equal(body.generationConfig.maxOutputTokens, 32768);
+    assert.deepEqual(body.generationConfig.thinkingConfig, { thinkingBudget: 0 });
   });
 
   it('throws "no content" when candidates missing', async () => {
