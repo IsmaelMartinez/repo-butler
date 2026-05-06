@@ -28,7 +28,7 @@ describe('ClaudeProvider', () => {
     assert.equal(calls[0].init.headers['anthropic-version'], '2023-06-01');
     const body = JSON.parse(calls[0].init.body);
     assert.equal(body.model, 'claude-test');
-    assert.equal(body.max_tokens, 4096);
+    assert.equal(body.max_tokens, 32768);
     assert.deepEqual(body.messages, [{ role: 'user', content: 'hello' }]);
   });
 

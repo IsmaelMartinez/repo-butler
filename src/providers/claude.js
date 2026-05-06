@@ -23,7 +23,12 @@ export class ClaudeProvider extends LLMProvider {
       },
       body: {
         model: this.model,
-        max_tokens: 4096,
+        // 32k accommodates the UPDATE phase reproducing the roadmap (~10k
+        // tokens today, ~16k headroom for multi-year growth). 4k truncated
+        // mid-document and tripped the length-preservation guard. Other
+        // phases produce far less so over-allocation only affects the cap,
+        // not actual cost (charged per real output token).
+        max_tokens: 32768,
         messages: [{ role: 'user', content: prompt }],
       },
       extractText: (data) => {

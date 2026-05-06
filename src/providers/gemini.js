@@ -24,7 +24,14 @@ export class GeminiProvider extends LLMProvider {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 4096,
+          // 32k accommodates the UPDATE phase reproducing the roadmap (~10k
+          // tokens today, ~16k headroom for multi-year growth). 4k truncated
+          // mid-document and tripped the length-preservation guard.
+          maxOutputTokens: 32768,
+          // Gemini 2.5 Flash enables "thinking" by default, which silently
+          // consumes the output budget. Disable it for these structured
+          // text-rewrite tasks so the full budget reaches the response.
+          thinkingConfig: { thinkingBudget: 0 },
         },
       },
       extractText: (data) => {
