@@ -161,9 +161,31 @@ export async function update(context) {
   }
 
   if (dryRun) {
+    // Dry-run preview is the primary soak-monitoring surface. The 80% length
+    // guard above is a binary catastrophe detector — it doesn't catch
+    // hallucinated dates, fabricated PR numbers, in-place SHIPPED rewrites,
+    // or stale-data overwrites. Log enough structure here that a 30-second
+    // skim of CI logs can spot those regressions: input/output ratio, head
+    // and tail of the output, the full heading list, and counts of the
+    // ~~strikethrough~~ and SHIPPED markers we expect to be preserved.
     console.log('DRY RUN — would create PR with updated roadmap (safety: passed).');
-    console.log('Updated roadmap preview (first 500 chars):');
-    console.log(updatedRoadmap.slice(0, 500));
+    const ratio = currentRoadmap.length ? updatedRoadmap.length / currentRoadmap.length : 1;
+    console.log(`SOAK: length ${updatedRoadmap.length}/${currentRoadmap.length} chars (${(ratio * 100).toFixed(1)}%)`);
+    if (currentRoadmap.length > 0 && (ratio < 0.95 || ratio > 1.10)) {
+      console.warn(`SOAK-WARN: edit ratio ${(ratio * 100).toFixed(1)}% is outside the 95-110% expected band for edit-only output.`);
+    }
+    const headings = (updatedRoadmap.match(/^#{1,6} .+$/gm) || []).map(h => h.trim());
+    const strikethrough = (updatedRoadmap.match(/~~[^~]+~~/g) || []).length;
+    const shippedMarkers = (updatedRoadmap.match(/\bSHIPPED\b/g) || []).length;
+    console.log(`SOAK: ${headings.length} headings, ${strikethrough} strikethrough markers, ${shippedMarkers} SHIPPED markers`);
+    console.log('SOAK: heading list:');
+    for (const h of headings) console.log(`  ${h}`);
+    console.log('SOAK: output head (1500 chars):');
+    console.log(updatedRoadmap.slice(0, 1500));
+    if (updatedRoadmap.length > 3000) {
+      console.log('SOAK: output tail (1500 chars):');
+      console.log(updatedRoadmap.slice(-1500));
+    }
     return { roadmap: updatedRoadmap, pr: null, safety };
   }
 
