@@ -69,8 +69,8 @@ Run when `MODE=briefing`:
 
 ```bash
 git -C "$REPO" show origin/repo-butler-data:snapshots/latest.json 2>/dev/null
-LATEST_WEEKLY=$(git -C "$REPO" ls-tree --name-only origin/repo-butler-data snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -1)
-git -C "$REPO" show "origin/repo-butler-data:$LATEST_WEEKLY" 2>/dev/null
+WEEKLIES=$(git -C "$REPO" ls-tree --name-only origin/repo-butler-data snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -4)
+for w in $WEEKLIES; do git -C "$REPO" show "origin/repo-butler-data:$w" 2>/dev/null; echo "---SNAPSHOT-DELIM---"; done
 git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/null
 
 for dir in "$HOME/projects/github/"*/ "$HOME/projects/gitlab/"*/; do
@@ -88,7 +88,7 @@ done
 
 If all snapshot fetches are empty, render a single panel with the no-data line and stop. If the latest snapshot's `pushed_at` is 3+ days stale, use the dumbwaiter line.
 
-Parse the portfolio weekly JSON (map of repo → `{open_issues, commits_6mo, stars, license, communityHealth, ciPassRate, vulns, ci, released_at, pushed_at}`). Compute totals and tier distribution per `computeHealthTier` (Gold: license + ci≥2 + communityHealth≥80 + pushed<180d + released<90d + vulns!=null + no critical/high; Silver: license + ci≥1 + communityHealth≥50 + pushed<180d; Bronze: commits>0 or pushed<365d; None: otherwise). Compute top concerns (critical/high vulns, ciPassRate<90%, missing license, governance standards gaps), top three repos by `commits_6mo`, and the portfolio CI streak (consecutive days with all repos green vs ≥1 red).
+Parse each weekly snapshot (delimited by `---SNAPSHOT-DELIM---`); the most recent drives current state, the prior ones supply history for streak detection. Each is a map of repo → `{open_issues, commits_6mo, stars, license, communityHealth, ciPassRate, vulns, ci, released_at, pushed_at}`. Compute totals and tier distribution per `computeHealthTier` (Gold: license + ci≥2 + communityHealth≥80 + pushed<180d + released<90d + vulns!=null + no critical/high; Silver: license + ci≥1 + communityHealth≥50 + pushed<180d; Bronze: commits>0 or pushed<365d; None: otherwise). Compute top concerns (critical/high vulns, ciPassRate<90%, missing license, governance standards gaps), top three repos by `commits_6mo`, and the portfolio CI streak — count consecutive recent weekly snapshots in which every repo was green (`success` streak) or ≥1 red (`failure` streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 1-week red run with another red the prior week satisfies "third morning of red CI"; if only one snapshot is available, omit the streak line.
 
 ## Debrief mode — data fetchers
 
@@ -107,12 +107,12 @@ console.log(JSON.stringify(Object.entries(s).map(([id,x])=>({id:id.slice(0,8),
   project:x.project?.split('/').pop()||'unknown',messageCount:x.messages.length,
   durationMin:Math.round((x.last-x.first)/60000),firstMessage:x.messages[0]?.slice(0,80)}))));"
 
-find "$HOME/projects/github" "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read gitdir; do
+find "$HOME/projects/github" "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read -r gitdir; do
   dir=$(dirname "$gitdir"); repo=$(basename "$dir")
   commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null)
   if [ -n "$commits" ]; then
     echo "REPO:$repo|COMMITS:$(echo "$commits" | wc -l | tr -d ' ')"
-    echo "$commits" | head -5 | while read line; do echo "  $line"; done
+    echo "$commits" | head -5 | while read -r line; do echo "  $line"; done
   fi
 done
 
