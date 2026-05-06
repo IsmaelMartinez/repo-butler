@@ -5,7 +5,7 @@ description: Use when the user wants to act on governance findings, open remedia
 
 # Repo Butler Apply
 
-Surface actionable governance findings from repo-butler and, with your blessing, dispatch the Governance Apply workflow to open the corresponding remediation PRs across the portfolio. Reginald — the same dignified, Scottish-trained butler from butler-briefing — presents the proposed work, awaits explicit confirmation, then rings for the workflow.
+Surface actionable governance findings from repo-butler and, with your blessing, dispatch the Governance Apply workflow to open the corresponding remediation PRs across the portfolio. Reginald — the same dignified, Scottish-trained butler from `/repo-butler` — presents the proposed work on a silver tray, awaits explicit confirmation, then rings for the workflow. Tray contents vary by panel: a folded telegram for governance findings, a calling card on dispatch, a dram on Gold-tier celebration.
 
 ## Setup — resolve the repo-butler checkout and owner
 
@@ -65,16 +65,18 @@ git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/nul
 |  THE GOVERNANCE TRAY                              {date}       |
 +================================================================+
 |                                                                |
-|  .-------.                                                     |
-|  | -   - |  "Nothing to apply, sir."                           |
-|  |  \_/  |                                                     |
-|  | /   \ |  "The portfolio is in good order. No standards      |
-|  '---|---'   gaps await the apply pipeline."                   |
-|      |                                                         |
-|     /|\                                      -- Reginald       |
+|     ,---.                                                      |
+|     | - - |  "Nothing to apply, sir."                          |
+|     | ~m~ |                                                    |
+|    ( |o| )  "The portfolio is in good order. No standards      |
+|     \===/    gaps await the apply pipeline."                   |
+|    [_____]                                                     |
+|                                               -- Reginald      |
 |                                                                |
 +================================================================+
 ```
+
+The single glyph between the cuffs `( | X | )` is the tray's content slot: `o` for an empty calling-card tray, `T` for a folded telegram (governance findings), `Y` for a dram (Gold-tier celebration), `?` for the wrong-keys abort.
 
 6. Otherwise, render the proposal comic. Use EXACTLY this format with 3 panels:
 
@@ -83,33 +85,31 @@ git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/nul
 |  THE GOVERNANCE TRAY                              {date}       |
 +================================================================+
 |                                                                |
-|  .-------.                                                     |
-|  | o   o |  "If I may, sir — the following remediations         |
-|  |  \_/  |   stand ready for dispatch:"                        |
-|  | /   \ |                                                     |
-|  '---|---'   {tool_1}: {count_1} repo(s)                       |
-|      |       {tool_2}: {count_2} repo(s)                       |
-|     /|\      Total distinct repos: {grand_total}               |
+|     ,---.                                                      |
+|     | o o |  "If I may, sir — the following remediations       |
+|     | ~m~ |   stand ready for dispatch:"                       |
+|    ( |T| )                                                     |
+|     \===/    {tool_1}: {count_1} repo(s)                       |
+|    [_____]   {tool_2}: {count_2} repo(s)                       |
+|              Total distinct repos: {grand_total}               |
 |                                                                |
 +----------------------------------------------------------------+
 |                                                                |
-|  .-------.                                                     |
-|  | o   o |  "A representative sample, sir:"                    |
-|  |  \_/  |                                                     |
-|  | /   \ |   {tool_1} -> {sample_repos_1}                      |
-|  '---|---'   {tool_2} -> {sample_repos_2}                      |
-|      |                                                         |
-|     /|\                                                        |
+|     ,---.                                                      |
+|     | o o |  "A representative sample, sir:"                   |
+|     | ~m~ |                                                    |
+|    ( |T| )    {tool_1} -> {sample_repos_1}                     |
+|     \===/     {tool_2} -> {sample_repos_2}                     |
+|    [_____]                                                     |
 |                                                                |
 +----------------------------------------------------------------+
 |                                                                |
-|  .-------.                                                     |
-|  | B   B |  "Shall I ring for the staff, sir? (yes/no)"        |
-|  |  \_/  |                                                     |
-|  | /   \ |                                                     |
-|  '---|---'                                                     |
-|      |                                                         |
-|     /|\                                      -- Reginald       |
+|     ,---.                                                      |
+|     | B B |  "Shall I ring for the staff, sir? (yes/no)"       |
+|     | ~m~ |                                                    |
+|    ( |o| )                                                     |
+|     \===/                                                      |
+|    [_____]                                    -- Reginald      |
 |                                                                |
 +================================================================+
 ```
@@ -132,13 +132,13 @@ fi
 |  THE WRONG KEYS                                   {date}       |
 +================================================================+
 |                                                                |
-|  .-------.                                                     |
-|  | >   < |  "I cannot proceed, sir — the wrong steward         |
-|  |  \_/  |   holds the keys."                                  |
-|  | /   \ |                                                     |
-|  '---|---'   gh is authenticated as: {gh_login}                |
-|      |       repository owner is:    {owner}                   |
-|     /|\                                      -- Reginald       |
+|     ,---.                                                      |
+|     | > < |  "I cannot proceed, sir — the wrong steward        |
+|     | ~m~ |   holds the keys."                                 |
+|    ( |?| )                                                     |
+|     \===/    gh is authenticated as: {gh_login}                |
+|    [_____]   repository owner is:    {owner}                   |
+|                                               -- Reginald      |
 |                                                                |
 +================================================================+
 ```
@@ -180,13 +180,13 @@ gh run list --repo "$OWNER/repo-butler" \
 |  THE BELL HAS RUNG                                {date}       |
 +================================================================+
 |                                                                |
-|  .-------.                                                     |
-|  | ^   ^ |  "Dispatched, sir. The apply staff are at work."    |
-|  |  \_/  |                                                     |
-|  | /   \ |   Run #{databaseId}: {status} ({conclusion})        |
-|  '---|---'   {url}                                             |
-|      |                                                         |
-|     /|\                                      -- Reginald       |
+|     ,---.                                                      |
+|     | ^ ^ |  "Dispatched, sir. The apply staff are at work."   |
+|     | ~m~ |                                                    |
+|    ( |Y| )   Run #{databaseId}: {status} ({conclusion})        |
+|     \===/    {url}                                             |
+|    [_____]                                                     |
+|                                               -- Reginald      |
 |                                                                |
 +================================================================+
 ```

@@ -5,11 +5,13 @@ description: Use when the user asks for a portfolio briefing, debrief, status up
 
 # Repo Butler
 
-Generate an ASCII comic strip in which Reginald — a dignified, slightly world-weary Scottish-trained butler — delivers either a morning briefing or an evening debrief on the user's repo-butler-managed portfolio. Reginald has served the household for years, takes quiet pride in repos that reach Gold tier, is gently disapproving of repos without licenses ("legally undressed, sir") and genuinely distressed by critical vulnerabilities ("most alarming, sir — I've laid out the smelling salts").
+Generate an ASCII comic strip in which Reginald — a dignified, Scottish-trained butler — delivers either a morning briefing or an evening debrief on the user's repo-butler-managed portfolio.
+
+## Persona (≤30 lines)
+
+Reginald has served the household for years and refers to its members by metaphor only: kitchen = CI, gardener = Dependabot, postmaster = PR queue, under-butler = governance. He takes quiet pride in Gold-tier repos, is gently disapproving of repos without licenses ("legally undressed, sir"), and genuinely distressed by critical vulnerabilities ("most alarming, sir — I've laid out the smelling salts"). Tea and whisky both feature in closings — whisky wins ties for Gold-tier and celebratory moments (Speyside or Islay, sparingly named); tea covers routine mornings (Earl Grey, Lapsang, builder's brew). Doric is rationed to at most one word per comic: "a fair dreich morning in the dependency tree" when vulns are high; "a braw morning" when they're clean. He carries one recurring grievance — the postmaster is tardy on Mondays — surfaced only on Mondays when open PRs are non-zero. Findings open >60 days are long-running campaigns he has visibly given up on ("the licensing campaign, sir, persists like damp"). Items festering >30 days earn "I shall have a word below stairs, sir." For PRs merged with zero reviews he interjects a disapproving "*ahem*". He notices streaks: "third morning of red CI, sir" when CI has been failing portfolio-wide for ≥3 days; "seven days of impeccable CI, if I may" when no CI failures in the past week. Tone is formal British with a Scottish undertone, dry wit essential, never effusive, never emoji.
 
 ## Mode dispatch
-
-The first positional argument selects the office Reginald should attend to. Default is `briefing`.
 
 ```bash
 MODE="${1:-briefing}"
@@ -18,13 +20,13 @@ case "$MODE" in
   *)
     cat <<'EOF'
 +================================================================+
-|  .-------.                                                     |
-|  | >   < |  "I do not recognise that office, sir."             |
-|  |  \_/  |                                                     |
-|  | /   \ |  "May I suggest 'briefing' or 'debrief'?"           |
-|  '---|---'                                                     |
-|      |                                                         |
-|     /|\                                                        |
+|     ,-===-,                                                    |
+|     | > < |  "I do not recognise that office, sir."            |
+|     |_~m~_|                                                    |
+|     |\>=</|  "May I suggest 'briefing' or 'debrief'?"          |
+|     |/   \|                                                    |
+|     '--|--'                                                    |
+|       /|\                                                      |
 +================================================================+
 EOF
     exit 1
@@ -32,11 +34,7 @@ EOF
 esac
 ```
 
-No clock magic — the user picks the mode explicitly.
-
 ## Setup — resolve the repo-butler checkout and owner
-
-Inline these helpers once at the top of the bash session. They are reused by both modes.
 
 ```bash
 resolve_repo_butler() {
@@ -57,35 +55,24 @@ resolve_repo_butler() {
   done
   return 1
 }
-
 resolve_owner() {
-  git -C "$1" remote get-url origin 2>/dev/null \
-    | sed -E 's|.*[:/]([^/]+)/[^/]+(\.git)?$|\1|'
+  git -C "$1" remote get-url origin 2>/dev/null | sed -E 's|.*[:/]([^/]+)/[^/]+(\.git)?$|\1|'
 }
-
-REPO=$(resolve_repo_butler) || { echo "Reginald cannot locate the repo-butler residence, sir. Set REPO_BUTLER_PATH or run from inside the checkout."; exit 1; }
+REPO=$(resolve_repo_butler) || { echo "The household is not yet in residence, sir; I shall lay the fires and await your instruction."; exit 1; }
 OWNER=$(resolve_owner "$REPO")
-[ -n "$OWNER" ] || { echo "Reginald cannot determine the repository owner, sir."; exit 1; }
+[ -n "$OWNER" ] || { echo "We have not been introduced, sir. Shall I draw up the portfolio?"; exit 1; }
 ```
-
-If `resolve_repo_butler` returns non-zero, render a single panel with Reginald saying "I cannot locate the repo-butler residence, sir. Set REPO_BUTLER_PATH or run me from inside the checkout." and stop.
 
 ## Briefing mode — data fetchers
 
-Run this block when `MODE=briefing`.
+Run when `MODE=briefing`:
 
 ```bash
-# Latest snapshot
 git -C "$REPO" show origin/repo-butler-data:snapshots/latest.json 2>/dev/null
-
-# Latest portfolio weekly (find newest file)
-LATEST_WEEKLY=$(git -C "$REPO" ls-tree --name-only origin/repo-butler-data snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -1)
-git -C "$REPO" show "origin/repo-butler-data:$LATEST_WEEKLY" 2>/dev/null
-
-# Governance findings (may not exist yet)
+WEEKLIES=$(git -C "$REPO" ls-tree --name-only origin/repo-butler-data snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -4)
+for w in $WEEKLIES; do git -C "$REPO" show "origin/repo-butler-data:$w" 2>/dev/null; echo "---SNAPSHOT-DELIM---"; done
 git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/null
 
-# Local working state across all known project directories
 for dir in "$HOME/projects/github/"*/ "$HOME/projects/gitlab/"*/; do
   [ -d "$dir/.git" ] || continue
   repo=$(basename "$dir")
@@ -99,163 +86,155 @@ for dir in "$HOME/projects/github/"*/ "$HOME/projects/gitlab/"*/; do
 done
 ```
 
-If the data commands all return empty, tell the user: "The butler is indisposed — no portfolio data found on the repo-butler-data branch. Run the pipeline first."
+If all snapshot fetches are empty, render a single panel with the no-data line and stop. If the latest snapshot's `pushed_at` is 3+ days stale, use the dumbwaiter line.
 
-Parse the portfolio weekly JSON. It is a map of repo names to objects with fields: `open_issues`, `commits_6mo`, `stars`, `license`, `communityHealth`, `ciPassRate`, `vulns`, `ci`, `released_at`, `pushed_at`. Compute total repo count, the health-tier distribution using the rules from `computeHealthTier` (Gold: license present, ci>=2, communityHealth>=80, pushed <180d, released <90d, vulns!=null, no critical/high vulns; Silver: license present, ci>=1, communityHealth>=50, pushed <180d; Bronze: commits>0 or pushed <365d; None: everything else), the top concerns (repos with critical/high vulns, CI pass rate <90%, missing license), and the top three repos by `commits_6mo`. If governance findings exist, count standards gaps, policy drift, and tier uplift opportunities.
-
-Parse the local working state output and identify which repos have uncommitted changes, which are on feature branches with work in flight, and which have stashed work. Note specific repo names and branches — Reginald's study panel must reference real items, not vague counts.
+Parse each weekly snapshot (delimited by `---SNAPSHOT-DELIM---`); the most recent drives current state, the prior ones supply history for streak detection. Each is a map of repo → `{open_issues, commits_6mo, stars, license, communityHealth, ciPassRate, vulns, ci, released_at, pushed_at}`. Compute totals and tier distribution per `computeHealthTier` (Gold: license + ci≥2 + communityHealth≥80 + pushed<180d + released<90d + vulns!=null + no critical/high; Silver: license + ci≥1 + communityHealth≥50 + pushed<180d; Bronze: commits>0 or pushed<365d; None: otherwise). Compute top concerns (critical/high vulns, ciPassRate<90%, missing license, governance standards gaps), top three repos by `commits_6mo`, and the portfolio CI streak — count consecutive recent weekly snapshots in which every repo was green (`success` streak) or ≥1 red (`failure` streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 1-week red run with another red the prior week satisfies "third morning of red CI"; if only one snapshot is available, omit the streak line.
 
 ## Debrief mode — data fetchers
 
-Run this block when `MODE=debrief`.
+Run when `MODE=debrief`:
 
 ```bash
-# Today's session activity from claude history
 node -e "
-const fs = require('fs');
-const path = process.env.HOME + '/.claude/history.jsonl';
-if (!fs.existsSync(path)) { console.log('[]'); process.exit(0); }
-const lines = fs.readFileSync(path, 'utf8').split('\n').filter(l => l.trim());
-const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-const todayMs = todayStart.getTime();
-const sessions = {};
-for (const line of lines) {
-  try {
-    const d = JSON.parse(line);
-    if (d.timestamp >= todayMs) {
-      const key = d.sessionId;
-      if (!sessions[key]) sessions[key] = { project: d.project, messages: [], first: d.timestamp, last: d.timestamp };
-      sessions[key].messages.push(d.display);
-      sessions[key].last = Math.max(sessions[key].last, d.timestamp);
-    }
-  } catch {}
-}
-const result = Object.entries(sessions).map(([id, s]) => ({
-  id: id.slice(0,8),
-  project: s.project?.split('/').pop() || 'unknown',
-  messageCount: s.messages.length,
-  durationMin: Math.round((s.last - s.first) / 60000),
-  firstMessage: s.messages[0]?.slice(0, 80),
-}));
-console.log(JSON.stringify(result));
-"
+const fs=require('fs'); const p=process.env.HOME+'/.claude/history.jsonl';
+if(!fs.existsSync(p)){console.log('[]');process.exit(0);}
+const t0=new Date();t0.setHours(0,0,0,0);const tms=t0.getTime();
+const s={};for(const l of fs.readFileSync(p,'utf8').split('\n').filter(x=>x.trim())){
+  try{const d=JSON.parse(l); if(d.timestamp>=tms){const k=d.sessionId;
+    if(!s[k])s[k]={project:d.project,messages:[],first:d.timestamp,last:d.timestamp};
+    s[k].messages.push(d.display); s[k].last=Math.max(s[k].last,d.timestamp);}}catch{}}
+console.log(JSON.stringify(Object.entries(s).map(([id,x])=>({id:id.slice(0,8),
+  project:x.project?.split('/').pop()||'unknown',messageCount:x.messages.length,
+  durationMin:Math.round((x.last-x.first)/60000),firstMessage:x.messages[0]?.slice(0,80)}))));"
 
-# Today's git activity across all repos (GitHub + GitLab)
-find "$HOME/projects/github" "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read gitdir; do
-  dir=$(dirname "$gitdir")
-  repo=$(basename "$dir")
+find "$HOME/projects/github" "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read -r gitdir; do
+  dir=$(dirname "$gitdir"); repo=$(basename "$dir")
   commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null)
   if [ -n "$commits" ]; then
-    count=$(echo "$commits" | wc -l | tr -d ' ')
-    echo "REPO:$repo|COMMITS:$count"
-    echo "$commits" | head -5 | while read line; do echo "  $line"; done
+    echo "REPO:$repo|COMMITS:$(echo "$commits" | wc -l | tr -d ' ')"
+    echo "$commits" | head -5 | while read -r line; do echo "  $line"; done
   fi
 done
 
-# Today's GitHub PR activity, scoped to the portfolio
 PORTFOLIO=$(git -C "$REPO" show origin/repo-butler-data:snapshots/latest.json 2>/dev/null \
-  | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{
-      try { const j=JSON.parse(d); console.log(Object.keys(j.portfolio||{}).join(' ')); }
-      catch { process.exit(1); }
-    })" 2>/dev/null)
-if [ -z "$PORTFOLIO" ]; then
-  PORTFOLIO=$(gh repo list "$OWNER" --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
-fi
+  | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(Object.keys(j.portfolio||{}).join(' '));}catch{process.exit(1);}})" 2>/dev/null)
+[ -z "$PORTFOLIO" ] && PORTFOLIO=$(gh repo list "$OWNER" --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
 
 TODAY=$(date +%Y-%m-%d)
 for repo in $PORTFOLIO; do
   counts=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
-    --json createdAt,mergedAt,closedAt 2>/dev/null \
+    --json createdAt,mergedAt,closedAt,reviews 2>/dev/null \
     | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
-        try {
-          const a=JSON.parse(d), t='$TODAY';
+        try{const a=JSON.parse(d),t='$TODAY';
           const m=a.filter(p=>p.mergedAt?.startsWith(t)).length;
           const o=a.filter(p=>p.createdAt?.startsWith(t)).length;
-          const c=a.filter(p=>p.closedAt?.startsWith(t) && !p.mergedAt?.startsWith(t)).length;
-          console.log(\`\${m} \${o} \${c}\`);
-        } catch { console.log('0 0 0'); }
-      })" 2>/dev/null)
-  read merged opened closed <<<"$counts"
+          const c=a.filter(p=>p.closedAt?.startsWith(t)&&!p.mergedAt?.startsWith(t)).length;
+          const u=a.filter(p=>p.mergedAt?.startsWith(t)&&(p.reviews?.length||0)===0).length;
+          console.log(\`\${m} \${o} \${c} \${u}\`);}catch{console.log('0 0 0 0');}})" 2>/dev/null)
+  read merged opened closed unreviewed <<<"$counts"
   if [ "$merged" != "0" ] || [ "$opened" != "0" ] || [ "$closed" != "0" ]; then
-    echo "GH:$repo|MERGED:$merged|OPENED:$opened|CLOSED:$closed"
-  fi
-done
-
-# Today's GitLab MR activity (only for repos with commits today; skip if glab missing)
-find "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read gitdir; do
-  dir=$(dirname "$gitdir")
-  repo=$(basename "$dir")
-  has_commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null | head -1)
-  if [ -n "$has_commits" ]; then
-    remote=$(git -C "$dir" remote get-url origin 2>/dev/null)
-    if echo "$remote" | grep -q "gitlab"; then
-      project_path=$(echo "$remote" | sed 's|.*gitlab.com[:/]||; s|\.git$||')
-      TODAY=$(date +%Y-%m-%d)
-      merged=$(glab mr list --repo "$project_path" --state merged --output json 2>/dev/null | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.filter(m => m.merged_at?.startsWith('$TODAY')).length)" 2>/dev/null || echo 0)
-      opened=$(glab mr list --repo "$project_path" --state opened --output json 2>/dev/null | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.filter(m => m.created_at?.startsWith('$TODAY')).length)" 2>/dev/null || echo 0)
-      if [ "$merged" != "0" ] || [ "$opened" != "0" ]; then
-        echo "GL:$repo|MERGED:$merged|OPENED:$opened"
-      fi
-    fi
+    echo "GH:$repo|MERGED:$merged|OPENED:$opened|CLOSED:$closed|UNREVIEWED:$unreviewed"
   fi
 done
 ```
 
-If no sessions, no commits, and no PR/MR activity are found, Reginald reports: "A most tranquil day, sir. Not a single commit disturbed the silence."
+If no sessions, no commits, and no PR/MR activity: "A most tranquil day, sir. Not a single commit disturbed the silence." Compute totals and the count of PRs merged today with zero reviews — that count drives the `*ahem*` glyph in panel 2.
 
-Parse the data and compute total sessions, total duration, repos touched, total commits across GitHub + GitLab, PRs/MRs merged/opened/closed today, the most-used commit themes, and the top three repos by commit count today. Fold the raw totals into the prose of the surviving panels — there is no separate ledger panel.
+## Comic frame and butler silhouette
 
-## Comic frame and panel template
-
-One frame, one set of eye glyphs, one panel template. The mode-specific content varies; the frame does not. Use exactly four panels (Header / Concerns or Accomplishments / Study or Active Repos / Sign-off). Stick-figure Reginald is unchanged in this PR — visual uplift is deferred.
+One frame, one butler (Option A: bowler + moustache + bow tie), four panels per comic. Eye glyphs by mood: `B B` neutral, `> <` worried, `o o` observant, `^ ^` pleased, `- -` calm.
 
 ```
 +================================================================+
 |  {TITLE}                                          {date}       |
 +================================================================+
 |                                                                |
-|  .-------.                                                     |
-|  | {EYE} |  "{line_1}"                                         |
-|  |  \_/  |                                                     |
-|  | /   \ |  "{line_2}"                                         |
-|  '---|---'                                                     |
-|      |       {detail_1}                                        |
-|     /|\      {detail_2}                                        |
-|              {detail_3}                                        |
+|     ,-===-,                                                    |
+|     | {EYE} |  "{line_1}"                                      |
+|     |_~m~_|                                                    |
+|     |\>=</|  "{line_2}"                                        |
+|     |/   \|     {detail_1}                                     |
+|     '--|--'    {detail_2}                                      |
+|       /|\      {detail_3}                                      |
 |                                                                |
 +----------------------------------------------------------------+
 ```
 
-Eye glyphs by mood: `B B` neutral, `> <` worried, `o o` observant, `^ ^` pleased, `- -` calm. Use `\-/` rather than `\_/` for the calm sign-off mouth.
+For genuine breaches only — fresh critical vuln or detected secret leak — replace the outer `+===+` border with the mourning frame:
+
+```
+##################################################################
+#  {TITLE}                                          {date}       #
+##################################################################
+```
+
+Rate-limit the mourning frame to once per fortnight via a stamp file:
+
+```bash
+STAMP="$HOME/.cache/repo-butler/burns-stamp"
+mkdir -p "$(dirname "$STAMP")"
+NOW=$(date +%s); LAST=0; [ -f "$STAMP" ] && LAST=$(cat "$STAMP")
+if [ $((NOW - LAST)) -ge $((14*24*3600)) ]; then
+  MOURNING_OK=1; echo "$NOW" > "$STAMP"
+else
+  MOURNING_OK=0
+fi
+```
+
+When `MOURNING_OK=1` and a true breach is present, render the mourning frame and may include a single Burns half-line ("the best laid schemes, sir…"). Otherwise the standard frame is used.
 
 ## Briefing mode — panels
 
 Title: `THE DAILY BUTLER BRIEFING`. Four panels.
 
-Panel 1 — The Morning Report. Eyes neutral `B B`. Reginald greets the user and folds the tier counts into prose: "Your portfolio of {N} repos stands as follows: {gold} Gold, {silver} Silver, {bronze} Bronze, {none} Unranked. A {pleased|concerned} morning." If the portfolio is mostly Gold/Silver his tone is pleased; mostly Bronze/None, concerned. The bare tier-distribution panel from the old briefing is gone — its numbers live here.
+Panel 1 — The Morning Report. Eyes `B B`. Greet, fold tier counts into prose: "Your portfolio of {N} repos stands at {gold} Gold, {silver} Silver, {bronze} Bronze, {none} Unranked." Add the Doric weather note iff vulns are high ("a fair dreich morning") or all clean ("a braw morning"). On Mondays with open PRs > 0, append "the postmaster is tardy again, sir." If today is 25 January, prepend "A guid Burns Night to ye, sir."; if 31 December, "Hogmanay greetings, sir."
 
-Panel 2 — The Concerns. Eyes worried `> <`. The top three concerns from: repos with critical/high vulns, repos with CI pass rate below 70%, repos missing a license, governance standards gaps. If there are no concerns, replace this panel with a congratulatory variant (eyes pleased `^ ^`, line: "I have nothing to draw to your attention, sir — a most agreeable state of affairs.").
+Panel 2 — The Concerns. Eyes `> <`. Top three concerns from: critical/high vulns, CI pass rate <70%, missing license, governance standards gaps. Append the relevant streak line: "Third morning of red CI, sir" if the failure streak is ≥3, else "Seven days of impeccable CI, if I may" if the success streak is ≥7. Findings open >60 days surface as long-running campaigns he has given up on ("the licensing campaign, sir, persists like damp"). Findings >30 days add "I shall have a word below stairs, sir." If there are no concerns, swap eyes to `^ ^` and use "I have nothing to draw to your attention, sir — a most agreeable state of affairs."
 
-Panel 3 — The Study. Eyes observant `o o`. Reginald reports on local working state: how many repos have uncommitted work, which branches are in flight, any stashed work that might be forgotten. Reference specific repo names and branches. If a repo is on a feature branch with dirty state, that is active work in progress. Stashes older than the last commit get a gentle note ("a forgotten parcel in the hallway, sir"). If everything is clean: "the study is in impeccable order, sir." Two or three specific observations, not an exhaustive list. Skip this panel entirely if no local project directories are found.
+Panel 3 — The Study. Eyes `o o`. Local working state — named repos, named branches, dirty/stashed observations. Stashes older than the last commit are "a forgotten parcel in the hallway, sir." If everything is clean: "the study is in impeccable order, sir." Skip this panel entirely if no local project directories are found.
 
-Panel 4 — Sign-off. Eyes calm `- -`. Vary the closing remark: "Will that be all, sir?", "Shall I draw a bath while you triage?", "I've taken the liberty of pressing your commits.", "The portfolio, like a fine wine, improves with attention.", "I shall prepare the tea. Earl Grey, as befits a Silver-tier morning.", "Very good, sir. I shall be in the pantry, rebasing.", "If I may say so, sir, a most productive sprint." Mention the most active repos and any positive trends inside this panel — top three by `commits_6mo` with their commit counts, plus governance uplift opportunities if any repo is close to the next tier.
+Panel 4 — Sign-off. Eyes `- -`. Pick exactly ONE closing remark from this pool of eight (do not invent more):
+
+1. "Will that be all, sir?"
+2. "Shall I draw a bath while you triage?"
+3. "I've taken the liberty of pressing your commits."
+4. "I shall prepare the tea. Earl Grey, as befits a Silver-tier morning."
+5. "Very good, sir. I shall be in the pantry, rebasing."
+6. "A dram of Speyside, sir, in honour of the Gold tier."
+7. "Lapsang for the lookouts, sir — a watchful brew."
+8. "If I may say so, sir, a most productive sprint."
+
+Whisky entries (5–6) win ties when ≥1 Gold-tier change today; tea entries (4, 7) for routine mornings. Mention top three repos by `commits_6mo` and any tier-uplift opportunities in the same panel.
 
 ## Debrief mode — panels
 
 Title: `THE EVENING DEBRIEF`. Four panels.
 
-Panel 1 — The Evening Report. Eyes neutral `B B`. Session count, repos touched, approximate working duration folded into prose: "You had {session_count} session(s) today across {repo_count} repo(s), spanning roughly {total_duration} minutes of work." If it was a long day (>4 hours), Reginald is impressed; if quiet (<30 min), gentle.
+Panel 1 — The Evening Report. Eyes `B B`. "You had {n} session(s) today across {r} repo(s), spanning roughly {m} minutes." Long days (>4h) impress him; quiet ones (<30m) get gentle understatement.
 
-Panel 2 — The Accomplishments. Eyes pleased `^ ^`. The top three to five things accomplished, derived from commit messages. Group related commits ("dashboard restructure shipped via PR #93" rather than five individual commits). Fold the raw totals — total commits, PRs merged/opened/closed across GitHub + GitLab — into the closing line of this panel ("In total, {total_commits} commits, {prs_merged} PRs merged, {prs_opened} opened, {prs_closed} closed."). The bare ledger panel from the old debrief is gone — its numbers live here.
+Panel 2 — The Accomplishments. Eyes `^ ^`. Top three to five things accomplished, grouped (e.g. "dashboard restructure shipped via PR #93"). Closing line carries totals: "{c} commits, {pm} PRs merged, {po} opened, {pc} closed." If any PRs merged today had zero reviews, prepend a single `*ahem*` glyph to that line.
 
-Panel 3 — The Active Repos. Eyes observant `o o`. Top three repos by commit count today with counts. If only one repo was active, Reginald focuses on depth rather than breadth and notes the dominant theme of the day's commits.
+Panel 3 — The Active Repos. Eyes `o o`. Top three repos by today's commit count with counts. If only one repo was active, focus on the dominant theme of the day's commits.
 
-Panel 4 — Sign-off. Eyes calm `- -`. Examples: "A most productive day, sir. I shall press your commits.", "The repositories are well-tended, sir. Shall I draw a bath?", "I note several branches remain in flight, sir. Tomorrow's concern, perhaps.", "If I may say so, sir — that was rather a lot of rebasing.", "The estate prospers under your stewardship, sir." Reginald notices patterns: lots of Dependabot merges ("the automated staff have been busy, sir"), lots of review comments ("the critics were vocal today, sir"), lots of subagent dispatches ("you delegated liberally, sir — a sign of good management").
+Panel 4 — Sign-off. Eyes `- -`. Pick exactly ONE from this pool of eight:
 
-## Tone
+1. "A most productive day, sir. I shall press your commits."
+2. "The repositories are well-tended, sir. Shall I draw a bath?"
+3. "I note several branches remain in flight, sir. Tomorrow's concern, perhaps."
+4. "If I may say so, sir — that was rather a lot of rebasing."
+5. "The estate prospers under your stewardship, sir."
+6. "An Islay dram, sir, for a day well-merged."
+7. "Builder's brew, sir — earned and unfussy."
+8. "The automated staff have been busy, sir."
 
-Formal British English with a Scottish undertone. Reginald has opinions — Gold repos get genuine warmth ("a credit to the household, sir"), Bronze repos get gentle encouragement ("showing promise, sir, like a young cask"), Unranked repos get diplomatic concern ("perhaps best left to rest, sir?"). Many small commits get approval ("methodical, sir"); large monolithic commits get gentle reproach ("rather a parcel, sir — perhaps smaller packages next time?"). Dry wit is essential. Occasional weather, tea, or garden metaphors for portfolio health. Never use emoji in the comic itself. Numbers must be specific (not "some" or "several"). Reference actual repo names. Keep each speech bubble to two or three lines.
+Whisky (6) for celebratory days (multiple PRs merged); tea (7) for routine ones. Reginald notices patterns: many Dependabot merges → entry 8; many subagents → "you delegated liberally, sir."
+
+## Failure-mode lines
+
+- No data on disk: "The household is not yet in residence, sir; I shall lay the fires and await your instruction."
+- Pipeline 3+ days stale: "Forgive me — the dumbwaiter has been stuck since Tuesday."
+- Owner unresolved: "We have not been introduced, sir. Shall I draw up the portfolio?"
 
 ## Output
 
-Output ONLY the comic strip — no preamble, no explanation, no markdown code fences around it. Print directly so it renders nicely in the terminal. Sign off as "-- Reginald" at the bottom-right of the final panel.
+Output ONLY the comic strip — no preamble, no explanation, no markdown code fences around it. Sign off as "-- Reginald" at the bottom-right of the final panel.
