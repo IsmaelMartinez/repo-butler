@@ -95,7 +95,7 @@
     "sound3fy": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 79,
+      "commits_6mo": 80,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -119,7 +119,7 @@
       "secretScanning": null,
       "ci": 7,
       "released_at": "2025-12-20T09:59:52Z",
-      "pushed_at": "2026-04-30T09:22:54Z",
+      "pushed_at": "2026-05-05T19:59:06Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -186,8 +186,8 @@
     "teams-for-linux": {
       "open_issues": 25,
       "open_bugs": 13,
-      "commits_6mo": 373,
-      "stars": 4660,
+      "commits_6mo": 372,
+      "stars": 4662,
       "license": "GPL-3.0",
       "communityHealth": 85,
       "ciPassRate": 0.984375,
@@ -212,7 +212,7 @@
       },
       "ci": 16,
       "released_at": "2026-04-24T14:54:11Z",
-      "pushed_at": "2026-05-05T12:55:30Z",
+      "pushed_at": "2026-05-06T07:06:37Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -283,7 +283,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9587628865979382,
+      "ciPassRate": 0.9690721649484536,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -305,7 +305,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-05T13:15:52Z",
+      "pushed_at": "2026-05-06T04:19:49Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -465,7 +465,7 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 417,
+      "commits_6mo": 418,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
@@ -491,7 +491,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-05T08:29:48Z",
+      "pushed_at": "2026-05-05T18:16:49Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -651,7 +651,7 @@
     "ai-model-advisor": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 176,
+      "commits_6mo": 177,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -677,7 +677,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-04T02:47:31Z",
+      "pushed_at": "2026-05-06T04:16:16Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -837,7 +837,7 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 256,
+      "commits_6mo": 261,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-05T16:01:59Z",
+      "pushed_at": "2026-05-06T07:22:41Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,11 +1023,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 240,
+      "commits_6mo": 243,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.945054945054945,
+      "ciPassRate": 0.9325842696629213,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1049,7 +1049,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-05T12:47:39Z",
+      "pushed_at": "2026-05-06T07:13:28Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1116,11 +1116,11 @@
     "lounge-tv": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 34,
+      "commits_6mo": 36,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.95,
+      "ciPassRate": 0.9545454545454546,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1142,7 +1142,7 @@
       },
       "ci": 5,
       "released_at": "2026-04-07T07:04:50Z",
-      "pushed_at": "2026-05-02T17:02:48Z",
+      "pushed_at": "2026-05-05T23:19:51Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
