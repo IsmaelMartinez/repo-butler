@@ -180,9 +180,12 @@ export async function update(context) {
     console.log(`SOAK: ${headings.length} headings, ${strikethrough} strikethrough markers, ${shippedMarkers} SHIPPED markers`);
     console.log('SOAK: heading list:');
     for (const h of headings) console.log(`  ${h}`);
-    console.log('SOAK: output head (1500 chars):');
-    console.log(updatedRoadmap.slice(0, 1500));
-    if (updatedRoadmap.length > 3000) {
+    if (updatedRoadmap.length <= 3000) {
+      console.log('SOAK: full output:');
+      console.log(updatedRoadmap);
+    } else {
+      console.log('SOAK: output head (1500 chars):');
+      console.log(updatedRoadmap.slice(0, 1500));
       console.log('SOAK: output tail (1500 chars):');
       console.log(updatedRoadmap.slice(-1500));
     }
