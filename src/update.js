@@ -142,6 +142,13 @@ export async function update(context) {
   const preservation = checkLengthPreservation(currentRoadmap, updatedRoadmap);
   if (!preservation.valid) {
     console.error(`SAFETY: ${preservation.error} — refusing PR (suspected destructive rewrite).`);
+    // Log the actual LLM output (head + tail) so the soak can diagnose why the
+    // model produced a destructive rewrite. Without this the guard is opaque —
+    // we know the output was too short, but not what it contained.
+    const head = (updatedRoadmap || '').slice(0, 800);
+    const tail = (updatedRoadmap || '').length > 1600 ? (updatedRoadmap || '').slice(-800) : '';
+    console.error(`SAFETY: rejected output head:\n${head}`);
+    if (tail) console.error(`SAFETY: rejected output tail:\n${tail}`);
     return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [preservation.error] } };
   }
 
