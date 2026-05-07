@@ -343,7 +343,7 @@ export async function report(context) {
     await mkdir(wellKnownDir, { recursive: true });
     await writeFile(join(wellKnownDir, 'agent-card.json'), JSON.stringify(card, null, 2));
     await writeFile(join(outDir, '.nojekyll'), '');
-    console.log('A2A AgentCard written to .well-known/agent-card.json');
+    console.log('A2A AgentCard and .nojekyll marker written to reports/');
   }
 
   // Persist hash and repo cache after successful generation.
