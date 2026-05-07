@@ -167,6 +167,16 @@ docs/
 
 The portfolio observer prefers the `/installation/repositories` endpoint (GitHub App tokens), falling back to `/user/repos` (PATs), then to the public-only `/users/{owner}/repos` endpoint. Private repos only appear when the token can see them — a default `GITHUB_TOKEN` cannot list repos across an owner's portfolio, so the workflow should use a GitHub App token (`actions/create-github-app-token`) installed on every repo that should be included.
 
+## Claude Code skills
+
+Two skills ship from `skills/` for use inside Claude Code: `repo-butler` (read-side, briefing/debrief modes) and `repo-butler-apply` (write-side, confirm-gated governance dispatch). Install them into your local skill registry with:
+
+```bash
+./scripts/install-skills.sh
+```
+
+The script symlinks both skills into `$HOME/.claude/skills/`, cleans up dead symlinks from earlier `butler-briefing`/`butler-debrief`/`butler-apply` layouts, and is idempotent. Pass `--uninstall` to remove the symlinks, or `--skills-dir DIR` to target a custom location. Restart your Claude Code session afterwards so the new skills appear in the registry.
+
 ## MCP Server (AI agent access)
 
 Repo Butler includes an MCP (Model Context Protocol) server that lets AI agents query portfolio health data directly. Any MCP-compatible client (Claude Code, Claude Desktop, Cursor, VS Code) can connect.
