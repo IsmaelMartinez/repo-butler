@@ -55,21 +55,25 @@ PR 1 and PR 2 can ship together if you want; they're both small. PR 3 requires P
 ## PR 1 — Capture `homepage` in observe + schema
 
 **Files:**
-- Modify: `src/observe.js` (meta block construction, ~line 100)
-- Modify: `schemas/v1/snapshot.json` (add `meta.homepage`)
-- Modify: `src/observe.test.js` (assert new field)
+- Modify: `src/observe.js` (`fetchRepoMeta` return shape AND `observePortfolio` portfolio map)
+- Modify: `schemas/v1/repository-snapshot.v1.schema.json` (add `meta.homepage` and `meta.has_pages`)
+- Modify: `src/observe.test.js` (assert new fields)
 
 ### Tasks
 
-- [ ] **Task 1.1: Add `homepage` to the meta block**
-  - In `src/observe.js`, the `repo.homepage` field from `GET /repos/{owner}/{repo}` is already in scope; add it to the `meta` object built around line 100.
-  - Normalise empty strings → null with `repo.homepage?.trim() || null`.
+- [ ] **Task 1.1: Add `homepage` and `has_pages` to `fetchRepoMeta`**
+  - In `src/observe.js`'s `fetchRepoMeta` (~line 355), the `data.homepage` and `data.has_pages` fields from `GET /repos/{owner}/{repo}` are already in scope; add both to the returned object.
+  - Normalise empty strings → null with `data.homepage?.trim() || null`.
+  - `has_pages` is needed by the governance detector in PR 3 — capturing it here once is cheaper than re-fetching.
 
-- [ ] **Task 1.2: Schema bump**
-  - Add `homepage: { type: ['string', 'null'], format: 'uri' }` to the meta object's properties in `schemas/v1/snapshot.json`. Optional (don't add to `required`).
+- [ ] **Task 1.2: Add the same fields to `observePortfolio`'s portfolio mapping**
+  - The portfolio path (`observePortfolio`, ~line 175) builds its own per-repo entry; add `homepage` and `has_pages` to that mapping too so the portfolio dashboard sees them. Without this, `fetchPortfolioDetails` in `src/report-portfolio.js` won't have the field on hand.
 
-- [ ] **Task 1.3: Test**
-  - One test in `src/observe.test.js` mocking the repo endpoint with `homepage: 'https://example.com'`, asserting `snapshot.meta.homepage === 'https://example.com'`. One test mocking `homepage: ''`, asserting `meta.homepage === null`.
+- [ ] **Task 1.3: Schema bump**
+  - Add `homepage: { type: ['string', 'null'], format: 'uri' }` and `has_pages: { type: 'boolean' }` to the meta object's properties in `schemas/v1/repository-snapshot.v1.schema.json`. Both optional (don't add to `required`).
+
+- [ ] **Task 1.4: Test**
+  - One test in `src/observe.test.js` mocking the repo endpoint with `homepage: 'https://example.com'` and `has_pages: true`, asserting both fields appear on `snapshot.meta` and on the portfolio entry. One test mocking `homepage: ''`, asserting `meta.homepage === null`.
 
 **Acceptance:** schema validation tests pass; new field present in a sample snapshot run.
 
@@ -153,7 +157,7 @@ PR 1 and PR 2 can ship together if you want; they're both small. PR 3 requires P
 
 - [ ] **Task 4.1: Template handler**
   - For each `homepage-missing` finding where `signals` includes `has_pages`:
-    - Call `GET /repos/{owner}/{repo}/pages` to get the actual deployed URL.
+    - Call `GET /repos/{owner}/{repo}/pages` to get the actual deployed URL. On 404 (Pages disabled, signals stale) skip silently. On 403 (insufficient token scope) log a `Note: pages API returned 403 for {repo} — check token permissions` line and skip, mirroring the pattern in `fetchDependabotAlerts` (`src/observe.js:411`).
     - Call `PATCH /repos/{owner}/{repo}` with `{ homepage: <url> }`.
     - This is a settings change, not a PR — log it in the run summary instead of opening a PR. Match the existing dry-run / batch-cap / `require_approval` semantics.
   - For findings whose signals are workflow-only (Vercel, Netlify, etc.), the apply skill leaves them alone. The dashboard's Governance section makes the user's manual fix obvious.
