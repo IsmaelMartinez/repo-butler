@@ -184,13 +184,13 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 20,
+      "open_issues": 21,
       "open_bugs": 11,
       "commits_6mo": 375,
       "stars": 4665,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9830508474576272,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -283,7 +283,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9690721649484536,
+      "ciPassRate": 0.96875,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -305,7 +305,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-06T04:19:49Z",
+      "pushed_at": "2026-05-07T07:15:46Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -469,7 +469,7 @@
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.8681318681318682,
+      "ciPassRate": 0.8777777777777778,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -491,7 +491,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-06T16:23:34Z",
+      "pushed_at": "2026-05-06T21:15:28Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -558,18 +558,18 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 155,
+      "commits_6mo": 152,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.8315789473684211,
+      "ciPassRate": 0.8210526315789474,
       "vulns": {
-        "count": 0,
+        "count": 1,
         "critical": 0,
         "high": 0,
-        "medium": 0,
+        "medium": 1,
         "low": 0,
-        "max_severity": null
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -584,7 +584,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-04T08:34:56Z",
+      "pushed_at": "2026-05-07T01:43:23Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -837,11 +837,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 263,
+      "commits_6mo": 265,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.8275862068965517,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-06T18:28:20Z",
+      "pushed_at": "2026-05-07T09:15:31Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,11 +1023,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 245,
+      "commits_6mo": 247,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9213483146067416,
+      "ciPassRate": 0.9101123595505618,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1049,7 +1049,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-06T18:52:37Z",
+      "pushed_at": "2026-05-07T08:56:47Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
