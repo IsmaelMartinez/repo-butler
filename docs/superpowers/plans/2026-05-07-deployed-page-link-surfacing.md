@@ -1,48 +1,41 @@
 # Deployed-page link surfacing — Implementation Plan
 
-**Goal:** Surface each repo's deployed URL (GitHub Pages, Vercel, Netlify, custom domain, etc.) in the portfolio dashboard, per-repo dashboard, agent card, MCP responses, and the `/repo-butler` skill. Make discovery deterministic and cheap; let the user-set GitHub `homepage` field be the canonical source. Closes the ROADMAP "Future" entry "Deployed-page link surfacing" added in PR #185.
+**Goal:** Surface each repo's deployed URL in the portfolio dashboard, per-repo dashboard, agent card, MCP responses, and the `/repo-butler` skill — by enforcing the GitHub `homepage` field as the single canonical source. The butler reads `homepage`; the butler nags repos that should have it set but don't; the apply pipeline auto-sets it when the URL can be derived from a known platform (GitHub Pages); everything else gets an advisory governance finding for the user to fix manually. Closes the ROADMAP "Future" entry "Deployed-page link surfacing" added in PR #185.
 
-**Non-goals:** Live URL health checks (deploy uptime monitoring is a separate, larger feature). Workflow YAML parsing for deploy-provider detection. README badge regex. Crawling deployed pages for any reason.
+**Non-goals:** Multi-source URL discovery (Pages API as a runtime fallback, README badge regex, workflow YAML parsing for deploy-provider detection, `vercel.json` / `netlify.toml` / `CNAME` parsing). Live URL health checks (deploy uptime monitoring is a separate, larger feature). Crawling the deployed pages for any reason.
 
-**Tech stack:** Existing — Node 22 built-ins, no new dependencies. Schema 2020-12 for the snapshot field. Existing dashboard CSS utility classes for the icon-link styling.
+**Tech stack:** Existing — Node 22 built-ins, no new dependencies.
 
 **Inputs:** Discussion in conversation 2026-05-07. Confirmed `homepage` is not yet captured in `src/observe.js`'s meta block (verified by grep + snapshot meta-keys readout).
 
 ---
 
-## Sources of deployed-page URLs (ranked)
+## The pattern
 
-The implementation uses two sources, both deterministic and cheap. Everything below the line is explicitly out of scope.
+This is a worked example of "metadata as standard". The butler's job is governance — checking that the same convention is followed across every portfolio repo and surfacing gaps. Picking GitHub's `homepage` field as the canonical source means:
 
-### 1. GitHub `homepage` repo field (primary)
+- One read path for everyone: `repo.homepage` from the standard repo-meta endpoint, already fetched.
+- One write path: `PATCH /repos/{owner}/{repo}` with `{ homepage: "..." }`.
+- One governance finding: "repo deploys but `homepage` is unset".
+- One apply template: derive URL from a known platform; open a PR (or dispatch a settings change) to set the field.
 
-The `GET /repos/{owner}/{repo}` endpoint already called by `observe()` returns `homepage` as a string. It is the GitHub-canonical "where this thing is deployed" — set by the user via repo Settings or the API. Covers GitHub Pages, Vercel, Netlify, Cloudflare Pages, custom domains uniformly. Costs zero extra API calls.
-
-Weakness: user-maintained. A repo without `homepage` set surfaces no URL. The remediation is "encourage users to set it" rather than "guess for them" — see PR 4 below for the optional governance nudge.
-
-### 2. GitHub Pages API (fallback)
-
-`GET /repos/{owner}/{repo}/pages` returns the deployed URL when Pages is enabled. Use only when `homepage` is empty AND the meta endpoint's `has_pages` is true. One extra API call per matching repo, cheap, returns 404 cleanly when Pages is disabled.
-
-### Below the line — explicitly out of scope
-
-- README badge regex (fragile; breaks when badge syntax shifts)
-- Workflow YAML parsing for `vercel-action` / `netlify-action` / `cloudflare-pages-action` (high maintenance, breaks when action names change)
-- `vercel.json` / `netlify.toml` parsing (these don't carry domains anyway)
-- `.github/CNAME` / root `CNAME` parsing (GH Pages already covers this via the Pages API)
-- Live URL crawling, screenshotting, or status checking (privacy and rate-limit problems against external hosts)
+The same shape generalises to other metadata-as-standard items: `description`, `topics`, security policy URL, contributing guide URL. Land this one cleanly and the next becomes a copy-paste with a different field name.
 
 ---
 
-## Where to surface
+## Sources of deployed-page URLs
 
-Once captured in the snapshot, the URL appears in five surfaces, each a small mechanical change:
+Single source: GitHub's `homepage` field on the repo. Set by the user via repo Settings or the API. Returned by the existing `GET /repos/{owner}/{repo}` call already in `observe()`. Covers GitHub Pages, Vercel, Netlify, Cloudflare Pages, custom domains, anything else, all uniformly.
 
-- Portfolio dashboard repo table: small external-link icon next to the repo name, linking to the deployed URL. Hidden when absent. No new column.
-- Per-repo dashboard: a "Deployed at" row in the existing summary block, link rendered inline.
-- A2A agent card (`reports/.well-known/agent-card.json`): each per-repo skill entry grows a `homepage` field.
-- MCP `query_portfolio` and `get_health_tier` responses: the meta block already round-trips through these tools, so the field appears naturally with no tool-schema change.
-- `/repo-butler` skill briefing panel 4: optional Reginald flourish — "the estate is presented at {url1} and {url2}, sir" — only when ≥1 deployed repo has a URL. Skipped on lean days.
+Weakness: user-maintained. A repo that deploys but doesn't have `homepage` set surfaces no URL. That weakness is the whole reason this plan exists — the butler's job is to detect and close it via governance.
+
+### What the butler does NOT do at runtime
+
+- Does not call the GitHub Pages API as a fallback for repos with `homepage` unset.
+- Does not parse `.github/workflows/*.yml` for deploy actions to derive a URL.
+- Does not read README badges, `vercel.json`, `netlify.toml`, or `CNAME` files.
+
+The Pages API and the workflow file ARE consulted — but only inside the governance detector, to decide whether to flag the repo. The dashboards, agent card, MCP, and skill all read `homepage` directly. If `homepage` is empty, no link surfaces. The fix path is the apply pipeline, not a runtime fallback.
 
 ---
 
@@ -50,61 +43,39 @@ Once captured in the snapshot, the URL appears in five surfaces, each a small me
 
 | PR | Title | Risk |
 |----|-------|------|
-| 1 | Capture `homepage` and `has_pages` in observe + snapshot schema | Low. Two-line additive change to the meta block. |
-| 2 | Pages API fallback fetcher | Low. New `fetchPagesUrl()` returning null on 404, called only when needed. |
-| 3 | Surface in dashboards + agent card + skill | Medium. Touches `report-portfolio.js`, `report-repo.js`, `agent-card.js`, and optionally `skills/repo-butler/SKILL.md`. Mechanical but fans out. |
-| 4 | Optional: `deployed-without-homepage` governance finding | Low. Detector greps workflow YAML for known deploy action names, flags repos with a deploy workflow and no `homepage`. Closes the PR-1 weakness via the existing apply pipeline. |
+| 1 | Capture `homepage` in observe + snapshot schema | Low. One field added to the meta block. |
+| 2 | Surface in dashboards + agent card + skill | Medium. Touches `report-portfolio.js`, `report-repo.js`, `agent-card.js`, optionally `skills/repo-butler/SKILL.md`. Mechanical but fans out. |
+| 3 | Governance finding: `homepage-missing` | Low-medium. Detector queries Pages API + greps workflow files for known deploy actions; flags repos where signals say "deployed" but `homepage` is empty. |
+| 4 | Apply template: auto-set `homepage` when derivable (Pages only) | Medium. Adds a third template alongside `code-scanning` and `dependabot` in `src/apply.js`, calling `PATCH /repos/.../{repo}` to set the field. |
 
-PRs 1 and 2 can be combined in a single observe-side PR since both are tiny and touch the same files. PR 3 is the bigger surface-area PR and is best alone. PR 4 is optional and only makes sense after adoption shows real gaps.
+PR 1 and PR 2 can ship together if you want; they're both small. PR 3 requires PR 1 to have landed and a snapshot run. PR 4 requires PR 3.
 
 ---
 
-## PR 1 — Capture `homepage` and `has_pages` in observe + schema
+## PR 1 — Capture `homepage` in observe + schema
 
 **Files:**
 - Modify: `src/observe.js` (meta block construction, ~line 100)
-- Modify: `schemas/v1/snapshot.json` (add `meta.homepage`, `meta.has_pages`)
-- Modify: `src/observe.test.js` (assert new fields)
+- Modify: `schemas/v1/snapshot.json` (add `meta.homepage`)
+- Modify: `src/observe.test.js` (assert new field)
 
 ### Tasks
 
-- [ ] **Task 1.1: Add `homepage` and `has_pages` to the meta block**
-  - In `src/observe.js`, the existing `repo.homepage` and `repo.has_pages` fields from `GET /repos/{owner}/{repo}` are already in scope; just add them to the `meta` object built around line 100.
-  - Trim with `.trim?.() || null` for `homepage` to normalise empty strings → null.
+- [ ] **Task 1.1: Add `homepage` to the meta block**
+  - In `src/observe.js`, the `repo.homepage` field from `GET /repos/{owner}/{repo}` is already in scope; add it to the `meta` object built around line 100.
+  - Normalise empty strings → null with `repo.homepage?.trim() || null`.
 
 - [ ] **Task 1.2: Schema bump**
-  - Add `homepage: { type: ['string', 'null'], format: 'uri' }` and `has_pages: { type: 'boolean' }` to the meta object's properties in `schemas/v1/snapshot.json`. Both optional (don't add to `required`).
+  - Add `homepage: { type: ['string', 'null'], format: 'uri' }` to the meta object's properties in `schemas/v1/snapshot.json`. Optional (don't add to `required`).
 
 - [ ] **Task 1.3: Test**
-  - One test in `src/observe.test.js` that mocks the repo endpoint with `homepage: 'https://example.com'` and `has_pages: true`, runs observe, and asserts `snapshot.meta.homepage === 'https://example.com'` and `snapshot.meta.has_pages === true`.
+  - One test in `src/observe.test.js` mocking the repo endpoint with `homepage: 'https://example.com'`, asserting `snapshot.meta.homepage === 'https://example.com'`. One test mocking `homepage: ''`, asserting `meta.homepage === null`.
 
-**Acceptance:** schema validation tests still pass; new fields present in a sample snapshot run.
-
----
-
-## PR 2 — Pages API fallback fetcher
-
-**Files:**
-- Modify: `src/observe.js` (new fetcher, called from the `Promise.all`)
-
-### Tasks
-
-- [ ] **Task 2.1: `fetchPagesUrl(gh, owner, repo)`**
-  - `GET /repos/{owner}/{repo}/pages` via the existing `gh.request()` client.
-  - Returns `data.html_url ?? null`.
-  - Catches 404 (Pages disabled) and 403 (insufficient scope) — both return null without logging.
-
-- [ ] **Task 2.2: Conditional call**
-  - In `observe()`, after the meta block is built: if `meta.homepage` is empty and `meta.has_pages` is true, call `fetchPagesUrl()` and assign the result to `meta.homepage`. Document the precedence in a comment.
-
-- [ ] **Task 2.3: Test**
-  - One test for the 200-with-URL path, one for the 404 fallback. Existing observe-test fetch mock pattern applies.
-
-**Acceptance:** repos with Pages enabled and no `homepage` set surface the Pages URL; repos without Pages return null cleanly.
+**Acceptance:** schema validation tests pass; new field present in a sample snapshot run.
 
 ---
 
-## PR 3 — Surface in dashboards, agent card, skill
+## PR 2 — Surface in dashboards, agent card, skill
 
 **Files:**
 - Modify: `src/report-portfolio.js` (table row construction)
@@ -116,55 +87,103 @@ PRs 1 and 2 can be combined in a single observe-side PR since both are tiny and 
 
 ### Tasks
 
-- [ ] **Task 3.1: Portfolio table — repo-name icon link**
+- [ ] **Task 2.1: Portfolio table — repo-name icon link**
   - Where the portfolio table renders the repo name as a link to the per-repo dashboard, append a small external-link icon (Unicode ↗ or a CSS pseudo-element) linking to `meta.homepage` when present.
   - `target="_blank" rel="noopener noreferrer"` on the external link.
 
-- [ ] **Task 3.2: Per-repo summary — "Deployed at" row**
-  - Add to the existing summary block on the per-repo dashboard, between Description and Stars. Render as `Deployed at <a href="{homepage}">{homepage}</a>` when present; skip the row when null.
+- [ ] **Task 2.2: Per-repo summary — "Deployed at" row**
+  - Add to the existing summary block, between Description and Stars. Render `Deployed at <a href="{homepage}">{homepage}</a>` when present; skip the row when null.
 
-- [ ] **Task 3.3: Agent card — `homepage` per skill entry**
-  - The per-repo entries inside `buildAgentCard()` grow a `homepage` field (string or null). Stays optional in the AgentCard schema.
+- [ ] **Task 2.3: Agent card — `homepage` per skill entry**
+  - Per-repo entries inside `buildAgentCard()` grow a `homepage` field (string or null).
 
-- [ ] **Task 3.4: CSS utility (small)**
-  - `.deployed-link::after { content: " ↗"; opacity: 0.6; font-size: 0.85em; }` or equivalent. Reuse the existing utility-class pattern from PR #146.
+- [ ] **Task 2.4: CSS utility**
+  - `.deployed-link::after { content: " ↗"; opacity: 0.6; font-size: 0.85em; }` or equivalent. Reuse the utility-class pattern from PR #146.
 
-- [ ] **Task 3.5: Skill — Reginald estate flourish (optional)**
-  - In `skills/repo-butler/SKILL.md` panel 4 sign-off pool, add a conditional line: when `≥1` portfolio repo has a `homepage`, Reginald may say "the estate is presented at {top URL}{, and N others}, sir." Stays within the existing 8-entry closing pool by replacing one of the routine-tea closings, OR add as a new entry 9 (which would breach the budget — prefer replacement).
+- [ ] **Task 2.5: Skill — Reginald estate flourish (optional)**
+  - In `skills/repo-butler/SKILL.md` panel 4, add a conditional line: when `≥1` portfolio repo has a `homepage`, Reginald may say "the estate is presented at {top URL}{, and N others}, sir." Stays within the existing 8-entry closing pool by replacing one of the routine-tea closings rather than adding a 9th.
 
-- [ ] **Task 3.6: Tests**
+- [ ] **Task 2.6: Tests**
   - Snapshot-style tests for portfolio and per-repo HTML asserting the link renders with `homepage` and is absent without it. Agent-card test asserting the field round-trips.
 
-**Acceptance:** sample snapshot with mixed homepage/no-homepage repos renders correctly across all four surfaces; tests cover both branches.
+**Acceptance:** sample snapshot with mixed homepage/no-homepage repos renders correctly across all surfaces.
 
 ---
 
-## PR 4 — Optional: `deployed-without-homepage` governance finding
+## PR 3 — Governance finding: `homepage-missing`
 
 **Files:**
-- Modify: `src/governance.js` (new `detectDeployedWithoutHomepage()`)
+- Modify: `src/governance.js` (new `detectHomepageMissing()`)
 - Modify: `src/governance.test.js`
+- Modify: `src/report-portfolio.js` (governance section already renders generic findings)
 
 ### Tasks
 
-- [ ] **Task 4.1: Detector**
-  - For each portfolio repo with `meta.homepage` empty, fetch `.github/workflows/` directory listing via the existing `gh.listDir()` helper.
-  - Grep each workflow YAML body for known deploy actions: `vercel/action`, `netlify/actions`, `cloudflare/pages-action`, `peaceiris/actions-gh-pages`, `actions/deploy-pages`.
-  - If any match, emit a `standards-gap` finding with type `deployed-without-homepage` listing the matched action and the repo.
+- [ ] **Task 3.1: Detector**
+  - For each portfolio repo where `meta.homepage` is empty, check if the repo "looks deployed" by combining cheap signals:
+    - `has_pages: true` from the existing repo-meta call (already known via PR 1)
+    - Workflow file matches a known deploy action: `peaceiris/actions-gh-pages`, `actions/deploy-pages`, `vercel/action`, `netlify/actions`, `cloudflare/pages-action`. Use `gh.listDir('.github/workflows/')` and grep each YAML body.
+  - If either signal fires, emit a finding with shape:
+    ```
+    { type: 'standards-gap', tool: 'homepage', repo, signals: ['has_pages', 'vercel-action'] }
+    ```
+  - The `signals` array distinguishes auto-fixable cases (Pages) from manual ones (everything else) — apply pipeline reads this in PR 4.
 
-- [ ] **Task 4.2: Apply template (deferred)**
-  - The apply pipeline already opens PRs for `code-scanning` and `dependabot` standards gaps. Adding a `homepage` template would automate "set the homepage to {derived URL}", but deriving the URL from the workflow is fragile. Skip the apply template; let the finding be advisory and let the user fix it manually. Document this in the finding body.
+- [ ] **Task 3.2: Surfacing**
+  - The governance section in `src/report-portfolio.js` already renders findings by tool. The new tool name `homepage` slots in alongside the existing `dependabot`, `code-scanning`, `secret-scanning` rows. No layout change needed.
+
+- [ ] **Task 3.3: Tests**
+  - Mock `has_pages: true, homepage: null` → finding emitted with `signals: ['has_pages']`.
+  - Mock workflow YAML containing `vercel/action` and `homepage: null` → finding with `signals: ['vercel-action']`.
+  - Mock both → finding with both signals.
+  - Mock `homepage: 'https://x'` → no finding regardless of signals.
+
+**Acceptance:** repos with deploy signals but no `homepage` surface in the Governance section; repos with `homepage` set never appear regardless of platform.
+
+---
+
+## PR 4 — Apply template: auto-set `homepage` for Pages
+
+**Files:**
+- Modify: `src/apply.js` (new template handler)
+- Modify: `src/apply.test.js`
+- Modify: `.github/workflows/apply.yml` (no change expected; existing dispatch covers it)
+
+### Tasks
+
+- [ ] **Task 4.1: Template handler**
+  - For each `homepage-missing` finding where `signals` includes `has_pages`:
+    - Call `GET /repos/{owner}/{repo}/pages` to get the actual deployed URL.
+    - Call `PATCH /repos/{owner}/{repo}` with `{ homepage: <url> }`.
+    - This is a settings change, not a PR — log it in the run summary instead of opening a PR. Match the existing dry-run / batch-cap / `require_approval` semantics.
+  - For findings whose signals are workflow-only (Vercel, Netlify, etc.), the apply skill leaves them alone. The dashboard's Governance section makes the user's manual fix obvious.
+
+- [ ] **Task 4.2: Dry-run output**
+  - Dry-run logs `APPLY: would set homepage on {owner}/{repo} to {url}` per repo, with a summary count.
 
 - [ ] **Task 4.3: Tests**
-  - Mock workflow YAML with each known action name, assert detection. Mock with no deploy actions, assert no finding.
+  - Mock pages endpoint → 200 with `html_url`, assert `PATCH` would be called with the right body. Dry-run path asserts no `PATCH` is sent.
+  - Findings with no `has_pages` signal → no apply attempt, advisory only.
 
-**Acceptance:** repos with a deploy workflow but no homepage surface as a governance finding; the dashboard's Governance section shows them; no PR is opened automatically.
+**Acceptance:** running `apply.yml` against the portfolio with `homepage-missing` findings auto-fixes the Pages cases (dry-run by default), leaves the others advisory.
+
+---
+
+## What this pattern enables next
+
+Once this lands, the same shape works for any repo-metadata standard. Each new "metadata as standard" item is a plug-in:
+
+- A field name (`description`, `topics`, etc.)
+- A detector (when is this missing? when does it look wrong?)
+- An optional apply template (when can the butler fix it automatically?)
+
+The plumbing — observe captures the field, dashboards surface it, governance flags gaps, apply auto-fixes derivable cases — is reused. Future plans following this template will be much shorter.
 
 ---
 
 ## Dependencies / order
 
-PRs 1 and 2 are observe-side and additive; can ship together. PR 3 depends on PR 1+2 having landed and at least one weekly snapshot run so the field is populated. PR 4 is independent of 3 (it's a governance-side feature) and can ship after 1+2 in any order relative to 3.
+PRs 1+2 are display-side and additive. PRs 3+4 are governance-side. The two halves are independent — if you only want surfacing without governance, ship 1+2 alone. If you want governance without dashboard changes (unusual), ship 1+3+4 without 2.
 
 The whole programme is gated on the UPDATE prompt soak completing (~2026-05-20) only because we don't want to layer changes during the soak.
 
@@ -172,7 +191,7 @@ The whole programme is gated on the UPDATE prompt soak completing (~2026-05-20) 
 
 ## Backout
 
-PR 1+2 backout: revert the observe + schema commit. Snapshots gracefully tolerate missing fields. PR 3 backout: revert the surfacing commit; existing dashboards keep working without the link. PR 4 backout: trivial — revert the detector.
+Each PR is independently revertable. PR 1's field gracefully tolerates absence. PR 2 reverts to the previous dashboard layout. PR 3 reverts to no `homepage-missing` findings. PR 4 reverts to no auto-set behaviour, advisory-only governance.
 
 ---
 
@@ -180,4 +199,4 @@ PR 1+2 backout: revert the observe + schema commit. Snapshots gracefully tolerat
 
 None blocking. One worth flagging on review:
 
-- The portfolio table is already crowded after the Dashboard Narrative Restructure (PR #93). The icon-link approach in PR 3 keeps the row width unchanged, but if the icon feels noisy alongside the existing GitHub repo link, consider moving the deployed-URL link into a hover popover or a separate "External" column. Decide during PR 3 review with a sample render.
+- The portfolio table is already crowded after the Dashboard Narrative Restructure (PR #93). The icon-link approach in PR 2 keeps the row width unchanged, but if the icon feels noisy alongside the existing GitHub repo link, consider moving the deployed-URL link into a hover popover or a separate "External" column. Decide during PR 2 review with a sample render.
