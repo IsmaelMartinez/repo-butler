@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-07T16:06:24Z",
+      "pushed_at": "2026-05-07T18:29:43Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,7 +1023,7 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 248,
+      "commits_6mo": 249,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
@@ -1049,7 +1049,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-07T12:57:31Z",
+      "pushed_at": "2026-05-07T18:53:37Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
