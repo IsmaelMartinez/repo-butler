@@ -120,7 +120,7 @@ EOF
 TODAY=$(date +%Y-%m-%d)
 # Portfolio repo list is supplied by the agent from the `query_portfolio` MCP
 # call made earlier in this mode. Pass it in as `PORTFOLIO=...` (space-separated).
-[ -z "$PORTFOLIO" ] && PORTFOLIO=$(gh repo list "$OWNER" --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
+[ -z "$PORTFOLIO" ] && PORTFOLIO=$(gh repo list "$OWNER" --source --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
 
 for repo in $PORTFOLIO; do
   counts=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
