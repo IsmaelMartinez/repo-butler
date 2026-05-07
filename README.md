@@ -175,7 +175,7 @@ Two skills ship from `skills/` for use inside Claude Code: `repo-butler` (read-s
 ./scripts/install-skills.sh
 ```
 
-The script symlinks both skills into `$HOME/.claude/skills/`, cleans up dead symlinks from earlier `butler-briefing`/`butler-debrief` layouts, and is idempotent. Pass `--uninstall` to remove the symlinks, or `--skills-dir DIR` to target a custom location. Restart your Claude Code session afterwards so the new skills appear in the registry.
+The script symlinks both skills into `$HOME/.claude/skills/`, cleans up dead symlinks from earlier `butler-briefing`/`butler-debrief`/`butler-apply` layouts, and is idempotent. Pass `--uninstall` to remove the symlinks, or `--skills-dir DIR` to target a custom location. Restart your Claude Code session afterwards so the new skills appear in the registry.
 
 ## MCP Server (AI agent access)
 

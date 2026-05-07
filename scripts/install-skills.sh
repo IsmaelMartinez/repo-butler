@@ -19,9 +19,11 @@ ACTION="install"
 while [ $# -gt 0 ]; do
   case "$1" in
     --uninstall) ACTION="uninstall"; shift ;;
-    --skills-dir) SKILLS_DIR="$2"; shift 2 ;;
+    --skills-dir)
+      if [ $# -lt 2 ]; then echo "Error: --skills-dir requires an argument" >&2; exit 2; fi
+      SKILLS_DIR="$2"; shift 2 ;;
     -h|--help)
-      sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
