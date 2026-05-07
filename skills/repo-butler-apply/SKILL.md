@@ -7,61 +7,20 @@ description: Use when the user wants to act on governance findings, open remedia
 
 Surface actionable governance findings from repo-butler and, with your blessing, dispatch the Governance Apply workflow to open the corresponding remediation PRs across the portfolio. Reginald — the same dignified, Scottish-trained butler from `/repo-butler` — presents the proposed work on a silver tray, awaits explicit confirmation, then rings for the workflow. Tray contents vary by panel: a folded telegram for governance findings, a calling card on dispatch, a dram on Gold-tier celebration.
 
-## Setup — load optional config and resolve the repo-butler checkout
+## Setup — resolve the GitHub owner
 
-Optional config at `~/.config/repo-butler/config.sh` is sourced if present. Recognised variables (all optional): `REPO_BUTLER_PATH` for an explicit checkout path, `REPO_BUTLER_DATA_BRANCH` for the data branch name (default `repo-butler-data`), `REPO_BUTLER_PROJECTS_DIRS` for newline-separated parent dirs to search (default `$HOME/projects/github` and `$HOME/projects/gitlab`).
+Governance findings come from the `repo-butler` MCP server, not from a local checkout. The skill assumes that server is connected (`claude mcp add repo-butler node /path/to/src/mcp.js`). If MCP tool calls fail, surface the bare-ledger line and stop — do not fall back to git reads.
 
 ```bash
-[ -f "$HOME/.config/repo-butler/config.sh" ] && . "$HOME/.config/repo-butler/config.sh"
-: "${REPO_BUTLER_DATA_BRANCH:=repo-butler-data}"
-: "${REPO_BUTLER_PROJECTS_DIRS:=$HOME/projects/github
-$HOME/projects/gitlab}"
-
-resolve_repo_butler() {
-  if [ -n "$REPO_BUTLER_PATH" ] && [ -d "$REPO_BUTLER_PATH/.git" ]; then
-    echo "$REPO_BUTLER_PATH"; return 0
-  fi
-  d="$PWD"
-  while [ "$d" != "/" ] && [ -n "$d" ]; do
-    if [ -f "$d/.github/roadmap.yml" ] && [ -f "$d/src/mcp.js" ]; then
-      echo "$d"; return 0
-    fi
-    d=$(dirname "$d")
-  done
-  while IFS= read -r parent; do
-    [ -z "$parent" ] && continue
-    c="$parent/repo-butler"
-    if [ -d "$c/.git" ] && [ -f "$c/.github/roadmap.yml" ]; then
-      echo "$c"; return 0
-    fi
-  done <<EOF
-$REPO_BUTLER_PROJECTS_DIRS
-EOF
-  if [ -d "$HOME/repo-butler/.git" ] && [ -f "$HOME/repo-butler/.github/roadmap.yml" ]; then
-    echo "$HOME/repo-butler"; return 0
-  fi
-  return 1
-}
-
-resolve_owner() {
-  git -C "$1" remote get-url origin 2>/dev/null \
-    | sed -E 's|.*[:/]([^/]+)/[^/]+(\.git)?$|\1|'
-}
-
-REPO=$(resolve_repo_butler) || { echo "Reginald cannot locate the repo-butler checkout, sir."; exit 1; }
-OWNER=$(resolve_owner "$REPO")
+OWNER=$(gh api user --jq .login 2>/dev/null)
 [ -n "$OWNER" ] || { echo "Reginald cannot determine the repository owner, sir."; exit 1; }
 ```
 
 ## Steps
 
-1. Fetch the latest governance findings from the data branch:
+1. Call MCP tool `get_governance_findings` (no arguments) to fetch the latest governance ledger.
 
-```bash
-git -C "$REPO" show "origin/$REPO_BUTLER_DATA_BRANCH:snapshots/governance.json" 2>/dev/null
-```
-
-2. If the file is missing or unreadable, output a single panel with Reginald saying "The governance ledger is bare, sir. I shall fetch it once the pipeline has run." and stop.
+2. If the call fails or returns an empty list, output a single panel with Reginald saying "The governance ledger is bare, sir. I shall fetch it once the pipeline has run." and stop.
 
 3. Filter findings to those that are actionable by the apply pipeline:
    - `type === 'standards-gap'`
