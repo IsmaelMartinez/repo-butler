@@ -332,6 +332,8 @@ export async function report(context) {
 
   // A2A AgentCard for capability discovery. Published alongside the dashboards
   // so A2A-aware agents can fetch it from GitHub Pages at /.well-known/agent-card.json.
+  // The .nojekyll marker disables Jekyll on Pages; without it, dotfile dirs like
+  // .well-known/ are stripped from the published site and the card 404s.
   {
     const pkgRaw = await fsReadFile('package.json', 'utf8').catch(() => null);
     const version = pkgRaw ? (JSON.parse(pkgRaw).version || '0.0.0') : '0.0.0';
@@ -340,6 +342,7 @@ export async function report(context) {
     const wellKnownDir = join(outDir, '.well-known');
     await mkdir(wellKnownDir, { recursive: true });
     await writeFile(join(wellKnownDir, 'agent-card.json'), JSON.stringify(card, null, 2));
+    await writeFile(join(outDir, '.nojekyll'), '');
     console.log('A2A AgentCard written to .well-known/agent-card.json');
   }
 

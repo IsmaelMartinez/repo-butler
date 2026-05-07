@@ -42,7 +42,7 @@ Config lives in `.github/roadmap.yml` with defaults in `src/config.js`.
 
 For a visual map of how the four scheduled workflows + on-demand `apply` and `onboard` interleave, plus the data flow through the `repo-butler-data` orphan branch, see [`docs/architecture.md`](docs/architecture.md).
 
-Architecture decisions live in [`docs/decisions/`](docs/decisions/). The current ADRs cover the boundary between Repo Butler and the issue triage bot (ADR-001), the portfolio governance scope (ADR-002), and the interoperability layer with other AI agents via MCP and A2A (ADR-003). Read these before proposing changes that cross those boundaries.
+Architecture decisions live in [`docs/decisions/`](docs/decisions/). The current ADRs cover the boundary between Repo Butler and the issue triage bot (ADR-001), the portfolio governance scope (ADR-002), the interoperability layer with other AI agents via MCP and A2A (ADR-003), the governance phase split (ADR-004), the cross-repo write trust model (ADR-005), and the MCP server plus slash-command surface (ADR-006). Read these before proposing changes that cross those boundaries.
 
 Security expectations and the trust model for the `repo-butler-data` branch and the GitHub App token are documented in [`SECURITY.md`](SECURITY.md).
 

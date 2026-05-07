@@ -2,7 +2,7 @@
 
 ## What it is
 
-Repo Butler is a zero-dependency GitHub Action (Node 22, ES modules) that runs a seven-phase pipeline against a GitHub repository. It observes project health via REST API, generates LLM-assisted assessments, rewrites a living roadmap, proposes GitHub issues, and deploys HTML dashboards to GitHub Pages. Its unique value is the portfolio-wide cross-repo view: it sees which tools are configured where, which repos are out of alignment, and can propose governance corrections across an entire org.
+Repo Butler is a zero-dependency GitHub Action (Node 24, ES modules) that runs a seven-phase pipeline against a GitHub repository. It observes project health via REST API, generates LLM-assisted assessments, rewrites a living roadmap, proposes GitHub issues, and deploys HTML dashboards to GitHub Pages. Its unique value is the portfolio-wide cross-repo view: it sees which tools are configured where, which repos are out of alignment, and can propose governance corrections across an entire org.
 
 Live reports: `https://ismaelmartinez.github.io/repo-butler/`
 Data branch: `repo-butler-data` (orphan branch, JSON snapshots)
@@ -14,7 +14,7 @@ Config repo: `IsmaelMartinez/repo-butler`
 
 Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phase=` CLI arg. Default is `all`.
 
-`OBSERVE` — Calls ~11 GitHub REST endpoints in parallel (`Promise.all`). Produces a `snapshot` object and a `portfolio` classification of all owner repos. No LLM. Optionally POSTs to triage bot `/ingest`.
+`OBSERVE` — Calls ~13 GitHub REST endpoints in parallel (`Promise.all`). Produces a `snapshot` object and a `portfolio` classification of all owner repos. No LLM. Optionally POSTs to triage bot `/ingest`.
 
 `ASSESS` — Diffs current snapshot against previous (from `repo-butler-data` branch). Computes `computeTrends()` direction (`growing`/`shrinking`/`stable`) from up to 12 weekly snapshots. Optionally reads triage bot `/report/trends`. Uses default LLM provider (Gemini Flash).
 

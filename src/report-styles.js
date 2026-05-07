@@ -102,7 +102,7 @@ export const SITE_FOOTER = `<footer class="site-footer">
 <a href="https://github.com/IsmaelMartinez/repo-butler/blob/main/SECURITY.md">Security</a>
 <a href="https://github.com/IsmaelMartinez/repo-butler/tree/main/docs/decisions">ADRs</a>
 </div>
-<div class="site-footer-meta">Built with zero dependencies, Node 22, on GitHub Actions</div>
+<div class="site-footer-meta">Built with zero dependencies, Node 24, on GitHub Actions</div>
 </footer>`;
 
 // Full HTML page shell shared by the portfolio and per-repo reports.
