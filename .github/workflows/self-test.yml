@@ -92,6 +92,9 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           path: reports
+          # Required so reports/.nojekyll and reports/.well-known/agent-card.json
+          # are included in the tarball; the action's default strips dotfiles.
+          include-hidden-files: true
 
   deploy-pages:
     if: needs.run.outputs.has-reports == 'true'
