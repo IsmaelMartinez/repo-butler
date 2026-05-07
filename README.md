@@ -159,8 +159,13 @@ src/
     └── claude.js         # Claude (Anthropic Messages API)
 schemas/v1/               # JSON Schema definitions for all data structures
 docs/
+├── architecture.md       # Visual pipeline diagram + data flow
+├── consumer-guide.md     # Repo-owner guide for the per-repo dashboards
 ├── skill.md              # Claude Code skill for AI agent consumption
-└── decisions/            # Architecture Decision Records (ADR-001 through ADR-003)
+├── decisions/            # Architecture Decision Records (ADR-001 through ADR-006)
+├── plans/                # Phase implementation plans
+├── research/             # Research notes informing roadmap decisions
+└── superpowers/          # Specs and plans for major features (one per major effort)
 ```
 
 ### Private repository support

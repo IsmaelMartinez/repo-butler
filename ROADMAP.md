@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-05-04
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 10 Gold + 3 Silver (13 repos); the Silver tier holds `teams-for-linux` (>10 open bugs), `betis-escocia`, and `ai-model-advisor` (both blocked by a critical vuln). Private repos now included via the installation-scoped discovery endpoint.
+**Last Updated:** 2026-05-07
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 12 Gold + 1 Silver (13 repos) as of W19; the remaining Silver entry is `teams-for-linux` (blocked by >10 open bugs). Zero portfolio vulnerabilities. Private repos included via the installation-scoped discovery endpoint.
 
 ---
 

@@ -1205,7 +1205,7 @@ describe('dashboard inspiration polish', () => {
     for (const link of FOOTER_LINKS) {
       assert.ok(html.includes(link), `footer should link to ${link}`);
     }
-    assert.ok(html.includes('Built with zero dependencies, Node 22, on GitHub Actions'), 'footer should include the tagline');
+    assert.ok(html.includes('Built with zero dependencies, Node 24, on GitHub Actions'), 'footer should include the tagline');
   });
 
   it('per-repo report renders the site footer with all documentation links', async () => {

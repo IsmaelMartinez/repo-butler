@@ -141,7 +141,7 @@ This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-b
 
 - Dashboard: https://ismaelmartinez.github.io/repo-butler/{repo-name}.html
 - Portfolio: https://ismaelmartinez.github.io/repo-butler/
-- Consumer guide: https://github.com/IsmaelMartinez/repo-butler/blob/main/docs/fix-guide.md
+- Consumer guide: https://github.com/IsmaelMartinez/repo-butler/blob/main/docs/consumer-guide.md
 
 When working on health improvements, check the per-repo report for the current tier checklist and fix failing checks using the consumer guide.
 ```
