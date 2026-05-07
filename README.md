@@ -177,6 +177,8 @@ Two skills ship from `skills/` for use inside Claude Code: `repo-butler` (read-s
 
 The script symlinks both skills into `$HOME/.claude/skills/`, cleans up dead symlinks from earlier `butler-briefing`/`butler-debrief`/`butler-apply` layouts, and is idempotent. Pass `--uninstall` to remove the symlinks, or `--skills-dir DIR` to target a custom location. Restart your Claude Code session afterwards so the new skills appear in the registry.
 
+Both skills source their portfolio data via the repo-butler MCP server below — no local clone of the data branch is required. Install the MCP server first (next section) and the skills will work from any working directory. Optional config at `~/.config/repo-butler/config.sh` recognises `REPO_BUTLER_PROJECTS_DIRS` (newline-separated parent dirs to scan for local working state) — defaults to `$HOME/projects/github` and `$HOME/projects/gitlab`.
+
 ## MCP Server (AI agent access)
 
 Repo Butler includes an MCP (Model Context Protocol) server that lets AI agents query portfolio health data directly. Any MCP-compatible client (Claude Code, Claude Desktop, Cursor, VS Code) can connect.

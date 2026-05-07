@@ -34,50 +34,17 @@ EOF
 esac
 ```
 
-## Setup — load optional config and resolve the repo-butler checkout
+## Setup — load optional config and resolve the GitHub owner
 
-Optional config at `~/.config/repo-butler/config.sh` is sourced if present. Recognised variables (all optional, sane defaults below):
+Portfolio data comes from the `repo-butler` MCP server, not from a local checkout. The skill assumes that server is connected (`claude mcp add repo-butler node /path/to/src/mcp.js`). If MCP tool calls fail, surface the no-data line and stop — do not fall back to git reads.
 
-- `REPO_BUTLER_PATH` — explicit absolute path to the repo-butler clone
-- `REPO_BUTLER_DATA_BRANCH` — data branch name (default `repo-butler-data`)
-- `REPO_BUTLER_PROJECTS_DIRS` — newline-separated parent directories to scan for local clones (default `$HOME/projects/github` and `$HOME/projects/gitlab`)
+Optional config at `~/.config/repo-butler/config.sh` is sourced if present. The only recognised variable here is `REPO_BUTLER_PROJECTS_DIRS` — newline-separated parent directories to scan for local clones in the briefing's working-state panel and the debrief's commit walker (default `$HOME/projects/github` and `$HOME/projects/gitlab`).
 
 ```bash
 [ -f "$HOME/.config/repo-butler/config.sh" ] && . "$HOME/.config/repo-butler/config.sh"
-: "${REPO_BUTLER_DATA_BRANCH:=repo-butler-data}"
 : "${REPO_BUTLER_PROJECTS_DIRS:=$HOME/projects/github
 $HOME/projects/gitlab}"
-
-resolve_repo_butler() {
-  if [ -n "$REPO_BUTLER_PATH" ] && [ -d "$REPO_BUTLER_PATH/.git" ]; then
-    echo "$REPO_BUTLER_PATH"; return 0
-  fi
-  d="$PWD"
-  while [ "$d" != "/" ] && [ -n "$d" ]; do
-    if [ -f "$d/.github/roadmap.yml" ] && [ -f "$d/src/mcp.js" ]; then
-      echo "$d"; return 0
-    fi
-    d=$(dirname "$d")
-  done
-  while IFS= read -r parent; do
-    [ -z "$parent" ] && continue
-    c="$parent/repo-butler"
-    if [ -d "$c/.git" ] && [ -f "$c/.github/roadmap.yml" ]; then
-      echo "$c"; return 0
-    fi
-  done <<EOF
-$REPO_BUTLER_PROJECTS_DIRS
-EOF
-  if [ -d "$HOME/repo-butler/.git" ] && [ -f "$HOME/repo-butler/.github/roadmap.yml" ]; then
-    echo "$HOME/repo-butler"; return 0
-  fi
-  return 1
-}
-resolve_owner() {
-  git -C "$1" remote get-url origin 2>/dev/null | sed -E 's|.*[:/]([^/]+)/[^/]+(\.git)?$|\1|'
-}
-REPO=$(resolve_repo_butler) || { echo "The household is not yet in residence, sir; I shall lay the fires and await your instruction."; exit 1; }
-OWNER=$(resolve_owner "$REPO")
+OWNER=$(gh api user --jq .login 2>/dev/null)
 [ -n "$OWNER" ] || { echo "We have not been introduced, sir. Shall I draw up the portfolio?"; exit 1; }
 ```
 
@@ -85,13 +52,15 @@ OWNER=$(resolve_owner "$REPO")
 
 Run when `MODE=briefing`:
 
-```bash
-DATA_REF="origin/$REPO_BUTLER_DATA_BRANCH"
-git -C "$REPO" show "$DATA_REF:snapshots/latest.json" 2>/dev/null
-WEEKLIES=$(git -C "$REPO" ls-tree --name-only "$DATA_REF" snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -4)
-for w in $WEEKLIES; do git -C "$REPO" show "$DATA_REF:$w" 2>/dev/null; echo "---SNAPSHOT-DELIM---"; done
-git -C "$REPO" show "$DATA_REF:snapshots/governance.json" 2>/dev/null
+1. Call MCP tool `query_portfolio` (no arguments) to get all portfolio repos with current tier and health data. The result drives panel 1's tier distribution prose and panel 2's concerns.
+2. Call MCP tool `get_governance_findings` (no arguments) to get the governance ledger. Long-running campaigns (open >60 days) and below-stairs items (>30 days) come from this.
+3. Call MCP tool `get_weekly_trend` with `weeks: 4` and no `repo` argument for portfolio-wide weekly aggregates. Use this for the CI streak detection (see below).
+4. Call MCP tool `get_campaign_status` (no arguments) only if surfacing campaign progress in panel 4's sign-off.
+5. Run the local-state bash block below to capture working-tree state across `REPO_BUTLER_PROJECTS_DIRS`. This drives panel 3 (The Study).
 
+If any MCP call fails or returns empty, render a single panel with the no-data line and stop. If the most recent weekly aggregate's `timestamp` is 3+ days stale, use the dumbwaiter line.
+
+```bash
 while IFS= read -r parent; do
   [ -z "$parent" ] && continue
   for dir in "$parent"/*/; do
@@ -110,13 +79,15 @@ $REPO_BUTLER_PROJECTS_DIRS
 EOF
 ```
 
-If all snapshot fetches are empty, render a single panel with the no-data line and stop. If the latest snapshot's `pushed_at` is 3+ days stale, use the dumbwaiter line.
-
-Parse each weekly snapshot (delimited by `---SNAPSHOT-DELIM---`); the most recent drives current state, the prior ones supply history for streak detection. Each is a map of repo → `{open_issues, commits_6mo, stars, license, communityHealth, ciPassRate, vulns, ci, released_at, pushed_at}`. Compute totals and tier distribution per `computeHealthTier` (Gold: license + ci≥2 + communityHealth≥80 + pushed<180d + released<90d + vulns!=null + no critical/high; Silver: license + ci≥1 + communityHealth≥50 + pushed<180d; Bronze: commits>0 or pushed<365d; None: otherwise). Compute top concerns (critical/high vulns, ciPassRate<90%, missing license, governance standards gaps), top three repos by `commits_6mo`, and the portfolio CI streak — count consecutive recent weekly snapshots in which every repo was green (`success` streak) or ≥1 red (`failure` streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 1-week red run with another red the prior week satisfies "third morning of red CI"; if only one snapshot is available, omit the streak line.
+Compute totals and tier distribution from `query_portfolio`'s response (each repo carries `computed.tier` ∈ `gold|silver|bronze|none`). Top concerns from: `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `ciPassRate < 0.7`, missing `license`, plus governance findings (standards gaps, policy drift). Top three repos by `commits_6mo`. The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series — count consecutive recent weeks where every repo was clean (success streak) or ≥1 was red (failure streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 2-week red run satisfies "third morning of red CI"; if only one weekly point is available, omit the streak line.
 
 ## Debrief mode — data fetchers
 
 Run when `MODE=debrief`:
+
+1. Call MCP tool `query_portfolio` (no arguments) to get the portfolio repo list. Pass the repo names as a space-separated `PORTFOLIO` env var into the bash block below so its `gh pr list` loop knows which repos to query.
+2. Call MCP tool `get_snapshot_diff` (no arguments) for what changed since the last pipeline run. Useful for panel 2 accomplishments framing.
+3. Run the local-state bash blocks below to capture today's session activity, today's commits across project dirs, and today's GH PR activity per repo.
 
 ```bash
 node -e "
@@ -146,11 +117,11 @@ done <<EOF
 $REPO_BUTLER_PROJECTS_DIRS
 EOF
 
-PORTFOLIO=$(git -C "$REPO" show "origin/$REPO_BUTLER_DATA_BRANCH:snapshots/latest.json" 2>/dev/null \
-  | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(Object.keys(j.portfolio||{}).join(' '));}catch{process.exit(1);}})" 2>/dev/null)
-[ -z "$PORTFOLIO" ] && PORTFOLIO=$(gh repo list "$OWNER" --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
-
 TODAY=$(date +%Y-%m-%d)
+# Portfolio repo list is supplied by the agent from the `query_portfolio` MCP
+# call made earlier in this mode. Pass it in as `PORTFOLIO=...` (space-separated).
+[ -z "$PORTFOLIO" ] && PORTFOLIO=$(gh repo list "$OWNER" --source --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
+
 for repo in $PORTFOLIO; do
   counts=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
     --json createdAt,mergedAt,closedAt,reviews 2>/dev/null \
