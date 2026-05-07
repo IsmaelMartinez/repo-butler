@@ -163,9 +163,8 @@ docs/
 ├── consumer-guide.md     # Repo-owner guide for the per-repo dashboards
 ├── skill.md              # Claude Code skill for AI agent consumption
 ├── decisions/            # Architecture Decision Records (ADR-001 through ADR-006)
-├── plans/                # Phase implementation plans
-├── research/             # Research notes informing roadmap decisions
-└── superpowers/          # Specs and plans for major features (one per major effort)
+├── research/             # Research notes for open roadmap items
+└── superpowers/          # Active implementation plans (in flight only)
 ```
 
 ### Private repository support
