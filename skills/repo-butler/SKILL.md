@@ -34,9 +34,20 @@ EOF
 esac
 ```
 
-## Setup — resolve the repo-butler checkout and owner
+## Setup — load optional config and resolve the repo-butler checkout
+
+Optional config at `~/.config/repo-butler/config.sh` is sourced if present. Recognised variables (all optional, sane defaults below):
+
+- `REPO_BUTLER_PATH` — explicit absolute path to the repo-butler clone
+- `REPO_BUTLER_DATA_BRANCH` — data branch name (default `repo-butler-data`)
+- `REPO_BUTLER_PROJECTS_DIRS` — newline-separated parent directories to scan for local clones (default `$HOME/projects/github` and `$HOME/projects/gitlab`)
 
 ```bash
+[ -f "$HOME/.config/repo-butler/config.sh" ] && . "$HOME/.config/repo-butler/config.sh"
+: "${REPO_BUTLER_DATA_BRANCH:=repo-butler-data}"
+: "${REPO_BUTLER_PROJECTS_DIRS:=$HOME/projects/github
+$HOME/projects/gitlab}"
+
 resolve_repo_butler() {
   if [ -n "$REPO_BUTLER_PATH" ] && [ -d "$REPO_BUTLER_PATH/.git" ]; then
     echo "$REPO_BUTLER_PATH"; return 0
@@ -48,11 +59,18 @@ resolve_repo_butler() {
     fi
     d=$(dirname "$d")
   done
-  for c in "$HOME/projects/github/repo-butler" "$HOME/repo-butler"; do
+  while IFS= read -r parent; do
+    [ -z "$parent" ] && continue
+    c="$parent/repo-butler"
     if [ -d "$c/.git" ] && [ -f "$c/.github/roadmap.yml" ]; then
       echo "$c"; return 0
     fi
-  done
+  done <<EOF
+$REPO_BUTLER_PROJECTS_DIRS
+EOF
+  if [ -d "$HOME/repo-butler/.git" ] && [ -f "$HOME/repo-butler/.github/roadmap.yml" ]; then
+    echo "$HOME/repo-butler"; return 0
+  fi
   return 1
 }
 resolve_owner() {
@@ -68,22 +86,28 @@ OWNER=$(resolve_owner "$REPO")
 Run when `MODE=briefing`:
 
 ```bash
-git -C "$REPO" show origin/repo-butler-data:snapshots/latest.json 2>/dev/null
-WEEKLIES=$(git -C "$REPO" ls-tree --name-only origin/repo-butler-data snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -4)
-for w in $WEEKLIES; do git -C "$REPO" show "origin/repo-butler-data:$w" 2>/dev/null; echo "---SNAPSHOT-DELIM---"; done
-git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/null
+DATA_REF="origin/$REPO_BUTLER_DATA_BRANCH"
+git -C "$REPO" show "$DATA_REF:snapshots/latest.json" 2>/dev/null
+WEEKLIES=$(git -C "$REPO" ls-tree --name-only "$DATA_REF" snapshots/portfolio-weekly/ 2>/dev/null | sort | tail -4)
+for w in $WEEKLIES; do git -C "$REPO" show "$DATA_REF:$w" 2>/dev/null; echo "---SNAPSHOT-DELIM---"; done
+git -C "$REPO" show "$DATA_REF:snapshots/governance.json" 2>/dev/null
 
-for dir in "$HOME/projects/github/"*/ "$HOME/projects/gitlab/"*/; do
-  [ -d "$dir/.git" ] || continue
-  repo=$(basename "$dir")
-  status=$(git -C "$dir" status --porcelain 2>/dev/null | head -5)
-  branches=$(git -C "$dir" branch --no-merged main 2>/dev/null | grep -v '^\*' | head -5)
-  stash=$(git -C "$dir" stash list 2>/dev/null | head -3)
-  current=$(git -C "$dir" branch --show-current 2>/dev/null)
-  if [ -n "$status" ] || [ -n "$branches" ] || [ -n "$stash" ]; then
-    echo "REPO:$repo|BRANCH:$current|DIRTY:$([ -n "$status" ] && echo yes || echo no)|UNMERGED:$(echo "$branches" | grep -c .)|STASH:$(echo "$stash" | grep -c .)"
-  fi
-done
+while IFS= read -r parent; do
+  [ -z "$parent" ] && continue
+  for dir in "$parent"/*/; do
+    [ -d "$dir/.git" ] || continue
+    repo=$(basename "$dir")
+    status=$(git -C "$dir" status --porcelain 2>/dev/null | head -5)
+    branches=$(git -C "$dir" branch --no-merged main 2>/dev/null | grep -v '^\*' | head -5)
+    stash=$(git -C "$dir" stash list 2>/dev/null | head -3)
+    current=$(git -C "$dir" branch --show-current 2>/dev/null)
+    if [ -n "$status" ] || [ -n "$branches" ] || [ -n "$stash" ]; then
+      echo "REPO:$repo|BRANCH:$current|DIRTY:$([ -n "$status" ] && echo yes || echo no)|UNMERGED:$(echo "$branches" | grep -c .)|STASH:$(echo "$stash" | grep -c .)"
+    fi
+  done
+done <<EOF
+$REPO_BUTLER_PROJECTS_DIRS
+EOF
 ```
 
 If all snapshot fetches are empty, render a single panel with the no-data line and stop. If the latest snapshot's `pushed_at` is 3+ days stale, use the dumbwaiter line.
@@ -107,16 +131,22 @@ console.log(JSON.stringify(Object.entries(s).map(([id,x])=>({id:id.slice(0,8),
   project:x.project?.split('/').pop()||'unknown',messageCount:x.messages.length,
   durationMin:Math.round((x.last-x.first)/60000),firstMessage:x.messages[0]?.slice(0,80)}))));"
 
-find "$HOME/projects/github" "$HOME/projects/gitlab" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read -r gitdir; do
-  dir=$(dirname "$gitdir"); repo=$(basename "$dir")
-  commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null)
-  if [ -n "$commits" ]; then
-    echo "REPO:$repo|COMMITS:$(echo "$commits" | wc -l | tr -d ' ')"
-    echo "$commits" | head -5 | while read -r line; do echo "  $line"; done
-  fi
-done
+while IFS= read -r parent; do
+  [ -z "$parent" ] && continue
+  [ -d "$parent" ] || continue
+  find "$parent" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read -r gitdir; do
+    dir=$(dirname "$gitdir"); repo=$(basename "$dir")
+    commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null)
+    if [ -n "$commits" ]; then
+      echo "REPO:$repo|COMMITS:$(echo "$commits" | wc -l | tr -d ' ')"
+      echo "$commits" | head -5 | while read -r line; do echo "  $line"; done
+    fi
+  done
+done <<EOF
+$REPO_BUTLER_PROJECTS_DIRS
+EOF
 
-PORTFOLIO=$(git -C "$REPO" show origin/repo-butler-data:snapshots/latest.json 2>/dev/null \
+PORTFOLIO=$(git -C "$REPO" show "origin/$REPO_BUTLER_DATA_BRANCH:snapshots/latest.json" 2>/dev/null \
   | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(Object.keys(j.portfolio||{}).join(' '));}catch{process.exit(1);}})" 2>/dev/null)
 [ -z "$PORTFOLIO" ] && PORTFOLIO=$(gh repo list "$OWNER" --limit 50 --json name --jq '.[].name' 2>/dev/null | tr '\n' ' ')
 
