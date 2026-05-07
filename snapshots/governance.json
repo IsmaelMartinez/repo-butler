@@ -1,6 +1,36 @@
 [
   {
     "type": "standards-gap",
+    "tool": "code-scanning",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "yourear",
+      "sound3fy",
+      "teams-for-linux",
+      "ismaelmartinez.me.uk",
+      "generator-atlassian-compass-event-catalog",
+      "bonnie-wee-plot",
+      "betis-escocia",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv"
+    ],
+    "nonCompliant": [
+      "delegate-to-ollama"
+    ],
+    "repoEcosystems": {
+      "delegate-to-ollama": null
+    },
+    "adoptionRate": 0.9285714285714286,
+    "priority": "low"
+  },
+  {
+    "type": "standards-gap",
     "tool": "secret-scanning",
     "scope": {
       "type": "universal"
@@ -20,14 +50,16 @@
     ],
     "nonCompliant": [
       "yourear",
-      "sound3fy"
+      "sound3fy",
+      "delegate-to-ollama"
     ],
     "repoEcosystems": {
       "yourear": null,
-      "sound3fy": null
+      "sound3fy": null,
+      "delegate-to-ollama": null
     },
-    "adoptionRate": 0.8461538461538461,
-    "priority": "low"
+    "adoptionRate": 0.7857142857142857,
+    "priority": "medium"
   },
   {
     "type": "tier-uplift",
