@@ -7,11 +7,16 @@ description: Use when the user wants to act on governance findings, open remedia
 
 Surface actionable governance findings from repo-butler and, with your blessing, dispatch the Governance Apply workflow to open the corresponding remediation PRs across the portfolio. Reginald — the same dignified, Scottish-trained butler from `/repo-butler` — presents the proposed work on a silver tray, awaits explicit confirmation, then rings for the workflow. Tray contents vary by panel: a folded telegram for governance findings, a calling card on dispatch, a dram on Gold-tier celebration.
 
-## Setup — resolve the repo-butler checkout and owner
+## Setup — load optional config and resolve the repo-butler checkout
 
-Before any data commands, resolve the location of the repo-butler checkout and the GitHub owner from the local clone. Inline these helpers at the top of the bash session:
+Optional config at `~/.config/repo-butler/config.sh` is sourced if present. Recognised variables (all optional): `REPO_BUTLER_PATH` for an explicit checkout path, `REPO_BUTLER_DATA_BRANCH` for the data branch name (default `repo-butler-data`), `REPO_BUTLER_PROJECTS_DIRS` for newline-separated parent dirs to search (default `$HOME/projects/github` and `$HOME/projects/gitlab`).
 
 ```bash
+[ -f "$HOME/.config/repo-butler/config.sh" ] && . "$HOME/.config/repo-butler/config.sh"
+: "${REPO_BUTLER_DATA_BRANCH:=repo-butler-data}"
+: "${REPO_BUTLER_PROJECTS_DIRS:=$HOME/projects/github
+$HOME/projects/gitlab}"
+
 resolve_repo_butler() {
   if [ -n "$REPO_BUTLER_PATH" ] && [ -d "$REPO_BUTLER_PATH/.git" ]; then
     echo "$REPO_BUTLER_PATH"; return 0
@@ -23,11 +28,18 @@ resolve_repo_butler() {
     fi
     d=$(dirname "$d")
   done
-  for c in "$HOME/projects/github/repo-butler" "$HOME/repo-butler"; do
+  while IFS= read -r parent; do
+    [ -z "$parent" ] && continue
+    c="$parent/repo-butler"
     if [ -d "$c/.git" ] && [ -f "$c/.github/roadmap.yml" ]; then
       echo "$c"; return 0
     fi
-  done
+  done <<EOF
+$REPO_BUTLER_PROJECTS_DIRS
+EOF
+  if [ -d "$HOME/repo-butler/.git" ] && [ -f "$HOME/repo-butler/.github/roadmap.yml" ]; then
+    echo "$HOME/repo-butler"; return 0
+  fi
   return 1
 }
 
@@ -46,7 +58,7 @@ OWNER=$(resolve_owner "$REPO")
 1. Fetch the latest governance findings from the data branch:
 
 ```bash
-git -C "$REPO" show origin/repo-butler-data:snapshots/governance.json 2>/dev/null
+git -C "$REPO" show "origin/$REPO_BUTLER_DATA_BRANCH:snapshots/governance.json" 2>/dev/null
 ```
 
 2. If the file is missing or unreadable, output a single panel with Reginald saying "The governance ledger is bare, sir. I shall fetch it once the pipeline has run." and stop.
