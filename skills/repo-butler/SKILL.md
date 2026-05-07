@@ -131,21 +131,20 @@ console.log(JSON.stringify(Object.entries(s).map(([id,x])=>({id:id.slice(0,8),
   project:x.project?.split('/').pop()||'unknown',messageCount:x.messages.length,
   durationMin:Math.round((x.last-x.first)/60000),firstMessage:x.messages[0]?.slice(0,80)}))));"
 
-PROJECT_PATHS=""
 while IFS= read -r parent; do
   [ -z "$parent" ] && continue
-  [ -d "$parent" ] && PROJECT_PATHS="$PROJECT_PATHS $parent"
+  [ -d "$parent" ] || continue
+  find "$parent" -maxdepth 5 -name ".git" -type d 2>/dev/null | while read -r gitdir; do
+    dir=$(dirname "$gitdir"); repo=$(basename "$dir")
+    commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null)
+    if [ -n "$commits" ]; then
+      echo "REPO:$repo|COMMITS:$(echo "$commits" | wc -l | tr -d ' ')"
+      echo "$commits" | head -5 | while read -r line; do echo "  $line"; done
+    fi
+  done
 done <<EOF
 $REPO_BUTLER_PROJECTS_DIRS
 EOF
-[ -n "$PROJECT_PATHS" ] && find $PROJECT_PATHS -maxdepth 5 -name ".git" -type d 2>/dev/null | while read -r gitdir; do
-  dir=$(dirname "$gitdir"); repo=$(basename "$dir")
-  commits=$(git -C "$dir" log --since="midnight" --oneline --all 2>/dev/null)
-  if [ -n "$commits" ]; then
-    echo "REPO:$repo|COMMITS:$(echo "$commits" | wc -l | tr -d ' ')"
-    echo "$commits" | head -5 | while read -r line; do echo "  $line"; done
-  fi
-done
 
 PORTFOLIO=$(git -C "$REPO" show "origin/$REPO_BUTLER_DATA_BRANCH:snapshots/latest.json" 2>/dev/null \
   | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(Object.keys(j.portfolio||{}).join(' '));}catch{process.exit(1);}})" 2>/dev/null)
