@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-08T07:33:31.775Z",
+  "timestamp": "2026-05-08T08:39:27.147Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 4,
+    "open_issues_count": 3,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-08T06:31:22Z",
+    "pushed_at": "2026-05-08T08:39:15Z",
     "archived": false
   },
   "issues": {
@@ -21,6 +21,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 200,
+        "title": "fix(pages): include hidden files when uploading reports artifact",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-08T08:39:13Z"
+      },
       {
         "number": 199,
         "title": "docs: simplify docs/ tree by removing shipped artefacts",
@@ -1507,9 +1514,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.8214285714285714,
-    "total_runs": 84,
-    "passed": 69,
+    "pass_rate": 0.8235294117647058,
+    "total_runs": 85,
+    "passed": 70,
     "failed": 15
   },
   "summary": {
@@ -1520,9 +1527,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 0,
-    "recently_merged_prs": 188,
+    "recently_merged_prs": 189,
     "bot_prs": 5,
-    "human_prs": 183,
+    "human_prs": 184,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
@@ -1535,7 +1542,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.8214285714285714,
+    "ci_pass_rate": 0.8235294117647058,
     "bus_factor": 1,
     "time_to_close_median": null
   }
