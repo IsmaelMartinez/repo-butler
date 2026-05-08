@@ -127,9 +127,13 @@ function installCrashHandlers() {
     process.exitCode = 1;
   });
   process.on('uncaughtException', (err) => {
+    // After an uncaughtException the process is in an undefined state — Node's
+    // documented contract is to log and exit, not to continue. Per-phase
+    // isolation only applies to errors caught inside runPhases; anything that
+    // escapes that try/catch is by definition unsafe to recover from.
     console.error('Uncaught exception — failing pipeline:');
     console.error(err?.stack || err);
-    process.exitCode = 1;
+    process.exit(1);
   });
 }
 
@@ -192,17 +196,7 @@ async function main() {
   context.store = createStore(context);
   context.triageBot = await createTriageBotClient(context);
 
-  const phaseResults = await runPhases(phasesToRun, context, defaultProvider, deepProvider);
-
-  // Defence in depth: if the loop somehow exited before producing a result for
-  // every requested phase (e.g. a silent process exit between phases), fail
-  // the pipeline so the issue surfaces instead of skipping REPORT silently.
-  const completedPhases = new Set(phaseResults.map(r => r.phase));
-  const missingPhases = phasesToRun.filter(p => !completedPhases.has(p));
-  if (missingPhases.length > 0) {
-    console.error(`Phases did not run: ${missingPhases.join(', ')} — failing pipeline.`);
-    process.exitCode = 1;
-  }
+  await runPhases(phasesToRun, context, defaultProvider, deepProvider);
 
   // Auto-onboard new portfolio repos that lack the CLAUDE.md marker.
   if (context.portfolio && !dryRun) {
