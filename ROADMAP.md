@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-05-07
+**Last Updated:** 2026-05-08
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 12 Gold + 1 Silver (13 repos) as of W19; the remaining Silver entry is `teams-for-linux` (blocked by >10 open bugs). Zero portfolio vulnerabilities. Private repos included via the installation-scoped discovery endpoint.
 
 ---
@@ -45,8 +45,6 @@ Security trifecta shipped 2026-04-04 (PR #82). Broadened security assessment fro
 
 GitHub App token for vulnerability access shipped 2026-04-04 (PR #83). Switched the main workflow from the default GITHUB_TOKEN to the GitHub App token, granting access to Dependabot alerts, code scanning alerts, and secret scanning alerts APIs across all portfolio repos.
 
-License concern severity tuned 2026-04-04 (PR #84). Replaced blanket red flags for all copyleft with a two-level system: high concern (AGPL, shown in red) and low risk (GPL, LGPL, MPL — collapsed grey summary). Non-commercial projects using permissive licenses are not meaningfully affected by weak copyleft dependencies.
-
 Auto-onboarding shipped 2026-04-04 (PR #85). The pipeline now automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. Skipped during dry runs.
 
 Bug-only Gold tier shipped 2026-04-06 (PR #90). Gold tier check changed from "Fewer than 20 open issues" to "Fewer than 10 open bugs", classifying issues by label (`bug`/`defect`/`bugfix`). Feature requests and unlabelled issues no longer penalise health.
@@ -63,7 +61,7 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 
 ## Roadmap
 
-### ~~Phase 1 — Richer Observation (consume, don't replicate)~~ SHIPPED
+### Phase 1 — Richer Observation (consume, don't replicate) SHIPPED
 
 Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pass rate, bus factor, time-to-close median. Portfolio table + per-repo health cards.
 
@@ -77,19 +75,19 @@ Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pas
 
 **Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.
 
-### ~~Phase 2 — Richer Reports~~ SHIPPED
+### Phase 2 — Richer Reports SHIPPED
 
 Shipped 2026-03-24 (PRs #23–#37). All 10 items complete: release cadence bug fix, open PR triage view, issue staleness detection, blocked issue context, calendar heatmap, PR cycle time, issue velocity imbalance alert, narrative weekly digest, embeddable SVG health badges, SBOM dependency inventory, and AI agent actionability score. 105 tests.
 
-### ~~Phase 3 — Tiered Health Model~~ SHIPPED
+### Phase 3 — Tiered Health Model SHIPPED
 
 Shipped 2026-03-24 (PR #39). Replaced the numeric health score with Gold/Silver/Bronze tiers. Each tier has explicit pass/fail criteria shown as a checklist on per-repo reports. Portfolio table shows tier badges. SVG badges updated with tier names. 119 tests.
 
-### ~~Phase 4 — Structured Issue Specs~~ SHIPPED
+### Phase 4 — Structured Issue Specs SHIPPED
 
 Shipped 2026-03-24 (PRs #41–#42). IDEATE now requests structured specs (current/proposed state, affected files, scope, signal rationale). PROPOSE builds rich markdown issue bodies and uses Jaccard similarity duplicate detection (threshold 0.6) before creating issues. Backward compatible with old-format LLM output. 27 new tests across ideate.test.js and propose.test.js.
 
-### ~~Consumer Packaging~~ SHIPPED
+### Consumer Packaging SHIPPED
 
 Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm dependencies, so GitHub Actions' native `node22` runtime runs `src/index.js` directly. The `action.yml` already declares `using: 'node22'` and `main: 'src/index.js'`, which is all that's required. Consumers reference the action as `uses: IsmaelMartinez/repo-butler@v1`. Dependabot is configured for the `github-actions` ecosystem to keep workflow dependencies current. README includes Usage, Quick Start, and Configuration sections for consumers.
 
@@ -97,25 +95,25 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 ## Next Up
 
-### ~~Dashboard Narrative Restructure~~ SHIPPED
+### Dashboard Narrative Restructure SHIPPED
 
 Shipped 2026-04-08 (PRs #93–#100). Restructured both portfolio and per-repo dashboards from data dumps into narrative decision tools following a situation-problem-action arc. Portfolio page: tier distribution pulse, attention required section, simplified health table (Repo, Tier, Issues, PRs, CI%, Vulns, Next Step) with full view behind toggle, collapsible charts and dependency inventory, doughnut charts removed. Per-repo page: health grid merged into tier checklist with inline annotations, trends moved up, Open Work section, collapsible Activity History and Community. Also fixed PRs Merged (90d) data consistency, added issues:read to the GitHub App, and added open PRs column.
 
-### ~~Astro Integration + Dynamic Dashboards~~ SHIPPED
+### Astro Integration + Dynamic Dashboards SHIPPED
 
 Shipped 2026-04-14. The presentation layer now lives in the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON from the `repo-butler-data` branch at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load. Repo-butler remains the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The GitHub Pages reports stay as a standalone fallback.
 
-~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison).
+Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%). All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison).
 
 ### Scheduled pipeline wiring
 
 Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS, UPDATE (dry-run), and REPORT run daily via `self-test.yml`, and IDEATE runs weekly via `weekly-ideate.yml` (dry-run). Only PROPOSE remains manual-only. Alongside the main pipeline, MONITOR runs every 6h via `monitor.yml`. `.github/roadmap.yml:6-8` declares `schedule: { assess: daily, ideate: weekly }` — both now match reality. The 2026-04-14 incident where `snapshots/latest.json` had been frozen since 2026-04-03 (because `self-test.yml` defaulted to `phase=report` with no OBSERVE) exposed this gap; the fix landed as commit `9795952` on main. The remaining work is a two-week soak test on UPDATE and IDEATE before graduating either off dry-run.
 
-~~**Wire ASSESS into the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`, so the daily run diffs snapshots, calls the LLM for a narrative, proposes a ROADMAP.md update in dry-run mode, and computes weekly trends. The per-repo report for the butler repo now renders an Assessment section from `context.assessment.assessment` alongside the trend direction from `context.trends`. `schedule.assess: daily` in roadmap.yml is no longer aspirational.
+**Wire ASSESS into the daily schedule** — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`, so the daily run diffs snapshots, calls the LLM for a narrative, proposes a ROADMAP.md update in dry-run mode, and computes weekly trends. The per-repo report for the butler repo now renders an Assessment section from `context.assessment.assessment` alongside the trend direction from `context.trends`. `schedule.assess: daily` in roadmap.yml is no longer aspirational.
 
-~~**Weekly IDEATE workflow (dry-run first)**~~ — SHIPPED. `.github/workflows/weekly-ideate.yml` runs `observe,ideate` every Monday at 06:00 UTC with `dry-run: true`. No issue or PR writes; governance findings still persist to the `repo-butler-data` branch for the MCP `get_governance_findings` tool. Graduate to `observe,ideate,propose` later once the council output is trusted. Acceptance (pending): governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality.
+**Weekly IDEATE workflow (dry-run first)** — SHIPPED. `.github/workflows/weekly-ideate.yml` runs `observe,ideate` every Monday at 06:00 UTC with `dry-run: true`. No issue or PR writes; governance findings still persist to the `repo-butler-data` branch for the MCP `get_governance_findings` tool. Graduate to `observe,ideate,propose` later once the council output is trusted. Acceptance (pending): governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality.
 
-~~**UPDATE in dry-run mode on the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file.
+**UPDATE in dry-run mode on the daily schedule** — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file.
 
 **Graduate UPDATE off dry-run** — REVERTED 2026-05-03. PR #175 graduated UPDATE and added the same-day idempotency guard (`findOpenRoadmapPr()` in `src/update.js`); a manual trigger then produced PR #176, which exposed that the UPDATE prompt is not yet fit for live use. The LLM rewrote the 277-line roadmap down to 53 lines, deleted every Phase 1–7 SHIPPED record and the entire `Future` / `What NOT to build` / `Landscape` sections, hallucinated `Last Updated: 2024-07-20`, and introduced cosmetic numbered-list churn. The dedup guard itself worked correctly (verified end-to-end: push run opened #176, manual dispatch hit `Open roadmap PR already exists … skipping` and short-circuited before the LLM call). Workflow defaults reverted to `dry-run: true`; the idempotency code stays in place ready for re-graduation. Re-graduate only after the **UPDATE prompt rebuild** below lands and re-soaks for two weeks.
 
@@ -123,7 +121,7 @@ Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS,
 
 **Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.
 
-### ~~Code Health Sprint — multi-agent simplification review~~ SHIPPED
+### Code Health Sprint — multi-agent simplification review SHIPPED
 
 Shipped 2026-04-28 across PRs #127–#146 (twenty PRs in total, plus the precursor #126 release-tier draft-filter fix). Originated from a four-team subagent review of the whole codebase (~12.5k LOC, 22 source files) that surfaced two correctness bugs and roughly twenty mechanical dedupe opportunities.
 
@@ -133,25 +131,25 @@ Tier 1 (structural): #128 unified the duplicate campaign definitions between `mc
 
 Tier 2 (pattern dedup): #133 collapsed the severity-tally bodies in `observe.js` and the three near-identical scanner blocks in `monitor.js` via the existing `getAlertSummary` helper, extended additively to expose per-severity counts. #134 added a `colorByThreshold` helper used at nine sites across the report files. #131 merged the two LLM providers via a shared `fetchJson` helper in `providers/base.js`. #135 extracted `wrapPrompt` so the `PROMPT_DEFENCE` + `DATA_BOUNDARY_START` scaffolding lives in one place — defence-in-depth as much as simplification.
 
-Tier 3 (local cleanups): #137 collapsed the `mcp.js` 9-arm `callTool` switch by attaching handlers to each tool entry. #141 replaced the hardcoded persona list in `mcp.js` with `import { PERSONAS } from './council.js'`. #142 extracted `bucketVerdicts` for `triageEvents`/`reviewProposals`. #136 extracted `detectMetricDrift` for the CI and community-health drift detectors in `governance.js`. #138 switched `observe.js fetchMergedPRs` from the search API to `gh.paginate('/pulls', { state: closed })`. #139 extracted `pruneDir` for the weekly snapshot rotation. #143 replaced the `parseIdeas` regex pyramid with a field-loop parser. #140 extracted `htmlPage` for the report shell. #144 extracted `buildStatCard` for the repeated repo-health card fragments. #146 promoted `.muted`/`.text-success`/`.text-warning`/`.text-danger` utility classes for the literal-colour inline styles. #145 added `runGitOnDataBranch` (the data-branch reads in `mcp.js` previously hand-rolled the origin/-prefixed → bare ref fallback in two places).
+Tier 3 (local cleanups): #137 collapsed the `mcp.js` 9-arm `callTool` switch by attaching handlers to each tool entry. #141 replaced the hardcoded persona list in `mcp.js` with `import { PERSONAS } from './council.js'`. #142 extracted `bucketVerdicts` for `triageEvents`/`reviewProposals`. #136 extracted `detectMetricDrift` for the CI and community-health drift detectors in `governance.js`. #138 switched `observe.js fetchMergedPRs` from the search API to `gh.paginate('/pulls', { state: closed })`. #139 extracted `pruneDir` for the weekly snapshot rotation. #140 extracted `htmlPage` for the report shell. #143 replaced the `parseIdeas` regex pyramid with a field-loop parser. #144 extracted `buildStatCard` for the repeated repo-health card fragments. #146 promoted `.muted`/`.text-success`/`.text-warning`/`.text-danger` utility classes for the literal-colour inline styles. #145 added `runGitOnDataBranch` (the data-branch reads in `mcp.js` previously hand-rolled the origin/-prefixed → bare ref fallback in two places).
 
 Side outcomes from the sprint: a latent CI bug surfaced and was fixed inside #131 (the `npm test` glob `src/**/*.test.js` only matched the providers subdirectory once subdirectory test files appeared, so CI was silently running 15 tests instead of 496). The `repo-butler-data` per-repo cache schema was bumped to invalidate stale entries when `released_at` shape changed (#126 precursor). Items deliberately left untouched: `config.js` hand-rolled YAML parser (well-scoped to CLAUDE.md's flat + one-level-nested contract), `libyear.js` cohesion (single-purpose, single caller), and any further file splitting (the 5-file report split is intentional).
 
-### ~~Code Health Sprint — deferred follow-ups~~ SHIPPED
+### Code Health Sprint — deferred follow-ups SHIPPED
 
 All four follow-ups shipped across PRs #149–#152: parseIdeas BODY-then-stop (#149), monitor scanner logging (#150), CSS custom properties (#151), prs_merged_days config wiring (#152).
 
-### ~~Portfolio Hardening Sweep — 2026-04-29~~ SHIPPED
+### Portfolio Hardening Sweep — 2026-04-29 SHIPPED
 
 Shipped 2026-05-01. Code-scanning rollout (13/13 repos, security alerts zeroed across portfolio via 10 fix PRs), Dependabot config audit (all repos now have npm + github-actions, 4 PRs merged), and licence policy update (policy-drift-exempt config added in PR #157 whitelisting teams-for-linux GPL-3.0 and bonnie-wee-plot Community Allotment Licence). Zero open vulnerabilities across the portfolio as of snapshot 2026-W18.
 
-### ~~Cross-repo PR automation (follow-up)~~ SHIPPED
+### Cross-repo PR automation (follow-up) SHIPPED
 
 Shipped 2026-05-01 via `src/apply.js`, `.github/workflows/apply.yml`, and `src/dependabot-audit.js`.
 
-~~`governance:apply`~~ — SHIPPED. `applyGovernanceFindings` reads findings from the data branch, validates shape, generates templated config files for code-scanning + dependabot, opens PRs on target repos with the `governance-apply` label. Manual-dispatch only via `apply.yml`, dry-run by default (fail-closed semantics), batch-cap of 5 PRs per run, behind `require_approval`. See [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md) for the full layered-gate rationale.
+**`governance:apply`** — SHIPPED. `applyGovernanceFindings` reads findings from the data branch, validates shape, generates templated config files for code-scanning + dependabot, opens PRs on target repos with the `governance-apply` label. Manual-dispatch only via `apply.yml`, dry-run by default (fail-closed semantics), batch-cap of 5 PRs per run, behind `require_approval`. See [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md) for the full layered-gate rationale.
 
-~~`dependabot:audit`~~ — SHIPPED. `auditDependabot` at `src/dependabot-audit.js` flags repos with stale unmerged Dependabot PRs (>30d high-priority, >60d critical). Findings persist as `dependabot-stale` entries in `governance.json` and are surfaced via the MCP `list_stale_dependabot_prs` tool plus the dashboard's Governance section.
+**`dependabot:audit`** — SHIPPED. `auditDependabot` at `src/dependabot-audit.js` flags repos with stale unmerged Dependabot PRs (>30d high-priority, >60d critical). Findings persist as `dependabot-stale` entries in `governance.json` and are surfaced via the MCP `list_stale_dependabot_prs` tool plus the dashboard's Governance section.
 
 ### Phase 5 — Portfolio Governance Engine
 
@@ -161,23 +159,23 @@ The core insight: repo-butler's unique value is the cross-repo view. It sees whi
 
 Detection engine shipped (`src/governance.js`). The pipeline runs `detectStandardsGaps`, `detectPolicyDrift`, and `generateUpliftProposals` after OBSERVE, persists the merged findings to the data branch via `store.writeGovernanceFindings`, feeds them into IDEATE's governance-focused prompt, and exposes them via the MCP `get_governance_findings` tool.
 
-~~**Portfolio policy definition**~~ — SHIPPED. `.github/roadmap.yml` accepts a flat `standards` section; `config.js` transforms it into structured scope/exclusion data for governance.
+**Portfolio policy definition** — SHIPPED. `.github/roadmap.yml` accepts a flat `standards` section; `config.js` transforms it into structured scope/exclusion data for governance.
 
-~~**Standards propagation**~~ — SHIPPED. `detectStandardsGaps` at `src/governance.js:71` checks each applicable repo against built-in detectors (issue-form-templates, contributing-guide, license, dependabot-actions, ci-workflows, code-scanning, secret-scanning), filtered by scope and exclusions.
+**Standards propagation** — SHIPPED. `detectStandardsGaps` at `src/governance.js:71` checks each applicable repo against built-in detectors (issue-form-templates, contributing-guide, license, dependabot-actions, ci-workflows, code-scanning, secret-scanning), filtered by scope and exclusions.
 
-~~**Policy drift detection**~~ — SHIPPED. `detectPolicyDrift` at `src/governance.js:122` flags license divergence from the ≥80% majority, and CI/community health scores >20pp below the portfolio median.
+**Policy drift detection** — SHIPPED. `detectPolicyDrift` at `src/governance.js:122` flags license divergence from the ≥80% majority, and CI/community health scores >20pp below the portfolio median.
 
-~~**Health tier uplift proposals**~~ — SHIPPED. `generateUpliftProposals` at `src/governance.js:211` proposes tier uplift when ≤3 checks fail for the next tier, listing exactly which checks to close.
+**Health tier uplift proposals** — SHIPPED. `generateUpliftProposals` at `src/governance.js:211` proposes tier uplift when ≤3 checks fail for the next tier, listing exactly which checks to close.
 
-~~**Rewrite IDEATE prompt**~~ — SHIPPED. `buildIdeatePrompt` at `src/ideate.js:34` switches to a portfolio governance advisor persona when governance findings are present and includes full findings via `appendGovernanceContext`.
+**Rewrite IDEATE prompt** — SHIPPED. `buildIdeatePrompt` at `src/ideate.js:34` switches to a portfolio governance advisor persona when governance findings are present and includes full findings via `appendGovernanceContext`.
 
-~~**Governance findings dashboard**~~ — SHIPPED. `buildGovernanceSection` at `src/report-portfolio.js:421` renders a Governance section on the portfolio report with three tables: Standards Gaps (by tool, sorted by adoption rate), Policy Drift (by category), and Tier Uplift Opportunities (silver→gold prioritised, listing remaining checks per repo).
+**Governance findings dashboard** — SHIPPED. `buildGovernanceSection` at `src/report-portfolio.js:421` renders a Governance section on the portfolio report with three tables: Standards Gaps (by tool, sorted by adoption rate), Policy Drift (by category), and Tier Uplift Opportunities (silver→gold prioritised, listing remaining checks per repo).
 
-~~**Cross-repo PR creation**~~ — SHIPPED. `src/apply.js` + `.github/workflows/apply.yml`. Uses the GitHub App token (`actions/create-github-app-token`) for cross-repo writes, dispatch-only, dry-run fail-closed, `require_approval` gated, batch-capped at 5 PRs per run. See ADR-005 for the layered-gate rationale.
+**Cross-repo PR creation** — SHIPPED. `src/apply.js` + `.github/workflows/apply.yml`. Uses the GitHub App token (`actions/create-github-app-token`) for cross-repo writes, dispatch-only, dry-run fail-closed, `require_approval` gated, batch-capped at 5 PRs per run. See ADR-005 for the layered-gate rationale.
 
-~~**Auto-onboarding**~~ — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.
+**Auto-onboarding** — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.
 
-Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
+Security prerequisites (from architecture review): bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting in safety.js, contributor name sanitisation, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
 
 **Landscape evaluation** — Before building custom cross-repo enforcement, evaluate existing tools for the execution layer. File-based standards propagation (community health files, CI templates) can use `repo-file-sync-action` or `actions-template-sync`. Repo settings propagation (branch protection, labels, teams) can leverage `github/safe-settings` or GitHub org rulesets. Bulk remediation of governance findings can be handled by `multi-gitter` or `git-xargs` as the execution mechanism — the butler detects what needs to change, these tools apply it. See the Landscape section for details.
 
@@ -187,27 +185,27 @@ Security prerequisites (from architecture review): ~~bot URL validation~~, ~~eco
 
 These are ideas for later evaluation, not commitments.
 
-~~**Libyear dependency freshness**~~ — SHIPPED. Implemented via SBOM data plus npm registry lookups. Shows cumulative dependency age per repo in the portfolio table and per-repo reports.
+**Libyear dependency freshness** — SHIPPED. Implemented via SBOM data plus npm registry lookups. Shows cumulative dependency age per repo in the portfolio table and per-repo reports.
 
 **External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern. Phase 6 schemas lay the groundwork for structured consumption of these external signals. Also evaluate `ossf/scorecard` as a security health signal — its 0-10 score across 18 dimensions could feed into or complement the health tier model rather than the butler computing its own security metrics.
 
 **Deployed-page link surfacing** — Many portfolio repos have a deployed homepage (GitHub Pages site, custom domain, or the repo-level `homepage` API field), but the dashboard shows only the repo name today, so reaching the live page is a multi-step click-through. Future work would surface the deployed-page URL directly in the portfolio table and on the per-repo dashboard when present, pulled from the `homepage` field already returned by the GitHub API call in `src/observe.js` or, where useful, from the GitHub Pages API. Discovery-only — no live health checking or uptime probing — and a small UX win that capitalises on data already fetched.
 
-~~**Contributor funnel**~~ — SHIPPED. `fetchPRAuthors` at `src/report-repo.js:49` marks authors via `pr.author_association === 'FIRST_TIME_CONTRIBUTOR'`. `computeContributorStats` at `src/report-repo.js:147` computes total, first-timers, and contributor confidence ratio (unique contributors / stargazers × 100). Rendered on per-repo reports as three cards: Unique Contributors (90d), First-Time Contributors, Contributor Confidence.
+**Contributor funnel** — SHIPPED. `fetchPRAuthors` at `src/report-repo.js:49` marks authors via `pr.author_association === 'FIRST_TIME_CONTRIBUTOR'`. `computeContributorStats` at `src/report-repo.js:147` computes total, first-timers, and contributor confidence ratio (unique contributors / stargazers × 100). Rendered on per-repo reports as three cards: Unique Contributors (90d), First-Time Contributors, Contributor Confidence.
 
-~~**Sparkline mini-charts**~~ — SHIPPED. `generateSparklineSVG` at `src/report-portfolio.js:282` renders per-repo weekly activity inline in the portfolio table rows. Pure SVG, no library.
+**Sparkline mini-charts** — SHIPPED. `generateSparklineSVG` at `src/report-portfolio.js:282` renders per-repo weekly activity inline in the portfolio table rows. Pure SVG, no library.
 
-~~**Campaign view**~~ — SHIPPED. `buildCampaignSection` at `src/report-portfolio.js:318` groups Community Health, Vulnerability Free, CI Reliability, License Compliance, and Issue Templates adoption into progress cards with non-compliant repo lists.
+**Campaign view** — SHIPPED. `buildCampaignSection` at `src/report-portfolio.js:318` groups Community Health, Vulnerability Free, CI Reliability, License Compliance, and Issue Templates adoption into progress cards with non-compliant repo lists.
 
 **Skills and documentation review** — Review the research at `docs/research/2026-04-02-skills-and-documentation-landscape.md` and evaluate: distributing per-repo governance findings as Claude Code skills via the onboarding workflow, adding YAML frontmatter to ADRs for machine-parseability, establishing a documentation taxonomy (ADRs, specs, plans, research) consistent across both repo-butler and the triage bot, and pointing CLAUDE.md to relevant ADRs per area ("documentation as system prompt"). The butler's unique skill opportunity is cross-repo findings, not generic documentation — the ETH Zurich study found auto-generated context files reduced task success. Also evaluate the cross-org CLAUDE.md propagation gap as a natural extension of the onboarding workflow.
 
-~~**Butler skills consolidation**~~ — SHIPPED 2026-05-06 across four PRs. Closes both predecessor entries — "Distributable butler skills" and "Butler-briefing/debrief refresh or retirement". End state: two skills shipped from `skills/` in this repo — `repo-butler` (read-side, briefing/debrief modes via positional arg) and `repo-butler-apply` (write-side, confirm-gated). PR #182 hygiene + portability, PR #184 merged briefing+debrief into `repo-butler`, PR #183 renamed apply → `repo-butler-apply`, PR #186 the Reginald uplift: dropped the stick-figure for two ASCII silhouettes (bowler+moustache+bow tie for read; silver tray with mood-varying contents for apply), mixed whisky into the closings, added streak awareness, household-member metaphors, recurring grievances, giving-up lore for stale findings, disapproving `*ahem*` for unreviewed merges, and reserved extremis signals (mourning frame, fortnight-rate-limited Burns half-line) — all under a hard line/word budget (≤250 lines body, ≤30 persona, ≤8 closings per mode). Distribution polish (settings-key for project dirs, MCP-first data fetcher, install.sh) is deferred to a separate PR.
+**Butler skills consolidation** — SHIPPED 2026-05-06 across four PRs. Closes both predecessor entries — "Distributable butler skills" and "Butler-briefing/debrief refresh or retirement". End state: two skills shipped from `skills/` in this repo — `repo-butler` (read-side, briefing/debrief modes via positional arg) and `repo-butler-apply` (write-side, confirm-gated). PR #182 hygiene + portability, PR #184 merged briefing+debrief into `repo-butler`, PR #183 renamed apply → `repo-butler-apply`, PR #186 the Reginald uplift: dropped the stick-figure for two ASCII silhouettes (bowler+moustache+bow tie for read; silver tray with mood-varying contents for apply), mixed whisky into the closings, added streak awareness, household-member metaphors, recurring grievances, giving-up lore for stale findings, disapproving `*ahem*` for unreviewed merges, and reserved extremis signals (mourning frame, fortnight-rate-limited Burns half-line) — all under a hard line/word budget (≤250 lines body, ≤30 persona, ≤8 closings per mode). Distribution polish (settings-key for project dirs, MCP-first data fetcher, install.sh) is deferred to a separate PR.
 
-### ~~Phase 6 — Data Contracts + AI Skill~~ SHIPPED
+### Phase 6 — Data Contracts + AI Skill SHIPPED
 
 Shipped 2026-03-29 (PR #59). Six JSON Schema 2020-12 definitions in `schemas/v1/` covering snapshot, portfolio, health tiers, config, weekly trends, and enriched portfolio details. Claude Code skill at `docs/skill.md` with 11 eval tests. Schema validation tests in CI. Weekly portfolio snapshots enriched with health tier computation fields. ADR-003 documenting standards choices. 208 tests.
 
-### ~~Phase 7 — MCP Server~~ SHIPPED
+### Phase 7 — MCP Server SHIPPED
 
 Shipped 2026-03-30 (PR #60). Zero-dependency MCP server at `src/mcp.js` (JSON-RPC 2.0 over stdio). Three resources (latest snapshot, portfolio health, campaign status) and four tools on launch: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`. Later expanded to nine tools: `get_governance_findings`, `trigger_refresh`, `get_monitor_events`, `get_watchlist`, `get_council_personas`. Connect with `claude mcp add repo-butler node src/mcp.js`.
 
@@ -215,11 +213,11 @@ Shipped 2026-03-30 (PR #60). Zero-dependency MCP server at `src/mcp.js` (JSON-RP
 
 A2A v0.3 Agent Card published at `/.well-known/agent.json` for capability discovery by other agents. A formalised integration contract with the triage bot, defining typed event schemas for the signals the butler consumes (issue intelligence, per-repo health summaries).
 
-~~**Agent Card**~~ — SHIPPED. `src/agent-card.js` builds an A2A AgentCard and the REPORT phase writes it to `reports/.well-known/agent-card.json` so it deploys to Pages at `ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`. Declares six skills (portfolio-health, governance-findings, campaign-status, snapshot-diff, monitor-events, council-triage), capability flags, provider, and documentation URL. The card is discovery-only for now — the butler's primary programmatic interface remains the MCP server from Phase 7. `supportedInterfaces` stays empty until an A2A transport is actually exposed.
+**Agent Card** — SHIPPED. `src/agent-card.js` builds an A2A AgentCard and the REPORT phase writes it to `reports/.well-known/agent-card.json` so it deploys to Pages at `ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`. Declares six skills (portfolio-health, governance-findings, campaign-status, snapshot-diff, monitor-events, council-triage), capability flags, provider, and documentation URL. The card is discovery-only for now — the butler's primary programmatic interface remains the MCP server from Phase 7. `supportedInterfaces` stays empty until an A2A transport is actually exposed.
 
 **Triage bot contract** — PAUSED 2026-05-03. The integration is shipping no signal in practice: only 2 of 14 portfolio repos carry `.github/butler.json` (`teams-for-linux`, `triage-bot-test-repo`), `repo-butler` itself does not, and `TRIAGE_BOT_INGEST_SECRET` is unset in the production workflow so the `/ingest` path is a no-op even where butler.json exists. Hardening a typed contract for traffic that does not flow is premature. Resume when at least 3 portfolio repos opt in and the ingest secret is wired — at that point define `TriageBotEvent` schemas for health summaries and issue signals so both sides validate against the same shape. Existing runtime validators in `safety.js` (`validateTriageBotTrends`) and the auto-discovery in `triage-bot.js` stay in place; this entry is about deferring the formalisation, not retiring the integration.
 
-**Security prerequisites** — ~~Bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting~~, ~~LLM prompt injection defence~~, ~~triage bot response validation~~ (all shipped in PR #63). Remaining: GitHub App for cross-repo auth, contributor name sanitisation for CODEOWNERS.
+**Security prerequisites** — Bot URL validation, ecosystem detection allowlists, PR deduplication, URL allowlist splitting, LLM prompt injection defence, triage bot response validation (all shipped in PR #63). Remaining: GitHub App for cross-repo auth, contributor name sanitisation for CODEOWNERS.
 
 ### Phase 9 — AsyncAPI Events
 
