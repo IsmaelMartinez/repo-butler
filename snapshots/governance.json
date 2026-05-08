@@ -60,5 +60,18 @@
     },
     "adoptionRate": 0.7857142857142857,
     "priority": "medium"
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "ismaelmartinez.me.uk",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Zero critical/high security findings",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high"
   }
 ]
