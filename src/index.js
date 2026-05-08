@@ -93,7 +93,9 @@ export async function runPhases(phasesToRun, context, defaultProvider, deepProvi
     const runner = runners[p];
     if (!runner) {
       console.error(`Unknown phase: ${p}`);
-      process.exit(1);
+      process.exitCode = 1;
+      results.push({ phase: p, status: 'failed', durationMs: 0, error: new Error(`Unknown phase: ${p}`) });
+      continue;
     }
     context.provider = providerForPhase(p, defaultProvider, deepProvider);
     const start = Date.now();

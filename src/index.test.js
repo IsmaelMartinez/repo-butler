@@ -78,6 +78,19 @@ describe('runPhases', () => {
     assert.equal(process.exitCode, 1);
   });
 
+  it('records an unknown-phase failure and continues the loop', async () => {
+    const calls = [];
+    const runners = {
+      report: async () => { calls.push('report'); },
+    };
+    const results = await runPhases(['nonsense', 'report'], {}, null, null, runners);
+    assert.equal(results[0].status, 'failed');
+    assert.match(results[0].error.message, /Unknown phase/);
+    assert.deepEqual(calls, ['report']);
+    assert.equal(results[1].status, 'ok');
+    assert.equal(process.exitCode, 1);
+  });
+
   it('records duration for each phase', async () => {
     const runners = {
       observe: async () => { await new Promise(r => setTimeout(r, 5)); },
