@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-08T15:51:46.131Z",
+  "timestamp": "2026-05-08T16:30:57.418Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,16 +7,31 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 4,
+    "open_issues_count": 5,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-08T15:39:56Z",
+    "pushed_at": "2026-05-08T16:05:09Z",
     "archived": false
   },
   "issues": {
-    "open": [],
+    "open": [
+      {
+        "number": 203,
+        "title": "phase=all silently exits during GOVERNANCE, skipping IDEATE/PROPOSE/REPORT/MONITOR with success status",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-05-08T16:02:50Z",
+        "updated_at": "2026-05-08T16:04:46Z",
+        "assignees": [],
+        "milestone": null
+      }
+    ],
     "recently_closed": []
   },
   "pull_requests": {
@@ -1521,15 +1536,15 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9390243902439024,
+    "pass_rate": 0.9512195121951219,
     "total_runs": 82,
-    "passed": 77,
-    "failed": 5
+    "passed": 78,
+    "failed": 4
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 0,
-    "open_bugs": 0,
+    "open_issues": 1,
+    "open_bugs": 1,
     "open_features": 0,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
@@ -1540,7 +1555,9 @@
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
-    "top_open_labels": [],
+    "top_open_labels": [
+      "bug (1)"
+    ],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
     "community_health": 100,
@@ -1549,7 +1566,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9390243902439024,
+    "ci_pass_rate": 0.9512195121951219,
     "bus_factor": 1,
     "time_to_close_median": null
   }
