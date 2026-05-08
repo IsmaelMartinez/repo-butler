@@ -81,6 +81,38 @@ function providerForPhase(phase, defaultProvider, deepProvider) {
   return null;
 }
 
+// Run the phase pipeline with per-phase isolation: an exception in one phase
+// logs loudly and sets process.exitCode but does not skip later phases.
+// Otherwise a flaky upstream phase (e.g. governance hitting a libyear timeout
+// edge case) silently swallows REPORT and the Pages deploy is a no-op.
+// Returns an array of { phase, status, durationMs, error? } for tests.
+export async function runPhases(phasesToRun, context, defaultProvider, deepProvider, runners = PHASE_RUNNERS) {
+  const results = [];
+  for (const p of phasesToRun) {
+    console.log(`\n=== Phase: ${p.toUpperCase()} ===\n`);
+    const runner = runners[p];
+    if (!runner) {
+      console.error(`Unknown phase: ${p}`);
+      process.exit(1);
+    }
+    context.provider = providerForPhase(p, defaultProvider, deepProvider);
+    const start = Date.now();
+    try {
+      await runner(context);
+      const durationMs = Date.now() - start;
+      console.log(`\n=== Phase: ${p.toUpperCase()} COMPLETE (${(durationMs / 1000).toFixed(1)}s) ===\n`);
+      results.push({ phase: p, status: 'ok', durationMs });
+    } catch (err) {
+      const durationMs = Date.now() - start;
+      console.error(`\n=== Phase: ${p.toUpperCase()} FAILED (${(durationMs / 1000).toFixed(1)}s) ===`);
+      console.error(err?.stack || err);
+      process.exitCode = 1;
+      results.push({ phase: p, status: 'failed', durationMs, error: err });
+    }
+  }
+  return results;
+}
+
 async function main() {
   const phase = process.env.INPUT_PHASE
     || process.argv.find(a => a.startsWith('--phase='))?.split('=')[1]
@@ -138,16 +170,7 @@ async function main() {
   context.store = createStore(context);
   context.triageBot = await createTriageBotClient(context);
 
-  for (const p of phasesToRun) {
-    console.log(`\n=== Phase: ${p.toUpperCase()} ===\n`);
-    const runner = PHASE_RUNNERS[p];
-    if (!runner) {
-      console.error(`Unknown phase: ${p}`);
-      process.exit(1);
-    }
-    context.provider = providerForPhase(p, defaultProvider, deepProvider);
-    await runner(context);
-  }
+  await runPhases(phasesToRun, context, defaultProvider, deepProvider);
 
   // Auto-onboard new portfolio repos that lack the CLAUDE.md marker.
   if (context.portfolio && !dryRun) {
