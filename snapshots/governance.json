@@ -60,18 +60,5 @@
     },
     "adoptionRate": 0.7857142857142857,
     "priority": "medium"
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "teams-for-linux",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Fewer than 10 open bugs",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high"
   }
 ]
