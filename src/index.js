@@ -115,7 +115,31 @@ export async function runPhases(phasesToRun, context, defaultProvider, deepProvi
   return results;
 }
 
+// Fail the pipeline loudly on silent crashes. Without these handlers an
+// unhandled rejection in a fire-and-forget code path (e.g. an aborted libyear
+// fetch) can terminate Node mid-pipeline with exit 0 — causing later phases
+// (REPORT, MONITOR) to be silently skipped while the workflow reports success.
+// See issue #203.
+function installCrashHandlers() {
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled promise rejection — failing pipeline:');
+    console.error(reason?.stack || reason);
+    process.exitCode = 1;
+  });
+  process.on('uncaughtException', (err) => {
+    // After an uncaughtException the process is in an undefined state — Node's
+    // documented contract is to log and exit, not to continue. Per-phase
+    // isolation only applies to errors caught inside runPhases; anything that
+    // escapes that try/catch is by definition unsafe to recover from.
+    console.error('Uncaught exception — failing pipeline:');
+    console.error(err?.stack || err);
+    process.exit(1);
+  });
+}
+
 async function main() {
+  installCrashHandlers();
+
   const phase = process.env.INPUT_PHASE
     || process.argv.find(a => a.startsWith('--phase='))?.split('=')[1]
     || 'all';
