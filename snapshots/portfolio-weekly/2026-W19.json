@@ -465,7 +465,7 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 421,
+      "commits_6mo": 422,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
@@ -491,7 +491,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-08T14:21:52Z",
+      "pushed_at": "2026-05-08T16:14:37Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -835,13 +835,13 @@
       }
     },
     "repo-butler": {
-      "open_issues": 0,
-      "open_bugs": 0,
+      "open_issues": 1,
+      "open_bugs": 1,
       "commits_6mo": 272,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9390243902439024,
+      "ciPassRate": 0.9512195121951219,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-08T15:39:56Z",
+      "pushed_at": "2026-05-08T16:05:09Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1213,7 +1213,7 @@
       "stars": 0,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.99,
+      "ciPassRate": 0.98,
       "vulns": {
         "count": 0,
         "critical": 0,
