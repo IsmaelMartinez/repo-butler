@@ -115,7 +115,27 @@ export async function runPhases(phasesToRun, context, defaultProvider, deepProvi
   return results;
 }
 
+// Fail the pipeline loudly on silent crashes. Without these handlers an
+// unhandled rejection in a fire-and-forget code path (e.g. an aborted libyear
+// fetch) can terminate Node mid-pipeline with exit 0 — causing later phases
+// (REPORT, MONITOR) to be silently skipped while the workflow reports success.
+// See issue #203.
+function installCrashHandlers() {
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled promise rejection — failing pipeline:');
+    console.error(reason?.stack || reason);
+    process.exitCode = 1;
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('Uncaught exception — failing pipeline:');
+    console.error(err?.stack || err);
+    process.exitCode = 1;
+  });
+}
+
 async function main() {
+  installCrashHandlers();
+
   const phase = process.env.INPUT_PHASE
     || process.argv.find(a => a.startsWith('--phase='))?.split('=')[1]
     || 'all';
@@ -172,7 +192,17 @@ async function main() {
   context.store = createStore(context);
   context.triageBot = await createTriageBotClient(context);
 
-  await runPhases(phasesToRun, context, defaultProvider, deepProvider);
+  const phaseResults = await runPhases(phasesToRun, context, defaultProvider, deepProvider);
+
+  // Defence in depth: if the loop somehow exited before producing a result for
+  // every requested phase (e.g. a silent process exit between phases), fail
+  // the pipeline so the issue surfaces instead of skipping REPORT silently.
+  const completedPhases = new Set(phaseResults.map(r => r.phase));
+  const missingPhases = phasesToRun.filter(p => !completedPhases.has(p));
+  if (missingPhases.length > 0) {
+    console.error(`Phases did not run: ${missingPhases.join(', ')} — failing pipeline.`);
+    process.exitCode = 1;
+  }
 
   // Auto-onboard new portfolio repos that lack the CLAUDE.md marker.
   if (context.portfolio && !dryRun) {
