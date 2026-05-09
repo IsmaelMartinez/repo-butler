@@ -283,10 +283,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 500 })
         .then(issues => {
           const filtered = issues.filter(i => !i.pull_request);
-          return { total: filtered.length, bugs: filtered.filter(i => {
-            const labels = i.labels?.map(l => l.name) || [];
-            return isBugIssue(labels) && !isBlocked(labels);
-          }).length };
+          return { total: filtered.length, bugs: filtered.filter(i => isBugIssue(i.labels) && !isBlocked(i.labels)).length };
         })
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
