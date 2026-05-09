@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-09T16:48:30.199Z",
+  "timestamp": "2026-05-09T18:53:32.291Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-09T16:18:20Z",
+    "pushed_at": "2026-05-09T18:53:15Z",
     "archived": false
   },
   "issues": {
@@ -32,6 +32,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 206,
+        "title": "fix(observe): exclude blocked bugs from open_bugs count",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-09T18:53:14Z"
+      },
       {
         "number": 205,
         "title": "docs(consumer-guide): standardise deployed-page URL convention",
@@ -1383,13 +1390,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-20T09:51:40Z"
-      },
-      {
-        "number": 1,
-        "title": "fix: security and quality issues from code review",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-19T23:19:05Z"
       }
     ]
   },
@@ -1547,8 +1547,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 83,
-    "passed": 83,
+    "total_runs": 82,
+    "passed": 82,
     "failed": 0
   },
   "summary": {
