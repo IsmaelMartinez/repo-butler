@@ -30,38 +30,6 @@
     "priority": "low"
   },
   {
-    "type": "standards-gap",
-    "tool": "secret-scanning",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "teams-for-linux",
-      "ismaelmartinez.me.uk",
-      "generator-atlassian-compass-event-catalog",
-      "bonnie-wee-plot",
-      "betis-escocia",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "repo-butler",
-      "wifisentinel",
-      "votescot",
-      "lounge-tv"
-    ],
-    "nonCompliant": [
-      "yourear",
-      "sound3fy",
-      "delegate-to-ollama"
-    ],
-    "repoEcosystems": {
-      "yourear": null,
-      "sound3fy": null,
-      "delegate-to-ollama": null
-    },
-    "adoptionRate": 0.7857142857142857,
-    "priority": "medium"
-  },
-  {
     "type": "tier-uplift",
     "repo": "teams-for-linux",
     "currentTier": "silver",
