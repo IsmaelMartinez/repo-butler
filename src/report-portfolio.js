@@ -8,7 +8,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION, isExcludedRepo,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
-  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isPublishedRelease,
+  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
   CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
 } from './report-shared.js';
 
@@ -283,7 +283,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 500 })
         .then(issues => {
           const filtered = issues.filter(i => !i.pull_request);
-          return { total: filtered.length, bugs: filtered.filter(i => isBugIssue(i.labels?.map(l => l.name) || [])).length };
+          return { total: filtered.length, bugs: filtered.filter(i => isBugIssue(i.labels) && !isBlocked(i.labels)).length };
         })
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
