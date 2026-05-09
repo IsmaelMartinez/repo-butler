@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-08T20:22:22.612Z",
+  "timestamp": "2026-05-09T05:52:41.267Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,16 +7,17 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 5,
+    "open_issues_count": 4,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-08T18:24:18Z",
+    "pushed_at": "2026-05-09T00:19:41Z",
     "archived": false
   },
   "issues": {
-    "open": [
+    "open": [],
+    "recently_closed": [
       {
         "number": 203,
         "title": "phase=all silently exits during GOVERNANCE, skipping IDEATE/PROPOSE/REPORT/MONITOR with success status",
@@ -24,18 +25,20 @@
         "labels": [
           "bug"
         ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-05-08T16:02:50Z",
-        "updated_at": "2026-05-08T16:04:46Z",
-        "assignees": [],
-        "milestone": null
+        "closed_at": "2026-05-08T22:56:03Z",
+        "created_at": "2026-05-08T16:02:50Z"
       }
-    ],
-    "recently_closed": []
+    ]
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 204,
+        "title": "fix(index): surface silent process exits during phase pipeline",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-08T22:56:02Z"
+      },
       {
         "number": 201,
         "title": "fix(index): isolate phases so one failure doesn't skip downstream",
@@ -1536,28 +1539,26 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.975609756097561,
+    "pass_rate": 1,
     "total_runs": 82,
-    "passed": 80,
-    "failed": 2
+    "passed": 82,
+    "failed": 0
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 1,
-    "open_bugs": 1,
+    "open_issues": 0,
+    "open_bugs": 0,
     "open_features": 0,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 0,
-    "recently_merged_prs": 190,
+    "recently_closed": 1,
+    "recently_merged_prs": 191,
     "bot_prs": 5,
-    "human_prs": 185,
+    "human_prs": 186,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
-    "top_open_labels": [
-      "bug (1)"
-    ],
+    "top_open_labels": [],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
     "community_health": 100,
@@ -1566,8 +1567,11 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.975609756097561,
+    "ci_pass_rate": 1,
     "bus_factor": 1,
-    "time_to_close_median": null
+    "time_to_close_median": {
+      "median_days": 0.3,
+      "sample_size": 1
+    }
   }
 }
