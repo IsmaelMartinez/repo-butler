@@ -4,7 +4,7 @@ import { paginateIssues } from './github.js';
 import { CSS, SITE_FOOTER, htmlPage } from './report-styles.js';
 import {
   TIER_DISPLAY, TIER_COLORS, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
-  isBotAuthor, escHtml, fmt, countBy,
+  isBotAuthor, escHtml, fmt, countBy, isBlocked,
   daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
   colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
 } from './report-shared.js';
@@ -612,7 +612,7 @@ function buildStalenessSection(snapshot) {
     .sort((a, b) => b.stale_days - a.stale_days);
 
   const blockedIssues = issues
-    .filter(i => i.labels.includes('blocked'))
+    .filter(i => isBlocked(i.labels))
     .map(i => ({ ...i, age_days: Math.floor((now - new Date(i.created_at).getTime()) / 86400000) }))
     .sort((a, b) => b.age_days - a.age_days);
 

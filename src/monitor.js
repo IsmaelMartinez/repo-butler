@@ -4,6 +4,7 @@
 
 import { createClient } from './github.js';
 import { triageEvents } from './council.js';
+import { isBlocked } from './report-shared.js';
 
 const CURSOR_PATH = 'snapshots/monitor-cursor.json';
 
@@ -265,7 +266,7 @@ function detectStaleIssues(snapshot, config) {
     const updatedAt = new Date(issue.updated_at).getTime();
     const daysSinceUpdate = Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24));
 
-    if (daysSinceUpdate >= staleDays && !issue.labels.includes('blocked')) {
+    if (daysSinceUpdate >= staleDays && !isBlocked(issue.labels)) {
       events.push({
         type: EVENT_TYPES.STALE_ISSUE,
         severity: 'low',
