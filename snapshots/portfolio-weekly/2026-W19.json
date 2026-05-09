@@ -4,11 +4,11 @@
     "yourear": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 66,
+      "commits_6mo": 67,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9381443298969072,
+      "ciPassRate": 0.9473684210526315,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -28,7 +28,7 @@
       "secretScanning": null,
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-09T04:10:35Z",
+      "pushed_at": "2026-05-09T06:57:20Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -95,7 +95,7 @@
     "sound3fy": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 80,
+      "commits_6mo": 81,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -119,7 +119,7 @@
       "secretScanning": null,
       "ci": 7,
       "released_at": "2025-12-20T09:59:52Z",
-      "pushed_at": "2026-05-05T19:59:06Z",
+      "pushed_at": "2026-05-09T06:57:24Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -185,12 +185,12 @@
     },
     "teams-for-linux": {
       "open_issues": 19,
-      "open_bugs": 9,
-      "commits_6mo": 381,
+      "open_bugs": 10,
+      "commits_6mo": 382,
       "stars": 4671,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -212,10 +212,10 @@
       },
       "ci": 16,
       "released_at": "2026-05-06T13:59:56Z",
-      "pushed_at": "2026-05-09T00:36:06Z",
+      "pushed_at": "2026-05-09T06:58:10Z",
       "traffic": null,
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -229,7 +229,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -273,13 +273,13 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Fewer than 10 open bugs"
       }
     },
     "ismaelmartinez.me.uk": {
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 97,
+      "commits_6mo": 101,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -305,7 +305,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-09T05:51:42Z",
+      "pushed_at": "2026-05-09T06:57:31Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -372,7 +372,7 @@
     "generator-atlassian-compass-event-catalog": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 187,
+      "commits_6mo": 188,
       "stars": 4,
       "license": "MIT",
       "communityHealth": 85,
@@ -398,7 +398,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-20T20:38:19Z",
-      "pushed_at": "2026-05-08T10:29:48Z",
+      "pushed_at": "2026-05-09T06:57:35Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -465,11 +465,11 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 423,
+      "commits_6mo": 428,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.9135802469135802,
+      "ciPassRate": 0.961038961038961,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -491,7 +491,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-09T00:37:15Z",
+      "pushed_at": "2026-05-09T08:06:01Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -558,16 +558,16 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 152,
+      "commits_6mo": 162,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.8105263157894737,
+      "ciPassRate": 0.8541666666666666,
       "vulns": {
-        "count": 3,
+        "count": 1,
         "critical": 0,
-        "high": 2,
-        "medium": 1,
+        "high": 1,
+        "medium": 0,
         "low": 0,
         "max_severity": "high"
       },
@@ -584,7 +584,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-09T02:53:51Z",
+      "pushed_at": "2026-05-09T08:35:48Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -651,7 +651,7 @@
     "ai-model-advisor": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 176,
+      "commits_6mo": 177,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -677,7 +677,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-06T04:16:16Z",
+      "pushed_at": "2026-05-09T06:57:46Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -742,13 +742,13 @@
       }
     },
     "github-issue-triage-bot": {
-      "open_issues": 2,
-      "open_bugs": 0,
-      "commits_6mo": 226,
+      "open_issues": 3,
+      "open_bugs": 1,
+      "commits_6mo": 227,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.963855421686747,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -770,7 +770,7 @@
       },
       "ci": 12,
       "released_at": "2026-04-01T12:26:05Z",
-      "pushed_at": "2026-05-04T07:17:54Z",
+      "pushed_at": "2026-05-09T06:58:24Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -837,7 +837,7 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 273,
+      "commits_6mo": 274,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -863,7 +863,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-09T00:19:41Z",
+      "pushed_at": "2026-05-09T07:34:15Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -930,11 +930,11 @@
     "wifisentinel": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 232,
+      "commits_6mo": 233,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9080459770114943,
+      "ciPassRate": 0.9294117647058824,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -956,7 +956,7 @@
       },
       "ci": 5,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-05-04T17:58:22Z",
+      "pushed_at": "2026-05-09T06:57:50Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1023,11 +1023,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 274,
+      "commits_6mo": 278,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9880952380952381,
+      "ciPassRate": 0.9764705882352941,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1049,7 +1049,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-08T23:05:08Z",
+      "pushed_at": "2026-05-09T07:00:39Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1116,11 +1116,11 @@
     "lounge-tv": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 36,
+      "commits_6mo": 37,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9545454545454546,
+      "ciPassRate": 0.9560439560439561,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1142,7 +1142,7 @@
       },
       "ci": 5,
       "released_at": "2026-04-07T07:04:50Z",
-      "pushed_at": "2026-05-05T23:19:51Z",
+      "pushed_at": "2026-05-09T06:57:58Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1207,13 +1207,13 @@
       }
     },
     "delegate-to-ollama": {
-      "open_issues": 1,
+      "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 59,
+      "commits_6mo": 65,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.96,
+      "ciPassRate": 0.95,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1226,7 +1226,7 @@
       "secretScanning": null,
       "ci": 3,
       "released_at": "2026-05-08T12:21:42Z",
-      "pushed_at": "2026-05-08T22:50:01Z",
+      "pushed_at": "2026-05-09T08:07:40Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
