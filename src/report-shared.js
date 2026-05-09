@@ -112,6 +112,14 @@ export function isBugIssue(labels) {
   });
 }
 
+export function isBlocked(labels) {
+  const l = Array.isArray(labels) ? labels : (labels?.labels || []);
+  return l.some(item => {
+    const name = typeof item === 'string' ? item : item?.name;
+    return name ? name.toLowerCase() === 'blocked' : false;
+  });
+}
+
 export function isFeatureIssue(labels) {
   const l = Array.isArray(labels) ? labels : (labels?.labels || []);
   return !isBugIssue(l) && l.some(item => {

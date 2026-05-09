@@ -1,5 +1,5 @@
 import { createClient, paginateIssues } from './github.js';
-import { isBugIssue, isFeatureIssue, isPublishedRelease, getAlertSummary } from './report-shared.js';
+import { isBugIssue, isBlocked, isFeatureIssue, isPublishedRelease, getAlertSummary } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
 // per-repo and portfolio observation, threads results onto context, persists
@@ -480,7 +480,7 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
     }
   }
 
-  const blockedCount = openIssues.filter(i => i.labels.includes('blocked')).length;
+  const blockedCount = openIssues.filter(i => isBlocked(i.labels)).length;
   const awaitingFeedback = openIssues.filter(i => i.labels.includes('awaiting user feedback'));
   const highReaction = openIssues
     .filter(i => i.reactions >= 2)
@@ -498,7 +498,7 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
     // Exclude blocked bugs: they're not actionable by the maintainer, so
     // counting them against the "Fewer than 10 open bugs" gold gate punishes
     // repos that have correctly triaged upstream-dependent issues.
-    open_bugs: openIssues.filter(i => isBugIssue(i.labels) && !i.labels.includes('blocked')).length,
+    open_bugs: openIssues.filter(i => isBugIssue(i.labels) && !isBlocked(i.labels)).length,
     open_features: openIssues.filter(i => isFeatureIssue(i.labels)).length,
     blocked_issues: blockedCount,
     awaiting_feedback: awaitingFeedback.length,
