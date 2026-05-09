@@ -495,7 +495,10 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
   return {
     repo: repoMeta ? `${repoMeta.stars} stars, ${repoMeta.forks} forks` : 'unknown',
     open_issues: openIssues.length,
-    open_bugs: openIssues.filter(i => isBugIssue(i.labels)).length,
+    // Exclude blocked bugs: they're not actionable by the maintainer, so
+    // counting them against the "Fewer than 10 open bugs" gold gate punishes
+    // repos that have correctly triaged upstream-dependent issues.
+    open_bugs: openIssues.filter(i => isBugIssue(i.labels) && !i.labels.includes('blocked')).length,
     open_features: openIssues.filter(i => isFeatureIssue(i.labels)).length,
     blocked_issues: blockedCount,
     awaiting_feedback: awaitingFeedback.length,
