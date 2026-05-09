@@ -31,7 +31,7 @@ Available tools: \`get_health_tier\`, \`get_campaign_status\`, \`query_portfolio
 
 When working on health improvements, check the per-repo report for the current tier checklist and use the consumer guide for fix instructions.
 
-If this repo deploys a page, set the GitHub \`homepage\` field to its canonical URL — that's how repo-butler surfaces the deployed link in dashboards and agent cards.
+If this repo deploys a page, set its GitHub repository Homepage URL (the Website field in the repo's About section — not \`package.json\`'s \`homepage\`) to the canonical URL. That's how repo-butler surfaces the deployed link in dashboards and agent cards.
 `;
 
 const PR_BODY = `## Welcome to Repo Butler

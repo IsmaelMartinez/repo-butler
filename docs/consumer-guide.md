@@ -163,5 +163,5 @@ This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-b
 
 When working on health improvements, check the per-repo report for the current tier checklist and fix failing checks using the consumer guide.
 
-If this repo deploys a page, set the GitHub `homepage` field to its canonical URL — that's how repo-butler surfaces the deployed link in dashboards and agent cards.
+If this repo deploys a page, set its GitHub repository Homepage URL (the Website field in the repo's About section — not `package.json`'s `homepage`) to the canonical URL. That's how repo-butler surfaces the deployed link in dashboards and agent cards.
 ```
