@@ -130,6 +130,24 @@ Check whether a flagged dependency is direct (you import it) or transitive (pull
 
 ---
 
+## Portfolio conventions
+
+These are conventions repo-butler reads as the single source of truth across the portfolio. Set them once per repo; the dashboards, agent card, and MCP responses all consume the same fields.
+
+### Deployed-page URL
+
+If your repo deploys a page (GitHub Pages, Vercel, Netlify, Cloudflare Pages, custom domain, anything else), set the GitHub repository `homepage` field to its canonical URL. The portfolio dashboard, per-repo dashboard, and agent card surface that URL directly. There is no fallback discovery — if `homepage` is unset, no link surfaces.
+
+Set it via repo Settings → "Website" or via the API:
+
+```bash
+gh api -X PATCH repos/{owner}/{repo} -f homepage="https://example.com"
+```
+
+For GitHub Pages repos the canonical URL is the value returned by `gh api repos/{owner}/{repo}/pages --jq .html_url`.
+
+---
+
 ## How to reference this from your repo
 
 Add this to your repo's `CLAUDE.md`:
@@ -144,4 +162,6 @@ This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-b
 - Consumer guide: https://github.com/IsmaelMartinez/repo-butler/blob/main/docs/consumer-guide.md
 
 When working on health improvements, check the per-repo report for the current tier checklist and fix failing checks using the consumer guide.
+
+If this repo deploys a page, set its GitHub repository Homepage URL (the Website field in the repo's About section — not `package.json`'s `homepage`) to the canonical URL. That's how repo-butler surfaces the deployed link in dashboards and agent cards.
 ```
