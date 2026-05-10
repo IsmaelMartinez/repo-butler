@@ -57,8 +57,12 @@ async function runApply(context) {
   // explicitly asked to remediate that did not produce a PR. Surface them by
   // throwing so runPhases marks the phase failed and the workflow exits non-zero.
   if (summary?.errors > 0) {
+    const failed = result.results
+      .filter(r => r.status === 'error')
+      .map(r => `${r.repo}/${r.tool}`)
+      .join(', ');
     throw new Error(
-      `apply: ${summary.errors} per-repo error(s); ${summary.created} PR(s) created, ${summary.skipped} skipped`,
+      `apply: ${summary.errors} per-repo error(s) [${failed}]; ${summary.created} PR(s) created, ${summary.skipped} skipped`,
     );
   }
 }
