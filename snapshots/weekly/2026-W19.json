@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-10T11:20:41.794Z",
+  "timestamp": "2026-05-10T16:19:35.035Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,16 +7,29 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 4,
+    "open_issues_count": 6,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-10T07:46:12Z",
+    "pushed_at": "2026-05-10T12:40:36Z",
     "archived": false
   },
   "issues": {
-    "open": [],
+    "open": [
+      {
+        "number": 208,
+        "title": "apply phase swallows per-repo errors — workflow exits 0 despite 0 PRs created",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-05-10T12:28:57Z",
+        "updated_at": "2026-05-10T12:28:57Z",
+        "assignees": [],
+        "milestone": null
+      }
+    ],
     "recently_closed": [
       {
         "number": 203,
@@ -1547,13 +1560,13 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 87,
-    "passed": 87,
+    "total_runs": 86,
+    "passed": 86,
     "failed": 0
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 0,
+    "open_issues": 1,
     "open_bugs": 0,
     "open_features": 0,
     "blocked_issues": 0,
