@@ -220,6 +220,7 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.results.length, 2);
     assert.equal(result.results[0].status, 'error');
     assert.equal(result.results[1].status, 'created');
+    assert.deepEqual(result.summary, { created: 1, skipped: 0, errors: 1 });
   });
 
   it('filters findings by tools option', async () => {

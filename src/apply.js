@@ -154,7 +154,7 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
   const errors = results.filter(r => r.status === 'error').length;
   console.log(`apply: done — ${created} PRs created, ${skipped} skipped, ${errors} errors`);
 
-  return { status: 'completed', results };
+  return { status: 'completed', results, summary: { created, skipped, errors } };
 }
 
 async function applyToRepo(gh, owner, repo, tool, ecosystem) {
