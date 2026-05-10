@@ -36,12 +36,31 @@ async function runApply(context) {
     return;
   }
   const gh = createClient(token);
-  const results = await applyGovernanceFindings(gh, owner, findings, config, {
+  const result = await applyGovernanceFindings(gh, owner, findings, config, {
     dryRun: isDryRun,
     maxPerRun,
     tools: tools.length > 0 ? tools : null,
   });
-  console.log(`Apply complete: ${results?.length || 0} repos processed.`);
+  const processed = result?.results?.length || 0;
+  console.log(`Apply complete: ${processed} repos processed.`);
+
+  const summary = result?.summary;
+  if (summary && process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `apply=${JSON.stringify(summary)}\n`,
+    );
+  }
+
+  // Per-repo errors (e.g. App lacks workflows: write on a target installation)
+  // are operator-actionable failures: each one represents a finding the operator
+  // explicitly asked to remediate that did not produce a PR. Surface them by
+  // throwing so runPhases marks the phase failed and the workflow exits non-zero.
+  if (summary?.errors > 0) {
+    throw new Error(
+      `apply: ${summary.errors} per-repo error(s); ${summary.created} PR(s) created, ${summary.skipped} skipped`,
+    );
+  }
 }
 
 const PHASE_RUNNERS = {
