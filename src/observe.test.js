@@ -102,6 +102,57 @@ describe('observePortfolio — repo discovery', () => {
     assert.equal(result.repos[0].private, false);
   });
 
+  it('enriches portfolio repos with the /languages byte map', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      const headers = new Map();
+      if (u.includes('/installation/repositories')) {
+        return {
+          ok: true,
+          status: 200,
+          headers,
+          json: async () => ({ total_count: 1, repositories: [makeRepo('shell-with-python', { language: 'Shell' })] }),
+        };
+      }
+      if (u.includes('/repos/alice/shell-with-python/languages')) {
+        return { ok: true, status: 200, headers, json: async () => ({ Shell: 241354, Python: 83047 }) };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { observePortfolio } = await import('./observe.js');
+    const result = await observePortfolio({ owner: 'alice', token: 'fake' });
+
+    assert.equal(result.repos.length, 1);
+    assert.deepEqual(result.repos[0].languages, { Shell: 241354, Python: 83047 });
+    assert.equal(result.repos[0].language, 'Shell');
+  });
+
+  it('falls back to null languages on fetch failure (does not block discovery)', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      const headers = new Map();
+      if (u.includes('/installation/repositories')) {
+        return {
+          ok: true,
+          status: 200,
+          headers,
+          json: async () => ({ total_count: 1, repositories: [makeRepo('langs-fail')] }),
+        };
+      }
+      if (u.includes('/languages')) {
+        return { ok: false, status: 403, headers, text: async () => 'Forbidden', json: async () => ({}) };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { observePortfolio } = await import('./observe.js');
+    const result = await observePortfolio({ owner: 'alice', token: 'fake' });
+
+    assert.equal(result.repos.length, 1);
+    assert.equal(result.repos[0].languages, null);
+  });
+
   it('filters installation results to the requested owner', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();

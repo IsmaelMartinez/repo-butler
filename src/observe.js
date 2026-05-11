@@ -172,11 +172,25 @@ export async function observePortfolio(context) {
   const privateCount = owned.filter(r => r.private).length;
   const publicOnly = owned.filter(r => !r.private);
 
-  const portfolio = publicOnly.map(r => ({
+  // Fetch the per-repo languages byte map in parallel. Polyglot detection in
+  // safety.js prefers this over the dominant `language` field so e.g. a
+  // Shell-dominant repo with a real Python module is still detected as Python.
+  // Failures fall through to null and detectEcosystem reverts to the dominant
+  // language field, preserving the prior behaviour.
+  const languagesMaps = await Promise.all(publicOnly.map(async r => {
+    try {
+      return await gh.request(`/repos/${owner}/${r.name}/languages`);
+    } catch {
+      return null;
+    }
+  }));
+
+  const portfolio = publicOnly.map((r, i) => ({
     full_name: r.full_name,
     name: r.name,
     description: r.description,
     language: r.language,
+    languages: languagesMaps[i],
     stars: r.stargazers_count,
     forks: r.forks_count,
     open_issues: r.open_issues_count,
