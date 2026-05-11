@@ -63,6 +63,34 @@ export function checkLengthPreservation(input, output) {
   return { valid: true, ratio };
 }
 
+// Count `~~...~~` strikethrough markers in markdown text. Greedy/single-line
+// only — multi-line strikethrough isn't a convention this roadmap uses, and
+// allowing newlines inside would over-match across paragraphs.
+function countStrikethrough(text) {
+  return (text?.match(/~~[^~\n]+~~/g) || []).length;
+}
+
+// Refuse output that drops any `~~strikethrough~~` markers in place. PR #202
+// stripped 24 strikethroughs from SHIPPED headings under the 80% length guard
+// because the diff was balanced (+38/-40). Strikethrough is the load-bearing
+// visual convention for completed work; an edit-only prompt should never have
+// a reason to lower the count. Empty inputs exempt (first run). Output count
+// can be ≥ input count to allow newly-shipped entries getting their marker.
+export function checkStrikethroughPreservation(input, output) {
+  if (!input || input.length === 0) return { valid: true };
+  const inputCount = countStrikethrough(input);
+  const outputCount = countStrikethrough(output || '');
+  if (outputCount < inputCount) {
+    return {
+      valid: false,
+      inputCount,
+      outputCount,
+      error: `Strikethrough marker count dropped from ${inputCount} to ${outputCount} — output stripped ${inputCount - outputCount} ~~...~~ markers from existing SHIPPED entries`,
+    };
+  }
+  return { valid: true, inputCount, outputCount };
+}
+
 // Strip user-controlled content from validation error strings before they
 // reach CI logs. Safety errors include the matched @mention handle, URL host,
 // or other adversary-supplied substring; logging those verbatim reproduces
@@ -120,16 +148,16 @@ export async function update(context) {
 
   const gh = createClient(token);
 
-  // Idempotency: the daily pipeline runs 4×/day. Without this guard, every
-  // run opens a fresh roadmap PR. If a previous run's PR is still open, treat
-  // it as the authoritative draft and skip — the next run after merge/close
-  // will open a new one with current state. Run before the LLM call so
-  // skipped runs cost zero tokens.
+  // Idempotency: the daily pipeline runs 4×/day. If a previous run's PR is
+  // still open, refresh its branch with the latest output rather than open a
+  // duplicate (or — as before this change — skip and produce no soak signal).
+  // PR #202 stayed open from 2026-05-08 → 2026-05-11 and silenced 12 cron
+  // ticks of soak data because the skip path returned early before the LLM
+  // call. Refreshing means every tick produces an updated preview the soak
+  // can spot-check, and the unchanged-content guard below prevents spurious
+  // no-op commits on the existing branch.
   const existing = await findOpenRoadmapPr(gh, owner, repo);
-  if (existing) {
-    console.log(`Open roadmap PR already exists: ${existing.html_url} — skipping.`);
-    return { roadmap: null, pr: existing.html_url, safety: null, deduped: true };
-  }
+  const isRefresh = !!existing;
 
   const prompt = buildUpdatePrompt(currentRoadmap, snapshot, assessment, config.context);
   const updatedRoadmap = await provider.generate(prompt);
@@ -150,6 +178,15 @@ export async function update(context) {
     console.error(`SAFETY: rejected output head:\n${head}`);
     if (tail) console.error(`SAFETY: rejected output tail:\n${tail}`);
     return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [preservation.error] } };
+  }
+
+  // Strikethrough-preservation guard: complements the 80% length guard, which
+  // is blind to balanced delete-and-rewrite. PR #202 stripped 24 ~~...~~
+  // markers under the length guard's threshold (+38/-40 lines net).
+  const strikePreservation = checkStrikethroughPreservation(currentRoadmap, updatedRoadmap);
+  if (!strikePreservation.valid) {
+    console.error(`SAFETY: ${strikePreservation.error} — refusing PR (visual SHIPPED markers lost).`);
+    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [strikePreservation.error] } };
   }
 
   // Safety check before publishing.
@@ -192,32 +229,46 @@ export async function update(context) {
     return { roadmap: updatedRoadmap, pr: null, safety };
   }
 
-  const branchName = `${ROADMAP_BRANCH_PREFIX}${Date.now()}`;
   const defaultBranch = snapshot.meta?.default_branch || 'main';
+  const branchName = isRefresh ? existing.head.ref : `${ROADMAP_BRANCH_PREFIX}${Date.now()}`;
 
-  // Create branch from default branch.
-  const ref = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
-  await gh.request(`/repos/${owner}/${repo}/git/refs`, {
-    method: 'POST',
-    body: { ref: `refs/heads/${branchName}`, sha: ref.object.sha },
-  });
-
-  // Get current file SHA if it exists.
-  let fileSha;
-  try {
-    const existing = await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
-      params: { ref: defaultBranch },
+  // Create the branch only when opening a new PR. On refresh we reuse the
+  // existing PR's head ref.
+  if (!isRefresh) {
+    const ref = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
+    await gh.request(`/repos/${owner}/${repo}/git/refs`, {
+      method: 'POST',
+      body: { ref: `refs/heads/${branchName}`, sha: ref.object.sha },
     });
-    fileSha = existing.sha;
+  }
+
+  // Read the current roadmap from whichever branch we're about to write to.
+  // For new PRs that's the default branch (we just forked from it); for a
+  // refresh that's the existing PR's branch (it may have diverged from main).
+  let fileSha;
+  let existingContent = null;
+  try {
+    const f = await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
+      params: { ref: branchName },
+    });
+    fileSha = f.sha;
+    existingContent = Buffer.from(f.content, 'base64').toString('utf8');
   } catch {
-    // File doesn't exist yet.
+    // File doesn't exist on this branch.
+  }
+
+  // No-op short-circuit: if the new output matches what's already on the
+  // refresh branch, skip the commit + PR PATCH to avoid spurious churn.
+  if (isRefresh && existingContent === updatedRoadmap) {
+    console.log(`Roadmap unchanged from existing PR ${existing.html_url} — skipping refresh push.`);
+    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false };
   }
 
   // Write updated roadmap to the branch.
   await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
     method: 'PUT',
     body: {
-      message: `chore: update roadmap (repo-butler)`,
+      message: isRefresh ? 'chore: refresh roadmap update (repo-butler)' : 'chore: update roadmap (repo-butler)',
       content: Buffer.from(updatedRoadmap).toString('base64'),
       branch: branchName,
       ...(fileSha ? { sha: fileSha } : {}),
@@ -238,7 +289,19 @@ export async function update(context) {
     for (const err of bodyErrors) console.warn(`  - ${redactErrorForLog(err)}`);
   }
 
-  // Create PR.
+  if (isRefresh) {
+    // Update the existing PR's body so the Assessment text reflects the
+    // current run; the diff itself updates automatically because the head
+    // branch moved with the PUT above.
+    await gh.request(`/repos/${owner}/${repo}/pulls/${existing.number}`, {
+      method: 'PATCH',
+      body: { body: prBody },
+    });
+    console.log(`Refreshed existing roadmap PR ${existing.html_url}`);
+    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: true };
+  }
+
+  // Create new PR.
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
     method: 'POST',
     body: {
@@ -314,6 +377,9 @@ export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectC
       '- Update status markers, version numbers, and the "Last Updated" line. Use the literal date provided above ("Today: …") — do not guess or use a different date.',
       '- Add new items only for newly opened issues that represent significant work. Do not invent new sections.',
       '- Preserve the original structure, tone, headings, and approximate length. The output must be at least as long as the input minus minor compaction.',
+      '- Preserve `~~strikethrough~~` markers verbatim. Do not strip `~~...~~` from any heading or inline marker, even when reformatting nearby text. The strikethrough is the visual signal that work has shipped; removing it un-ships items in the rendered roadmap. This rule is non-negotiable.',
+      '  Wrong: `### Phase 1 — Richer Observation SHIPPED`',
+      '  Correct: `### ~~Phase 1 — Richer Observation~~ SHIPPED`',
       '- Output ONLY the updated roadmap document, no commentary, no explanation.',
     ],
   });
