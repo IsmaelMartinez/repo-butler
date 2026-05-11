@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-11T12:02:43.747Z",
+  "timestamp": "2026-05-11T13:26:05.708Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,16 +7,29 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 4,
+    "open_issues_count": 5,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-11T10:08:37Z",
+    "pushed_at": "2026-05-11T13:25:22Z",
     "archived": false
   },
   "issues": {
-    "open": [],
+    "open": [
+      {
+        "number": 211,
+        "title": "UPDATE prompt: strikethrough stripped + SHIPPED paragraph deleted in #202 (soak regression)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-05-11T13:17:38Z",
+        "updated_at": "2026-05-11T13:17:38Z",
+        "assignees": [],
+        "milestone": null
+      }
+    ],
     "recently_closed": [
       {
         "number": 208,
@@ -1391,13 +1404,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-20T15:11:38Z"
-      },
-      {
-        "number": 5,
-        "title": "docs: update README and ROADMAP",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-20T10:55:23Z"
       }
     ]
   },
@@ -1561,15 +1567,15 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 0,
+    "open_issues": 1,
     "open_bugs": 0,
     "open_features": 0,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 2,
-    "recently_merged_prs": 192,
+    "recently_merged_prs": 191,
     "bot_prs": 5,
-    "human_prs": 187,
+    "human_prs": 186,
     "unique_contributors": 2,
     "releases": 1,
     "latest_release": "v1.1.0",
