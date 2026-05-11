@@ -387,6 +387,19 @@ describe('detectEcosystem', () => {
     });
     assert.ok(result.has('Python'));
   });
+
+  it('treats an empty languages map the same as absent (falls back)', () => {
+    // GitHub returns {} for fresh/empty repos before language stats are
+    // computed. Falling back to the dominant `language` field preserves
+    // behaviour rather than scoring zero Signal 1 in the populated branch.
+    const result = detectEcosystem({
+      language: 'Python',
+      languages: {},
+      ecosystemFiles: [],
+      topics: ['python'],
+    });
+    assert.ok(result.has('Python'));
+  });
 });
 
 describe('validateTriageBotTrends', () => {

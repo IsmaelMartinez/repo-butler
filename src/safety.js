@@ -330,8 +330,10 @@ export function detectEcosystem(repo) {
 
     // Signal 1: ecosystem appears as code in this repo. Prefer the /languages
     // byte map (polyglot-aware: a Shell-dominant repo with a Python module
-    // still scores); fall back to the dominant language field when absent.
-    if (languages) {
+    // still scores); fall back to the dominant language field when absent or
+    // empty (fresh repo before GitHub computes language stats).
+    const hasLanguagesMap = languages && Object.keys(languages).length > 0;
+    if (hasLanguagesMap) {
       if ((languages[ecosystem] || 0) >= LANGUAGE_BYTES_THRESHOLD) score++;
     } else if (language === ecosystem) {
       score++;
