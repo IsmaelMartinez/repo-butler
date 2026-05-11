@@ -108,10 +108,8 @@ function extractIssueRefs(text) {
 // LLM has no legitimate edit-only reason to drop one. Output can be a
 // superset (new entries get their own refs); only missing input refs fail.
 export function checkPrReferencePreservation(input, output) {
-  if (!input || input.length === 0) return { valid: true };
   const inputRefs = extractIssueRefs(input);
-  if (inputRefs.size === 0) return { valid: true, inputCount: 0, outputCount: 0, missing: [] };
-  const outputRefs = extractIssueRefs(output || '');
+  const outputRefs = extractIssueRefs(output);
   const missing = [...inputRefs].filter(r => !outputRefs.has(r));
   if (missing.length > 0) {
     // Cap the surfaced list so a catastrophic deletion doesn't log a thousand
