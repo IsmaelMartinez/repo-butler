@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-05-07
+**Last Updated:** 2026-05-11
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 12 Gold + 1 Silver (13 repos) as of W19; the remaining Silver entry is `teams-for-linux` (blocked by >10 open bugs). Zero portfolio vulnerabilities. Private repos included via the installation-scoped discovery endpoint.
 
 ---
@@ -44,8 +44,6 @@ Phase 2 (Richer Reports) in progress since 2026-03-23. Open PR triage view (PR #
 Security trifecta shipped 2026-04-04 (PR #82). Broadened security assessment from Dependabot-only to three GitHub security scanners: Dependabot alerts, code scanning (CodeQL/SAST), and secret scanning. Gold tier check changed from "Dependabot configured" to "any security scanner configured" with findings checked across all configured scanners. Added `release_exempt` config option for stable repos that don't need frequent releases. Added `getAlertSummary` shared helper for DRY severity computation across observe and portfolio paths.
 
 GitHub App token for vulnerability access shipped 2026-04-04 (PR #83). Switched the main workflow from the default GITHUB_TOKEN to the GitHub App token, granting access to Dependabot alerts, code scanning alerts, and secret scanning alerts APIs across all portfolio repos.
-
-License concern severity tuned 2026-04-04 (PR #84). Replaced blanket red flags for all copyleft with a two-level system: high concern (AGPL, shown in red) and low risk (GPL, LGPL, MPL — collapsed grey summary). Non-commercial projects using permissive licenses are not meaningfully affected by weak copyleft dependencies.
 
 Auto-onboarding shipped 2026-04-04 (PR #85). The pipeline now automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. Skipped during dry runs.
 
