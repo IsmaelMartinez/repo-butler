@@ -44,4 +44,7 @@ Instructions:
 - Update status markers, version numbers, and the "Last Updated" line. Use the literal date provided above ("Today: …") — do not guess or use a different date.
 - Add new items only for newly opened issues that represent significant work. Do not invent new sections.
 - Preserve the original structure, tone, headings, and approximate length. The output must be at least as long as the input minus minor compaction.
+- Preserve `~~strikethrough~~` markers verbatim. Do not strip `~~...~~` from any heading or inline marker, even when reformatting nearby text. The strikethrough is the visual signal that work has shipped; removing it un-ships items in the rendered roadmap. This rule is non-negotiable.
+  Wrong: `### Phase 1 — Richer Observation SHIPPED`
+  Correct: `### ~~Phase 1 — Richer Observation~~ SHIPPED`
 - Output ONLY the updated roadmap document, no commentary, no explanation.

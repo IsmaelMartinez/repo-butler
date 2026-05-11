@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, checkLengthPreservation, findOpenRoadmapPr, redactErrorForLog } from './update.js';
+import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, checkLengthPreservation, checkStrikethroughPreservation, findOpenRoadmapPr, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -181,6 +181,16 @@ describe('buildUpdatePrompt', () => {
     assert.ok(!prompt.includes('Be concise'), 'must NOT contain old "Be concise" framing');
   });
 
+  it('instructs the LLM to preserve ~~strikethrough~~ markers verbatim (PR #202 regression)', () => {
+    // PR #202 stripped 24 `~~...~~` markers from every SHIPPED heading under
+    // the 80% length guard. Lock the non-negotiable strikethrough directive
+    // into the prompt so a future edit can't silently regress it.
+    const prompt = buildUpdatePrompt('# Roadmap', baseSnapshot, null, null);
+    assert.ok(prompt.includes('Preserve `~~strikethrough~~` markers'), 'must instruct strikethrough preservation');
+    assert.ok(prompt.includes('non-negotiable'), 'must mark the rule as non-negotiable');
+    assert.ok(prompt.includes('Wrong:') && prompt.includes('Correct:'), 'must include contrastive one-shot');
+  });
+
   it('passes existing roadmap content through to the prompt verbatim', () => {
     // The prompt-builder must hand the LLM the actual SHIPPED markers and
     // section headings — if it strips or reformats them, the LLM cannot
@@ -237,5 +247,60 @@ describe('checkLengthPreservation', () => {
   it('rejects empty output against non-empty input', () => {
     const result = checkLengthPreservation('a'.repeat(1000), '');
     assert.equal(result.valid, false);
+  });
+});
+
+describe('checkStrikethroughPreservation', () => {
+  it('passes when output keeps every input strikethrough marker', () => {
+    const input = '### ~~Phase 1~~ SHIPPED\n### ~~Phase 2~~ SHIPPED';
+    const output = '### ~~Phase 1~~ SHIPPED\n### ~~Phase 2~~ SHIPPED\nNew line';
+    const result = checkStrikethroughPreservation(input, output);
+    assert.equal(result.valid, true);
+    assert.equal(result.inputCount, 2);
+    assert.equal(result.outputCount, 2);
+  });
+
+  it('passes when output adds new strikethrough markers (newly-shipped entries)', () => {
+    const input = '### ~~Phase 1~~ SHIPPED';
+    const output = '### ~~Phase 1~~ SHIPPED\n### ~~Phase 2~~ SHIPPED';
+    const result = checkStrikethroughPreservation(input, output);
+    assert.equal(result.valid, true);
+    assert.equal(result.outputCount, 2);
+  });
+
+  it('rejects output that strips strikethrough from existing SHIPPED entries (PR #202 regression)', () => {
+    const input = '### ~~Phase 1 — Richer Observation~~ SHIPPED\n### ~~Phase 2 — Richer Reports~~ SHIPPED';
+    const output = '### Phase 1 — Richer Observation SHIPPED\n### Phase 2 — Richer Reports SHIPPED';
+    const result = checkStrikethroughPreservation(input, output);
+    assert.equal(result.valid, false);
+    assert.equal(result.inputCount, 2);
+    assert.equal(result.outputCount, 0);
+    assert.ok(result.error.includes('2 to 0'));
+  });
+
+  it('rejects partial strikethrough strips (1 of 3 removed)', () => {
+    const input = '~~a~~ ~~b~~ ~~c~~';
+    const output = '~~a~~ b ~~c~~';
+    const result = checkStrikethroughPreservation(input, output);
+    assert.equal(result.valid, false);
+    assert.equal(result.outputCount, 2);
+  });
+
+  it('exempts empty input (first run, missing roadmap)', () => {
+    const result = checkStrikethroughPreservation('', 'no strikethrough here');
+    assert.equal(result.valid, true);
+  });
+
+  it('exempts null input', () => {
+    const result = checkStrikethroughPreservation(null, 'anything');
+    assert.equal(result.valid, true);
+  });
+
+  it('does not match across newlines (avoids over-counting paragraph spans)', () => {
+    const input = '~~one~~\n~~two~~';
+    const output = '~~one~~\n~~two~~';
+    const result = checkStrikethroughPreservation(input, output);
+    assert.equal(result.inputCount, 2);
+    assert.equal(result.outputCount, 2);
   });
 });
