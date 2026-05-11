@@ -338,6 +338,68 @@ describe('detectEcosystem', () => {
     assert.ok(!result.has('JavaScript'));
     assert.ok(result.has('Go'));
   });
+
+  it('detects polyglot Python via languages byte map + topics (Shell-dominant)', () => {
+    // delegate-to-ollama-shaped repo: dominant language is Shell, but Python
+    // is a significant secondary. The languages-map signal + topic confirms it.
+    const result = detectEcosystem({
+      language: 'Shell',
+      languages: { Shell: 241354, Python: 83047 },
+      ecosystemFiles: [],
+      topics: ['python'],
+    });
+    assert.ok(result.has('Python'));
+  });
+
+  it('languages-map signal requires bytes above the threshold', () => {
+    // 500 bytes of Python is below the 1024-byte threshold — should not count
+    // as a signal, leaving only the topic (1-of-3, not confirmed).
+    const result = detectEcosystem({
+      language: 'Shell',
+      languages: { Shell: 241354, Python: 500 },
+      ecosystemFiles: [],
+      topics: ['python'],
+    });
+    assert.ok(!result.has('Python'));
+  });
+
+  it('languages-map overrides dominant language field (no double-count)', () => {
+    // When the languages map is present, Signal 1 comes from it — not from
+    // the separate `language` field. A JavaScript-dominant repo with only that
+    // single signal (no files, no topics) must not be confirmed.
+    const result = detectEcosystem({
+      language: 'JavaScript',
+      languages: { JavaScript: 50000 },
+      ecosystemFiles: [],
+      topics: [],
+    });
+    assert.ok(!result.has('JavaScript'));
+  });
+
+  it('falls back to dominant language field when languages map is absent', () => {
+    // Pre-enrichment shape (snapshots, fixtures, or fetch failure): languages
+    // is null, so detection must still work off `language` + topics.
+    const result = detectEcosystem({
+      language: 'Python',
+      languages: null,
+      ecosystemFiles: [],
+      topics: ['python'],
+    });
+    assert.ok(result.has('Python'));
+  });
+
+  it('treats an empty languages map the same as absent (falls back)', () => {
+    // GitHub returns {} for fresh/empty repos before language stats are
+    // computed. Falling back to the dominant `language` field preserves
+    // behaviour rather than scoring zero Signal 1 in the populated branch.
+    const result = detectEcosystem({
+      language: 'Python',
+      languages: {},
+      ecosystemFiles: [],
+      topics: ['python'],
+    });
+    assert.ok(result.has('Python'));
+  });
 });
 
 describe('validateTriageBotTrends', () => {

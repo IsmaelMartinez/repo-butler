@@ -314,17 +314,30 @@ const ECOSYSTEM_MAP = {
   Java: { files: ['pom.xml', 'build.gradle'], topics: ['java', 'maven', 'gradle'] },
 };
 
+// Minimum bytes in the languages map to count as a language signal. Distinguishes
+// real code from a stray vendored file. Roughly 50 LOC in any language.
+const LANGUAGE_BYTES_THRESHOLD = 1024;
+
 export function detectEcosystem(repo) {
   const confirmed = new Set();
   const language = repo?.language || null;
+  const languages = repo?.languages || null;
   const ecosystemFiles = repo?.ecosystemFiles || [];
   const topics = (repo?.topics || []).map(t => t.toLowerCase());
 
   for (const [ecosystem, signals] of Object.entries(ECOSYSTEM_MAP)) {
     let score = 0;
 
-    // Signal 1: GitHub language field matches this ecosystem.
-    if (language === ecosystem) score++;
+    // Signal 1: ecosystem appears as code in this repo. Prefer the /languages
+    // byte map (polyglot-aware: a Shell-dominant repo with a Python module
+    // still scores); fall back to the dominant language field when absent or
+    // empty (fresh repo before GitHub computes language stats).
+    const hasLanguagesMap = languages && Object.keys(languages).length > 0;
+    if (hasLanguagesMap) {
+      if ((languages[ecosystem] || 0) >= LANGUAGE_BYTES_THRESHOLD) score++;
+    } else if (language === ecosystem) {
+      score++;
+    }
 
     // Signal 2: Ecosystem-specific files are present.
     if (signals.files.some(f => ecosystemFiles.includes(f))) score++;
