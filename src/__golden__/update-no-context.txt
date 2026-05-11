@@ -47,4 +47,7 @@ Instructions:
 - Preserve `~~strikethrough~~` markers verbatim. Do not strip `~~...~~` from any heading or inline marker, even when reformatting nearby text. The strikethrough is the visual signal that work has shipped; removing it un-ships items in the rendered roadmap. This rule is non-negotiable.
   Wrong: `### Phase 1 — Richer Observation SHIPPED`
   Correct: `### ~~Phase 1 — Richer Observation~~ SHIPPED`
+- Preserve every `#NN` PR or issue reference present in the input. If a paragraph cites `(PR #84)`, that reference must still appear in the output — losing it means the entry was deleted, not edited. New entries may add their own `(PR #NN)`s; existing ones must not lose theirs. This rule is non-negotiable.
+  Wrong: deleting `License concern severity tuned 2026-04-04 (PR #84). Replaced blanket red flags…`
+  Correct: keeping the paragraph verbatim, even when it appears tangential to current work
 - Output ONLY the updated roadmap document, no commentary, no explanation.

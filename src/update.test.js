@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, checkLengthPreservation, checkStrikethroughPreservation, findOpenRoadmapPr, redactErrorForLog } from './update.js';
+import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -191,6 +191,15 @@ describe('buildUpdatePrompt', () => {
     assert.ok(prompt.includes('Wrong:') && prompt.includes('Correct:'), 'must include contrastive one-shot');
   });
 
+  it('instructs the LLM to preserve every #NN PR/issue reference (PR #213 regression)', () => {
+    // PR #213 deleted the `(PR #84)` paragraph under both the length guard
+    // and the strikethrough guard because the prose paragraph carried neither
+    // marker. Lock the non-negotiable PR-reference directive in.
+    const prompt = buildUpdatePrompt('# Roadmap', baseSnapshot, null, null);
+    assert.ok(prompt.includes('Preserve every `#NN` PR or issue reference'), 'must instruct PR-reference preservation');
+    assert.ok(prompt.includes('License concern severity tuned'), 'must include the PR #213 deletion as a Wrong example');
+  });
+
   it('passes existing roadmap content through to the prompt verbatim', () => {
     // The prompt-builder must hand the LLM the actual SHIPPED markers and
     // section headings — if it strips or reformats them, the LLM cannot
@@ -302,5 +311,80 @@ describe('checkStrikethroughPreservation', () => {
     const result = checkStrikethroughPreservation(input, output);
     assert.equal(result.inputCount, 2);
     assert.equal(result.outputCount, 2);
+  });
+});
+
+describe('checkPrReferencePreservation', () => {
+  it('passes when every input #NN reference survives in the output', () => {
+    const input = 'Shipped (PR #82). Also shipped PR #176.';
+    const output = 'Shipped (PR #82). Also shipped PR #176. New entry (PR #214).';
+    const result = checkPrReferencePreservation(input, output);
+    assert.equal(result.valid, true);
+    assert.equal(result.inputCount, 2);
+    assert.equal(result.outputCount, 3);
+  });
+
+  it('rejects output that drops a unique PR reference (PR #213 regression)', () => {
+    const input = 'Shipped (PR #82). License concern (PR #84). Other (PR #176).';
+    const output = 'Shipped (PR #82). Other (PR #176).';
+    const result = checkPrReferencePreservation(input, output);
+    assert.equal(result.valid, false);
+    assert.deepEqual(result.missing, ['#84']);
+    assert.ok(result.error.includes('#84'));
+  });
+
+  it('reports multiple missing references', () => {
+    const input = '(PR #1) (PR #2) (PR #3) (PR #4)';
+    const output = '(PR #1) (PR #4)';
+    const result = checkPrReferencePreservation(input, output);
+    assert.equal(result.valid, false);
+    assert.deepEqual(result.missing, ['#2', '#3']);
+  });
+
+  it('caps the surfaced list to 10 references and reports overflow count', () => {
+    const refs = Array.from({ length: 15 }, (_, i) => `(PR #${100 + i})`).join(' ');
+    const result = checkPrReferencePreservation(refs, '');
+    assert.equal(result.valid, false);
+    assert.equal(result.missing.length, 15);
+    assert.ok(result.error.includes('and 5 more'));
+  });
+
+  it('matches both parenthesised and bare reference forms', () => {
+    const input = 'See (PR #1), issue #2, and PR #3.';
+    const output = 'See (PR #1) and PR #3.';
+    const result = checkPrReferencePreservation(input, output);
+    assert.equal(result.valid, false);
+    assert.deepEqual(result.missing, ['#2']);
+  });
+
+  it('treats duplicate references as a single requirement (preserve at least once)', () => {
+    const input = 'See PR #1. Also see PR #1 again. And PR #2.';
+    const output = 'See PR #1. And PR #2.';
+    const result = checkPrReferencePreservation(input, output);
+    assert.equal(result.valid, true);
+  });
+
+  it('passes when the input has no PR references', () => {
+    const result = checkPrReferencePreservation('# Roadmap\nNo refs here.', '# Roadmap\nstill no refs.');
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.missing, []);
+  });
+
+  it('exempts empty input (first run, missing roadmap)', () => {
+    const result = checkPrReferencePreservation('', '(PR #1)');
+    assert.equal(result.valid, true);
+  });
+
+  it('exempts null input', () => {
+    const result = checkPrReferencePreservation(null, '(PR #1)');
+    assert.equal(result.valid, true);
+  });
+
+  it('does not match numbers not preceded by a hash', () => {
+    // Plain "84" or "PR 84" without the hash shouldn't be counted.
+    const input = '2026-04-04 had 84 commits.';
+    const result = checkPrReferencePreservation(input, '');
+    assert.equal(result.valid, true);
+    assert.equal(result.inputCount, 0);
   });
 });

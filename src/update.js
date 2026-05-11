@@ -91,6 +91,44 @@ export function checkStrikethroughPreservation(input, output) {
   return { valid: true, inputCount, outputCount };
 }
 
+// Extract every `#NN` PR/issue reference token from markdown text. Matches the
+// number-with-hash form regardless of surrounding context — `(PR #84)`, `PR
+// #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the numeric
+// ID. Returns a Set so duplicates collapse and order doesn't matter.
+function extractIssueRefs(text) {
+  return new Set((text?.match(/#\d+\b/g) || []));
+}
+
+// Refuse output that drops any PR or issue reference present in the input.
+// PR #213 deleted the `License concern severity tuned 2026-04-04 (PR #84)`
+// paragraph under both the 80% length guard and the strikethrough-count
+// guard — the paragraph carried no `~~...~~` markup and barely moved the
+// length needle. The `#NN` reference is the narrowest invariant that catches
+// this: every input PR/issue reference must survive in the output, and the
+// LLM has no legitimate edit-only reason to drop one. Output can be a
+// superset (new entries get their own refs); only missing input refs fail.
+export function checkPrReferencePreservation(input, output) {
+  if (!input || input.length === 0) return { valid: true };
+  const inputRefs = extractIssueRefs(input);
+  if (inputRefs.size === 0) return { valid: true, inputCount: 0, outputCount: 0, missing: [] };
+  const outputRefs = extractIssueRefs(output || '');
+  const missing = [...inputRefs].filter(r => !outputRefs.has(r));
+  if (missing.length > 0) {
+    // Cap the surfaced list so a catastrophic deletion doesn't log a thousand
+    // refs; the head plus a count carries enough signal to investigate.
+    const head = missing.slice(0, 10).join(', ');
+    const overflow = missing.length > 10 ? ` (and ${missing.length - 10} more)` : '';
+    return {
+      valid: false,
+      inputCount: inputRefs.size,
+      outputCount: outputRefs.size,
+      missing,
+      error: `Dropped ${missing.length} PR/issue reference(s) from existing roadmap entries: ${head}${overflow}`,
+    };
+  }
+  return { valid: true, inputCount: inputRefs.size, outputCount: outputRefs.size, missing: [] };
+}
+
 // Strip user-controlled content from validation error strings before they
 // reach CI logs. Safety errors include the matched @mention handle, URL host,
 // or other adversary-supplied substring; logging those verbatim reproduces
@@ -187,6 +225,18 @@ export async function update(context) {
   if (!strikePreservation.valid) {
     console.error(`SAFETY: ${strikePreservation.error} — refusing PR (visual SHIPPED markers lost).`);
     return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [strikePreservation.error] } };
+  }
+
+  // PR/issue reference preservation: PR #213 deleted the License-concern
+  // paragraph under both length and strikethrough guards because the prose
+  // paragraph carried neither a heading nor `~~...~~` markup. The `(PR #NN)`
+  // citation inside is the narrowest invariant — losing a unique reference
+  // is unambiguous evidence the LLM deleted a SHIPPED entry rather than
+  // edited one.
+  const refPreservation = checkPrReferencePreservation(currentRoadmap, updatedRoadmap);
+  if (!refPreservation.valid) {
+    console.error(`SAFETY: ${refPreservation.error} — refusing PR (SHIPPED entries deleted).`);
+    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [refPreservation.error] } };
   }
 
   // Safety check before publishing.
@@ -380,6 +430,9 @@ export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectC
       '- Preserve `~~strikethrough~~` markers verbatim. Do not strip `~~...~~` from any heading or inline marker, even when reformatting nearby text. The strikethrough is the visual signal that work has shipped; removing it un-ships items in the rendered roadmap. This rule is non-negotiable.',
       '  Wrong: `### Phase 1 — Richer Observation SHIPPED`',
       '  Correct: `### ~~Phase 1 — Richer Observation~~ SHIPPED`',
+      '- Preserve every `#NN` PR or issue reference present in the input. If a paragraph cites `(PR #84)`, that reference must still appear in the output — losing it means the entry was deleted, not edited. New entries may add their own `(PR #NN)`s; existing ones must not lose theirs. This rule is non-negotiable.',
+      '  Wrong: deleting `License concern severity tuned 2026-04-04 (PR #84). Replaced blanket red flags…`',
+      '  Correct: keeping the paragraph verbatim, even when it appears tangential to current work',
       '- Output ONLY the updated roadmap document, no commentary, no explanation.',
     ],
   });
