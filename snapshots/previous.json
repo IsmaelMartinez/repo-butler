@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-13T18:56:40.063Z",
+  "timestamp": "2026-05-13T20:34:39.584Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,16 +7,41 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 0,
+    "open_issues_count": 2,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-13T18:32:54Z",
+    "pushed_at": "2026-05-13T20:21:29Z",
     "archived": false
   },
   "issues": {
-    "open": [],
+    "open": [
+      {
+        "number": 215,
+        "title": "GOVERNANCE phase silently exits when libyear network calls abort, skipping IDEATE/PROPOSE/REPORT",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "reactions": 0,
+        "comments": 1,
+        "created_at": "2026-05-13T19:03:19Z",
+        "updated_at": "2026-05-13T19:04:40Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 216,
+        "title": "Pages-deploy gate silently skips and reports success when reports/index.html is missing",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-05-13T19:03:34Z",
+        "updated_at": "2026-05-13T19:03:34Z",
+        "assignees": [],
+        "milestone": null
+      }
+    ],
     "recently_closed": [
       {
         "number": 211,
@@ -1557,14 +1582,14 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.967032967032967,
+    "pass_rate": 0.9560439560439561,
     "total_runs": 91,
-    "passed": 88,
-    "failed": 3
+    "passed": 87,
+    "failed": 4
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 0,
+    "open_issues": 2,
     "open_bugs": 0,
     "open_features": 0,
     "blocked_issues": 0,
@@ -1585,7 +1610,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.967032967032967,
+    "ci_pass_rate": 0.9560439560439561,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
