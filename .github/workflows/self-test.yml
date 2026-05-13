@@ -93,8 +93,6 @@ jobs:
             # stale dashboard while the workflow reports success. See #216.
             if [[ ",${INPUT_PHASE}," == *",report,"* ]] \
               || [[ ",${INPUT_PHASE}," == *",all,"* ]] \
-              || [[ "${INPUT_PHASE}" == "all" ]] \
-              || [[ "${INPUT_PHASE}" == "report" ]] \
               || [[ "${REPORT_FORCE}" == "true" ]]; then
               echo "::error::REPORT phase was expected (phase=${INPUT_PHASE}, force=${REPORT_FORCE}) but reports/index.html was not produced. The dashboard will not be redeployed."
               exit 1
