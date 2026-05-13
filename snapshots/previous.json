@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-12T20:33:44.081Z",
+  "timestamp": "2026-05-13T08:01:10.050Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-12T18:32:19Z",
+    "pushed_at": "2026-05-13T06:55:54Z",
     "archived": false
   },
   "issues": {
@@ -1557,9 +1557,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9662921348314607,
-    "total_runs": 89,
-    "passed": 86,
+    "pass_rate": 0.9666666666666667,
+    "total_runs": 90,
+    "passed": 87,
     "failed": 3
   },
   "summary": {
@@ -1585,7 +1585,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9662921348314607,
+    "ci_pass_rate": 0.9666666666666667,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
