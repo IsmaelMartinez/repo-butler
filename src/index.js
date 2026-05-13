@@ -104,20 +104,39 @@ function providerForPhase(phase, defaultProvider, deepProvider) {
   return null;
 }
 
+// Tracks the most recent phase entered so the exit handler can name it if
+// Node terminates mid-pipeline. Module-level so the handler installed in
+// installCrashHandlers can read it without plumbing context through.
+let activePhase = null;
+let pipelineResults = [];
+
+export function getPipelineState() {
+  return { activePhase, results: pipelineResults.slice() };
+}
+
+// Phase boundary lines go to stderr because CI stdout is block-buffered
+// and a process that exits before the buffer flushes silently loses every
+// recent log line. stderr is line-buffered, so the COMPLETE/FAILED marker
+// survives an abrupt exit and remains visible in the Actions log.
+function logPhaseBoundary(line) {
+  console.error(line);
+}
+
 // Run the phase pipeline with per-phase isolation: an exception in one phase
 // logs loudly and sets process.exitCode but does not skip later phases.
 // Otherwise a flaky upstream phase (e.g. governance hitting a libyear timeout
 // edge case) silently swallows REPORT and the Pages deploy is a no-op.
 // Returns an array of { phase, status, durationMs, error? } for tests.
 export async function runPhases(phasesToRun, context, defaultProvider, deepProvider, runners = PHASE_RUNNERS) {
-  const results = [];
+  pipelineResults = [];
   for (const p of phasesToRun) {
-    console.log(`\n=== Phase: ${p.toUpperCase()} ===\n`);
+    activePhase = p;
+    logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} ===\n`);
     const runner = runners[p];
     if (!runner) {
       console.error(`Unknown phase: ${p}`);
       process.exitCode = 1;
-      results.push({ phase: p, status: 'failed', durationMs: 0, error: new Error(`Unknown phase: ${p}`) });
+      pipelineResults.push({ phase: p, status: 'failed', durationMs: 0, error: new Error(`Unknown phase: ${p}`) });
       continue;
     }
     context.provider = providerForPhase(p, defaultProvider, deepProvider);
@@ -125,17 +144,18 @@ export async function runPhases(phasesToRun, context, defaultProvider, deepProvi
     try {
       await runner(context);
       const durationMs = Date.now() - start;
-      console.log(`\n=== Phase: ${p.toUpperCase()} COMPLETE (${(durationMs / 1000).toFixed(1)}s) ===\n`);
-      results.push({ phase: p, status: 'ok', durationMs });
+      logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} COMPLETE (${(durationMs / 1000).toFixed(1)}s) ===\n`);
+      pipelineResults.push({ phase: p, status: 'ok', durationMs });
     } catch (err) {
       const durationMs = Date.now() - start;
-      console.error(`\n=== Phase: ${p.toUpperCase()} FAILED (${(durationMs / 1000).toFixed(1)}s) ===`);
+      logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} FAILED (${(durationMs / 1000).toFixed(1)}s) ===`);
       console.error(err?.stack || err);
       process.exitCode = 1;
-      results.push({ phase: p, status: 'failed', durationMs, error: err });
+      pipelineResults.push({ phase: p, status: 'failed', durationMs, error: err });
     }
   }
-  return results;
+  activePhase = null;
+  return pipelineResults.slice();
 }
 
 // Fail the pipeline loudly on silent crashes. Without these handlers an
@@ -157,6 +177,21 @@ function installCrashHandlers() {
     console.error('Uncaught exception — failing pipeline:');
     console.error(err?.stack || err);
     process.exit(1);
+  });
+  // Diagnostic: name the active phase when Node exits. If the pipeline ends
+  // mid-phase (because of a process.exit elsewhere, a crash before the
+  // unhandledRejection handler ran, or a stream-buffer flush failure) the
+  // exit handler is the last writer to stderr and tells us which phase was
+  // running. Without this, runs like #215 leave no trace of where the
+  // pipeline stopped.
+  process.on('exit', (code) => {
+    const { activePhase: phase, results } = getPipelineState();
+    if (phase) {
+      console.error(`[pipeline] exit code=${code} during phase=${phase} (no COMPLETE/FAILED logged — likely silent termination)`);
+    } else if (results.length > 0) {
+      const summary = results.map(r => `${r.phase}=${r.status}`).join(' ');
+      console.error(`[pipeline] exit code=${code} after phases: ${summary}`);
+    }
   });
 }
 
