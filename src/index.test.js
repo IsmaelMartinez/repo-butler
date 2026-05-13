@@ -1,6 +1,6 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { runPhases, parsePhases, validateRepoFormat } from './index.js';
+import { runPhases, parsePhases, validateRepoFormat, getPipelineState } from './index.js';
 
 describe('parsePhases', () => {
   it('splits a comma list and trims whitespace', () => {
@@ -98,5 +98,19 @@ describe('runPhases', () => {
     const results = await runPhases(['observe'], {}, null, null, runners);
     assert.equal(results[0].status, 'ok');
     assert.ok(results[0].durationMs >= 0);
+  });
+
+  it('exposes pipeline state for the exit-handler diagnostic', async () => {
+    const runners = {
+      observe: async () => {
+        const mid = getPipelineState();
+        assert.equal(mid.activePhase, 'observe');
+      },
+      report: async () => {},
+    };
+    await runPhases(['observe', 'report'], {}, null, null, runners);
+    const finalState = getPipelineState();
+    assert.equal(finalState.activePhase, null);
+    assert.deepEqual(finalState.results.map(r => `${r.phase}=${r.status}`), ['observe=ok', 'report=ok']);
   });
 });
