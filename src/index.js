@@ -188,6 +188,10 @@ function installCrashHandlers() {
     const { activePhase: phase } = getPipelineState();
     if (phase) {
       console.error(`[pipeline] beforeExit code=${code} during phase=${phase} (event loop drained — async work was abandoned, not an explicit process.exit)`);
+      // Loop draining mid-phase is itself a failure: the awaited promise
+      // chain has been abandoned, so the pipeline has not done its work.
+      // Convert the silent exit-0 into a loud exit-1 so the workflow fails.
+      process.exitCode = 1;
     }
   });
   // Diagnostic: name the active phase when Node exits. If the pipeline ends
