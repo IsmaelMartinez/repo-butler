@@ -320,7 +320,11 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
   for (let i = 0; i < libyearRepos.length; i += LIBYEAR_BATCH) {
     const batch = libyearRepos.slice(i, i + LIBYEAR_BATCH);
     await Promise.allSettled(batch.map(async (r) => {
-      details[r.name].libyear = await computeLibyearWithTimeout(details[r.name].sbom.packages, 12000);
+      // computeLibyearWithTimeout already catches internally and returns null,
+      // but issue #218 traced a silent exit-0 to this code path. Wrap the
+      // awaited promise with .catch so no exotic rejection (e.g. an aborted
+      // fetch settling after the await frame has moved on) can escape.
+      details[r.name].libyear = await computeLibyearWithTimeout(details[r.name].sbom.packages, 12000).catch(() => null);
     }));
   }
 
