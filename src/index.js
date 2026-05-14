@@ -178,6 +178,22 @@ function installCrashHandlers() {
     console.error(err?.stack || err);
     process.exit(1);
   });
+  // Diagnostic: fires when the event loop is empty but async work could still
+  // be scheduled. If it fires while a phase is still active, the awaited
+  // promise chain has been abandoned (e.g. a fire-and-forget rejection that
+  // settles after its caller moved on). 'beforeExit' does NOT fire when
+  // process.exit() is called explicitly, so seeing this line distinguishes
+  // event-loop drain from an explicit exit — discriminator for issue #218.
+  process.on('beforeExit', (code) => {
+    const { activePhase: phase } = getPipelineState();
+    if (phase) {
+      console.error(`[pipeline] beforeExit code=${code} during phase=${phase} (event loop drained — async work was abandoned, not an explicit process.exit)`);
+      // Loop draining mid-phase is itself a failure: the awaited promise
+      // chain has been abandoned, so the pipeline has not done its work.
+      // Convert the silent exit-0 into a loud exit-1 so the workflow fails.
+      process.exitCode = 1;
+    }
+  });
   // Diagnostic: name the active phase when Node exits. If the pipeline ends
   // mid-phase (because of a process.exit elsewhere, a crash before the
   // unhandledRejection handler ran, or a stream-buffer flush failure) the
