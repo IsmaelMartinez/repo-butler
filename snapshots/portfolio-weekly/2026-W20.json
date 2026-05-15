@@ -190,11 +190,11 @@
     "teams-for-linux": {
       "open_issues": 27,
       "open_bugs": 12,
-      "commits_6mo": 389,
+      "commits_6mo": 392,
       "stars": 4686,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9830508474576272,
+      "ciPassRate": 0.9833333333333333,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -216,7 +216,7 @@
       },
       "ci": 16,
       "released_at": "2026-05-06T13:59:56Z",
-      "pushed_at": "2026-05-15T14:46:48Z",
+      "pushed_at": "2026-05-15T19:59:52Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -562,11 +562,11 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 160,
+      "commits_6mo": 162,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9278350515463918,
+      "ciPassRate": 0.9340659340659341,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -588,7 +588,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-14T20:53:57Z",
+      "pushed_at": "2026-05-15T20:11:16Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-15T12:31:24Z",
+      "pushed_at": "2026-05-15T18:27:53Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1027,11 +1027,11 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 284,
+      "commits_6mo": 285,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9534883720930233,
+      "ciPassRate": 0.9540229885057471,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1053,7 +1053,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-14T21:18:33Z",
+      "pushed_at": "2026-05-15T17:49:55Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
