@@ -188,13 +188,13 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 26,
-      "open_bugs": 11,
-      "commits_6mo": 389,
-      "stars": 4685,
+      "open_issues": 27,
+      "open_bugs": 12,
+      "commits_6mo": 388,
+      "stars": 4686,
       "license": "GPL-3.0",
       "communityHealth": 85,
-      "ciPassRate": 0.9827586206896551,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -216,7 +216,7 @@
       },
       "ci": 16,
       "released_at": "2026-05-06T13:59:56Z",
-      "pushed_at": "2026-05-14T07:01:29Z",
+      "pushed_at": "2026-05-15T10:59:53Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -283,7 +283,7 @@
     "ismaelmartinez.me.uk": {
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 102,
+      "commits_6mo": 104,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -309,7 +309,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-14T04:22:59Z",
+      "pushed_at": "2026-05-15T04:26:12Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -376,7 +376,7 @@
     "generator-atlassian-compass-event-catalog": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 183,
+      "commits_6mo": 184,
       "stars": 4,
       "license": "MIT",
       "communityHealth": 85,
@@ -402,7 +402,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-20T20:38:19Z",
-      "pushed_at": "2026-05-10T12:44:40Z",
+      "pushed_at": "2026-05-15T10:31:51Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -562,11 +562,11 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 159,
+      "commits_6mo": 160,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9292929292929293,
+      "ciPassRate": 0.9278350515463918,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -588,7 +588,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-12T06:52:17Z",
+      "pushed_at": "2026-05-14T20:53:57Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -655,7 +655,7 @@
     "ai-model-advisor": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 154,
+      "commits_6mo": 147,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -681,7 +681,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-13T04:33:15Z",
+      "pushed_at": "2026-05-15T04:23:35Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -746,13 +746,13 @@
       }
     },
     "github-issue-triage-bot": {
-      "open_issues": 1,
+      "open_issues": 2,
       "open_bugs": 0,
       "commits_6mo": 230,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9540229885057471,
+      "ciPassRate": 0.9545454545454546,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -845,7 +845,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.945054945054945,
+      "ciPassRate": 0.9239130434782609,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-14T12:30:37Z",
+      "pushed_at": "2026-05-15T06:59:44Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1027,7 +1027,7 @@
     "votescot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 283,
+      "commits_6mo": 284,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
@@ -1053,7 +1053,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
-      "pushed_at": "2026-05-12T11:48:14Z",
+      "pushed_at": "2026-05-14T21:18:33Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
