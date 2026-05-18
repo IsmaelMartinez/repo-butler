@@ -188,10 +188,10 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 29,
-      "open_bugs": 14,
-      "commits_6mo": 386,
-      "stars": 4691,
+      "open_issues": 28,
+      "open_bugs": 13,
+      "commits_6mo": 388,
+      "stars": 4692,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 1,
@@ -216,7 +216,7 @@
       },
       "ci": 16,
       "released_at": "2026-05-06T13:59:56Z",
-      "pushed_at": "2026-05-17T09:39:47Z",
+      "pushed_at": "2026-05-18T18:16:01Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -469,11 +469,11 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 469,
+      "commits_6mo": 472,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.83,
+      "ciPassRate": 0.8210526315789474,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -495,7 +495,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-18T14:15:48Z",
+      "pushed_at": "2026-05-18T19:54:07Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -562,11 +562,11 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 174,
+      "commits_6mo": 177,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9871794871794872,
+      "ciPassRate": 0.9873417721518988,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -588,7 +588,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-18T12:15:47Z",
+      "pushed_at": "2026-05-18T18:44:25Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-18T13:03:13Z",
+      "pushed_at": "2026-05-18T18:31:15Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1211,9 +1211,9 @@
       }
     },
     "delegate-to-ollama": {
-      "open_issues": 1,
+      "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 110,
+      "commits_6mo": 111,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 100,
@@ -1239,7 +1239,7 @@
       },
       "ci": 5,
       "released_at": "2026-05-08T12:21:42Z",
-      "pushed_at": "2026-05-17T21:58:56Z",
+      "pushed_at": "2026-05-18T20:06:01Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
