@@ -188,10 +188,10 @@
       }
     },
     "teams-for-linux": {
-      "open_issues": 28,
-      "open_bugs": 13,
+      "open_issues": 29,
+      "open_bugs": 14,
       "commits_6mo": 386,
-      "stars": 4690,
+      "stars": 4691,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 1,
@@ -469,11 +469,11 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 462,
+      "commits_6mo": 469,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.9864864864864865,
+      "ciPassRate": 0.83,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -495,7 +495,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-18T11:16:13Z",
+      "pushed_at": "2026-05-18T14:15:48Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -562,11 +562,11 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 173,
+      "commits_6mo": 174,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9871794871794872,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -588,7 +588,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-18T11:26:01Z",
+      "pushed_at": "2026-05-18T12:15:47Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-18T08:22:36Z",
+      "pushed_at": "2026-05-18T13:03:13Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
