@@ -469,11 +469,11 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 477,
+      "commits_6mo": 478,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
-      "ciPassRate": 0.8409090909090909,
+      "ciPassRate": 0.8505747126436781,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -495,7 +495,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-19T16:33:36Z",
+      "pushed_at": "2026-05-19T20:30:22Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-19T12:55:43Z",
+      "pushed_at": "2026-05-19T18:34:53Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
