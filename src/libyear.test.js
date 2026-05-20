@@ -164,7 +164,10 @@ describe('computeLibyearWithTimeout', () => {
     const packages = [
       { name: 'slow-pkg', version: '1.0.0', purl: 'pkg:npm/slow-pkg@1.0.0' },
     ];
-    const result = await computeLibyearWithTimeout(packages, 50);
+    // Short perFetchMs keeps the per-fetch abort timer within the outer
+    // timeout window so the inner fetch settles before the test runner exits —
+    // without it, the default 5000ms per-fetch timer would dominate suite runtime.
+    const result = await computeLibyearWithTimeout(packages, 50, { perFetchMs: 30 });
     assert.equal(result, null);
   });
 
@@ -174,6 +177,40 @@ describe('computeLibyearWithTimeout', () => {
     ];
     const result = await computeLibyearWithTimeout(packages, 5000);
     assert.equal(result, null);
+  });
+
+  it('per-fetch timeout abandons hung fetches without blocking siblings (issue #220)', async () => {
+    // One package hangs forever; the other resolves immediately. With per-fetch
+    // timeouts (replaces the old cascading abort), the slow fetch self-terminates
+    // while the fast fetch returns data — partial results are preserved.
+    globalThis.fetch = mock.fn((url, opts) => {
+      if (url.includes('slow-pkg')) {
+        return new Promise((_, reject) => {
+          const onAbort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+          if (opts?.signal?.aborted) { onAbort(); return; }
+          opts?.signal?.addEventListener('abort', onAbort);
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          'dist-tags': { latest: '2.0.0' },
+          time: { '1.0.0': '2023-01-01T00:00:00Z', '2.0.0': '2024-01-01T00:00:00Z' },
+        }),
+      });
+    });
+    const packages = [
+      { name: 'slow-pkg', version: '1.0.0', purl: 'pkg:npm/slow-pkg@1.0.0' },
+      { name: 'fast-pkg', version: '1.0.0', purl: 'pkg:npm/fast-pkg@1.0.0' },
+    ];
+    // Generous overall budget (5s); per-fetch timeout (50ms) is what aborts slow-pkg.
+    const start = Date.now();
+    const result = await computeLibyearWithTimeout(packages, 5000, { perFetchMs: 50 });
+    const elapsed = Date.now() - start;
+    assert.ok(elapsed < 500, `expected per-fetch timeout to fire fast, took ${elapsed}ms`);
+    assert.ok(result, 'expected partial results, got null');
+    assert.equal(result.dependency_count, 1);
+    assert.equal(result.deps[0].name, 'fast-pkg');
   });
 
   it('builds registry URLs that preserve scope and slash without leftover encoding', async () => {
