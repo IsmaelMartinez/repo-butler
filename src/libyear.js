@@ -102,10 +102,16 @@ export function aggregateLibyear(resolved) {
  * between the current and latest versions. Each fetch self-terminates
  * after perFetchTimeoutMs.
  *
+ * The optional loopBreakSignal is checked between batches only — it is NOT
+ * threaded into fetch(), so aborting it cannot trigger the undici cascade
+ * that issue #218/#220 fixed. Its sole purpose is to let the outer
+ * wall-clock budget skip remaining batches when it expires, preventing the
+ * orphan-background-fetches concern Gemini flagged on PR #221.
+ *
  * Returns { total_libyear, dependency_count, deps, oldest } or null on complete failure.
  * Each dep in deps: { name, current, latest, years }.
  */
-export async function computeLibyear(sbomPackages, perFetchTimeoutMs) {
+export async function computeLibyear(sbomPackages, perFetchTimeoutMs, loopBreakSignal) {
   const npmDeps = filterNpmDeps(sbomPackages);
   if (npmDeps.length === 0) return null;
 
@@ -113,6 +119,7 @@ export async function computeLibyear(sbomPackages, perFetchTimeoutMs) {
   const results = [];
   const BATCH_SIZE = 5;
   for (let i = 0; i < npmDeps.length; i += BATCH_SIZE) {
+    if (loopBreakSignal?.aborted) break;
     const batch = npmDeps.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (dep) => {
@@ -157,16 +164,24 @@ export async function computeLibyear(sbomPackages, perFetchTimeoutMs) {
  * @param {number} [opts.perFetchMs] — per-fetch timeout passed through to fetchVersionDates.
  */
 export async function computeLibyearWithTimeout(sbomPackages, timeoutMs = 5000, { perFetchMs } = {}) {
+  const loopBreaker = new AbortController();
   let timer;
   const timeoutPromise = new Promise((resolve) => {
-    timer = setTimeout(() => resolve(null), timeoutMs);
+    timer = setTimeout(() => {
+      loopBreaker.abort();
+      resolve(null);
+    }, timeoutMs);
   });
   try {
     return await Promise.race([
-      computeLibyear(sbomPackages, perFetchMs).catch(() => null),
+      computeLibyear(sbomPackages, perFetchMs, loopBreaker.signal).catch(() => null),
       timeoutPromise,
     ]);
   } finally {
     clearTimeout(timer);
+    // Ensure the loop terminates even if the inner branch won the race —
+    // the next batch check stops issuing new fetches once the caller has
+    // already received its result.
+    loopBreaker.abort();
   }
 }
