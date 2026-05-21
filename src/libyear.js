@@ -4,6 +4,7 @@
 
 const REGISTRY_BASE = 'https://registry.npmjs.org';
 const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+const DEFAULT_PER_FETCH_TIMEOUT_MS = 5000;
 
 /**
  * Extract npm package name and version from SBOM dependency data.
@@ -26,10 +27,15 @@ export function filterNpmDeps(sbomPackages) {
 
 /**
  * Fetch publish date for a specific version and the latest version from the npm registry.
+ * Owns a per-fetch AbortController so a slow registry call self-terminates after
+ * perFetchTimeoutMs without affecting sibling fetches — replaces the legacy
+ * cascading-abort design (issue #218/#220) that drained the event loop mid-phase
+ * when its outer timeout fired across many in-flight fetches simultaneously.
  * Returns { currentDate, latestVersion, latestDate } or null on failure.
- * Accepts an optional AbortSignal to cancel the request.
  */
-async function fetchVersionDates(packageName, currentVersion, signal) {
+async function fetchVersionDates(packageName, currentVersion, perFetchTimeoutMs = DEFAULT_PER_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), perFetchTimeoutMs);
   try {
     // npm registry expects scoped packages as `@scope/name` (literal `@` and `/`).
     // Encode each path segment so other unsafe characters are escaped without
@@ -40,7 +46,7 @@ async function fetchVersionDates(packageName, currentVersion, signal) {
     const url = `${REGISTRY_BASE}/${encodedName}`;
     const resp = await fetch(url, {
       headers: { Accept: 'application/json' },
-      signal,
+      signal: controller.signal,
     });
     if (!resp.ok) return null;
     const data = await resp.json();
@@ -60,6 +66,8 @@ async function fetchVersionDates(packageName, currentVersion, signal) {
   } catch (error) {
     console.warn(`[libyear] Failed to fetch version dates for '${packageName}':`, error.message || error);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -91,13 +99,19 @@ export function aggregateLibyear(resolved) {
 /**
  * Compute the total libyear metric for a set of SBOM dependencies.
  * Queries the npm registry for each npm dependency to find the age gap
- * between the current and latest versions.
- * Accepts an optional AbortSignal to cancel in-flight requests.
+ * between the current and latest versions. Each fetch self-terminates
+ * after perFetchTimeoutMs.
+ *
+ * The optional loopBreakSignal is checked between batches only — it is NOT
+ * threaded into fetch(), so aborting it cannot trigger the undici cascade
+ * that issue #218/#220 fixed. Its sole purpose is to let the outer
+ * wall-clock budget skip remaining batches when it expires, preventing the
+ * orphan-background-fetches concern Gemini flagged on PR #221.
  *
  * Returns { total_libyear, dependency_count, deps, oldest } or null on complete failure.
  * Each dep in deps: { name, current, latest, years }.
  */
-export async function computeLibyear(sbomPackages, signal) {
+export async function computeLibyear(sbomPackages, perFetchTimeoutMs, loopBreakSignal) {
   const npmDeps = filterNpmDeps(sbomPackages);
   if (npmDeps.length === 0) return null;
 
@@ -105,11 +119,11 @@ export async function computeLibyear(sbomPackages, signal) {
   const results = [];
   const BATCH_SIZE = 5;
   for (let i = 0; i < npmDeps.length; i += BATCH_SIZE) {
-    if (signal?.aborted) break;
+    if (loopBreakSignal?.aborted) break;
     const batch = npmDeps.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (dep) => {
-        const dates = await fetchVersionDates(dep.name, dep.currentVersion, signal);
+        const dates = await fetchVersionDates(dep.name, dep.currentVersion, perFetchTimeoutMs);
         if (!dates) return null;
         const years = computeDepAge(dates.currentDate, dates.latestDate);
         return {
@@ -128,17 +142,46 @@ export async function computeLibyear(sbomPackages, signal) {
 }
 
 /**
- * Compute libyear with an overall timeout. Returns null if the timeout expires.
- * Uses AbortController to cancel in-flight fetch requests and clears the timer.
+ * Compute libyear with an overall wall-clock budget. Returns null if the budget
+ * expires before the inner work completes.
+ *
+ * Uses Promise.race against a setTimeout rather than an AbortController-based
+ * cascade. The legacy cascade (issue #218/#220) reliably drained Node's event
+ * loop mid-phase when its abort fanned out across many in-flight fetches —
+ * undici's internal stream cleanup abandoned async work below the user-code
+ * try/catch level, surfacing as `[pipeline] beforeExit` and failing the build.
+ *
+ * A defensive `.catch(() => null)` is chained onto the inner promise *before*
+ * it enters Promise.race. If the inner promise later rejects (timeout branch
+ * having already won the race), the .catch transforms the rejection into a
+ * resolve(null) on the chained promise so no unhandledRejection surfaces at
+ * the process level. Gemini Code Assist on PR #219 argued this was redundant;
+ * production proved otherwise.
+ *
+ * @param {Array} sbomPackages — SBOM dependency entries.
+ * @param {number} timeoutMs — overall wall-clock budget.
+ * @param {Object} [opts]
+ * @param {number} [opts.perFetchMs] — per-fetch timeout passed through to fetchVersionDates.
  */
-export async function computeLibyearWithTimeout(sbomPackages, timeoutMs = 5000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+export async function computeLibyearWithTimeout(sbomPackages, timeoutMs = 5000, { perFetchMs } = {}) {
+  const loopBreaker = new AbortController();
+  let timer;
+  const timeoutPromise = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      loopBreaker.abort();
+      resolve(null);
+    }, timeoutMs);
+  });
   try {
-    return await computeLibyear(sbomPackages, controller.signal);
-  } catch {
-    return null;
+    return await Promise.race([
+      computeLibyear(sbomPackages, perFetchMs, loopBreaker.signal).catch(() => null),
+      timeoutPromise,
+    ]);
   } finally {
     clearTimeout(timer);
+    // Ensure the loop terminates even if the inner branch won the race —
+    // the next batch check stops issuing new fetches once the caller has
+    // already received its result.
+    loopBreaker.abort();
   }
 }

@@ -164,7 +164,10 @@ describe('computeLibyearWithTimeout', () => {
     const packages = [
       { name: 'slow-pkg', version: '1.0.0', purl: 'pkg:npm/slow-pkg@1.0.0' },
     ];
-    const result = await computeLibyearWithTimeout(packages, 50);
+    // Short perFetchMs keeps the per-fetch abort timer within the outer
+    // timeout window so the inner fetch settles before the test runner exits —
+    // without it, the default 5000ms per-fetch timer would dominate suite runtime.
+    const result = await computeLibyearWithTimeout(packages, 50, { perFetchMs: 30 });
     assert.equal(result, null);
   });
 
@@ -174,6 +177,70 @@ describe('computeLibyearWithTimeout', () => {
     ];
     const result = await computeLibyearWithTimeout(packages, 5000);
     assert.equal(result, null);
+  });
+
+  it('skips remaining batches once overall timeout expires (PR #221 review)', async () => {
+    // Verifies the loopBreakSignal added in response to Gemini's review on PR
+    // #221: when the outer wall-clock budget fires, the batch loop must stop
+    // issuing new fetches rather than continuing in the background until each
+    // dep's per-fetch timer trips individually.
+    let fetchCount = 0;
+    globalThis.fetch = mock.fn(() => {
+      fetchCount++;
+      // Every fetch hangs until aborted by its per-fetch controller.
+      return new Promise((_, reject) => {
+        // Simulate real registry: slow response that respects abort signal.
+        // Without the loop-break, all 20 deps (4 batches of 5) would be issued.
+      });
+    });
+    const packages = Array.from({ length: 20 }, (_, i) => ({
+      name: `pkg-${i}`,
+      version: '1.0.0',
+      purl: `pkg:npm/pkg-${i}@1.0.0`,
+    }));
+    // Outer budget 30ms, per-fetch 200ms. The first batch starts immediately
+    // (5 fetches). At 30ms the outer race wins and aborts the loop. The first
+    // batch's fetches keep running until their per-fetch timer (200ms) fires,
+    // but no new batch is started.
+    const result = await computeLibyearWithTimeout(packages, 30, { perFetchMs: 200 });
+    // Give the per-fetch timers time to settle before asserting.
+    await new Promise(r => setTimeout(r, 250));
+    assert.equal(result, null);
+    assert.equal(fetchCount, 5, `expected exactly 1 batch of 5 fetches before loop-break, got ${fetchCount}`);
+  });
+
+  it('per-fetch timeout abandons hung fetches without blocking siblings (issue #220)', async () => {
+    // One package hangs forever; the other resolves immediately. With per-fetch
+    // timeouts (replaces the old cascading abort), the slow fetch self-terminates
+    // while the fast fetch returns data — partial results are preserved.
+    globalThis.fetch = mock.fn((url, opts) => {
+      if (url.includes('slow-pkg')) {
+        return new Promise((_, reject) => {
+          const onAbort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+          if (opts?.signal?.aborted) { onAbort(); return; }
+          opts?.signal?.addEventListener('abort', onAbort);
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          'dist-tags': { latest: '2.0.0' },
+          time: { '1.0.0': '2023-01-01T00:00:00Z', '2.0.0': '2024-01-01T00:00:00Z' },
+        }),
+      });
+    });
+    const packages = [
+      { name: 'slow-pkg', version: '1.0.0', purl: 'pkg:npm/slow-pkg@1.0.0' },
+      { name: 'fast-pkg', version: '1.0.0', purl: 'pkg:npm/fast-pkg@1.0.0' },
+    ];
+    // Generous overall budget (5s); per-fetch timeout (50ms) is what aborts slow-pkg.
+    const start = Date.now();
+    const result = await computeLibyearWithTimeout(packages, 5000, { perFetchMs: 50 });
+    const elapsed = Date.now() - start;
+    assert.ok(elapsed < 500, `expected per-fetch timeout to fire fast, took ${elapsed}ms`);
+    assert.ok(result, 'expected partial results, got null');
+    assert.equal(result.dependency_count, 1);
+    assert.equal(result.deps[0].name, 'fast-pkg');
   });
 
   it('builds registry URLs that preserve scope and slash without leftover encoding', async () => {
