@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-20T20:43:28.047Z",
+  "timestamp": "2026-05-21T06:53:06.187Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,12 +12,20 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-20T18:42:58Z",
+    "pushed_at": "2026-05-21T06:52:37Z",
     "archived": false
   },
   "issues": {
     "open": [],
     "recently_closed": [
+      {
+        "number": 220,
+        "title": "GOVERNANCE: libyear abort cascade still drains event loop mid-phase (root-cause fix for #218)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-05-21T06:52:37Z",
+        "created_at": "2026-05-20T22:15:08Z"
+      },
       {
         "number": 218,
         "title": "GOVERNANCE phase silently exits with code=0 exactly 12s after libyear timeout fires",
@@ -72,6 +80,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 221,
+        "title": "fix(libyear): per-fetch timeouts replace cascading abort (#220)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-21T06:52:36Z"
+      },
       {
         "number": 219,
         "title": "fix(governance): beforeExit diagnostic + defence-in-depth libyear catch (#218)",
@@ -1418,13 +1433,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-22T17:13:41Z"
-      },
-      {
-        "number": 14,
-        "title": "feat: multi-repo trend charts",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-22T17:07:57Z"
       }
     ]
   },
@@ -1591,9 +1599,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.90625,
-    "total_runs": 96,
-    "passed": 87,
+    "pass_rate": 0.9042553191489362,
+    "total_runs": 94,
+    "passed": 85,
     "failed": 9
   },
   "summary": {
@@ -1603,7 +1611,7 @@
     "open_features": 0,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 6,
+    "recently_closed": 7,
     "recently_merged_prs": 190,
     "bot_prs": 8,
     "human_prs": 182,
@@ -1619,11 +1627,11 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.90625,
+    "ci_pass_rate": 0.9042553191489362,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
-      "sample_size": 6
+      "sample_size": 7
     }
   }
 }
