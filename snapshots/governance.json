@@ -11,5 +11,18 @@
       }
     ],
     "priority": "high"
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "bonnie-wee-plot",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Zero critical/high security findings",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high"
   }
 ]
