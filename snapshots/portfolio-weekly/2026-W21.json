@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-24T12:17:14Z",
+      "pushed_at": "2026-05-24T18:17:15Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1213,7 +1213,7 @@
     "delegate-to-ollama": {
       "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 164,
+      "commits_6mo": 165,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1239,7 +1239,7 @@
       },
       "ci": 5,
       "released_at": "2026-05-24T12:25:12Z",
-      "pushed_at": "2026-05-24T15:10:23Z",
+      "pushed_at": "2026-05-24T19:52:56Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
