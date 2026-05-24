@@ -191,10 +191,10 @@
       "open_issues": 21,
       "open_bugs": 9,
       "commits_6mo": 388,
-      "stars": 4707,
+      "stars": 4708,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9859154929577465,
+      "ciPassRate": 0.9857142857142858,
       "vulns": {
         "count": 2,
         "critical": 0,
@@ -469,18 +469,18 @@
     "bonnie-wee-plot": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 478,
+      "commits_6mo": 479,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 85,
       "ciPassRate": 0.8488372093023255,
       "vulns": {
-        "count": 1,
+        "count": 0,
         "critical": 0,
-        "high": 1,
+        "high": 0,
         "medium": 0,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": null
       },
       "codeScanning": {
         "count": 0,
@@ -495,10 +495,10 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-23T10:30:24Z",
+      "pushed_at": "2026-05-24T12:37:09Z",
       "traffic": null,
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -532,7 +532,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -556,7 +556,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "betis-escocia": {
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-24T07:59:11Z",
+      "pushed_at": "2026-05-24T12:17:14Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1213,7 +1213,7 @@
     "delegate-to-ollama": {
       "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 162,
+      "commits_6mo": 164,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1238,8 +1238,8 @@
         "count": 0
       },
       "ci": 5,
-      "released_at": "2026-05-23T16:17:24Z",
-      "pushed_at": "2026-05-24T08:38:11Z",
+      "released_at": "2026-05-24T12:25:12Z",
+      "pushed_at": "2026-05-24T15:10:23Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
