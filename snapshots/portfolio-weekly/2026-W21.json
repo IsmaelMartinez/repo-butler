@@ -190,8 +190,8 @@
     "teams-for-linux": {
       "open_issues": 21,
       "open_bugs": 9,
-      "commits_6mo": 389,
-      "stars": 4706,
+      "commits_6mo": 388,
+      "stars": 4707,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9857142857142858,
@@ -309,7 +309,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-23T04:20:27Z",
+      "pushed_at": "2026-05-24T04:31:44Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -376,7 +376,7 @@
     "generator-atlassian-compass-event-catalog": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 174,
+      "commits_6mo": 173,
       "stars": 4,
       "license": "MIT",
       "communityHealth": 85,
@@ -845,7 +845,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9166666666666666,
+      "ciPassRate": 0.9175257731958762,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-23T18:16:24Z",
+      "pushed_at": "2026-05-24T07:00:07Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -938,7 +938,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9893617021276596,
+      "ciPassRate": 0.9894736842105263,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1211,9 +1211,9 @@
       }
     },
     "delegate-to-ollama": {
-      "open_issues": 3,
-      "open_bugs": 1,
-      "commits_6mo": 157,
+      "open_issues": 2,
+      "open_bugs": 0,
+      "commits_6mo": 160,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1239,7 +1239,7 @@
       },
       "ci": 5,
       "released_at": "2026-05-23T16:17:24Z",
-      "pushed_at": "2026-05-23T19:05:16Z",
+      "pushed_at": "2026-05-24T00:12:43Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
