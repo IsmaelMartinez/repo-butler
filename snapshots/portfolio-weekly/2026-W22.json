@@ -216,7 +216,7 @@
       },
       "ci": 16,
       "released_at": "2026-05-19T06:46:50Z",
-      "pushed_at": "2026-05-25T13:14:44Z",
+      "pushed_at": "2026-05-25T19:54:14Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -845,7 +845,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9285714285714286,
+      "ciPassRate": 0.9387755102040817,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-25T13:00:58Z",
+      "pushed_at": "2026-05-25T18:28:59Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -934,11 +934,11 @@
     "wifisentinel": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 245,
+      "commits_6mo": 249,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9894736842105263,
+      "ciPassRate": 0.9791666666666666,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -960,7 +960,7 @@
       },
       "ci": 5,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-05-20T22:29:46Z",
+      "pushed_at": "2026-05-25T20:09:08Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1213,7 +1213,7 @@
     "delegate-to-ollama": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 177,
+      "commits_6mo": 179,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1239,7 +1239,7 @@
       },
       "ci": 5,
       "released_at": "2026-05-25T13:39:21Z",
-      "pushed_at": "2026-05-25T14:21:57Z",
+      "pushed_at": "2026-05-25T18:32:36Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
