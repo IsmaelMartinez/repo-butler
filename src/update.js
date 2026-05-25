@@ -198,62 +198,11 @@ export async function update(context) {
   const prompt = buildUpdatePrompt(currentRoadmap, snapshot, assessment, config.context);
   const updatedRoadmap = await provider.generate(prompt);
 
-  // Length-preservation guard: PR #176 exposed that the LLM will happily
-  // rewrite a 277-line roadmap down to 53 lines, deleting SHIPPED records
-  // and Future entries. Treat any output that drops below 80% of the input
-  // length as a destructive rewrite and refuse the PR. Symmetric with the
-  // validateRoadmap safety check below.
-  const preservation = checkLengthPreservation(currentRoadmap, updatedRoadmap);
-  if (!preservation.valid) {
-    console.error(`SAFETY: ${preservation.error} — refusing PR (suspected destructive rewrite).`);
-    // Log the actual LLM output (head + tail) so the soak can diagnose why the
-    // model produced a destructive rewrite. Without this the guard is opaque —
-    // we know the output was too short, but not what it contained.
-    const head = (updatedRoadmap || '').slice(0, 800);
-    const tail = (updatedRoadmap || '').length > 1600 ? (updatedRoadmap || '').slice(-800) : '';
-    console.error(`SAFETY: rejected output head:\n${head}`);
-    if (tail) console.error(`SAFETY: rejected output tail:\n${tail}`);
-    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [preservation.error] } };
-  }
-
-  // Strikethrough-preservation guard: complements the 80% length guard, which
-  // is blind to balanced delete-and-rewrite. PR #202 stripped 24 ~~...~~
-  // markers under the length guard's threshold (+38/-40 lines net).
-  const strikePreservation = checkStrikethroughPreservation(currentRoadmap, updatedRoadmap);
-  if (!strikePreservation.valid) {
-    console.error(`SAFETY: ${strikePreservation.error} — refusing PR (visual SHIPPED markers lost).`);
-    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [strikePreservation.error] } };
-  }
-
-  // PR/issue reference preservation: PR #213 deleted the License-concern
-  // paragraph under both length and strikethrough guards because the prose
-  // paragraph carried neither a heading nor `~~...~~` markup. The `(PR #NN)`
-  // citation inside is the narrowest invariant — losing a unique reference
-  // is unambiguous evidence the LLM deleted a SHIPPED entry rather than
-  // edited one.
-  const refPreservation = checkPrReferencePreservation(currentRoadmap, updatedRoadmap);
-  if (!refPreservation.valid) {
-    console.error(`SAFETY: ${refPreservation.error} — refusing PR (SHIPPED entries deleted).`);
-    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [refPreservation.error] } };
-  }
-
-  // Safety check before publishing.
-  const safety = validateRoadmap(updatedRoadmap);
-  if (!safety.valid) {
-    console.error('SAFETY: Roadmap failed validation, skipping PR creation:');
-    for (const err of safety.errors) console.error(`  - ${err}`);
-    return { roadmap: updatedRoadmap, pr: null, safety };
-  }
-
+  // Soak telemetry — emitted before guards so guard failures never blind
+  // the monitoring. Previously the SOAK block lived after the guards and
+  // was unreachable whenever any guard rejected (which was every run from
+  // 2026-05-11 onward due to the #84 PR-reference drop).
   if (dryRun) {
-    // Dry-run preview is the primary soak-monitoring surface. The 80% length
-    // guard above is a binary catastrophe detector — it doesn't catch
-    // hallucinated dates, fabricated PR numbers, in-place SHIPPED rewrites,
-    // or stale-data overwrites. Log enough structure here that a 30-second
-    // skim of CI logs can spot those regressions: input/output ratio, head
-    // and tail of the output, the full heading list, and counts of the
-    // ~~strikethrough~~ and SHIPPED markers we expect to be preserved.
-    console.log('DRY RUN — would create PR with updated roadmap (safety: passed).');
     const ratio = currentRoadmap.length ? updatedRoadmap.length / currentRoadmap.length : 1;
     console.log(`SOAK: length ${updatedRoadmap.length}/${currentRoadmap.length} chars (${(ratio * 100).toFixed(1)}%)`);
     if (currentRoadmap.length > 0 && (ratio < 0.95 || ratio > 1.10)) {
@@ -274,6 +223,49 @@ export async function update(context) {
       console.log('SOAK: output tail (1500 chars):');
       console.log(updatedRoadmap.slice(-1500));
     }
+    // Run validateRoadmap as a diagnostic so URL/pattern failures are visible
+    // even when an upstream guard (length, strikethrough, PR-refs) rejects first.
+    const soakSafety = validateRoadmap(updatedRoadmap);
+    if (soakSafety.valid) {
+      console.log('SOAK-SAFETY: validateRoadmap passed.');
+    } else {
+      console.warn(`SOAK-SAFETY: validateRoadmap would fail: ${soakSafety.errors.join('; ')}`);
+    }
+  }
+
+  // --- Guards (enforce, refuse PR on failure) ---
+
+  const preservation = checkLengthPreservation(currentRoadmap, updatedRoadmap);
+  if (!preservation.valid) {
+    console.error(`SAFETY: ${preservation.error} — refusing PR (suspected destructive rewrite).`);
+    const head = (updatedRoadmap || '').slice(0, 800);
+    const tail = (updatedRoadmap || '').length > 1600 ? (updatedRoadmap || '').slice(-800) : '';
+    console.error(`SAFETY: rejected output head:\n${head}`);
+    if (tail) console.error(`SAFETY: rejected output tail:\n${tail}`);
+    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [preservation.error] } };
+  }
+
+  const strikePreservation = checkStrikethroughPreservation(currentRoadmap, updatedRoadmap);
+  if (!strikePreservation.valid) {
+    console.error(`SAFETY: ${strikePreservation.error} — refusing PR (visual SHIPPED markers lost).`);
+    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [strikePreservation.error] } };
+  }
+
+  const refPreservation = checkPrReferencePreservation(currentRoadmap, updatedRoadmap);
+  if (!refPreservation.valid) {
+    console.error(`SAFETY: ${refPreservation.error} — refusing PR (SHIPPED entries deleted).`);
+    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [refPreservation.error] } };
+  }
+
+  const safety = validateRoadmap(updatedRoadmap);
+  if (!safety.valid) {
+    console.error('SAFETY: Roadmap failed validation, skipping PR creation:');
+    for (const err of safety.errors) console.error(`  - ${err}`);
+    return { roadmap: updatedRoadmap, pr: null, safety };
+  }
+
+  if (dryRun) {
+    console.log('DRY RUN — all guards passed, would create PR with updated roadmap.');
     return { roadmap: updatedRoadmap, pr: null, safety };
   }
 
