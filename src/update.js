@@ -201,7 +201,7 @@ export async function update(context) {
   // Soak telemetry — emitted before guards so guard failures never blind
   // the monitoring, and in both dry-run and live mode so graduating off
   // dry-run doesn't lose visibility.
-  {
+  if (updatedRoadmap) {
     const ratio = currentRoadmap.length ? updatedRoadmap.length / currentRoadmap.length : 1;
     console.log(`SOAK: length ${updatedRoadmap.length}/${currentRoadmap.length} chars (${(ratio * 100).toFixed(1)}%)`);
     if (currentRoadmap.length > 0 && (ratio < 0.95 || ratio > 1.10)) {
