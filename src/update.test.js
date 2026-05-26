@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoadmapPrBody, buildSafePrBody, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, redactErrorForLog } from './update.js';
+import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, parseEditOps, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -386,5 +386,145 @@ describe('checkPrReferencePreservation', () => {
     const result = checkPrReferencePreservation(input, '');
     assert.equal(result.valid, true);
     assert.equal(result.inputCount, 0);
+  });
+});
+
+describe('parseEditOps', () => {
+  it('parses a valid JSON array', () => {
+    const result = parseEditOps('[{"action":"append","section":"Implemented","text":"New thing."}]');
+    assert.equal(result.valid, true);
+    assert.equal(result.ops.length, 1);
+    assert.equal(result.ops[0].action, 'append');
+  });
+
+  it('parses an empty array', () => {
+    const result = parseEditOps('[]');
+    assert.equal(result.valid, true);
+    assert.equal(result.ops.length, 0);
+  });
+
+  it('strips markdown code fences', () => {
+    const result = parseEditOps('```json\n[{"action":"append","section":"Implemented","text":"X"}]\n```');
+    assert.equal(result.valid, true);
+    assert.equal(result.ops.length, 1);
+  });
+
+  it('rejects non-array JSON', () => {
+    const result = parseEditOps('{"action":"append"}');
+    assert.equal(result.valid, false);
+    assert.ok(result.error.includes('not a JSON array'));
+  });
+
+  it('rejects invalid JSON', () => {
+    const result = parseEditOps('not json at all');
+    assert.equal(result.valid, false);
+    assert.ok(result.error.includes('Invalid JSON'));
+  });
+
+  it('rejects empty response', () => {
+    const result = parseEditOps('');
+    assert.equal(result.valid, false);
+  });
+});
+
+describe('applyEditOps', () => {
+  const roadmap = [
+    '# Roadmap',
+    '',
+    '**Last Updated:** 2026-05-01',
+    '',
+    '## Implemented',
+    '',
+    'Feature A shipped.',
+    '',
+    '---',
+    '',
+    '## Next Up',
+    '',
+    'Some future work.',
+    '',
+    '## Future',
+    '',
+    'Ideas here.',
+  ].join('\n');
+
+  it('updates the Last Updated date deterministically', () => {
+    const { result, applied } = applyEditOps(roadmap, [], '2026-05-26');
+    assert.ok(result.includes('**Last Updated:** 2026-05-26'));
+    assert.ok(!result.includes('2026-05-01'));
+    assert.ok(applied.some(a => a.includes('update_date')));
+  });
+
+  it('appends to the Implemented section', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Feature B shipped 2026-05-26 (PR #99).' }];
+    const { result, applied } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(result.includes('Feature B shipped'));
+    assert.ok(result.indexOf('Feature B') > result.indexOf('Feature A'));
+    assert.ok(result.indexOf('Feature B') < result.indexOf('---'));
+    assert.equal(applied.length, 2);
+  });
+
+  it('appends to the Next Up section', () => {
+    const ops = [{ action: 'append', section: 'Next Up', text: 'New task.' }];
+    const { result } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(result.includes('New task.'));
+    assert.ok(result.indexOf('New task.') > result.indexOf('## Next Up'));
+    assert.ok(result.indexOf('New task.') < result.indexOf('## Future'));
+  });
+
+  it('skips ops with missing section', () => {
+    const ops = [{ action: 'append', section: 'Nonexistent', text: 'X' }];
+    const { skipped } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(skipped.some(s => s.includes('not found')));
+  });
+
+  it('skips ops with missing text', () => {
+    const ops = [{ action: 'append', section: 'Implemented' }];
+    const { skipped } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(skipped.some(s => s.includes('missing')));
+  });
+
+  it('skips unknown actions', () => {
+    const ops = [{ action: 'delete', section: 'Implemented' }];
+    const { skipped } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(skipped.some(s => s.includes('unknown')));
+  });
+
+  it('preserves all existing content', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'New.' }];
+    const { result } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(result.includes('Feature A shipped.'));
+    assert.ok(result.includes('Some future work.'));
+    assert.ok(result.includes('Ideas here.'));
+  });
+});
+
+describe('buildSectionEditPrompt', () => {
+  const baseSnapshot = {
+    repository: 'owner/repo',
+    summary: {
+      open_issues: 2, blocked_issues: 0, awaiting_feedback: 0,
+      recently_merged_prs: 5, high_reaction_issues: [], top_open_labels: [],
+    },
+  };
+
+  it('asks for JSON ops, not a full document', () => {
+    const prompt = buildSectionEditPrompt('# Roadmap', baseSnapshot, null, null);
+    assert.ok(prompt.includes('JSON array'));
+    assert.ok(prompt.includes('"append"'));
+    assert.ok(prompt.includes('do NOT reproduce'));
+  });
+
+  it('includes the current roadmap as read-only context', () => {
+    const prompt = buildSectionEditPrompt('# My Roadmap', baseSnapshot, null, null);
+    assert.ok(prompt.includes('# My Roadmap'));
+    assert.ok(prompt.includes('read-only context'));
+  });
+
+  it('includes valid section names', () => {
+    const prompt = buildSectionEditPrompt('# Roadmap', baseSnapshot, null, null);
+    assert.ok(prompt.includes('"Implemented"'));
+    assert.ok(prompt.includes('"Next Up"'));
+    assert.ok(prompt.includes('"Future"'));
   });
 });
