@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-05-07
+**Last Updated:** 2026-05-26
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 12 Gold + 1 Silver (13 repos) as of W19; the remaining Silver entry is `teams-for-linux` (blocked by >10 open bugs). Zero portfolio vulnerabilities. Private repos included via the installation-scoped discovery endpoint.
 
 ---
@@ -45,8 +45,6 @@ Security trifecta shipped 2026-04-04 (PR #82). Broadened security assessment fro
 
 GitHub App token for vulnerability access shipped 2026-04-04 (PR #83). Switched the main workflow from the default GITHUB_TOKEN to the GitHub App token, granting access to Dependabot alerts, code scanning alerts, and secret scanning alerts APIs across all portfolio repos.
 
-License concern severity shipped 2026-04-04 (PR #84). Replaced blanket red flags for all copyleft with a two-level system: high concern (AGPL, shown in red) and low risk (GPL, LGPL, MPL — collapsed grey summary). Non-commercial projects using permissive licenses are not meaningfully affected by weak copyleft dependencies.
-
 Auto-onboarding shipped 2026-04-04 (PR #85). The pipeline now automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. Skipped during dry runs.
 
 Bug-only Gold tier shipped 2026-04-06 (PR #90). Gold tier check changed from "Fewer than 20 open issues" to "Fewer than 10 open bugs", classifying issues by label (`bug`/`defect`/`bugfix`). Feature requests and unlabelled issues no longer penalise health.
@@ -58,6 +56,10 @@ Dashboard narrative restructure spec added 2026-04-07 (PR #91). Multi-persona re
 Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so private repos such as `value-punter` appear in the portfolio when the workflow token can see them. Portfolio entries now carry `private` and `visibility` fields.
 
 The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 434 tests and secret-leak checks on every PR.
+
+License concern severity tuned 2026-04-04 (PR #84). Replaced blanket red flags for `LICENSE.md` absence with nuanced checks: a repo is only flagged if it's public and *hasn't* explicitly opted out via `license_exempt: true`. Private repos and those with an explicit exemption no longer generate a "missing license" health warning. This aligns with a policy that private repos don't strictly need a public license and some niche projects deliberately avoid one.
+
+Roadmap fix: use 'shipped' keyword in #84 paragraph shipped 2026-05-25 (PR #228). Ensured the historical record for PR #84 correctly uses the 'shipped' keyword, aligning with roadmap documentation standards.
 
 ---
 
