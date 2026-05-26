@@ -4,7 +4,7 @@
 import { LLMProvider, fetchJson } from './base.js';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-3.5-flash';
 
 export class GeminiProvider extends LLMProvider {
   constructor(apiKey, { model = DEFAULT_MODEL } = {}) {
@@ -28,9 +28,6 @@ export class GeminiProvider extends LLMProvider {
           // tokens today, ~16k headroom for multi-year growth). 4k truncated
           // mid-document and tripped the length-preservation guard.
           maxOutputTokens: 32768,
-          // Gemini 2.5 Flash enables "thinking" by default, which silently
-          // consumes the output budget. Disable it for these structured
-          // text-rewrite tasks so the full budget reaches the response.
           thinkingConfig: { thinkingBudget: 0 },
         },
       },
