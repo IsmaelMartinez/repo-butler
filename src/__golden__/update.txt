@@ -40,7 +40,7 @@ Existing roadmap.
 
 Instructions:
 - Make the smallest set of changes needed. The only allowed changes are: updating the "Last Updated" date, updating status markers, and appending new entries at the end of the appropriate section.
-- VERBATIM RULE: every existing paragraph must appear in the output with IDENTICAL wording, in the SAME position. Do not rephrase, reword, move, reorder, or summarise any existing text. Copy it character-for-character. This is the most important rule.
+- VERBATIM RULE: every existing paragraph must appear in the output with IDENTICAL wording, in the SAME position (except for allowed updates to status markers and the "Last Updated" date). Do not rephrase, reword, move, reorder, or summarise any existing text. Copy it character-for-character. This is the most important rule.
 - Do not delete any paragraph, sentence, or entry — even if it seems minor, outdated, or tangential. The roadmap is a historical record.
 - Append new entries at the end of the relevant section. Do not insert them between existing entries or rewrite old ones.
 - Update the "Last Updated" line to the date provided above ("Today: …"). Do not change any other dates.
