@@ -194,7 +194,7 @@
       "stars": 4717,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9375,
+      "ciPassRate": 0.9365079365079365,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -283,7 +283,7 @@
     "ismaelmartinez.me.uk": {
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 105,
+      "commits_6mo": 106,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -309,7 +309,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-26T04:29:31Z",
+      "pushed_at": "2026-05-26T20:34:51Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-26T15:36:23Z",
+      "pushed_at": "2026-05-26T18:43:55Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
