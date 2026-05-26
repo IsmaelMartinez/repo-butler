@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-05-07
+**Last Updated:** 2026-05-26
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 12 Gold + 1 Silver (13 repos) as of W19; the remaining Silver entry is `teams-for-linux` (blocked by >10 open bugs). Zero portfolio vulnerabilities. Private repos included via the installation-scoped discovery endpoint.
 
 ---
@@ -181,6 +181,8 @@ Security prerequisites (from architecture review): ~~bot URL validation~~, ~~eco
 
 **Landscape evaluation** — Before building custom cross-repo enforcement, evaluate existing tools for the execution layer. File-based standards propagation (community health files, CI templates) can use `repo-file-sync-action` or `actions-template-sync`. Repo settings propagation (branch protection, labels, teams) can leverage `github/safe-settings` or GitHub org rulesets. Bulk remediation of governance findings can be handled by `multi-gitter` or `git-xargs` as the execution mechanism — the butler detects what needs to change, these tools apply it. See the Landscape section for details.
 
+
+Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents. This reduces token consumption, eliminates truncation errors, and guarantees deterministic application of roadmap updates.
 ---
 
 ## Future
