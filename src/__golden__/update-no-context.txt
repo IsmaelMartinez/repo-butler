@@ -39,15 +39,14 @@ Existing roadmap.
 === END REPOSITORY DATA ===
 
 Instructions:
-- Make the smallest set of changes needed. Do not delete or summarise existing SHIPPED records, completed entries, ADR references, or section headings.
-- Append new entries; do not rewrite old ones. If a section already exists, add to it rather than replacing it.
-- Update status markers, version numbers, and the "Last Updated" line. Use the literal date provided above ("Today: …") — do not guess or use a different date.
-- Add new items only for newly opened issues that represent significant work. Do not invent new sections.
-- Preserve the original structure, tone, headings, and approximate length. The output must be at least as long as the input minus minor compaction.
-- Preserve `~~strikethrough~~` markers verbatim. Do not strip `~~...~~` from any heading or inline marker, even when reformatting nearby text. The strikethrough is the visual signal that work has shipped; removing it un-ships items in the rendered roadmap. This rule is non-negotiable.
+- Make the smallest set of changes needed. The only allowed changes are: updating the "Last Updated" date, updating status markers, and appending new entries at the end of the appropriate section.
+- VERBATIM RULE: every existing paragraph must appear in the output with IDENTICAL wording, in the SAME position. Do not rephrase, reword, move, reorder, or summarise any existing text. Copy it character-for-character. This is the most important rule.
+- Do not delete any paragraph, sentence, or entry — even if it seems minor, outdated, or tangential. The roadmap is a historical record.
+- Append new entries at the end of the relevant section. Do not insert them between existing entries or rewrite old ones.
+- Update the "Last Updated" line to the date provided above ("Today: …"). Do not change any other dates.
+- Do not invent new sections or new entries for PRs not listed in the data above.
+- Preserve `~~strikethrough~~` markers verbatim. Do not strip `~~...~~` from any heading or inline marker. This rule is non-negotiable.
   Wrong: `### Phase 1 — Richer Observation SHIPPED`
   Correct: `### ~~Phase 1 — Richer Observation~~ SHIPPED`
-- Preserve every `#NN` PR or issue reference present in the input. If a paragraph cites `(PR #84)`, that reference must still appear in the output — losing it means the entry was deleted, not edited. New entries may add their own `(PR #NN)`s; existing ones must not lose theirs. This rule is non-negotiable.
-  Wrong: deleting `License concern severity tuned 2026-04-04 (PR #84). Replaced blanket red flags…`
-  Correct: keeping the paragraph verbatim, even when it appears tangential to current work
+- Preserve every `#NN` PR or issue reference present in the input. This rule is non-negotiable.
 - Output ONLY the updated roadmap document, no commentary, no explanation.

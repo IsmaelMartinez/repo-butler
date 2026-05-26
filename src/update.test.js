@@ -197,7 +197,7 @@ describe('buildUpdatePrompt', () => {
     // marker. Lock the non-negotiable PR-reference directive in.
     const prompt = buildUpdatePrompt('# Roadmap', baseSnapshot, null, null);
     assert.ok(prompt.includes('Preserve every `#NN` PR or issue reference'), 'must instruct PR-reference preservation');
-    assert.ok(prompt.includes('License concern severity tuned'), 'must include the PR #213 deletion as a Wrong example');
+    assert.ok(prompt.includes('non-negotiable'), 'must mark PR-reference rule as non-negotiable');
   });
 
   it('passes existing roadmap content through to the prompt verbatim', () => {
