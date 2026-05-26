@@ -96,11 +96,12 @@ export function parsePhases(phase) {
   return list;
 }
 
-// Pick the LLM provider for a given phase. ASSESS/UPDATE use the default
-// provider; IDEATE and MONITOR use the deep provider for richer reasoning.
+// Pick the LLM provider for a given phase. ASSESS uses the default provider;
+// UPDATE, IDEATE, and MONITOR use the deep provider for richer reasoning.
 function providerForPhase(phase, defaultProvider, deepProvider) {
   if (phase === 'ideate' || phase === 'monitor') return deepProvider;
-  if (phase === 'assess' || phase === 'update') return defaultProvider;
+  if (phase === 'assess') return defaultProvider;
+  if (phase === 'update') return deepProvider;
   return null;
 }
 
