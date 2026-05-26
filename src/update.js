@@ -229,7 +229,7 @@ export async function update(context) {
     if (soakSafety.valid) {
       console.log('SOAK-SAFETY: validateRoadmap passed.');
     } else {
-      console.warn(`SOAK-SAFETY: validateRoadmap would fail: ${soakSafety.errors.join('; ')}`);
+      console.warn(`SOAK-SAFETY: validateRoadmap would fail: ${soakSafety.errors.map(redactErrorForLog).join('; ')}`);
     }
   }
 
