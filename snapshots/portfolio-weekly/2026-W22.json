@@ -190,18 +190,18 @@
     "teams-for-linux": {
       "open_issues": 21,
       "open_bugs": 9,
-      "commits_6mo": 386,
+      "commits_6mo": 387,
       "stars": 4709,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 1,
       "vulns": {
-        "count": 2,
+        "count": 0,
         "critical": 0,
         "high": 0,
-        "medium": 2,
+        "medium": 0,
         "low": 0,
-        "max_severity": "medium"
+        "max_severity": null
       },
       "codeScanning": {
         "count": 0,
@@ -216,7 +216,7 @@
       },
       "ci": 16,
       "released_at": "2026-05-19T06:46:50Z",
-      "pushed_at": "2026-05-25T19:54:14Z",
+      "pushed_at": "2026-05-25T21:00:29Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -309,7 +309,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-05-25T04:35:17Z",
+      "pushed_at": "2026-05-26T04:29:31Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -562,7 +562,7 @@
     "betis-escocia": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 175,
+      "commits_6mo": 174,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -655,7 +655,7 @@
     "ai-model-advisor": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 139,
+      "commits_6mo": 137,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
@@ -841,11 +841,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 286,
+      "commits_6mo": 288,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9387755102040817,
+      "ciPassRate": 0.9473684210526315,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-25T18:28:59Z",
+      "pushed_at": "2026-05-26T06:24:09Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
