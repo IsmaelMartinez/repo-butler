@@ -191,7 +191,7 @@
       "open_issues": 22,
       "open_bugs": 10,
       "commits_6mo": 391,
-      "stars": 4716,
+      "stars": 4717,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9375,
@@ -841,11 +841,11 @@
     "repo-butler": {
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 296,
+      "commits_6mo": 297,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9529411764705882,
+      "ciPassRate": 0.9523809523809523,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -867,7 +867,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-26T12:51:31Z",
+      "pushed_at": "2026-05-26T15:36:23Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
