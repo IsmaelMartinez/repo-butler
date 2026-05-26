@@ -195,71 +195,33 @@ export async function update(context) {
   const existing = await findOpenRoadmapPr(gh, owner, repo);
   const isRefresh = !!existing;
 
-  const prompt = buildUpdatePrompt(currentRoadmap, snapshot, assessment, config.context);
-  const updatedRoadmap = await provider.generate(prompt);
+  const today = new Date().toISOString().slice(0, 10);
+  const prompt = buildSectionEditPrompt(currentRoadmap, snapshot, assessment, config.context);
+  const rawResponse = await provider.generate(prompt);
 
-  // Soak telemetry — emitted before guards so guard failures never blind
-  // the monitoring, and in both dry-run and live mode so graduating off
-  // dry-run doesn't lose visibility.
-  if (updatedRoadmap) {
-    const ratio = currentRoadmap.length ? updatedRoadmap.length / currentRoadmap.length : 1;
-    console.log(`SOAK: length ${updatedRoadmap.length}/${currentRoadmap.length} chars (${(ratio * 100).toFixed(1)}%)`);
-    if (currentRoadmap.length > 0 && (ratio < 0.95 || ratio > 1.10)) {
-      console.warn(`SOAK-WARN: edit ratio ${(ratio * 100).toFixed(1)}% is outside the 95-110% expected band for edit-only output.`);
-    }
-    const headings = (updatedRoadmap.match(/^#{1,6} .+$/gm) || []).map(h => h.trim());
-    const strikethrough = (updatedRoadmap.match(/~~[^~]+~~/g) || []).length;
-    const shippedMarkers = (updatedRoadmap.match(/\bSHIPPED\b/g) || []).length;
-    console.log(`SOAK: ${headings.length} headings, ${strikethrough} strikethrough markers, ${shippedMarkers} SHIPPED markers`);
-    console.log('SOAK: heading list:');
-    for (const h of headings) console.log(`  ${h}`);
-    if (updatedRoadmap.length <= 3000) {
-      console.log('SOAK: full output:');
-      console.log(updatedRoadmap);
-    } else {
-      console.log('SOAK: output head (1500 chars):');
-      console.log(updatedRoadmap.slice(0, 1500));
-      console.log('SOAK: output tail (1500 chars):');
-      console.log(updatedRoadmap.slice(-1500));
-    }
-    // Run validateRoadmap as a diagnostic so URL/pattern failures are visible
-    // even when an upstream guard (length, strikethrough, PR-refs) rejects first.
-    const soakSafety = validateRoadmap(updatedRoadmap);
-    if (soakSafety.valid) {
-      console.log('SOAK-SAFETY: validateRoadmap passed.');
-    } else {
-      console.warn(`SOAK-SAFETY: validateRoadmap would fail: ${soakSafety.errors.map(redactErrorForLog).join('; ')}`);
-    }
+  const parsed = parseEditOps(rawResponse);
+  if (!parsed.valid) {
+    console.error(`SECTION-EDIT: failed to parse LLM response — ${parsed.error}`);
+    console.error(`SECTION-EDIT: raw response (first 500 chars): ${(rawResponse || '').slice(0, 500)}`);
+    return { roadmap: currentRoadmap, pr: null, safety: { valid: false, errors: [parsed.error] } };
   }
 
-  // --- Guards (enforce, refuse PR on failure) ---
+  const { result: updatedRoadmap, applied, skipped } = applyEditOps(currentRoadmap, parsed.ops, today);
+  console.log(`SECTION-EDIT: ${applied.length} ops applied, ${skipped.length} skipped.`);
+  for (const op of applied) console.log(`  applied: ${op}`);
+  for (const op of skipped) console.warn(`  skipped: ${op}`);
 
-  const preservation = checkLengthPreservation(currentRoadmap, updatedRoadmap);
-  if (!preservation.valid) {
-    console.error(`SAFETY: ${preservation.error} — refusing PR (suspected destructive rewrite).`);
-    const head = (updatedRoadmap || '').slice(0, 800);
-    const tail = (updatedRoadmap || '').length > 1600 ? (updatedRoadmap || '').slice(-800) : '';
-    console.error(`SAFETY: rejected output head:\n${head}`);
-    if (tail) console.error(`SAFETY: rejected output tail:\n${tail}`);
-    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [preservation.error] } };
+  if (updatedRoadmap === currentRoadmap) {
+    console.log('SECTION-EDIT: no changes after applying ops — skipping PR.');
+    return { roadmap: updatedRoadmap, pr: null, safety: { valid: true, errors: [] } };
   }
 
-  const strikePreservation = checkStrikethroughPreservation(currentRoadmap, updatedRoadmap);
-  if (!strikePreservation.valid) {
-    console.error(`SAFETY: ${strikePreservation.error} — refusing PR (visual SHIPPED markers lost).`);
-    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [strikePreservation.error] } };
-  }
-
-  const refPreservation = checkPrReferencePreservation(currentRoadmap, updatedRoadmap);
-  if (!refPreservation.valid) {
-    console.error(`SAFETY: ${refPreservation.error} — refusing PR (SHIPPED entries deleted).`);
-    return { roadmap: updatedRoadmap, pr: null, safety: { valid: false, errors: [refPreservation.error] } };
-  }
-
+  // Defence-in-depth: the section-edit approach is additive-only, so these
+  // guards should always pass. Keep them to catch bugs in applyEditOps.
   const safety = validateRoadmap(updatedRoadmap);
   if (!safety.valid) {
-    console.error('SAFETY: Roadmap failed validation, skipping PR creation:');
-    for (const err of safety.errors) console.error(`  - ${err}`);
+    console.error('SAFETY: Roadmap failed validation after applying ops:');
+    for (const err of safety.errors) console.error(`  - ${redactErrorForLog(err)}`);
     return { roadmap: updatedRoadmap, pr: null, safety };
   }
 
@@ -355,6 +317,148 @@ export async function update(context) {
   return { roadmap: updatedRoadmap, pr: pr.html_url, safety };
 }
 
+// Parse the LLM response as a JSON array of edit operations. Strips markdown
+// code fences if present. Exported for testing.
+export function parseEditOps(text) {
+  if (!text) return { valid: false, error: 'Empty response', ops: [] };
+  const stripped = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```\s*$/m, '').trim();
+  try {
+    const ops = JSON.parse(stripped);
+    if (!Array.isArray(ops)) return { valid: false, error: 'Response is not a JSON array', ops: [] };
+    return { valid: true, ops };
+  } catch (e) {
+    return { valid: false, error: `Invalid JSON: ${e.message}`, ops: [] };
+  }
+}
+
+// Find the insertion point (character index) for appending to a section.
+// Inserts before the next `---` or `## ` boundary after the section heading.
+function findSectionInsertPoint(roadmap, sectionName) {
+  const regex = new RegExp(`^## ${sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'm');
+  const match = roadmap.match(regex);
+  if (!match) return -1;
+
+  const afterHeading = match.index + match[0].length;
+  const rest = roadmap.slice(afterHeading);
+  const boundary = rest.match(/\n(?=---\s*\n|## )/);
+  return boundary ? afterHeading + boundary.index : roadmap.length;
+}
+
+// Apply edit operations to the roadmap deterministically. Only additive
+// operations are supported — the LLM cannot delete or rewrite content.
+// Exported for testing.
+export function applyEditOps(roadmap, ops, today) {
+  let result = roadmap;
+  const applied = [];
+  const skipped = [];
+
+  // Always update the date line deterministically.
+  const dateReplaced = result.replace(
+    /(\*\*Last Updated:\*\*)\s*\d{4}-\d{2}-\d{2}/,
+    `$1 ${today}`,
+  );
+  if (dateReplaced !== result) {
+    result = dateReplaced;
+    applied.push(`update_date → ${today}`);
+  }
+
+  for (const op of ops) {
+    if (!op || !op.action) {
+      skipped.push('invalid op (missing action)');
+      continue;
+    }
+
+    if (op.action === 'append') {
+      const section = op.section;
+      const text = op.text?.trim();
+      if (!section || !text) {
+        skipped.push(`append: missing section or text`);
+        continue;
+      }
+      const insertAt = findSectionInsertPoint(result, section);
+      if (insertAt === -1) {
+        skipped.push(`append: section "${section}" not found`);
+        continue;
+      }
+      result = result.slice(0, insertAt) + '\n\n' + text + result.slice(insertAt);
+      applied.push(`append to "${section}" (${text.length} chars)`);
+    } else {
+      skipped.push(`unknown action: ${op.action}`);
+    }
+  }
+
+  return { result, applied, skipped };
+}
+
+export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, projectContext, now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const items = [
+    `Today: ${today}`,
+    `Repository: ${snapshot.repository}`,
+    `Current version: ${snapshot.package?.version || snapshot.summary.latest_release || 'unknown'}`,
+    `Open issues: ${snapshot.summary.open_issues}`,
+    `Blocked: ${snapshot.summary.blocked_issues}`,
+    `Awaiting feedback: ${snapshot.summary.awaiting_feedback}`,
+    `PRs merged (90d): ${snapshot.summary.recently_merged_prs}`,
+    '',
+  ];
+
+  if (assessment?.assessment) {
+    items.push('Recent assessment:', sanitizeForPrompt(assessment.assessment), '');
+  }
+
+  if (assessment?.diff?.new_issues?.length > 0) {
+    items.push('New issues since last update:');
+    for (const i of assessment.diff.new_issues.slice(0, 15)) {
+      items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
+    }
+    items.push('');
+  }
+
+  if (assessment?.diff?.resolved_issues?.length > 0) {
+    items.push('Resolved issues:');
+    for (const i of assessment.diff.resolved_issues.slice(0, 15)) {
+      items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)}`);
+    }
+    items.push('');
+  }
+
+  if (assessment?.diff?.new_releases?.length > 0) {
+    items.push('New releases:');
+    for (const r of assessment.diff.new_releases) {
+      items.push(`  ${r.tag} (${r.published_at?.split('T')[0]})`);
+    }
+    items.push('');
+  }
+
+  items.push('High-reaction issues:', ...(snapshot.summary.high_reaction_issues.map(i => `  ${sanitizeForPrompt(i)}`)), '');
+  items.push('Top labels:', ...(snapshot.summary.top_open_labels.map(l => `  ${l}`)), '');
+
+  if (currentRoadmap) {
+    items.push('--- CURRENT ROADMAP (read-only context, do NOT reproduce) ---', sanitizeForPrompt(currentRoadmap), '--- END CURRENT ROADMAP ---', '');
+  }
+
+  const validSections = ['Implemented', 'Next Up', 'Future'];
+
+  return wrapPrompt({
+    role: 'You decide what NEW entries to append to a project roadmap. You do NOT reproduce or edit the existing document — the code handles that. You only output a JSON array of operations.',
+    projectContext,
+    items,
+    outroLines: [
+      'Instructions:',
+      `- Output a JSON array of append operations. Each operation: {"action": "append", "section": "<name>", "text": "<paragraph>"}`,
+      `- Valid section names: ${validSections.map(s => `"${s}"`).join(', ')}. No other section names are accepted.`,
+      '- Only create entries for genuinely new work visible in the data above (new merged PRs, resolved issues, new releases).',
+      '- Do not repeat or summarise anything already in the roadmap. Read the current roadmap carefully before deciding.',
+      '- If nothing meaningful changed since the last update, return an empty array: []',
+      '- Each "text" value should be a single markdown paragraph in the style of existing entries (e.g. "Feature X shipped 2026-05-26 (PR #N). Description of what changed.").',
+      '- Do not invent PR numbers, issue numbers, or dates not present in the data above.',
+      '- Output ONLY the JSON array, no commentary, no markdown fences, no explanation.',
+    ],
+  });
+}
+
+// Legacy prompt kept for reference but no longer called by update().
 export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext, now = new Date()) {
   // Inject today's date as a literal so the LLM never has to guess it from
   // its training cutoff. PR #176 hallucinated `Last Updated: 2024-07-20`.
