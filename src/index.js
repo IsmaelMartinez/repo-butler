@@ -100,7 +100,8 @@ export function parsePhases(phase) {
 // provider; IDEATE and MONITOR use the deep provider for richer reasoning.
 function providerForPhase(phase, defaultProvider, deepProvider) {
   if (phase === 'ideate' || phase === 'monitor') return deepProvider;
-  if (phase === 'assess' || phase === 'update') return defaultProvider;
+  if (phase === 'assess') return defaultProvider;
+  if (phase === 'update') return deepProvider;
   return null;
 }
 
