@@ -59,6 +59,8 @@ Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/instal
 
 The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 434 tests and secret-leak checks on every PR.
 
+
+Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 ---
 
 ## Roadmap
