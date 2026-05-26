@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-25T20:30:39.090Z",
+  "timestamp": "2026-05-26T06:24:22.007Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-25T18:28:59Z",
+    "pushed_at": "2026-05-26T06:24:09Z",
     "archived": false
   },
   "issues": {
@@ -80,6 +80,20 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 223,
+        "title": "fix(update): graduate UPDATE off dry-run",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T06:24:07Z"
+      },
+      {
+        "number": 222,
+        "title": "fix(update): emit soak telemetry before guards",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T06:03:47Z"
+      },
       {
         "number": 221,
         "title": "fix(libyear): per-fetch timeouts replace cascading abort (#220)",
@@ -1419,20 +1433,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-22T21:30:49Z"
-      },
-      {
-        "number": 16,
-        "title": "docs: roadmap v2 — the butler that cares",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-22T21:14:43Z"
-      },
-      {
-        "number": 15,
-        "title": "docs: update roadmap — multi-repo trends shipped",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-22T17:13:41Z"
       }
     ]
   },
@@ -1599,10 +1599,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9387755102040817,
-    "total_runs": 98,
-    "passed": 92,
-    "failed": 6
+    "pass_rate": 0.9473684210526315,
+    "total_runs": 95,
+    "passed": 90,
+    "failed": 5
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1627,7 +1627,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9387755102040817,
+    "ci_pass_rate": 0.9473684210526315,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
