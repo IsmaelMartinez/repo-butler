@@ -24,6 +24,7 @@ describe('observePortfolio — repo discovery', () => {
   afterEach(() => { globalThis.fetch = originalFetch; });
 
   const makeRepo = (name, overrides = {}) => ({
+    id: overrides.id ?? name.length * 1000 + name.charCodeAt(0),
     full_name: `alice/${name}`,
     name,
     owner: { login: 'alice' },
@@ -69,6 +70,7 @@ describe('observePortfolio — repo discovery', () => {
 
     assert.equal(result.repos.length, 1);
     assert.equal(result.repos[0].name, 'public-repo');
+    assert.equal(typeof result.repos[0].id, 'number', 'repo should carry its GitHub numeric id');
     assert.equal(result.repos[0].private, false);
     assert.ok(!result.repos.find(r => r.name === 'value-punter'), 'private repo should be filtered out');
   });

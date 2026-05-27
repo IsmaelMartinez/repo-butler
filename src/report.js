@@ -84,6 +84,24 @@ export async function report(context) {
     console.log(`Loaded repo cache with ${cachedCount} entries.`);
   }
 
+  // Bridge repo renames in the cache: if a current repo's name isn't in the
+  // cache but a cache entry with the same GitHub ID exists under the old name,
+  // migrate it so the incremental generation cache-hit check works.
+  if (repoCache?.repos && portfolio?.repos) {
+    const cacheIdMap = new Map();
+    for (const [name, entry] of Object.entries(repoCache.repos)) {
+      if (entry?.id) cacheIdMap.set(entry.id, name);
+    }
+    for (const r of portfolio.repos) {
+      if (r.id && !repoCache.repos[r.name] && cacheIdMap.has(r.id)) {
+        const oldName = cacheIdMap.get(r.id);
+        console.log(`Repo rename detected: ${oldName} → ${r.name} (id ${r.id}), migrating cache entry.`);
+        repoCache.repos[r.name] = repoCache.repos[oldName];
+        delete repoCache.repos[oldName];
+      }
+    }
+  }
+
   // Gather portfolio-level data (reuse from OBSERVE if already fetched for governance).
   const repoDetails = context.repoDetails
     || (portfolio ? await fetchPortfolioDetails(gh, owner, portfolio.repos, { cache: repoCache }) : null);
@@ -237,6 +255,7 @@ export async function report(context) {
         delete detailsForCache.sbom;
         newRepoCache.repos[r.name] = {
           schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+          id: r.id ?? null,
           pushed_at: r.pushed_at,
           open_issues_count: r.open_issues || 0,
           details: detailsForCache,
@@ -266,6 +285,7 @@ export async function report(context) {
         delete detailsForCache.sbom;
         newRepoCache.repos[r.name] = {
           schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+          id: r.id ?? null,
           pushed_at: r.pushed_at,
           open_issues_count: r.open_issues || 0,
           details: detailsForCache,

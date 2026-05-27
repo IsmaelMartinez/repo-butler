@@ -46,6 +46,7 @@ export function buildPortfolioSnapshot(repos, repoDetails, config) {
     if (r.archived || r.fork) continue;
     const details = repoDetails[r.name];
     const raw = {
+      id: r.id ?? null,
       open_issues: details?.open_issues ?? r.open_issues ?? 0,
       open_bugs: details?.open_bugs ?? null,
       commits_6mo: details?.commits || 0,
@@ -215,7 +216,9 @@ export function createStore(context) {
   }
 
   // Read weekly history for a specific repo from portfolio snapshots.
-  async function readRepoWeeklyHistory(repoName, weeks = MAX_WEEKLY_SNAPSHOTS) {
+  // When repoId is provided, falls back to ID-based lookup if the name
+  // isn't found — this bridges repo renames across historical snapshots.
+  async function readRepoWeeklyHistory(repoName, weeks = MAX_WEEKLY_SNAPSHOTS, repoId = null) {
     const files = await listBranchDir(PORTFOLIO_WEEKLY_DIR);
     const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
     const selected = jsonFiles.slice(-weeks);
@@ -227,7 +230,11 @@ export function createStore(context) {
         try {
           const parsed = JSON.parse(content);
           // Support both v1 envelope ({ schema_version, repos }) and legacy flat format.
-          const repoData = parsed.repos?.[repoName] ?? parsed[repoName];
+          const repos = parsed.repos ?? parsed;
+          let repoData = repos[repoName];
+          if (!repoData && repoId) {
+            repoData = Object.values(repos).find(r => r?.id === repoId);
+          }
           if (!repoData) return null;
           return {
             _week: file.replace('.json', ''),

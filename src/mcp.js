@@ -488,10 +488,15 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
 
   if (parsed.length === 0) return { error: 'Could not parse any weekly snapshots.' };
 
-  // Per-repo time-series.
+  // Per-repo time-series. When a name lookup misses, fall back to matching
+  // by GitHub repo ID — this bridges renames across historical snapshots.
   if (repoName) {
+    const latest = parsed[parsed.length - 1];
+    const repoId = latest?.repos?.[repoName]?.id ?? null;
+    const findRepo = (repos) => repos[repoName]
+      ?? (repoId ? Object.values(repos).find(r => r?.id === repoId) : undefined);
     const series = parsed
-      .map(({ week, repos }) => projectWeekRow(week, repos[repoName]))
+      .map(({ week, repos }) => projectWeekRow(week, findRepo(repos)))
       .filter(Boolean);
     return { repo: repoName, weeks: series.length, series };
   }

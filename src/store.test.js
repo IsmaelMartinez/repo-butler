@@ -337,3 +337,21 @@ describe('pruneDir (via writePortfolioWeekly)', () => {
     assert.equal(gh.calls.delete.length, 3);
   });
 });
+
+describe('buildPortfolioSnapshot — repo ID propagation', () => {
+  it('includes repo id in snapshot data when present', async () => {
+    const { buildPortfolioSnapshot } = await import('./store.js');
+    const repos = [{ id: 12345, name: 'my-repo', archived: false, fork: false, stars: 0, pushed_at: new Date().toISOString(), open_issues: 0 }];
+    const details = { 'my-repo': { commits: 5 } };
+    const snapshot = buildPortfolioSnapshot(repos, details, {});
+    assert.equal(snapshot.repos['my-repo'].id, 12345);
+  });
+
+  it('stores null id when repo object lacks it', async () => {
+    const { buildPortfolioSnapshot } = await import('./store.js');
+    const repos = [{ name: 'no-id', archived: false, fork: false, stars: 0, pushed_at: new Date().toISOString(), open_issues: 0 }];
+    const details = { 'no-id': { commits: 1 } };
+    const snapshot = buildPortfolioSnapshot(repos, details, {});
+    assert.equal(snapshot.repos['no-id'].id, null);
+  });
+});
