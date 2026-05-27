@@ -90,7 +90,7 @@ export async function report(context) {
   if (repoCache?.repos && portfolio?.repos) {
     const cacheIdMap = new Map();
     for (const [name, entry] of Object.entries(repoCache.repos)) {
-      if (entry.id) cacheIdMap.set(entry.id, name);
+      if (entry?.id) cacheIdMap.set(entry.id, name);
     }
     for (const r of portfolio.repos) {
       if (r.id && !repoCache.repos[r.name] && cacheIdMap.has(r.id)) {

@@ -492,9 +492,9 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
   // by GitHub repo ID — this bridges renames across historical snapshots.
   if (repoName) {
     const latest = parsed[parsed.length - 1];
-    const repoId = latest?.repos[repoName]?.id ?? null;
+    const repoId = latest?.repos?.[repoName]?.id ?? null;
     const findRepo = (repos) => repos[repoName]
-      ?? (repoId ? Object.values(repos).find(r => r.id === repoId) : undefined);
+      ?? (repoId ? Object.values(repos).find(r => r?.id === repoId) : undefined);
     const series = parsed
       .map(({ week, repos }) => projectWeekRow(week, findRepo(repos)))
       .filter(Boolean);

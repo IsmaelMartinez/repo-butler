@@ -233,7 +233,7 @@ export function createStore(context) {
           const repos = parsed.repos ?? parsed;
           let repoData = repos[repoName];
           if (!repoData && repoId) {
-            repoData = Object.values(repos).find(r => r.id === repoId);
+            repoData = Object.values(repos).find(r => r?.id === repoId);
           }
           if (!repoData) return null;
           return {
