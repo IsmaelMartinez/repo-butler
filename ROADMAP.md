@@ -63,8 +63,6 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
-
-Landscape evaluation completed 2026-05-28 ([docs/research/2026-05-28-multi-repo-tooling-landscape.md](docs/research/2026-05-28-multi-repo-tooling-landscape.md)) alongside Architecture Decision Record ADR-007. The evaluation established that no external execution tools (such as clone-based CLIs or self-hosted apps) will be embedded in the Action to protect the zero-dependency, API-only, zero-infrastructure moat. Community-health-file propagation will extend the native `apply.js` execution model directly, while `multi-gitter` is retained as a documented manual escape-hatch for complex migrations.
 ---
 
 ## Roadmap
