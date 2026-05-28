@@ -183,7 +183,7 @@ Detection engine shipped (`src/governance.js`). The pipeline runs `detectStandar
 
 Security prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.
 
-**Landscape evaluation** — Before building custom cross-repo enforcement, evaluate existing tools for the execution layer. File-based standards propagation (community health files, CI templates) can use `repo-file-sync-action` or `actions-template-sync`. Repo settings propagation (branch protection, labels, teams) can leverage `github/safe-settings` or GitHub org rulesets. Bulk remediation of governance findings can be handled by `multi-gitter` or `git-xargs` as the execution mechanism — the butler detects what needs to change, these tools apply it. See the Landscape section for details.
+~~**Landscape evaluation**~~ — EVALUATED 2026-05-28 ([docs/research/2026-05-28-multi-repo-tooling-landscape.md](docs/research/2026-05-28-multi-repo-tooling-landscape.md)). Conclusion: embed no external tool into the Action — the zero-dependency, API-only, zero-infra moat rules out clone-based CLIs (`multi-gitter`, `git-xargs`) and self-hosted Probot apps (`safe-settings`, `allstar`). Community-health-file propagation extends `apply.js` natively rather than adopting `repo-file-sync-action`; `multi-gitter` is kept as a manual escape-hatch; `ossf/scorecard` is deferred as a future OBSERVE signal. See [ADR-007](docs/decisions/007-agents-and-execution.md) and the Landscape section.
 
 
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents. This reduces token consumption, eliminates truncation errors, and guarantees deterministic application of roadmap updates.
@@ -237,11 +237,15 @@ AsyncAPI 3.0 spec describing the event-driven interface for consumers that want 
 
 **Spec file** — `docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI. Documents message shapes, channel bindings, and the `repository_dispatch` event type used as the transport.
 
-### Phase 10 — Agents and Execution (revised 2026-04-02)
+### Phase 10 — Agents and Execution (revised 2026-05-28)
 
-Rather than building a phased agent swarm, agent behaviors are defined via CLAUDE.md files created as needed. The butler's MCP server (Phase 7) is the integration surface — any Claude Code agent can call it. Agents that need cross-portfolio context (enriching synthesis briefings, executing governance proposals, monitoring health across both systems) live here. Agents that do per-repo deep intelligence (triage review, ADR revision, research synthesis) live in the triage bot repo, where the data is.
+Execution splits into two tracks by the nature of the finding, evolving step by step toward full automation. See [ADR-007](docs/decisions/007-agents-and-execution.md) for the full design and the [landscape evaluation](docs/research/2026-05-28-multi-repo-tooling-landscape.md) for why no external execution tool is embedded.
 
-For the execution layer — propagating configs, installing tools, applying migrations across repos — evaluate existing bulk change tools before building custom solutions. `multi-gitter` and `git-xargs` can run scripts and open PRs across repos. `repo-file-sync-action` can keep files in sync declaratively. `github/safe-settings` can manage repo settings via policy-as-code. `octoherd`'s composable script model is worth studying. The butler's unique contribution is deciding what needs to change (governance findings from Phase 5); the execution of that change should use existing tools where possible. See the Landscape section for details.
+Track A covers templatable findings (a `dependabot.yml`, enabling a scanner), which are already cloud-capable via `src/apply.js`. They reach full automation by relaxing ADR-005's gates incrementally and per finding-class (manual dispatch → schedule, dry-run → live, `require_approval` retained as the master switch). No agent is involved and every promotion is reversible.
+
+Track B covers reasoning findings (a repo-tailored CONTRIBUTING.md, a CI fix, a tier uplift needing code) and is agent-driven, evolving local-first: the butler first emits a structured remediation plan per finding — an `executor` hint plus a change spec — as a portable contract; the `repo-butler-apply` skill then consumes it locally, opens PRs and lets a human review, which is where agent judgement is hardened; Track A's gates relax in parallel; the hardened logic then lifts into a hosted Actions agent consuming the same contract, behind ADR-005 gates; and selective per-class auto-merge is the destination. Decoupling the decision logic from the runtime is what makes the local stage transfer to the cloud without a rewrite.
+
+Agent behaviours remain defined via CLAUDE.md files and the MCP server (Phase 7) stays the integration surface. Earlier guidance to adopt `multi-gitter`, `git-xargs`, or `safe-settings` as the execution layer is superseded by the landscape evaluation: no external tool is embedded, because the zero-dependency, API-only, zero-infra moat rules out clone-based CLIs and self-hosted apps. `multi-gitter` is retained only as a documented manual escape-hatch for complex migrations `apply.js` cannot template.
 
 ## What NOT to build
 
@@ -256,6 +260,8 @@ The boundary is clear: the triage bot goes deep on one repo, the butler goes bro
 ## Landscape — Multi-Repo Tools to Evaluate
 
 The butler's unique value is the observe-assess-report loop. The enforcement and remediation side (opening cross-repo PRs, syncing configs, propagating settings) overlaps with mature existing tools. Before building custom solutions in future phases, evaluate whether to use these tools directly, integrate with them, or learn from their approach.
+
+**Evaluation outcome (2026-05-28)** — see the [full landscape evaluation](docs/research/2026-05-28-multi-repo-tooling-landscape.md). Headline verdicts: embed no tool into the Action runtime (the moat rules out clone-based CLIs and self-hosted Probot apps); extend `apply.js` natively for community-health-file propagation rather than adopting `repo-file-sync-action`; keep `multi-gitter` as the manual escape-hatch for complex migrations; defer `ossf/scorecard` as a future OBSERVE signal; learn from `octoherd` (per-repo model), `safe-settings` (config hierarchy), and GitHub custom properties (targeting). The catalogue below remains as reference.
 
 **Bulk change tools** — Clone N repos, run a script in each, open PRs with results. Imperative (you trigger them) rather than continuously observing.
 
