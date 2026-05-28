@@ -4,7 +4,7 @@ Date: 2026-05-28
 
 ## Context
 
-The repo-butler roadmap identifies approximately twelve multi-repo tools for evaluation before developing custom cross-repo enforcement capabilities. Previous research from April 2026 focused on AI instruction files rather than these specific governance and execution tools, leaving this area unevaluated. This document addresses that gap by analyzing the identified tools to determine their relevance to the project. For each tool, the analysis provides a clear verdict on whether to adopt it, extend repo-butler in-house, learn from its design, use it as a manual escape-hatch, ingest it as a signal, or skip it entirely.
+The repo-butler roadmap identifies approximately twelve multi-repo tools for evaluation before developing custom cross-repo enforcement capabilities. Previous research from April 2026 focused on AI instruction files rather than these specific governance and execution tools, leaving this area unevaluated. This document addresses that gap by analysing the identified tools to determine their relevance to the project. For each tool, the analysis provides a clear verdict on whether to adopt it, extend repo-butler in-house, learn from its design, use it as a manual escape-hatch, ingest it as a signal, or skip it entirely.
 
 ## Evaluation criteria
 

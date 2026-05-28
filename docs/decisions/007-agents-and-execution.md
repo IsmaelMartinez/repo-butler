@@ -28,6 +28,6 @@ The load-bearing principle is that the decision logic (the remediation plan) is 
 
 ## Consequences
 
-Local-first architecture maintains human oversight while agent judgment remains unproven, aligning with the never-auto-merge rule and ADR-006 without requiring new infrastructure. The portable remediation-plan contract decouples decision logic from the runtime, allowing logic hardened locally to transfer to a hosted agent without a rewrite.
+Local-first architecture maintains human oversight while agent judgement remains unproven, aligning with the never-auto-merge rule and ADR-006 without requiring new infrastructure. The portable remediation-plan contract decouples decision logic from the runtime, allowing logic hardened locally to transfer to a hosted agent without a rewrite.
 
 Every stage inherits the five gates of ADR-005, with the never-auto-merge rule holding through stage four and auto-merge in stage five being per finding-class and opt-in rather than global. This staged path reaches full automation more slowly than jumping straight to a hosted agent, but each stage is reversible and de-risks the next.
