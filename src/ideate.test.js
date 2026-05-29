@@ -125,6 +125,33 @@ BODY: Update outdated dependencies to fix security issues.
     assert.equal(ideas[0].scope, null);
   });
 
+  it('surfaces (warns) a delimited block with a drifted/missing TITLE header instead of dropping it silently', () => {
+    const raw = `---IDEA---
+NAME: The model used NAME instead of TITLE
+PRIORITY: high
+BODY: This whole idea would otherwise vanish with no trace.
+---END---
+---IDEA---
+TITLE: A well-formed sibling idea
+PRIORITY: low
+BODY: This one parses fine.
+---END---`;
+
+    const warnings = [];
+    const origWarn = console.warn;
+    console.warn = (msg) => warnings.push(msg);
+    try {
+      const ideas = parseIdeas(raw);
+      assert.equal(ideas.length, 1, 'only the well-formed idea is kept');
+      assert.equal(ideas[0].title, 'A well-formed sibling idea');
+      assert.ok(warnings.some(w => /no parseable TITLE/i.test(w)), 'the dropped block is surfaced via console.warn');
+      // The warn must not echo the (adversary-influenceable) block content.
+      assert.ok(!warnings.some(w => w.includes('NAME: The model')), 'block content must not be logged');
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
   it('normalizes AFFECTED_FILES "unknown" to empty array', () => {
     const raw = `---IDEA---
 TITLE: Improve error handling

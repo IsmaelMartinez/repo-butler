@@ -191,7 +191,7 @@ export function parseIdeas(raw) {
   const ideas = [];
   const blocks = raw.split('---IDEA---').slice(1);
 
-  for (const block of blocks) {
+  for (const [i, block] of blocks.entries()) {
     const content = block.split('---END---')[0]?.trim();
     if (!content) continue;
 
@@ -215,7 +215,16 @@ export function parseIdeas(raw) {
     }
 
     const title = fields.title;
-    if (!title) continue;
+    if (!title) {
+      // A delimited block with no parseable TITLE: header — usually the model
+      // renamed the header (NAME:, IDEA:) or dropped it. Surface it instead of
+      // silently discarding the whole idea, which would make "Generated N
+      // ideas" undercount with no trace. Log only the ordinal and size — never
+      // the block content, which is adversary-influenceable LLM output and
+      // would leak into CI logs (cf. redactErrorForLog in update.js).
+      console.warn(`parseIdeas: idea block ${i + 1} has no parseable TITLE header (${content.length} chars) — model likely renamed or dropped it; skipping.`);
+      continue;
+    }
 
     const labelsRaw = fields.labels || '';
     const affectedFilesRaw = fields.affectedFiles ?? null;

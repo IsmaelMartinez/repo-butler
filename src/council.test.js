@@ -125,6 +125,56 @@ describe('deliberate', () => {
     assert.equal(result.verdicts[0].verdict, 'act');
     assert.equal(result.verdicts[1].verdict, 'dismiss');
   });
+
+  it('keeps an item with an off-enum verdict, defaulting it to watch', async () => {
+    // Models drift from the act|watch|dismiss enum ("approve", "monitor").
+    // The block must not be dropped — the item would vanish from every bucket
+    // and skew the summary counts. It defaults to watch (fail toward review).
+    const { deliberate } = await import('./council.js');
+    const mockResponse = [
+      '---VERDICT---',
+      'ITEM: 1',
+      'VERDICT: approve',
+      'CONFIDENCE: high',
+      'SUMMARY: Looks good.',
+      '---END---',
+    ].join('\n');
+    const fakeProvider = { generate: async () => mockResponse };
+    const result = await deliberate({ provider: fakeProvider }, [{ title: 'X' }], { mode: 'quick' });
+
+    assert.equal(result.verdicts.length, 1, 'item must not be dropped');
+    assert.equal(result.verdicts[0].verdict, 'watch');
+    assert.equal(result.verdicts[0].item_index, 0);
+  });
+
+  it('keeps an item whose VERDICT line is missing, defaulting it to watch', async () => {
+    const { deliberate } = await import('./council.js');
+    const mockResponse = [
+      '---VERDICT---',
+      'ITEM: 1',
+      'SUMMARY: The model forgot the verdict line.',
+      '---END---',
+    ].join('\n');
+    const fakeProvider = { generate: async () => mockResponse };
+    const result = await deliberate({ provider: fakeProvider }, [{ title: 'X' }], { mode: 'quick' });
+
+    assert.equal(result.verdicts.length, 1);
+    assert.equal(result.verdicts[0].verdict, 'watch');
+  });
+
+  it('still drops a block with no item number (cannot attach a verdict)', async () => {
+    const { deliberate } = await import('./council.js');
+    const mockResponse = [
+      '---VERDICT---',
+      'VERDICT: act',
+      'SUMMARY: No ITEM line, so it cannot be mapped to an item.',
+      '---END---',
+    ].join('\n');
+    const fakeProvider = { generate: async () => mockResponse };
+    const result = await deliberate({ provider: fakeProvider }, [{ title: 'X' }], { mode: 'quick' });
+
+    assert.equal(result.verdicts.length, 0);
+  });
 });
 
 describe('reviewProposals', () => {

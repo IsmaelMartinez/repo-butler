@@ -5,6 +5,12 @@ import { validateIssueBody, validateRoadmap, sanitizeForPrompt, wrapPrompt } fro
 
 const FALLBACK_PR_BODY_TAIL = 'No assessment available — roadmap updated based on current observation data.';
 
+// The roadmap sections the LLM may append new entries to. Shared by the prompt
+// builder (which advertises them) and applyEditOps (which validates against
+// them and recovers ops where the model put a section name in the action
+// field). Exported for testing.
+export const SECTION_NAMES = ['Implemented', 'Next Up', 'Future'];
+
 // Build the roadmap PR body. Optionally include the LLM-generated assessment;
 // the caller is expected to validate the resulting string via validateIssueBody
 // before sending it to the GitHub API.
@@ -344,6 +350,25 @@ function findSectionInsertPoint(roadmap, sectionName) {
   return boundary ? afterHeading + boundary.index : roadmap.length;
 }
 
+// Recover a recurring LLM malformation before classification: the model puts
+// the section name directly in the `action` field (e.g.
+// {"action":"Implemented","text":"…"}) instead of the documented
+// {"action":"append","section":"Implemented","text":"…"}. The live pipeline
+// dropped two such ops on 2026-05-29 as "unknown action: Implemented",
+// silently losing genuinely-new Implemented entries. When `action` is itself a
+// valid section name, reinterpret the op as an append to that section — an
+// explicit valid `section` field still wins if present. Genuinely unknown
+// actions (e.g. "delete") are returned untouched and still skipped downstream,
+// preserving the additive-only guarantee. Exported for testing.
+export function normalizeEditOp(op) {
+  if (!op || typeof op !== 'object') return op;
+  if (op.action && op.action !== 'append' && SECTION_NAMES.includes(op.action)) {
+    const section = SECTION_NAMES.includes(op.section) ? op.section : op.action;
+    return { ...op, action: 'append', section };
+  }
+  return op;
+}
+
 // Apply edit operations to the roadmap deterministically. Only additive
 // operations are supported — the LLM cannot delete or rewrite content.
 // Exported for testing.
@@ -362,7 +387,8 @@ export function applyEditOps(roadmap, ops, today) {
     applied.push(`update_date → ${today}`);
   }
 
-  for (const op of ops) {
+  for (const rawOp of ops) {
+    const op = normalizeEditOp(rawOp);
     if (!op || !op.action) {
       skipped.push('invalid op (missing action)');
       continue;
@@ -438,8 +464,6 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
     items.push('--- CURRENT ROADMAP (read-only context, do NOT reproduce) ---', sanitizeForPrompt(currentRoadmap), '--- END CURRENT ROADMAP ---', '');
   }
 
-  const validSections = ['Implemented', 'Next Up', 'Future'];
-
   return wrapPrompt({
     role: 'You decide what NEW entries to append to a project roadmap. You do NOT reproduce or edit the existing document — the code handles that. You only output a JSON array of operations.',
     projectContext,
@@ -447,7 +471,10 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
     outroLines: [
       'Instructions:',
       `- Output a JSON array of append operations. Each operation: {"action": "append", "section": "<name>", "text": "<paragraph>"}`,
-      `- Valid section names: ${validSections.map(s => `"${s}"`).join(', ')}. No other section names are accepted.`,
+      '- The "action" field is ALWAYS the literal string "append". The section name goes in the "section" field, never in "action".',
+      `  Wrong: {"action": "Implemented", "text": "…"}`,
+      `  Correct: {"action": "append", "section": "Implemented", "text": "…"}`,
+      `- Valid section names (for the "section" field): ${SECTION_NAMES.map(s => `"${s}"`).join(', ')}. No other section names are accepted.`,
       '- Only create entries for genuinely new work visible in the data above (new merged PRs, resolved issues, new releases).',
       '- Do not repeat or summarise anything already in the roadmap. Read the current roadmap carefully before deciding.',
       '- If nothing meaningful changed since the last update, return an empty array: []',
