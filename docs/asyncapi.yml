@@ -11,6 +11,14 @@
 # This file is validated in CI by a structural smoke test (src/asyncapi.test.js)
 # only — the zero-dependency Node 24 runtime has no AsyncAPI validator, so full
 # AsyncAPI-schema validation is a dev-time step run outside CI.
+#
+# Payloads here intentionally INLINE an event-shaped view rather than $ref the
+# schemas/v1 files directly: healthTierChanged is a transition (previousTier /
+# newTier) while health-tier.v1.schema.json is a state snapshot (tier + checks),
+# and governanceProposalOpened is a subset of governance-finding.v1.schema.json.
+# The schema references below (externalDocs) document the source of the field
+# shapes and enums. Dedicated event schemas that $ref the shared enums/$defs are
+# future work, to land alongside live repository_dispatch emission.
 
 asyncapi: 3.0.0
 

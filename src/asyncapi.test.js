@@ -29,8 +29,11 @@ describe('docs/asyncapi.yml structural smoke test', () => {
 
   it('defines both channels', async () => {
     const spec = await readFile(SPEC_PATH, 'utf-8');
-    assert.ok(spec.includes('healthTierChanged'), 'spec must define the healthTierChanged channel');
-    assert.ok(spec.includes('governanceProposalOpened'), 'spec must define the governanceProposalOpened channel');
+    // Anchor on the 2-space-indented channel key (under `channels:`), not a bare
+    // substring — the names also appear in descriptions/comments, so includes()
+    // could pass even if the channel definition were removed or renamed.
+    assert.match(spec, /^\s{2}healthTierChanged:/m, 'spec must define the healthTierChanged channel');
+    assert.match(spec, /^\s{2}governanceProposalOpened:/m, 'spec must define the governanceProposalOpened channel');
   });
 
   it('declares at least one send operation', async () => {
