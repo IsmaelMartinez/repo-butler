@@ -442,6 +442,22 @@ export function buildGovernanceSection(findings) {
 
   const parts = [];
 
+  // Remediation breakdown (ADR-007): how the findings route by executor —
+  // template (the apply pipeline opens a templated PR), agent (a local agent
+  // drafts a tailored PR), manual (needs the owner's own judgement).
+  const byExecutor = { template: 0, agent: 0, manual: 0 };
+  for (const f of findings) {
+    const ex = f.remediation?.executor;
+    if (ex === 'template' || ex === 'agent' || ex === 'manual') byExecutor[ex]++;
+  }
+  const executorBits = [];
+  if (byExecutor.template) executorBits.push(`${byExecutor.template} template (auto-applies)`);
+  if (byExecutor.agent) executorBits.push(`${byExecutor.agent} agent (local PR)`);
+  if (byExecutor.manual) executorBits.push(`${byExecutor.manual} manual (your hand)`);
+  if (executorBits.length > 0) {
+    parts.push(`<p class="muted">By remediation: ${executorBits.join(' &middot; ')}</p>`);
+  }
+
   if (gaps.length > 0) {
     const rows = gaps
       .slice()

@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
 **Last Updated:** 2026-05-27
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint.
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
 
@@ -240,6 +240,8 @@ AsyncAPI 3.0 spec describing the event-driven interface for consumers that want 
 ### Phase 10 — Agents and Execution (revised 2026-05-28)
 
 Execution splits into two tracks by the nature of the finding, evolving step by step toward full automation. See [ADR-007](docs/decisions/007-agents-and-execution.md) for the full design and the [landscape evaluation](docs/research/2026-05-28-multi-repo-tooling-landscape.md) for why no external execution tool is embedded.
+
+~~**Track B stages 1–2**~~ — SHIPPED 2026-05-28 to 2026-05-29 across PRs #239, #240 and #241. Stage 1 introduced deterministic remediation plans with executor hints and change specs (no LLM, persisted alongside the findings, exposed via the MCP `get_governance_findings` `byExecutor` summary and a JSON schema), and a follow-up reconciled the dependabot template key so `dependabot-actions` findings became actionable in the apply phase. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor, dispatching template findings to the cloud Governance Apply workflow, drafting local review PRs for agent findings, and listing manual findings for the owner. A follow-on increment established the executor hint as the authoritative actionability signal in `apply.js` (only `template` findings auto-apply) and surfaced a per-executor breakdown on the governance dashboard. Remaining stages: relax Track A gates per finding-class (stage 3), lift the hardened logic into a hosted Actions agent (stage 4), and selective per-class auto-merge (stage 5).
 
 Track A covers templatable findings (a `dependabot.yml`, enabling a scanner), which are already cloud-capable via `src/apply.js`. They reach full automation by relaxing ADR-005's gates incrementally and per finding-class (manual dispatch → schedule, dry-run → live, `require_approval` retained as the master switch). No agent is involved and every promotion is reversible.
 

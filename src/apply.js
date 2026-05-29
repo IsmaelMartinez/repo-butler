@@ -102,9 +102,16 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
-  // Build (repo, tool) pairs from validated findings
+  // Build (repo, tool) pairs from validated findings.
+  // The remediation.executor hint (ADR-007) is the authoritative actionability
+  // signal: only `template` findings are opened as templated PRs here. A finding
+  // with no remediation (a pre-contract snapshot) falls back to the prior
+  // TEMPLATES-only behaviour, so this never regresses older data; an explicit
+  // `agent`/`manual` executor is excluded even if its tool has a template.
   const validated = validateFindings(findings);
-  const actionable = validated.filter(f => TEMPLATES[f.tool]);
+  const actionable = validated.filter(
+    f => TEMPLATES[f.tool] && (f.remediation?.executor ?? 'template') === 'template'
+  );
   const filtered = tools ? actionable.filter(f => tools.includes(f.tool)) : actionable;
   const pairs = [];
   for (const f of filtered) {
