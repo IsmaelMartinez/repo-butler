@@ -103,6 +103,15 @@ describe('generateTemplate', () => {
     assert.ok(!result.content.includes('package-ecosystem: "gomod"'));
   });
 
+  it('generates a generic issue-form template (ecosystem-agnostic)', () => {
+    const result = generateTemplate('issue-form-templates', 'JavaScript');
+    assert.equal(result.path, '.github/ISSUE_TEMPLATE/bug_report.yml');
+    assert.ok(result.content.includes('name: Bug Report'));
+    assert.ok(result.content.includes('type: textarea'));
+    // Identical regardless of ecosystem — a generic form, not language-keyed.
+    assert.equal(generateTemplate('issue-form-templates', 'Go').content, result.content);
+  });
+
   it('returns null for unknown tool', () => {
     assert.equal(generateTemplate('secret-scanning', 'JavaScript'), null);
   });
@@ -361,5 +370,15 @@ describe('applyGovernanceFindings', () => {
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.pairs.length, 1, 'absent remediation falls back to TEMPLATES-only behaviour');
+  });
+
+  it('now actions an issue-form-templates finding routed to template', async () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'issue-form-templates', nonCompliant: ['repo-c'], remediation: { executor: 'template' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'issue-form-templates is now an actionable template tool');
+    assert.equal(result.pairs[0].tool, 'issue-form-templates');
   });
 });

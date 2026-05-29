@@ -59,6 +59,39 @@ ${updates}
 `;
     },
   },
+  'issue-form-templates': {
+    // A single file in .github/ISSUE_TEMPLATE/ is enough to satisfy the
+    // detector (observe.js flips hasIssueTemplate true once the directory has
+    // ≥1 entry). The content is deliberately ecosystem-agnostic — a generic
+    // bug-report form any repo can use as-is and tailor later.
+    path: '.github/ISSUE_TEMPLATE/bug_report.yml',
+    content: () => `name: Bug Report
+description: Report a problem to help us improve
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the problem?
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Which version or commit are you running?
+    validations:
+      required: false
+`,
+  },
 };
 
 export function generateTemplate(tool, ecosystem) {

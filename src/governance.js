@@ -343,13 +343,15 @@ export function generateUpliftProposals(repos, details, config = null) {
 // route to `agent`; everything that needs human judgement routes to `manual`.
 
 // Standards tools the butler can emit as a static templated file (apply.js has
-// a generator for these). Both match apply.js's TEMPLATES keys directly:
-// code-scanning and dependabot-actions. apply.js keys its template
-// 'dependabot-actions', so this hint and the executor are reconciled.
-const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions']);
+// a generator for these), each matching an apply.js TEMPLATES key directly:
+// code-scanning, dependabot-actions, and issue-form-templates (a generic
+// bug-report form — one file in .github/ISSUE_TEMPLATE/ satisfies the detector).
+// ci-workflows is deliberately NOT here: a static CI workflow fanned across
+// heterogeneous repos would open red-CI PRs, so it stays agent-routed.
+const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates']);
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
-const AGENT_TOOLS = new Set(['contributing-guide', 'issue-form-templates', 'ci-workflows']);
+const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
 
 // Known target file(s) per standards tool. An empty array means there is no
 // file to write (a repo-settings toggle or a human/legal decision).
@@ -357,7 +359,7 @@ const STANDARD_TARGET_FILES = {
   'code-scanning': ['.github/workflows/codeql-analysis.yml'],
   'dependabot-actions': ['.github/dependabot.yml'],
   'contributing-guide': ['CONTRIBUTING.md'],
-  'issue-form-templates': ['.github/ISSUE_TEMPLATE/'],
+  'issue-form-templates': ['.github/ISSUE_TEMPLATE/bug_report.yml'],
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],
