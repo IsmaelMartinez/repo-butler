@@ -64,7 +64,7 @@ Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mec
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
 
-Deterministic remediation plans and multi-track execution shipped 2026-05-29 (PRs #239–#241) under ADR-007. Every governance finding now carries a remediation plan (executor hint and change spec) persisted alongside the findings. The `repo-butler-apply` skill routes findings by executor, dispatching template findings to the cloud Governance Apply workflow, drafting local review PRs for agent findings, and listing manual findings for the owner.
+Track B stages 1–2 shipped 2026-05-29 (PRs #239–#241). Stage 1 introduced deterministic remediation plans containing executor hints and change specs (persisted alongside findings, exposed via the MCP `get_governance_findings` `byExecutor` summary and a JSON schema), and reconciled the dependabot template key to make `dependabot-actions` findings actionable. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor, dispatching template findings to the cloud Governance Apply workflow, drafting local review PRs for agent findings, and listing manual findings for the owner. A follow-on increment established the executor hint as the authoritative actionability signal in `apply.js` (only `template` findings auto-apply) and surfaced a per-executor breakdown on the governance dashboard.
 ---
 
 ## Roadmap
