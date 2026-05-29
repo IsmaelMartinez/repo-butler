@@ -99,6 +99,7 @@ describe('config schema matches DEFAULTS', () => {
       },
       standards: {},
       'standards-exclude': {},
+      'apply-cap': {},
     };
 
     // The schema also has a `repository` property (runtime-injected, not in DEFAULTS) — skip it

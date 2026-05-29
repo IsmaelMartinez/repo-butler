@@ -93,6 +93,23 @@ export function validateFindings(findings) {
   return valid;
 }
 
+// Cap (repo, tool) pairs per tool: each tool keeps at most its own cap, which is
+// the `apply-cap` override for that tool when set, else the global default. Order
+// is preserved so the kept pairs match the input ordering. Pure function.
+export function capPerTool(pairs, applyCap, globalCap) {
+  const kept = [];
+  const countByTool = {};
+  for (const p of pairs) {
+    const cap = applyCap?.[p.tool] ?? globalCap;
+    const used = countByTool[p.tool] || 0;
+    if (used < cap) {
+      kept.push(p);
+      countByTool[p.tool] = used + 1;
+    }
+  }
+  return kept;
+}
+
 export async function applyGovernanceFindings(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, tools } = options;
 
@@ -124,22 +141,29 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
     }
   }
 
+  // Per-tool cap (ADR-007 stage 3): each tool's blast radius is bounded
+  // independently. A tool's cap is its `apply-cap` config override if present,
+  // else the global maxPerRun — so an unlisted tool can never exceed the global
+  // default without an explicit, reviewed config entry. This replaces the single
+  // global slice; every other ADR-005 gate is unchanged.
+  const applyCap = config?.['apply-cap'] || {};
+  const capped = capPerTool(pairs, applyCap, maxPerRun);
+  const deferred = pairs.length - capped.length;
+
   // Dry-run fail-closed: only literal false disables dry-run
   if (dryRun !== false) {
-    console.log(`apply [DRY RUN]: would open PRs for ${pairs.length} (repo, tool) pairs`);
-    for (const p of pairs.slice(0, maxPerRun)) {
+    console.log(`apply [DRY RUN]: would open PRs for ${capped.length} (repo, tool) pairs`);
+    for (const p of capped) {
       console.log(`  - ${owner}/${p.repo}: ${p.tool}`);
     }
-    if (pairs.length > maxPerRun) {
-      console.log(`  ... ${pairs.length - maxPerRun} more deferred to next run`);
+    if (deferred > 0) {
+      console.log(`  ... ${deferred} more deferred to next run (per-tool cap)`);
     }
-    return { status: 'dry-run', pairs: pairs.slice(0, maxPerRun) };
+    return { status: 'dry-run', pairs: capped };
   }
 
-  // Enforce batch cap
-  const capped = pairs.slice(0, maxPerRun);
-  if (pairs.length > maxPerRun) {
-    console.log(`apply: capped at ${maxPerRun}, deferring ${pairs.length - maxPerRun} remaining`);
+  if (deferred > 0) {
+    console.log(`apply: per-tool cap deferred ${deferred} (repo, tool) pair(s) to next run`);
   }
 
   const results = [];

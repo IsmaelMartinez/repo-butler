@@ -97,6 +97,21 @@ standards:
     });
   });
 
+  it('parses apply-cap block as tool -> integer caps', async () => {
+    const yaml = `repository: owner/repo
+
+apply-cap:
+  code-scanning: 10
+  dependabot-actions: 3
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config['apply-cap']['code-scanning'], 10);
+      assert.equal(config['apply-cap']['dependabot-actions'], 3);
+      assert.equal(typeof config['apply-cap']['code-scanning'], 'number');
+    });
+  });
+
   it('parses nested observe block from YAML', async () => {
     const yaml = `repository: owner/repo
 
