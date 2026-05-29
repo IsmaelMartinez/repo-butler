@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
 **Last Updated:** 2026-05-29
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint.
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
 
@@ -63,8 +63,6 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
-
-Portable remediation-plan contract on governance findings shipped 2026-05-29 (PR #239). Introduced a sophisticated compliance feature designed to make governance findings portable and actionable across different environments, laying the groundwork for automated remediation.
 ---
 
 ## Roadmap
@@ -189,6 +187,8 @@ Security prerequisites (from architecture review): ~~bot URL validation~~, ~~eco
 
 
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents. This reduces token consumption, eliminates truncation errors, and guarantees deterministic application of roadmap updates.
+
+~~**Track B stages 1–2**~~ — SHIPPED 2026-05-29 (PRs #239–#243). Reconciled the Dependabot template key (PR #240), introduced deterministic remediation plans with executor hints and change specs (PR #239), and enabled the `repo-butler-apply` skill to route findings by executor (PR #241). Established the executor hint as the authoritative actionability signal in `apply.js` (only template findings auto-apply), added a per-executor breakdown on the governance dashboard, and integrated the AsyncAPI 3.0 event specification (PR #242) for event-driven contracts.
 ---
 
 ## Future
@@ -237,11 +237,13 @@ AsyncAPI 3.0 spec describing the event-driven interface for consumers that want 
 
 **Governance-proposal channel** — Emitted when the butler opens a cross-repo PR or creates a governance issue. Payload includes the proposal type, affected repos, and campaign membership.
 
-**Spec file** — `docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI. Documents message shapes, channel bindings, and the `repository_dispatch` event type used as the transport.
+**Spec file** — ~~`docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI.~~ Shipped: the AsyncAPI 3.0 spec lives at `docs/asyncapi.yml` as a discovery-only contract — like the A2A Agent Card, it describes the interface without a live transport. It defines the two channels (`healthTierChanged`, `governanceProposalOpened`), each with a `send` operation, whose payloads reference the Phase 6 schemas (`health-tier.v1.schema.json`, `governance-finding.v1.schema.json`) and document the GitHub `repository_dispatch` event types (`repo-butler.health-tier-changed`, `repo-butler.governance-proposal-opened`) used as the transport. It is validated by a structural smoke test in CI (`src/asyncapi.test.js`); full AsyncAPI-schema validation is a dev-time step, since the zero-dependency runtime has no AsyncAPI validator. Live `repository_dispatch` emission is deferred — it needs tier-change detection that does not exist yet.
 
 ### Phase 10 — Agents and Execution (revised 2026-05-28)
 
 Execution splits into two tracks by the nature of the finding, evolving step by step toward full automation. See [ADR-007](docs/decisions/007-agents-and-execution.md) for the full design and the [landscape evaluation](docs/research/2026-05-28-multi-repo-tooling-landscape.md) for why no external execution tool is embedded.
+
+~~**Track B stages 1–2**~~ — SHIPPED 2026-05-28 to 2026-05-29 across PRs #239, #240 and #241. Stage 1 introduced deterministic remediation plans with executor hints and change specs (no LLM, persisted alongside the findings, exposed via the MCP `get_governance_findings` `byExecutor` summary and a JSON schema), and a follow-up reconciled the dependabot template key so `dependabot-actions` findings became actionable in the apply phase. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor, dispatching template findings to the cloud Governance Apply workflow, drafting local review PRs for agent findings, and listing manual findings for the owner. A follow-on increment established the executor hint as the authoritative actionability signal in `apply.js` (only `template` findings auto-apply) and surfaced a per-executor breakdown on the governance dashboard. Remaining stages: relax Track A gates per finding-class (stage 3), lift the hardened logic into a hosted Actions agent (stage 4), and selective per-class auto-merge (stage 5).
 
 Track A covers templatable findings (a `dependabot.yml`, enabling a scanner), which are already cloud-capable via `src/apply.js`. They reach full automation by relaxing ADR-005's gates incrementally and per finding-class (manual dispatch → schedule, dry-run → live, `require_approval` retained as the master switch). No agent is involved and every promotion is reversible.
 
