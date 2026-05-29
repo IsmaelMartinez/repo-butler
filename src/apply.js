@@ -37,7 +37,7 @@ jobs:
 `;
     },
   },
-  'dependabot': {
+  'dependabot-actions': {
     path: '.github/dependabot.yml',
     content: (eco) => {
       const ecosystems = [];
