@@ -8,15 +8,15 @@ describe('validateFindings', () => {
       { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'] },
       { type: 'policy-drift', tool: 'x', nonCompliant: ['repo-b'] },
       { type: 'standards-gap', nonCompliant: ['repo-c'] }, // missing tool
-      { type: 'standards-gap', tool: 'dependabot' }, // missing nonCompliant
+      { type: 'standards-gap', tool: 'dependabot-actions' }, // missing nonCompliant
       null,
       'string',
-      { type: 'standards-gap', tool: 'dependabot', nonCompliant: ['repo-d'] },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-d'] },
     ];
     const result = validateFindings(input);
     assert.equal(result.length, 2);
     assert.equal(result[0].tool, 'code-scanning');
-    assert.equal(result[1].tool, 'dependabot');
+    assert.equal(result[1].tool, 'dependabot-actions');
   });
 
   it('returns empty array for non-array input', () => {
@@ -47,7 +47,7 @@ describe('generateTemplate', () => {
   });
 
   it('generates dependabot template for JavaScript', () => {
-    const result = generateTemplate('dependabot', 'JavaScript');
+    const result = generateTemplate('dependabot-actions', 'JavaScript');
     assert.equal(result.path, '.github/dependabot.yml');
     assert.ok(result.content.includes('package-ecosystem: "npm"'));
     assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
@@ -55,13 +55,13 @@ describe('generateTemplate', () => {
   });
 
   it('generates dependabot template for Go', () => {
-    const result = generateTemplate('dependabot', 'Go');
+    const result = generateTemplate('dependabot-actions', 'Go');
     assert.ok(result.content.includes('package-ecosystem: "gomod"'));
     assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
   });
 
   it('generates dependabot template for bare (no package manager)', () => {
-    const result = generateTemplate('dependabot', '');
+    const result = generateTemplate('dependabot-actions', '');
     assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
     assert.ok(!result.content.includes('package-ecosystem: "npm"'));
     assert.ok(!result.content.includes('package-ecosystem: "gomod"'));
@@ -69,6 +69,13 @@ describe('generateTemplate', () => {
 
   it('returns null for unknown tool', () => {
     assert.equal(generateTemplate('secret-scanning', 'JavaScript'), null);
+  });
+
+  it('dependabot-actions tool name (governance emits this) resolves a template', () => {
+    const result = generateTemplate('dependabot-actions', 'JavaScript');
+    assert.notEqual(result, null);
+    assert.equal(result.path, '.github/dependabot.yml');
+    assert.ok(result.content.includes('package-ecosystem: "npm"'));
   });
 });
 
@@ -226,12 +233,23 @@ describe('applyGovernanceFindings', () => {
   it('filters findings by tools option', async () => {
     const findings = [
       { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
-      { type: 'standards-gap', tool: 'dependabot', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
     ];
-    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: false, tools: ['dependabot'] });
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: false, tools: ['dependabot-actions'] });
     assert.equal(result.status, 'completed');
     const prCalls = calls.filter(c => c.type === 'request' && c.opts?.method === 'POST' && c.path.includes('/pulls'));
     assert.equal(prCalls.length, 1);
     assert.ok(prCalls[0].path.includes('repo-b'));
+  });
+
+  it('treats a dependabot-actions finding as actionable (not filtered out)', async () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true, tools: ['dependabot-actions'] });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1);
+    assert.equal(result.pairs[0].repo, 'repo-b');
+    assert.equal(result.pairs[0].tool, 'dependabot-actions');
   });
 });

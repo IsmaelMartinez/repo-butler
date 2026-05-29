@@ -343,9 +343,9 @@ export function generateUpliftProposals(repos, details, config = null) {
 // route to `agent`; everything that needs human judgement routes to `manual`.
 
 // Standards tools the butler can emit as a static templated file (apply.js has
-// a generator for these). code-scanning matches apply.js's TEMPLATES key today;
-// dependabot-actions is templatable by design (apply.js keys its template
-// 'dependabot' — a naming gap tracked separately, not by this contract).
+// a generator for these). Both match apply.js's TEMPLATES keys directly:
+// code-scanning and dependabot-actions. apply.js keys its template
+// 'dependabot-actions', so this hint and the executor are reconciled.
 const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions']);
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
