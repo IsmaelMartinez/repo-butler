@@ -183,14 +183,15 @@ B3. For each (repo, finding) pair, draft the change in a local checkout and open
 
 ```bash
 WORKDIR=$(mktemp -d)
-gh repo clone "$OWNER/$REPO" "$WORKDIR/$REPO" -- --depth 1 2>/dev/null || { echo "clone failed: $REPO"; continue; }
+gh repo clone "$OWNER/$REPO" "$WORKDIR/$REPO" -- --depth 1 2>/dev/null || { echo "clone failed: $REPO"; rm -rf "$WORKDIR"; continue; }
 cd "$WORKDIR/$REPO"
-BRANCH="repo-butler/apply-${TOOL}"   # e.g. repo-butler/apply-contributing-guide
+# tier-uplift findings have no `tool`; fall back to a generic branch suffix.
+BRANCH="repo-butler/apply-${TOOL:-uplift}"   # e.g. repo-butler/apply-contributing-guide
 git checkout -b "$BRANCH"
 # ... author the files in remediation.targetFiles here, tailored to this repo ...
 git add -A
 git commit -m "chore: ${INTENT} (repo-butler governance)"
-git push -u origin "$BRANCH" 2>/dev/null || { echo "push failed: $REPO"; cd -; continue; }
+git push -u origin "$BRANCH" 2>/dev/null || { echo "push failed: $REPO"; cd - >/dev/null; rm -rf "$WORKDIR"; continue; }
 PR_URL=$(gh pr create --repo "$OWNER/$REPO" --title "${INTENT}" \
   --body "Opened by repo-butler-apply to remediate a governance finding.
 
@@ -200,11 +201,12 @@ Rationale: ${RATIONALE}
 Acceptance criteria:
 ${ACCEPTANCE_CRITERIA}
 
-Please review before merging.") || { echo "pr create failed: $REPO"; cd -; continue; }
+Please review before merging.") || { echo "pr create failed: $REPO"; cd - >/dev/null; rm -rf "$WORKDIR"; continue; }
 # Label is best-effort — not every repo defines it, and a missing label must not lose the PR.
 gh pr edit "$PR_URL" --add-label "governance-apply" 2>/dev/null || true
 echo "opened: $REPO -> $PR_URL"
-cd -
+cd - >/dev/null
+rm -rf "$WORKDIR"   # clean up the checkout; leak nothing in /tmp
 ```
 
 If a clone, push, or PR step fails for a repo, report it in the closing panel and move on to the next — do not retry blindly.
