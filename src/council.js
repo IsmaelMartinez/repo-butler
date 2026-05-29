@@ -289,6 +289,22 @@ function formatItemForPrompt(item) {
   return lines.join('\n');
 }
 
+// Resolve a parsed VERDICT token to a known verdict. The prompt asks for
+// exactly act|watch|dismiss, but models drift ("approve", "monitor", "proceed")
+// or omit the line. Dropping the whole block on a mismatch — the prior
+// behaviour — erased the item from every bucket in bucketVerdicts and skewed
+// the "N approved, M watchlisted" summary, so a proposal could silently vanish.
+// Instead, when the block has a usable item number, default an unrecognized or
+// missing verdict to WATCH (fail toward human review, mirroring
+// parsePersonaResponse) and warn so the drift is visible. Returns null only
+// when there is no item number to attach the verdict to.
+function resolveVerdict(rawVerdict, itemNum) {
+  if (!itemNum) return null;
+  if (rawVerdict && Object.values(VERDICTS).includes(rawVerdict)) return rawVerdict;
+  console.warn(`council: item ${itemNum} had unrecognized verdict "${rawVerdict ?? '(missing)'}" — defaulting to ${VERDICTS.WATCH}`);
+  return VERDICTS.WATCH;
+}
+
 function parseDeliberationResponse(raw, items) {
   const blocks = raw.split('---VERDICT---').slice(1);
   const verdicts = [];
@@ -311,12 +327,13 @@ function parseDeliberationResponse(raw, items) {
       if (match) perspectives[key] = match[1].trim();
     }
 
-    if (itemNum && verdict && Object.values(VERDICTS).includes(verdict)) {
+    const resolved = resolveVerdict(verdict, itemNum);
+    if (resolved) {
       const item = items[itemNum - 1];
       verdicts.push({
         item_index: itemNum - 1,
         item_title: item?.title || `Item ${itemNum}`,
-        verdict,
+        verdict: resolved,
         confidence,
         priority,
         summary,
@@ -363,12 +380,13 @@ function parseSynthesisResponse(raw, items) {
     const action = content.match(/ACTION:\s*(.+)/)?.[1]?.trim() || 'none';
     const dissent = content.match(/DISSENT:\s*(.+)/)?.[1]?.trim() || 'none';
 
-    if (itemNum && verdict && Object.values(VERDICTS).includes(verdict)) {
+    const resolved = resolveVerdict(verdict, itemNum);
+    if (resolved) {
       const item = items[itemNum - 1];
       verdicts.push({
         item_index: itemNum - 1,
         item_title: item?.title || `Item ${itemNum}`,
-        verdict,
+        verdict: resolved,
         confidence,
         priority,
         summary,
