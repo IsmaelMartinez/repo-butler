@@ -18,7 +18,7 @@ describe('Schema files are valid JSON', () => {
   it('all six schema files parse and have required top-level fields', async () => {
     const files = await readdir(SCHEMA_DIR);
     const jsonFiles = files.filter(f => f.endsWith('.json'));
-    assert.equal(jsonFiles.length, 6, `expected 6 schema files, found ${jsonFiles.length}`);
+    assert.equal(jsonFiles.length, 7, `expected 7 schema files, found ${jsonFiles.length}`);
 
     for (const file of jsonFiles) {
       const schema = await loadSchema(file);
@@ -250,5 +250,49 @@ describe('portfolio-details schema documents fetchPortfolioDetails shape', () =>
       assert.ok(required.includes(field), `"${field}" should be in portfolio-details required list`);
     }
     assert.ok(!required.includes('contributors'), '"contributors" should NOT be required (added post-fetch)');
+  });
+});
+
+// --- Test 6: governance-finding schema matches buildRemediationPlan output ---
+
+describe('governance-finding schema matches buildRemediationPlan output', () => {
+  it('every RemediationPlan required field is produced for every finding type', async () => {
+    const { buildRemediationPlan } = await import('./governance.js');
+    const schema = await loadSchema('governance-finding.v1.schema.json');
+    const planRequired = schema.$defs.RemediationPlan.required;
+    const executorEnum = schema.$defs.RemediationPlan.properties.executor.enum;
+
+    const sampleFindings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], adoptionRate: 0.5 },
+      { type: 'tier-uplift', repo: 'repo-b', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'security trifecta' }] },
+      { type: 'policy-drift', category: 'license', repo: 'repo-c', expected: 'MIT', actual: 'GPL-3.0' },
+      { type: 'dependabot-stale', repo: 'repo-d', stalePRs: [{ number: 1, title: 'bump', age: 45 }] },
+    ];
+
+    for (const finding of sampleFindings) {
+      const plan = buildRemediationPlan(finding);
+      for (const field of planRequired) {
+        assert.ok(field in plan, `${finding.type}: remediation plan missing required field "${field}"`);
+      }
+      assert.ok(executorEnum.includes(plan.executor), `${finding.type}: executor "${plan.executor}" not in schema enum`);
+      assert.ok(Array.isArray(plan.targetFiles), `${finding.type}: targetFiles should be an array`);
+      assert.ok(Array.isArray(plan.acceptanceCriteria), `${finding.type}: acceptanceCriteria should be an array`);
+    }
+  });
+
+  it('executor hints route finding tools as designed', async () => {
+    const { buildRemediationPlan } = await import('./governance.js');
+
+    const templatable = buildRemediationPlan({ type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['r'] });
+    assert.equal(templatable.executor, 'template');
+
+    const agentTool = buildRemediationPlan({ type: 'standards-gap', tool: 'contributing-guide', nonCompliant: ['r'] });
+    assert.equal(agentTool.executor, 'agent');
+
+    const manualTool = buildRemediationPlan({ type: 'standards-gap', tool: 'license', nonCompliant: ['r'] });
+    assert.equal(manualTool.executor, 'manual');
+
+    const drift = buildRemediationPlan({ type: 'policy-drift', category: 'ci-reliability', repo: 'r', expected: '90%', actual: '60%' });
+    assert.equal(drift.executor, 'manual');
   });
 });

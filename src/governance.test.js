@@ -391,3 +391,84 @@ describe('generateUpliftProposals', () => {
     }
   });
 });
+
+// --- Remediation plan contract (ADR-007 Track B stage 1) ---
+
+describe('buildRemediationPlan', () => {
+  it('routes a templatable standards tool to the template executor', () => {
+    const plan = buildRemediationPlan({
+      type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a', 'repo-b'], adoptionRate: 0.6,
+    });
+    assert.equal(plan.executor, 'template');
+    assert.deepEqual(plan.targetFiles, ['.github/workflows/codeql-analysis.yml']);
+    assert.match(plan.intent, /code-scanning/);
+    assert.match(plan.rationale, /60%/);
+    assert.ok(plan.acceptanceCriteria.length >= 1);
+  });
+
+  it('routes dependabot-actions to template despite the apply.js key alias', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['r'] });
+    assert.equal(plan.executor, 'template');
+    assert.deepEqual(plan.targetFiles, ['.github/dependabot.yml']);
+  });
+
+  it('routes a content-tailored standards tool to the agent executor', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'contributing-guide', nonCompliant: ['r'] });
+    assert.equal(plan.executor, 'agent');
+    assert.deepEqual(plan.targetFiles, ['CONTRIBUTING.md']);
+  });
+
+  it('routes license and secret-scanning gaps to the manual executor', () => {
+    assert.equal(buildRemediationPlan({ type: 'standards-gap', tool: 'license', nonCompliant: ['r'] }).executor, 'manual');
+    assert.equal(buildRemediationPlan({ type: 'standards-gap', tool: 'secret-scanning', nonCompliant: ['r'] }).executor, 'manual');
+  });
+
+  it('routes tier-uplift to agent with one acceptance criterion per failing check', () => {
+    const plan = buildRemediationPlan({
+      type: 'tier-uplift', repo: 'repo-x', currentTier: 'silver', targetTier: 'gold',
+      failingChecks: [{ name: 'check-1' }, { name: 'check-2' }],
+    });
+    assert.equal(plan.executor, 'agent');
+    assert.equal(plan.acceptanceCriteria.length, 2);
+    assert.match(plan.intent, /silver to gold/);
+  });
+
+  it('routes policy-drift to manual, with a LICENSE target only for license drift', () => {
+    const license = buildRemediationPlan({ type: 'policy-drift', category: 'license', repo: 'r', expected: 'MIT', actual: 'GPL-3.0' });
+    assert.equal(license.executor, 'manual');
+    assert.deepEqual(license.targetFiles, ['LICENSE']);
+    const ci = buildRemediationPlan({ type: 'policy-drift', category: 'ci-reliability', repo: 'r', expected: '90%', actual: '60%' });
+    assert.deepEqual(ci.targetFiles, []);
+  });
+
+  it('routes dependabot-stale to manual and reports the oldest PR age', () => {
+    const plan = buildRemediationPlan({
+      type: 'dependabot-stale', repo: 'r', stalePRs: [{ number: 1, age: 35 }, { number: 2, age: 70 }],
+    });
+    assert.equal(plan.executor, 'manual');
+    assert.match(plan.rationale, /70 days/);
+  });
+
+  it('falls back to manual for an unknown finding type', () => {
+    const plan = buildRemediationPlan({ type: 'something-new' });
+    assert.equal(plan.executor, 'manual');
+    assert.deepEqual(plan.acceptanceCriteria, []);
+  });
+});
+
+describe('attachRemediationPlans', () => {
+  it('adds a remediation plan to every finding without mutating the input', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['a'] },
+      { type: 'tier-uplift', repo: 'b', currentTier: 'bronze', targetTier: 'silver', failingChecks: [] },
+    ];
+    const result = attachRemediationPlans(findings);
+    assert.equal(result.length, 2);
+    assert.ok(result.every(f => f.remediation && f.remediation.executor));
+    assert.equal(findings[0].remediation, undefined, 'input findings must not be mutated');
+  });
+
+  it('returns an empty array for non-array input', () => {
+    assert.deepEqual(attachRemediationPlans(null), []);
+  });
+});
