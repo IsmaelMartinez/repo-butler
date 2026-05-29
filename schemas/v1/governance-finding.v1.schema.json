@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/governance-finding.v1.schema.json",
+  "title": "GovernanceFinding",
+  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift) and src/dependabot-audit.js (dependabot-stale). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
+  "type": "object",
+  "required": ["type", "priority", "remediation"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["standards-gap", "policy-drift", "tier-uplift", "dependabot-stale"],
+      "description": "The finding category, which determines the remaining fields."
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Remediation priority. standards-gap derives it from adoption rate; tier-uplift and dependabot-stale from severity; policy-drift is always medium."
+    },
+    "tool": {
+      "type": "string",
+      "description": "standards-gap only: the standard/tool key (e.g. code-scanning, dependabot-actions, contributing-guide)."
+    },
+    "repo": {
+      "type": "string",
+      "description": "policy-drift, tier-uplift, dependabot-stale: the affected repository name."
+    },
+    "nonCompliant": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "standards-gap only: repos missing the standard."
+    },
+    "remediation": { "$ref": "#/$defs/RemediationPlan" }
+  },
+  "$defs": {
+    "RemediationPlan": {
+      "title": "RemediationPlan",
+      "description": "The portable remediation contract (ADR-007 Track B stage 1). Built deterministically by buildRemediationPlan() in src/governance.js — no LLM.",
+      "type": "object",
+      "required": ["executor", "targetFiles", "intent", "rationale", "acceptanceCriteria"],
+      "properties": {
+        "executor": {
+          "type": "string",
+          "enum": ["template", "agent", "manual"],
+          "description": "Routing hint: `template` for findings the butler can write as a static file, `agent` for findings needing tailored reasoning, `manual` for findings needing human judgement. A hint, not a guarantee the apply phase can act on it today."
+        },
+        "targetFiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files the remediation would create or modify. Empty when the change is a repo-settings toggle or a human/legal decision rather than a file write."
+        },
+        "intent": {
+          "type": "string",
+          "description": "One-line statement of what the remediation does."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why the finding fired, phrased deterministically from the finding's own fields."
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Conditions that, once true, mean the finding is resolved."
+        }
+      }
+    }
+  }
+}

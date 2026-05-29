@@ -325,6 +325,12 @@ function toolGetGovernanceFindings() {
         gaps: findings.filter(f => f.type === 'standards-gap').length,
         drift: findings.filter(f => f.type === 'policy-drift').length,
         uplift: findings.filter(f => f.type === 'tier-uplift').length,
+        // ADR-007 remediation contract: route findings by executor hint.
+        byExecutor: {
+          template: findings.filter(f => f.remediation?.executor === 'template').length,
+          agent: findings.filter(f => f.remediation?.executor === 'agent').length,
+          manual: findings.filter(f => f.remediation?.executor === 'manual').length,
+        },
       },
     };
   } catch {

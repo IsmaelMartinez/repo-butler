@@ -42,6 +42,11 @@ export async function runGovernance(context) {
     console.log(`Dependabot audit: ${stale.length} repos with stale PRs.`);
   }
 
+  // Attach the portable remediation-plan contract (ADR-007) to every finding
+  // before persisting, so the MCP tool, dashboard, and apply phase all read the
+  // executor hint and change spec.
+  context.governanceFindings = attachRemediationPlans(context.governanceFindings);
+
   if (store) {
     // Always persist — even an empty array — so the data branch reflects
     // the current portfolio state. Otherwise stale findings linger after
@@ -322,4 +327,115 @@ export function generateUpliftProposals(repos, details, config = null) {
   }
 
   return proposals;
+}
+
+// --- Remediation plan contract (ADR-007, Track B stage 1) ---
+//
+// Every finding carries a portable remediation plan: an `executor` routing hint
+// plus a change spec (target files, intent, rationale, acceptance criteria).
+// Deterministic — no LLM, no API calls. Both the local repo-butler-apply skill
+// and any future hosted agent consume the same contract, which is what lets
+// logic hardened locally lift to a hosted runtime without a rewrite.
+//
+// `executor` is a hint about which runtime should handle the finding, not a
+// guarantee the apply phase can act on it today. Standards tools the butler can
+// write as a static file route to `template`; tools needing tailored content
+// route to `agent`; everything that needs human judgement routes to `manual`.
+
+// Standards tools the butler can emit as a static templated file (apply.js has
+// a generator for these). code-scanning matches apply.js's TEMPLATES key today;
+// dependabot-actions is templatable by design (apply.js keys its template
+// 'dependabot' — a naming gap tracked separately, not by this contract).
+const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions']);
+
+// Standards tools that need tailored, per-repo content an agent must reason about.
+const AGENT_TOOLS = new Set(['contributing-guide', 'issue-form-templates', 'ci-workflows']);
+
+// Known target file(s) per standards tool. An empty array means there is no
+// file to write (a repo-settings toggle or a human/legal decision).
+const STANDARD_TARGET_FILES = {
+  'code-scanning': ['.github/workflows/codeql-analysis.yml'],
+  'dependabot-actions': ['.github/dependabot.yml'],
+  'contributing-guide': ['CONTRIBUTING.md'],
+  'issue-form-templates': ['.github/ISSUE_TEMPLATE/'],
+  'ci-workflows': ['.github/workflows/ci.yml'],
+  'license': ['LICENSE'],
+  'secret-scanning': [],
+};
+
+function standardsExecutor(tool) {
+  if (TEMPLATABLE_TOOLS.has(tool)) return 'template';
+  if (AGENT_TOOLS.has(tool)) return 'agent';
+  return 'manual';
+}
+
+/**
+ * Build the deterministic remediation plan for a single finding.
+ * @param {object} finding — a governance finding of any type
+ * @returns {{ executor: 'template'|'agent'|'manual', targetFiles: string[], intent: string, rationale: string, acceptanceCriteria: string[] }}
+ */
+export function buildRemediationPlan(finding) {
+  switch (finding?.type) {
+    case 'standards-gap': {
+      const repos = finding.nonCompliant || [];
+      const pct = Math.round((finding.adoptionRate ?? 0) * 100);
+      return {
+        executor: standardsExecutor(finding.tool),
+        targetFiles: STANDARD_TARGET_FILES[finding.tool] ?? [],
+        intent: `Add ${finding.tool} to ${repos.length} non-compliant repo(s)`,
+        rationale: `Standards gap: ${finding.tool} adopted by ${pct}% of in-scope repos; missing in ${repos.join(', ') || 'none'}.`,
+        acceptanceCriteria: [`Every non-compliant repo passes the ${finding.tool} standard check`],
+      };
+    }
+    case 'tier-uplift': {
+      const checks = (finding.failingChecks || []).map(c => c.name);
+      return {
+        executor: 'agent',
+        targetFiles: [],
+        intent: `Uplift ${finding.repo} from ${finding.currentTier} to ${finding.targetTier}`,
+        rationale: `${checks.length} check(s) block ${finding.targetTier}: ${checks.join(', ') || 'none'}.`,
+        acceptanceCriteria: checks.map(name => `Check "${name}" passes`),
+      };
+    }
+    case 'policy-drift': {
+      return {
+        executor: 'manual',
+        targetFiles: finding.category === 'license' ? ['LICENSE'] : [],
+        intent: `Align ${finding.repo} ${finding.category} with the portfolio norm`,
+        rationale: `Expected ${finding.expected}, found ${finding.actual}.`,
+        acceptanceCriteria: [`${finding.repo} ${finding.category} matches ${finding.expected}`],
+      };
+    }
+    case 'dependabot-stale': {
+      const prs = finding.stalePRs || [];
+      // reduce, not Math.max(...spread), to avoid a stack overflow on very large arrays.
+      const oldest = prs.reduce((max, p) => Math.max(max, p.age || 0), 0);
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Review ${prs.length} stale Dependabot PR(s) in ${finding.repo}`,
+        rationale: `${prs.length} Dependabot PR(s) open beyond the staleness threshold (oldest ${oldest} days).`,
+        acceptanceCriteria: ['Each stale Dependabot PR is merged or closed'],
+      };
+    }
+    default:
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Review ${finding?.type ?? 'unknown'} finding`,
+        rationale: 'No deterministic remediation mapping for this finding type.',
+        acceptanceCriteria: [],
+      };
+  }
+}
+
+/**
+ * Attach a remediation plan to every finding. Returns a new array of new
+ * objects — the input findings are not mutated.
+ * @param {Array} findings
+ * @returns {Array} findings with a `remediation` field
+ */
+export function attachRemediationPlans(findings) {
+  if (!Array.isArray(findings)) return [];
+  return findings.map(f => ({ ...f, remediation: buildRemediationPlan(f) }));
 }
