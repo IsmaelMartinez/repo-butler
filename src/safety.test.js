@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   validateIssueTitle, validateIssueBody,
   validateRoadmap, validateIdeas, validateProvider,
@@ -128,6 +129,24 @@ describe('validateRoadmap', () => {
   it('allows docs.github.com in roadmap content', () => {
     const content = '# Roadmap\n\nSee https://docs.github.com/en/actions for CI.\n\n' + 'x'.repeat(100);
     assert.equal(validateRoadmap(content).valid, true);
+  });
+
+  it('rejects a roadmap entry that @mentions a real user', () => {
+    const content = '# Roadmap\n\n## Implemented\n\nFixed by @some-user (PR #99).\n\n' + 'x'.repeat(100);
+    const result = validateRoadmap(content);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => e.includes('@mention')));
+  });
+
+  it('allows allowlisted bot mentions and version refs', () => {
+    const content = '# Roadmap\n\n## Implemented\n\nDependabot config added by @dependabot; consumers use IsmaelMartinez/repo-butler@v1.\n\n' + 'x'.repeat(100);
+    assert.equal(validateRoadmap(content).valid, true);
+  });
+
+  it('passes the verbatim committed ROADMAP.md (guard must not fail-close the live UPDATE phase)', () => {
+    const roadmap = readFileSync(new URL('../ROADMAP.md', import.meta.url), 'utf8');
+    const result = validateRoadmap(roadmap);
+    assert.equal(result.valid, true, `ROADMAP.md failed validation: ${result.errors.join('; ')}`);
   });
 });
 

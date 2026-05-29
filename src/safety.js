@@ -131,6 +131,14 @@ export function validateRoadmap(content) {
     }
   }
 
+  // The roadmap is committed to the repo and deployed to Pages, so LLM-supplied
+  // entry text must not @mention real users — same guard validateIssueBody
+  // applies to issue bodies. The (?<!\S)@ matcher only fires on a whitespace- or
+  // line-start-preceded handle, so version refs like `repo-butler@v1` are safe;
+  // repo-butler/dependabot/github-actions are allowlisted in validateMentions.
+  const mentionErrors = validateMentions(content);
+  errors.push(...mentionErrors);
+
   return { valid: errors.length === 0, errors };
 }
 
