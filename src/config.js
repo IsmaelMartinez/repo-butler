@@ -22,6 +22,11 @@ const DEFAULTS = {
   standards: {},
   'standards-exclude': {},
   'policy-drift-exempt': {},
+  // Per-tool override for the Governance Apply per-run PR cap (ADR-007 stage 3).
+  // Maps a templatable tool name to its max PRs per run; tools absent here fall
+  // back to the global cap (INPUT_MAX_APPLY_PER_RUN, default 5). Blast-radius
+  // sizing only — every other ADR-005 gate stays global.
+  'apply-cap': {},
   release_exempt: '',
 };
 

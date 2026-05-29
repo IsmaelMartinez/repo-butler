@@ -50,3 +50,13 @@ release_exempt: sound3fy
 #     NOASSERTION rather than a SPDX identifier
 policy-drift-exempt:
   license: teams-for-linux,bonnie-wee-plot
+
+# Per-tool override for the Governance Apply per-run PR cap (ADR-007 stage 3).
+# Each key is a templatable tool name; the value is the max PRs that tool may
+# open in a single apply run. Tools not listed fall back to the global cap
+# (the workflow's max-apply-per-run input, default 5), which always remains the
+# backstop. Blast-radius sizing only — every other ADR-005 gate (require_approval,
+# dry-run, no-cron, batching, repo-name validation) is unaffected. Uncomment to use:
+# apply-cap:
+#   code-scanning: 10
+#   dependabot-actions: 5

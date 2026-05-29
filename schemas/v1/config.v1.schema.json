@@ -118,6 +118,12 @@
       "description": "Per-tool exclusion lists for governance standards. Keys are tool names from the standards section, values are comma-separated repo names to exclude from that standard.",
       "additionalProperties": { "type": "string" },
       "examples": [{ "coderabbit": "archived-repo,experimental-fork" }]
+    },
+    "apply-cap": {
+      "type": "object",
+      "description": "Per-tool override for the Governance Apply per-run PR cap (ADR-007 stage 3). Keys are templatable tool names, values are the max PRs per run for that tool. Tools absent here fall back to the global cap (INPUT_MAX_APPLY_PER_RUN, default 5). Blast-radius sizing only — every other ADR-005 gate stays global.",
+      "additionalProperties": { "type": "integer" },
+      "examples": [{ "code-scanning": 10, "dependabot-actions": 5 }]
     }
   }
 }

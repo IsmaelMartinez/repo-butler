@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFindings, generateTemplate, applyGovernanceFindings } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -23,6 +23,42 @@ describe('validateFindings', () => {
     assert.deepEqual(validateFindings(null), []);
     assert.deepEqual(validateFindings('hello'), []);
     assert.deepEqual(validateFindings({}), []);
+  });
+});
+
+describe('capPerTool', () => {
+  const pairs = (tool, n) => Array.from({ length: n }, (_, i) => ({ repo: `${tool}-${i}`, tool }));
+
+  it('applies the per-tool override when present', () => {
+    const kept = capPerTool(pairs('code-scanning', 8), { 'code-scanning': 6 }, 5);
+    assert.equal(kept.length, 6);
+  });
+
+  it('falls back to the global cap for an unlisted tool', () => {
+    const kept = capPerTool(pairs('dependabot-actions', 8), { 'code-scanning': 6 }, 5);
+    assert.equal(kept.length, 5);
+  });
+
+  it('caps each tool independently and preserves order', () => {
+    const mixed = [...pairs('a', 3), ...pairs('b', 3)];
+    const kept = capPerTool(mixed, { a: 1, b: 2 }, 5);
+    assert.equal(kept.filter(p => p.tool === 'a').length, 1);
+    assert.equal(kept.filter(p => p.tool === 'b').length, 2);
+    assert.equal(kept[0].repo, 'a-0', 'order preserved');
+  });
+
+  it('treats a missing applyCap map as all-global', () => {
+    assert.equal(capPerTool(pairs('x', 9), undefined, 4).length, 4);
+  });
+
+  it('coerces a stringified numeric cap', () => {
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': '6' }, 5).length, 6);
+  });
+
+  it('falls back to the global cap for a malformed cap value', () => {
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 'invalid' }, 5).length, 5);
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 0 }, 5).length, 5);
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': -3 }, 5).length, 5);
   });
 });
 
@@ -167,6 +203,58 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.status, 'completed');
     const prCalls = calls.filter(c => c.type === 'request' && c.opts?.method === 'POST' && c.path.includes('/pulls'));
     assert.equal(prCalls.length, 3);
+  });
+
+  it('honours a per-tool apply-cap override above the global cap', async () => {
+    const repos = Array.from({ length: 8 }, (_, i) => `r${i + 1}`);
+    const ecos = Object.fromEntries(repos.map(r => [r, 'JavaScript']));
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: repos, repoEcosystems: ecos },
+    ];
+    const config = { limits: { require_approval: true }, 'apply-cap': { 'code-scanning': 7 } };
+    // global maxPerRun is 5, but the override lifts code-scanning to 7
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, maxPerRun: 5 });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 7);
+  });
+
+  it('falls back to the global cap for a tool with no override (backstop holds)', async () => {
+    const repos = Array.from({ length: 8 }, (_, i) => `r${i + 1}`);
+    const ecos = Object.fromEntries(repos.map(r => [r, 'JavaScript']));
+    const findings = [
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: repos, repoEcosystems: ecos },
+    ];
+    // apply-cap only overrides code-scanning; dependabot-actions uses global 5
+    const config = { limits: { require_approval: true }, 'apply-cap': { 'code-scanning': 7 } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, maxPerRun: 5 });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 5);
+  });
+
+  it('caps two tools independently in one run', async () => {
+    const csRepos = ['c1', 'c2', 'c3', 'c4'];
+    const daRepos = ['d1', 'd2', 'd3', 'd4'];
+    const ecos = Object.fromEntries([...csRepos, ...daRepos].map(r => [r, 'JavaScript']));
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: csRepos, repoEcosystems: ecos },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: daRepos, repoEcosystems: ecos },
+    ];
+    const config = { limits: { require_approval: true }, 'apply-cap': { 'code-scanning': 3, 'dependabot-actions': 2 } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, maxPerRun: 5 });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.filter(p => p.tool === 'code-scanning').length, 3);
+    assert.equal(result.pairs.filter(p => p.tool === 'dependabot-actions').length, 2);
+  });
+
+  it('default behaviour is unchanged when no apply-cap is configured', async () => {
+    const repos = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6'];
+    const ecos = Object.fromEntries(repos.map(r => [r, 'JavaScript']));
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: repos, repoEcosystems: ecos },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true, maxPerRun: 5 });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 5);
   });
 
   it('skips repos with existing open PR (dedup)', async () => {
