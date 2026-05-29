@@ -63,6 +63,8 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
+
+Deterministic remediation plans and multi-track execution shipped 2026-05-29 (PRs #239–#241) under ADR-007. Every governance finding now carries a remediation plan (executor hint and change spec) persisted alongside the findings. The `repo-butler-apply` skill routes findings by executor, dispatching template findings to the cloud Governance Apply workflow, drafting local review PRs for agent findings, and listing manual findings for the owner.
 ---
 
 ## Roadmap
@@ -187,8 +189,6 @@ Security prerequisites (from architecture review): ~~bot URL validation~~, ~~eco
 
 
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents. This reduces token consumption, eliminates truncation errors, and guarantees deterministic application of roadmap updates.
-
-~~**Track B stages 1–2**~~ — SHIPPED 2026-05-29 (PRs #239–#243). Reconciled the Dependabot template key (PR #240), introduced deterministic remediation plans with executor hints and change specs (PR #239), and enabled the `repo-butler-apply` skill to route findings by executor (PR #241). Established the executor hint as the authoritative actionability signal in `apply.js` (only template findings auto-apply), added a per-executor breakdown on the governance dashboard, and integrated the AsyncAPI 3.0 event specification (PR #242) for event-driven contracts.
 ---
 
 ## Future
