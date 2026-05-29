@@ -252,4 +252,26 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.pairs[0].repo, 'repo-b');
     assert.equal(result.pairs[0].tool, 'dependabot-actions');
   });
+
+  it('excludes findings whose remediation.executor is not template', async () => {
+    const findings = [
+      // templatable tool but explicitly routed to an agent — must NOT be auto-applied
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' }, remediation: { executor: 'agent' } },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' }, remediation: { executor: 'template' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'only the template finding is actionable');
+    assert.equal(result.pairs[0].repo, 'repo-b');
+    assert.equal(result.pairs[0].tool, 'dependabot-actions');
+  });
+
+  it('falls back to actionable when a finding has no remediation (pre-contract snapshot)', async () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'absent remediation falls back to TEMPLATES-only behaviour');
+  });
 });

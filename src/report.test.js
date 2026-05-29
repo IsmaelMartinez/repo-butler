@@ -1400,6 +1400,19 @@ describe('buildGovernanceSection', () => {
     assert.ok(html.includes('high'), 'should show priority');
   });
 
+  it('shows a per-executor remediation breakdown when findings carry executor hints', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', scope: { type: 'universal' }, compliant: [], nonCompliant: ['repo-a'], adoptionRate: 0, priority: 'high', remediation: { executor: 'template' } },
+      { type: 'standards-gap', tool: 'contributing-guide', scope: { type: 'universal' }, compliant: [], nonCompliant: ['repo-b'], adoptionRate: 0, priority: 'high', remediation: { executor: 'agent' } },
+      { type: 'policy-drift', category: 'license', repo: 'repo-c', expected: 'MIT', actual: 'GPL-3.0', priority: 'medium', remediation: { executor: 'manual' } },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('By remediation:'), 'should render the remediation breakdown line');
+    assert.ok(html.includes('1 template'), 'should count template findings');
+    assert.ok(html.includes('1 agent'), 'should count agent findings');
+    assert.ok(html.includes('1 manual'), 'should count manual findings');
+  });
+
   it('marks ecosystem-scoped standards with the language', () => {
     const findings = [
       {
