@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift } from './governance.js';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, buildRemediationPlan, attachRemediationPlans } from './governance.js';
 
 // --- Test helpers ---
 
