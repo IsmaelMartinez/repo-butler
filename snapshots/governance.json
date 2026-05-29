@@ -4,13 +4,13 @@
     "category": "ci-reliability",
     "repo": "teams-for-linux",
     "expected": "98%",
-    "actual": "76%",
+    "actual": "77%",
     "priority": "medium",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Align teams-for-linux ci-reliability with the portfolio norm",
-      "rationale": "Expected 98%, found 76%.",
+      "rationale": "Expected 98%, found 77%.",
       "acceptanceCriteria": [
         "teams-for-linux ci-reliability matches 98%"
       ]
