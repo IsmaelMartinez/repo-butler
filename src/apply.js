@@ -97,10 +97,18 @@ export function validateFindings(findings) {
 // the `apply-cap` override for that tool when set, else the global default. Order
 // is preserved so the kept pairs match the input ordering. Pure function.
 export function capPerTool(pairs, applyCap, globalCap) {
+  // Coerce a configured cap to a positive integer; fall back to the global cap
+  // for anything malformed (a non-numeric YAML typo, null, negative, zero), so a
+  // bad config entry can never silently defer every PR for a tool.
+  const toCap = (raw, fallback) => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n > 0 ? n : fallback;
+  };
+  const globalEffective = toCap(globalCap, 5);
   const kept = [];
   const countByTool = {};
   for (const p of pairs) {
-    const cap = applyCap?.[p.tool] ?? globalCap;
+    const cap = toCap(applyCap?.[p.tool], globalEffective);
     const used = countByTool[p.tool] || 0;
     if (used < cap) {
       kept.push(p);

@@ -50,6 +50,16 @@ describe('capPerTool', () => {
   it('treats a missing applyCap map as all-global', () => {
     assert.equal(capPerTool(pairs('x', 9), undefined, 4).length, 4);
   });
+
+  it('coerces a stringified numeric cap', () => {
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': '6' }, 5).length, 6);
+  });
+
+  it('falls back to the global cap for a malformed cap value', () => {
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 'invalid' }, 5).length, 5);
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 0 }, 5).length, 5);
+    assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': -3 }, 5).length, 5);
+  });
 });
 
 describe('generateTemplate', () => {
