@@ -2,6 +2,8 @@
 
 Date: 2026-05-28
 
+Amended: 2026-05-30 — expanded the stage-4 (lift to hosted) and stage-5 (selective auto-merge) bullets into full design subsections plus a defer decision.
+
 Status: Accepted
 
 ## Context
@@ -25,6 +27,24 @@ Track B covers reasoning findings — those needing judgement that a static temp
 5. Selective auto-merge. The destination is auto-merge for the highest-trust, lowest-risk finding classes only — opt-in per class, never global.
 
 The load-bearing principle is that the decision logic (the remediation plan) is decoupled from the runtime (local skill versus hosted agent). This is what makes local-first a hardening stage rather than throwaway work: the same contract drives both runtimes, so logic proven locally lifts into the cloud without a rewrite.
+
+### Stage 4 design — lift to a hosted agent
+
+The hosted runtime is an ephemeral, scheduled GitHub Actions job that mirrors the existing `apply.yml`, not a long-running daemon or webhook listener. A persistent service would require self-hosted infrastructure and break the zero-infra moat that ADR-002 and the landscape evaluation both protect; an ephemeral Actions job keeps the runtime inside GitHub-native primitives. It authenticates with the same least-privilege GitHub App token `apply.yml` already mints through `actions/create-github-app-token`, scoped to the repository owner and granting only `contents: write` and `pull-requests: write` — never organisation administration.
+
+The single genuine trust delta this stage introduces is removing the human at dispatch time: the scheduled job runs without an operator pressing the button. That directly relaxes the first ADR-005 gate (workflow_dispatch-only) and leans the whole model on the third gate (`require_approval`). The resolution is to keep `require_approval` as an always-on master switch and to add a per-finding-class promotion allow-list following the configuration pattern established by the `apply-cap` block — but as a distinct block (for example `apply-schedule`), not by overloading `apply-cap` itself. Capping a tool's blast radius and promoting it onto the scheduled path are separate concerns: a maintainer may want to cap a tool without scheduling it, or schedule a tool while keeping the default cap. A finding class graduates onto the scheduled path only by an explicit, reviewed config entry, and removing that entry reverts it. The existing blast-radius controls (`capPerTool` and the batch size) are unchanged, so the maximum number of PRs a hosted run can open is bounded exactly as it is today. PR review is retained throughout this stage; nothing merges itself.
+
+### Stage 5 design — selective auto-merge
+
+Auto-merge is bounded to the deterministic template tools only — the keys that `apply.js` can generate as a static file (`code-scanning`, `dependabot-actions`, and now `issue-form-templates`) — and explicitly excludes policy-drift findings, tier-uplift findings, and anything whose executor is `agent` or `manual`. Eligibility is an opt-in, per-class allow-list that defaults to empty; auto-merge is never global. Two independent kill switches disable it: restoring `require_approval` to true re-imposes the human gate, and disabling the scheduled workflow stops the runtime entirely.
+
+Reversibility is a precondition, not an afterthought. A class is only auto-mergeable when its PR has required CI green, the merge is a squash (so a revert is a single clean commit), and the resulting merge SHA is recorded in the apply result for audit and rollback. Implementation will need a merge method on the GitHub client, which does not exist today: the two candidates are the REST `pulls/{n}/merge` endpoint with the squash strategy, or the GraphQL `enablePullRequestAutoMerge` mutation, which merges only once required checks pass and so maps more naturally onto the CI-green precondition but requires each target repository to have "Allow auto-merge" enabled in its settings (the REST endpoint has no such per-repo prerequisite, though it requires the PR to be mergeable at call time). That choice belongs to the implementation PR, not this design.
+
+### Decision: land this design now, defer the implementation
+
+This amendment is recorded now so the gates and controls for stages 4 and 5 are settled before any hosted-agent or auto-merge code is written, as ADR-005 and ADR-007 both require. The implementation of both stages is deferred. The portfolio currently sits at 14 Gold with zero open governance findings, so `apply.js`'s `executor === 'template'` actionable filter returns empty on every run — building a no-human-at-dispatch runtime and an auto-merge path now would be building consumers for an empty queue, with no human-reviewed apply track record to justify removing the human or the review.
+
+The unblock condition is deliberately falsifiable: a sustained track record of human-reviewed `governance-apply` PRs (on the order of several merged across several weeks with no rollbacks), reached only after a finding-generating direction first puts real work through the manual apply path. Templatizing `issue-form-templates` is the first such direction; until that track record exists, stages 4 and 5 remain design-only.
 
 ## Consequences
 
