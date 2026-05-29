@@ -362,10 +362,32 @@ function findSectionInsertPoint(roadmap, sectionName) {
 // preserving the additive-only guarantee. Exported for testing.
 export function normalizeEditOp(op) {
   if (!op || typeof op !== 'object') return op;
-  if (op.action && op.action !== 'append' && SECTION_NAMES.includes(op.action)) {
-    const section = SECTION_NAMES.includes(op.section) ? op.section : op.action;
-    return { ...op, action: 'append', section };
+
+  // Canonicalize a section name to its exact SECTION_NAMES casing. LLMs drift
+  // ("implemented", "next up"), and findSectionInsertPoint matches the heading
+  // case-sensitively — so a drifted-case section would silently fail to insert.
+  // Returns undefined when the name is not a known section.
+  const canonical = (name) =>
+    typeof name === 'string'
+      ? SECTION_NAMES.find(s => s.toLowerCase() === name.toLowerCase())
+      : undefined;
+
+  // Section-name-in-the-action-field malformation: reinterpret as an append to
+  // that section. An explicit valid `section` field still wins if present.
+  if (op.action && op.action !== 'append') {
+    const fromAction = canonical(op.action);
+    if (fromAction) {
+      return { ...op, action: 'append', section: canonical(op.section) || fromAction };
+    }
   }
+
+  // Well-formed append with a drifted-case section: normalize so the
+  // case-sensitive findSectionInsertPoint can locate the heading.
+  if (op.action === 'append') {
+    const c = canonical(op.section);
+    if (c && c !== op.section) return { ...op, section: c };
+  }
+
   return op;
 }
 

@@ -516,6 +516,15 @@ describe('applyEditOps', () => {
     assert.ok(skipped.some(s => s.includes('missing')));
   });
 
+  it('inserts a drifted-case section append into the correct heading', () => {
+    // findSectionInsertPoint matches headings case-sensitively; the lowercase
+    // section must be canonicalized so the entry lands under ## Implemented.
+    const ops = [{ action: 'append', section: 'implemented', text: 'Feature D shipped.' }];
+    const { result } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(result.includes('Feature D shipped.'));
+    assert.ok(result.indexOf('Feature D') < result.indexOf('---'), 'lands in Implemented section');
+  });
+
   it('preserves all existing content', () => {
     const ops = [{ action: 'append', section: 'Implemented', text: 'New.' }];
     const { result } = applyEditOps(roadmap, ops, '2026-05-26');
@@ -552,6 +561,18 @@ describe('normalizeEditOp', () => {
   it('passes non-object ops through unchanged', () => {
     assert.equal(normalizeEditOp(null), null);
     assert.equal(normalizeEditOp('nope'), 'nope');
+  });
+
+  it('canonicalizes a lowercase section name in the action field', () => {
+    const op = normalizeEditOp({ action: 'implemented', text: 'X' });
+    assert.equal(op.action, 'append');
+    assert.equal(op.section, 'Implemented');
+  });
+
+  it('canonicalizes a drifted-case section in a well-formed append op', () => {
+    const op = normalizeEditOp({ action: 'append', section: 'next up', text: 'X' });
+    assert.equal(op.action, 'append');
+    assert.equal(op.section, 'Next Up');
   });
 });
 
