@@ -235,7 +235,7 @@ AsyncAPI 3.0 spec describing the event-driven interface for consumers that want 
 
 **Governance-proposal channel** — Emitted when the butler opens a cross-repo PR or creates a governance issue. Payload includes the proposal type, affected repos, and campaign membership.
 
-**Spec file** — `docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI. Documents message shapes, channel bindings, and the `repository_dispatch` event type used as the transport.
+**Spec file** — ~~`docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI.~~ Shipped: the AsyncAPI 3.0 spec lives at `docs/asyncapi.yml` as a discovery-only contract — like the A2A Agent Card, it describes the interface without a live transport. It defines the two channels (`healthTierChanged`, `governanceProposalOpened`), each with a `send` operation, whose payloads reference the Phase 6 schemas (`health-tier.v1.schema.json`, `governance-finding.v1.schema.json`) and document the GitHub `repository_dispatch` event types (`repo-butler.health-tier-changed`, `repo-butler.governance-proposal-opened`) used as the transport. It is validated by a structural smoke test in CI (`src/asyncapi.test.js`); full AsyncAPI-schema validation is a dev-time step, since the zero-dependency runtime has no AsyncAPI validator. Live `repository_dispatch` emission is deferred — it needs tier-change detection that does not exist yet.
 
 ### Phase 10 — Agents and Execution (revised 2026-05-28)
 

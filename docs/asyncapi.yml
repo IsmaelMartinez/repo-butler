@@ -1,0 +1,132 @@
+# Repo Butler event-driven interface — AsyncAPI 3.0 contract.
+#
+# DISCOVERY-ONLY: this spec describes the butler's intended event interface so
+# consumers can discover its shape ahead of time. There is no live transport
+# yet — exactly like the A2A Agent Card, which shipped discovery-only with no
+# live A2A transport. The butler's primary programmatic interface remains the
+# MCP server (src/mcp.js). When the transport is implemented it will be GitHub
+# `repository_dispatch` events; emission is a deferred follow-on (it needs
+# tier-change detection that does not exist yet).
+#
+# This file is validated in CI by a structural smoke test (src/asyncapi.test.js)
+# only — the zero-dependency Node 24 runtime has no AsyncAPI validator, so full
+# AsyncAPI-schema validation is a dev-time step run outside CI.
+#
+# Payloads here intentionally INLINE an event-shaped view rather than $ref the
+# schemas/v1 files directly: healthTierChanged is a transition (previousTier /
+# newTier) while health-tier.v1.schema.json is a state snapshot (tier + checks),
+# and governanceProposalOpened is a subset of governance-finding.v1.schema.json.
+# The schema references below (externalDocs) document the source of the field
+# shapes and enums. Dedicated event schemas that $ref the shared enums/$defs are
+# future work, to land alongside live repository_dispatch emission.
+
+asyncapi: 3.0.0
+
+info:
+  title: Repo Butler Events
+  version: 1.0.0
+  description: >
+    Discovery-only contract for the Repo Butler event-driven interface. No live
+    transport is wired yet; the butler's primary programmatic interface remains
+    the MCP server (src/mcp.js), and consumers should keep polling the
+    repo-butler-data snapshot branch or the MCP tools today. When implemented,
+    the transport will be GitHub `repository_dispatch` events, letting external
+    systems react to portfolio changes without polling. Message payloads
+    correspond to the Phase 6 JSON Schemas under schemas/v1/.
+
+channels:
+  healthTierChanged:
+    address: repo-butler.health-tier-changed
+    description: >
+      Emitted when a repository's health tier changes (e.g. bronze -> silver).
+      Transport (when implemented): a GitHub `repository_dispatch` event with
+      event_type `repo-butler.health-tier-changed`. The message payload
+      corresponds to schemas/v1/health-tier.v1.schema.json — the `newTier` /
+      `previousTier` values use that schema's tier enum (gold | silver | bronze
+      | none).
+    messages:
+      healthTierChanged:
+        name: HealthTierChanged
+        title: Health tier changed
+        summary: A repository's computed health tier transitioned to a new value.
+        # Payload corresponds to schemas/v1/health-tier.v1.schema.json
+        # ($ref to that file once a live transport / bundling step exists).
+        externalDocs:
+          description: HealthTier JSON Schema (Phase 6)
+          url: ../schemas/v1/health-tier.v1.schema.json
+        payload:
+          type: object
+          required:
+            - repo
+            - previousTier
+            - newTier
+          properties:
+            repo:
+              type: string
+              description: Affected repository name (owner/repo).
+            previousTier:
+              type: string
+              enum: [gold, silver, bronze, none]
+              description: Tier before the change. Tier enum from health-tier.v1.schema.json.
+            newTier:
+              type: string
+              enum: [gold, silver, bronze, none]
+              description: Tier after the change. Tier enum from health-tier.v1.schema.json.
+
+  governanceProposalOpened:
+    address: repo-butler.governance-proposal-opened
+    description: >
+      Emitted when the butler opens a cross-repo remediation PR or creates a
+      governance issue. Transport (when implemented): a GitHub
+      `repository_dispatch` event with event_type
+      `repo-butler.governance-proposal-opened`. The message payload corresponds
+      to schemas/v1/governance-finding.v1.schema.json, including the finding
+      `type` and the `remediation.executor` routing hint.
+    messages:
+      governanceProposalOpened:
+        name: GovernanceProposalOpened
+        title: Governance proposal opened
+        summary: The butler opened a remediation PR or governance issue for a finding.
+        # Payload corresponds to schemas/v1/governance-finding.v1.schema.json
+        # ($ref to that file once a live transport / bundling step exists).
+        externalDocs:
+          description: GovernanceFinding JSON Schema (Phase 6)
+          url: ../schemas/v1/governance-finding.v1.schema.json
+        payload:
+          type: object
+          required:
+            - type
+            - repo
+            - remediation
+          properties:
+            type:
+              type: string
+              enum: [standards-gap, policy-drift, tier-uplift, dependabot-stale]
+              description: Finding category, from governance-finding.v1.schema.json.
+            repo:
+              type: string
+              description: Affected repository name.
+            remediation:
+              type: object
+              required:
+                - executor
+              properties:
+                executor:
+                  type: string
+                  enum: [template, agent, manual]
+                  description: >
+                    Routing hint from governance-finding.v1.schema.json: which
+                    executor would carry out the remediation.
+
+operations:
+  sendHealthTierChanged:
+    action: send
+    channel:
+      $ref: '#/channels/healthTierChanged'
+    summary: Publish a health-tier-changed event.
+
+  sendGovernanceProposalOpened:
+    action: send
+    channel:
+      $ref: '#/channels/governanceProposalOpened'
+    summary: Publish a governance-proposal-opened event.
