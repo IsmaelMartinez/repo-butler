@@ -193,11 +193,11 @@
       "id": 151476958,
       "open_issues": 14,
       "open_bugs": 4,
-      "commits_6mo": 392,
-      "stars": 4724,
+      "commits_6mo": 393,
+      "stars": 4725,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.7692307692307693,
+      "ciPassRate": 0.8620689655172413,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -218,8 +218,8 @@
         "count": 0
       },
       "ci": 14,
-      "released_at": "2026-05-28T21:51:54Z",
-      "pushed_at": "2026-05-29T17:01:49Z",
+      "released_at": "2026-05-29T19:31:34Z",
+      "pushed_at": "2026-05-29T20:12:49Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -855,7 +855,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9876543209876543,
+      "ciPassRate": 0.9878048780487805,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -877,7 +877,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-05-29T12:55:55Z",
+      "pushed_at": "2026-05-29T20:21:04Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1253,7 +1253,7 @@
       },
       "ci": 5,
       "released_at": "2026-05-27T14:08:22Z",
-      "pushed_at": "2026-05-29T10:38:30Z",
+      "pushed_at": "2026-05-29T20:37:05Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
