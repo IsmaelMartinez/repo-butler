@@ -384,7 +384,7 @@ export function buildRemediationPlan(finding) {
         targetFiles: STANDARD_TARGET_FILES[finding.tool] ?? [],
         intent: `Add ${finding.tool} to ${repos.length} non-compliant repo(s)`,
         rationale: `Standards gap: ${finding.tool} adopted by ${pct}% of in-scope repos; missing in ${repos.join(', ') || 'none'}.`,
-        acceptanceCriteria: [`Every repo in nonCompliant passes the ${finding.tool} standard check`],
+        acceptanceCriteria: [`Every non-compliant repo passes the ${finding.tool} standard check`],
       };
     }
     case 'tier-uplift': {
@@ -408,7 +408,8 @@ export function buildRemediationPlan(finding) {
     }
     case 'dependabot-stale': {
       const prs = finding.stalePRs || [];
-      const oldest = prs.length ? Math.max(...prs.map(p => p.age || 0)) : 0;
+      // reduce, not Math.max(...spread), to avoid a stack overflow on very large arrays.
+      const oldest = prs.reduce((max, p) => Math.max(max, p.age || 0), 0);
       return {
         executor: 'manual',
         targetFiles: [],
