@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-05-29
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint.
 
 ---
@@ -63,6 +63,8 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
+
+Portable remediation-plan contract on governance findings shipped 2026-05-29 (PR #239). Introduced a sophisticated compliance feature designed to make governance findings portable and actionable across different environments, laying the groundwork for automated remediation.
 ---
 
 ## Roadmap
