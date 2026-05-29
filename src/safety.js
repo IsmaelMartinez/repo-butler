@@ -136,7 +136,9 @@ export function validateRoadmap(content) {
   // applies to issue bodies. The (?<!\S)@ matcher only fires on a whitespace- or
   // line-start-preceded handle, so version refs like `repo-butler@v1` are safe;
   // repo-butler/dependabot/github-actions are allowlisted in validateMentions.
-  const mentionErrors = validateMentions(content);
+  // validateMentions prefixes errors with "Body contains" (its issue-body
+  // origin); relabel for the roadmap context so the surfaced error is accurate.
+  const mentionErrors = validateMentions(content).map(e => e.replace('Body contains', 'Roadmap contains'));
   errors.push(...mentionErrors);
 
   return { valid: errors.length === 0, errors };
