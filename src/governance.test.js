@@ -412,10 +412,21 @@ describe('buildRemediationPlan', () => {
     assert.deepEqual(plan.targetFiles, ['.github/dependabot.yml']);
   });
 
+  it('routes issue-form-templates to template (a single generic form satisfies the detector)', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'issue-form-templates', nonCompliant: ['r'], adoptionRate: 0.5 });
+    assert.equal(plan.executor, 'template');
+    assert.deepEqual(plan.targetFiles, ['.github/ISSUE_TEMPLATE/bug_report.yml']);
+  });
+
   it('routes a content-tailored standards tool to the agent executor', () => {
     const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'contributing-guide', nonCompliant: ['r'] });
     assert.equal(plan.executor, 'agent');
     assert.deepEqual(plan.targetFiles, ['CONTRIBUTING.md']);
+  });
+
+  it('keeps ci-workflows agent-routed (a static CI workflow cannot be safely generic)', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'ci-workflows', nonCompliant: ['r'] });
+    assert.equal(plan.executor, 'agent');
   });
 
   it('routes license and secret-scanning gaps to the manual executor', () => {
