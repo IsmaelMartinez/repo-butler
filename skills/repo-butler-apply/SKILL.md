@@ -65,9 +65,9 @@ The single glyph between the cuffs `( | X | )` is the tray's content slot: `o` f
 |     ,---.                                                      |
 |     | o o |  "If I may, sir — the ledger sorts as follows:"    |
 |     | ~m~ |                                                    |
-|    ( |T| )    Ring for staff (template): {template_repos} repo(s)  |
-|     \===/     I shall attend (agent):    {agent_repos} repo(s)     |
-|    [_____]    For your own hand (manual): {manual_count} item(s)   |
+|    ( |T| )    template (ring staff):  {template_repos} repo(s) |
+|     \===/     agent (I attend):       {agent_repos} repo(s)    |
+|    [_____]    manual (your hand):      {manual_count} item(s)  |
 |                                                                |
 +----------------------------------------------------------------+
 |                                                                |
@@ -191,7 +191,7 @@ git checkout -b "$BRANCH"
 git add -A
 git commit -m "chore: ${INTENT} (repo-butler governance)"
 git push -u origin "$BRANCH" 2>/dev/null || { echo "push failed: $REPO"; cd -; continue; }
-gh pr create --repo "$OWNER/$REPO" --title "${INTENT}" \
+PR_URL=$(gh pr create --repo "$OWNER/$REPO" --title "${INTENT}" \
   --body "Opened by repo-butler-apply to remediate a governance finding.
 
 Intent: ${INTENT}
@@ -200,8 +200,10 @@ Rationale: ${RATIONALE}
 Acceptance criteria:
 ${ACCEPTANCE_CRITERIA}
 
-Please review before merging." \
-  --label "governance-apply" 2>/dev/null
+Please review before merging.") || { echo "pr create failed: $REPO"; cd -; continue; }
+# Label is best-effort — not every repo defines it, and a missing label must not lose the PR.
+gh pr edit "$PR_URL" --add-label "governance-apply" 2>/dev/null || true
+echo "opened: $REPO -> $PR_URL"
 cd -
 ```
 
