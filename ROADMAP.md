@@ -63,10 +63,6 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
-
-Track B stages 1–2 shipped 2026-05-29 across PRs #239–#241. Stage 1 introduced deterministic remediation plans with executor hints and change specs (no LLM, persisted alongside findings, exposed via MCP and JSON schema), and reconciled the dependabot template key. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor, dispatching template findings to the cloud Governance Apply workflow, drafting local review PRs for agent findings, and listing manual findings for the owner. A follow-on increment established the executor hint as the authoritative actionability signal in `apply.js` and surfaced a per-executor breakdown on the governance dashboard.
-
-Track A stage 3 shipped 2026-05-29. Added a per-tool override for the Governance Apply per-run PR cap via a new `apply-cap` block in `roadmap.yml` mapping a tool name to its maximum PRs per run. Tools not listed fall back to the global default of five, allowing the per-run cap to be relaxed per-tool without touching the rest of the global security gates.
 ---
 
 ## Roadmap
