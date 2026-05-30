@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-30T11:30:53.731Z",
+  "timestamp": "2026-05-30T16:22:36.897Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 1,
+    "open_issues_count": 0,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-05-30T07:55:37Z",
+    "pushed_at": "2026-05-30T12:19:59Z",
     "archived": false
   },
   "issues": {
@@ -1426,13 +1426,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-24T21:55:03Z"
-      },
-      {
-        "number": 42,
-        "title": "feat: duplicate detection and structured issue body",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-24T21:29:50Z"
       }
     ]
   },
@@ -1600,8 +1593,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 81,
-    "passed": 81,
+    "total_runs": 82,
+    "passed": 82,
     "failed": 0
   },
   "summary": {
@@ -1612,9 +1605,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 7,
-    "recently_merged_prs": 190,
+    "recently_merged_prs": 189,
     "bot_prs": 8,
-    "human_prs": 182,
+    "human_prs": 181,
     "unique_contributors": 3,
     "releases": 1,
     "latest_release": "v1.1.0",
