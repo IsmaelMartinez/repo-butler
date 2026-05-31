@@ -1,7 +1,6 @@
 // IDEATE phase: generate improvement ideas based on the project state.
 // Uses a deeper-reasoning LLM (Claude by default) for creative suggestions.
 
-import { appendTriageBotContext } from './assess.js';
 import { sanitizeForPrompt, wrapPrompt } from './safety.js';
 import { runGovernance } from './governance.js';
 import { reviewProposals } from './council.js';
@@ -30,7 +29,7 @@ export async function runIdeate(context) {
 }
 
 export async function ideate(context) {
-  const { snapshot, assessment, provider, config, dryRun, triageBotTrends, governanceFindings } = context;
+  const { snapshot, assessment, provider, config, dryRun, governanceFindings } = context;
 
   if (!provider) {
     console.log('No LLM provider configured — skipping IDEATE phase.');
@@ -43,7 +42,7 @@ export async function ideate(context) {
   }
 
   const maxIdeas = config.limits?.max_issues_per_run || 3;
-  const prompt = buildIdeatePrompt(snapshot, assessment, config.context, maxIdeas, triageBotTrends, governanceFindings);
+  const prompt = buildIdeatePrompt(snapshot, assessment, config.context, maxIdeas, governanceFindings);
   const rawResponse = await provider.generate(prompt);
 
   const ideas = parseIdeas(rawResponse);
@@ -56,7 +55,7 @@ export async function ideate(context) {
   return { ideas, raw: rawResponse };
 }
 
-export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, triageBotTrends, governanceFindings) {
+export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas, governanceFindings) {
   const hasGovernance = governanceFindings && governanceFindings.length > 0;
 
   const preamble = hasGovernance
@@ -97,10 +96,6 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     items.push('Roadmap (truncated):', sanitizeForPrompt(roadmapPreview), '');
   }
 
-  if (triageBotTrends) {
-    appendTriageBotContext(items, triageBotTrends);
-  }
-
   if (hasGovernance) {
     appendGovernanceContext(items, governanceFindings);
   }
@@ -131,9 +126,6 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     '- In SCOPE, keep statements bounded and actionable — describe exactly what is in and out of scope.',
     '- The BODY should be a structured markdown document that includes Rationale, Current State, Proposed State, Affected Files, and Scope sections.',
   ];
-  if (triageBotTrends) {
-    outroLines.push('- Use the triage bot intelligence data to inform your ideas — patterns in triage activity, agent sessions, and synthesis findings are real signals.');
-  }
   if (hasGovernance) {
     outroLines.push('- Prioritise standards propagation and policy drift correction proposals over generic improvements.');
     outroLines.push('- Each idea should reference specific repos and cross-repo statistics (e.g. "configured in 14/19 repos").');

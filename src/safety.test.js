@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 import {
   validateIssueTitle, validateIssueBody,
   validateRoadmap, validateIdeas, validateProvider,
-  sanitizeForPrompt, validateBotUrl, detectEcosystem,
-  validateTriageBotTrends, sanitizeContributorName, validateGitHubUsername,
+  sanitizeForPrompt, detectEcosystem,
+  sanitizeContributorName, validateGitHubUsername,
   wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
 } from './safety.js';
 
@@ -262,54 +262,6 @@ describe('sanitizeForPrompt', () => {
   });
 });
 
-describe('validateBotUrl', () => {
-  const allowed = ['triage-bot.example.com', 'bot.internal.co'];
-
-  it('accepts valid HTTPS URL on allowed host', () => {
-    const result = validateBotUrl('https://triage-bot.example.com/ingest', allowed);
-    assert.equal(result.valid, true);
-  });
-
-  it('rejects HTTP URLs', () => {
-    const result = validateBotUrl('http://triage-bot.example.com/ingest', allowed);
-    assert.equal(result.valid, false);
-    assert.ok(result.error.includes('HTTPS'));
-  });
-
-  it('rejects URLs not on the allowlist', () => {
-    const result = validateBotUrl('https://evil.com/steal', allowed);
-    assert.equal(result.valid, false);
-    assert.ok(result.error.includes('not in allowed hosts'));
-  });
-
-  it('rejects IP addresses', () => {
-    assert.equal(validateBotUrl('https://192.168.1.1/api', allowed).valid, false);
-    assert.equal(validateBotUrl('https://127.0.0.1/api', allowed).valid, false);
-    assert.equal(validateBotUrl('https://[::1]/api', allowed).valid, false);
-  });
-
-  it('rejects localhost', () => {
-    assert.equal(validateBotUrl('https://localhost/api', allowed).valid, false);
-    assert.equal(validateBotUrl('https://localhost:3000/api', allowed).valid, false);
-  });
-
-  it('rejects malformed URLs', () => {
-    assert.equal(validateBotUrl('not-a-url', allowed).valid, false);
-    assert.equal(validateBotUrl('', allowed).valid, false);
-    assert.equal(validateBotUrl(null, allowed).valid, false);
-  });
-
-  it('allows subdomains of allowed hosts', () => {
-    const result = validateBotUrl('https://api.triage-bot.example.com/ingest', allowed);
-    assert.equal(result.valid, true);
-  });
-
-  it('rejects when allowlist is empty', () => {
-    const result = validateBotUrl('https://anything.com/api', []);
-    assert.equal(result.valid, false);
-  });
-});
-
 describe('detectEcosystem', () => {
   it('confirms JavaScript when language + package.json agree', () => {
     const result = detectEcosystem({ language: 'JavaScript', ecosystemFiles: ['package.json'], topics: [] });
@@ -418,80 +370,6 @@ describe('detectEcosystem', () => {
       topics: ['python'],
     });
     assert.ok(result.has('Python'));
-  });
-});
-
-describe('validateTriageBotTrends', () => {
-  it('passes valid trends data', () => {
-    const data = {
-      triage: [{ total: 10, promoted: 3 }],
-      agents: [{ total: 5, approved: 2, rejected: 1 }],
-      synthesis: [{ findings: 4, briefings: 2 }],
-      response_time: [{ avg_seconds: 1.5 }],
-    };
-    const result = validateTriageBotTrends(data);
-    assert.equal(result.valid, true);
-    assert.deepEqual(Object.keys(result.sanitized).sort(), ['agents', 'response_time', 'synthesis', 'triage']);
-  });
-
-  it('rejects non-object input', () => {
-    assert.equal(validateTriageBotTrends(null).valid, false);
-    assert.equal(validateTriageBotTrends('string').valid, false);
-    assert.equal(validateTriageBotTrends([]).valid, false);
-  });
-
-  it('rejects triage entries with non-numeric total', () => {
-    const data = { triage: [{ total: 'inject this', promoted: 0 }] };
-    assert.equal(validateTriageBotTrends(data).valid, false);
-  });
-
-  it('rejects agents entries with non-numeric total', () => {
-    const data = { agents: [{ total: null, approved: 0, rejected: 0 }] };
-    assert.equal(validateTriageBotTrends(data).valid, false);
-  });
-
-  it('rejects agents entries with non-numeric approved', () => {
-    const data = { agents: [{ total: 5, approved: 'inject', rejected: 0 }] };
-    assert.equal(validateTriageBotTrends(data).valid, false);
-  });
-
-  it('rejects triage entries with non-numeric promoted', () => {
-    const data = { triage: [{ total: 5, promoted: 'inject' }] };
-    assert.equal(validateTriageBotTrends(data).valid, false);
-  });
-
-  it('rejects synthesis entries with non-numeric briefings', () => {
-    const data = { synthesis: [{ findings: 3, briefings: 'inject' }] };
-    assert.equal(validateTriageBotTrends(data).valid, false);
-  });
-
-  it('strips unexpected top-level fields', () => {
-    const data = { triage: [{ total: 5, promoted: 1 }], malicious: 'payload' };
-    // promoted is validated alongside total now
-    const result = validateTriageBotTrends(data);
-    assert.equal(result.valid, true);
-    assert.equal(result.sanitized.malicious, undefined);
-  });
-
-  it('accepts empty but valid structure', () => {
-    const result = validateTriageBotTrends({});
-    assert.equal(result.valid, true);
-    assert.deepEqual(result.sanitized, {});
-  });
-
-  it('rejects synthesis entries with non-numeric findings', () => {
-    const data = { synthesis: [{ findings: 'bad', briefings: 0 }] };
-    assert.equal(validateTriageBotTrends(data).valid, false);
-  });
-
-  it('accepts synthesis entries with all numeric fields', () => {
-    const data = { synthesis: [{ findings: 3, briefings: 2 }] };
-    assert.equal(validateTriageBotTrends(data).valid, true);
-  });
-
-  it('rejects response_time entries with non-numeric avg_seconds', () => {
-    const data = { response_time: [{ avg_seconds: 'fast' }] };
-    assert.equal(validateTriageBotTrends(data).valid, false);
   });
 });
 

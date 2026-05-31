@@ -270,49 +270,6 @@ export function wrapPrompt({
     : parts.join('\n');
 }
 
-// Validate a bot URL against an allowlist. Prevents SSRF via butler.json.
-const IP_PATTERN = /^(\d{1,3}\.){3}\d{1,3}$/;
-// URL.hostname returns IPv6 without brackets (e.g., '::1' not '[::1]').
-// IPv6 addresses contain colons; valid hostnames cannot.
-const IPV6_PATTERN = /:/;
-
-export function validateBotUrl(url, allowedHosts) {
-  if (!url || typeof url !== 'string') {
-    return { valid: false, error: 'URL is empty or not a string' };
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return { valid: false, error: 'Malformed URL' };
-  }
-
-  if (parsed.protocol !== 'https:') {
-    return { valid: false, error: 'URL must use HTTPS' };
-  }
-
-  const host = parsed.hostname;
-
-  if (host === 'localhost' || host === '::1' || IP_PATTERN.test(host) || IPV6_PATTERN.test(host)) {
-    return { valid: false, error: 'URL must not target localhost or IP addresses' };
-  }
-
-  if (!allowedHosts || allowedHosts.length === 0) {
-    return { valid: false, error: 'No allowed hosts configured — URL rejected' };
-  }
-
-  const isAllowed = allowedHosts.some(
-    allowed => host === allowed || host.endsWith(`.${allowed}`)
-  );
-
-  if (!isAllowed) {
-    return { valid: false, error: `Host "${host}" is not in allowed hosts` };
-  }
-
-  return { valid: true };
-}
-
 // Multi-signal ecosystem detection. Requires 2-of-3 signals to confirm.
 // Prevents gaming via vendored files skewing the GitHub language field.
 const ECOSYSTEM_MAP = {
@@ -384,50 +341,6 @@ export function validateGitHubUsername(username) {
   if (!username || typeof username !== 'string') return false;
   return /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(username)
     && username.length <= 39;
-}
-
-// Validate the shape of triage bot /report/trends response before LLM injection.
-// Strips unexpected fields, rejects non-numeric values in expected positions.
-export function validateTriageBotTrends(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    return { valid: false, error: 'Trends data must be a non-null object', sanitized: null };
-  }
-
-  const sanitized = {};
-  const KNOWN_KEYS = ['triage', 'agents', 'synthesis', 'response_time'];
-
-  for (const key of KNOWN_KEYS) {
-    if (!(key in data)) continue;
-
-    if (!Array.isArray(data[key])) {
-      return { valid: false, error: `trends.${key} must be an array`, sanitized: null };
-    }
-
-    // Validate each entry has numeric fields in expected positions.
-    for (const entry of data[key]) {
-      if (typeof entry !== 'object' || entry === null) {
-        return { valid: false, error: `trends.${key} entries must be objects`, sanitized: null };
-      }
-      // Validate all numeric fields consumed by appendTriageBotContext.
-      if (key === 'triage' && (typeof entry.total !== 'number' || typeof entry.promoted !== 'number')) {
-        return { valid: false, error: `trends.triage entries must have numeric total and promoted`, sanitized: null };
-      }
-      if (key === 'agents' && (typeof entry.total !== 'number' || typeof entry.approved !== 'number' || typeof entry.rejected !== 'number')) {
-        return { valid: false, error: `trends.agents entries must have numeric total, approved, and rejected`, sanitized: null };
-      }
-      if (key === 'synthesis' && (typeof entry.findings !== 'number' || typeof entry.briefings !== 'number')) {
-        return { valid: false, error: `trends.synthesis entries must have numeric findings and briefings`, sanitized: null };
-      }
-      if (key === 'response_time' && typeof entry.avg_seconds !== 'number') {
-        return { valid: false, error: `trends.response_time.avg_seconds must be a number`, sanitized: null };
-      }
-    }
-
-    // Shallow-copy entries to prevent post-validation mutation of the sanitized output.
-    sanitized[key] = data[key].map(entry => ({ ...entry }));
-  }
-
-  return { valid: true, sanitized };
 }
 
 // --- Internal helpers ---
