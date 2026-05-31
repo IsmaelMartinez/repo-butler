@@ -108,7 +108,6 @@ describe('runAssess', () => {
       snapshot,
       previousSnapshot: null,
       provider: null,
-      triageBot: null,
       weeklyHistory: [
         { _week: '2026-W10', summary: { open_issues: 5, recently_merged_prs: 3 }, releases: [] },
       ],
@@ -118,23 +117,6 @@ describe('runAssess', () => {
     assert.equal(ctx.assessment, result);
     assert.ok(ctx.trends);
     assert.equal(ctx.trends.weeks.length, 1);
-  });
-
-  it('captures triage bot trends when available and validation passes', async () => {
-    const ctx = {
-      snapshot: { summary: { open_issues: 0, recently_closed: 0, recently_merged_prs: 0 }, issues: { open: [], recently_closed: [] }, pull_requests: { recently_merged: [] }, releases: [] },
-      previousSnapshot: null,
-      provider: null,
-      weeklyHistory: [],
-      config: {},
-      triageBot: {
-        async fetchTrends() {
-          return { schema_version: 1, generated_at: new Date().toISOString(), repos: [], top_themes: [] };
-        },
-      },
-    };
-    await runAssess(ctx);
-    assert.ok(ctx.triageBotTrends);
   });
 });
 
@@ -156,10 +138,9 @@ describe('runIdeate', () => {
 });
 
 describe('runObserve', () => {
-  it('persists snapshot, loads weekly history, and ingests into triage bot', async () => {
+  it('persists snapshot and loads weekly history', async () => {
     const snapshot = { repository: 'o/r', summary: { open_issues: 0 } };
     const writes = [];
-    const ingested = [];
     const ctx = {
       owner: 'o', repo: 'r', token: 't',
       config: { observe: {}, roadmap: {} },
@@ -167,9 +148,6 @@ describe('runObserve', () => {
         async readSnapshot() { return null; },
         async writeSnapshot(s) { writes.push(s); },
         async readWeeklyHistory() { return [{ _week: '2026-W17' }]; },
-      },
-      triageBot: {
-        async ingestEvents(s) { ingested.push(s); },
       },
     };
     // Stub fetch to make observe + observePortfolio return quickly.
@@ -192,7 +170,6 @@ describe('runObserve', () => {
       assert.ok(result.snapshot);
       assert.equal(ctx.snapshot, result.snapshot);
       assert.equal(writes.length, 1, 'snapshot should be written exactly once');
-      assert.equal(ingested.length, 1, 'triage bot should receive the snapshot');
       assert.equal(ctx.weeklyHistory.length, 1);
     } finally {
       globalThis.fetch = originalFetch;

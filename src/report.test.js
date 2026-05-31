@@ -1088,7 +1088,7 @@ describe('generateRepoReport restructure', () => {
     const prAuthors = [{ author: 'dev', count: 8, firstTime: false }];
     const trends = { direction: 'stable', weeks: [{ week: 'W1', open_issues: 3, merged_prs: 2 }, { week: 'W2', open_issues: 2, merged_prs: 3 }] };
 
-    const html = generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, null, [], null, [], null, null, {});
+    const html = generateRepoReport(snapshot, prActivity, issueActivity, prAuthors, trends, [], null, [], null, null, {});
 
     // Trends before Activity History
     const trendsPos = html.indexOf('Trends');
@@ -1125,7 +1125,7 @@ describe('generateRepoReport restructure', () => {
       summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 0, human_prs: 0, bot_prs: 0, releases: 0, latest_release: 'none', ci_workflows: 0, bus_factor: 0, time_to_close_median: null },
     };
     const assessment = 'First paragraph with <script>alert(1)</script>.\n\nSecond paragraph on the roadmap.';
-    const html = generateRepoReport(snapshot, [], [], [], null, null, [], null, [], null, null, {}, assessment);
+    const html = generateRepoReport(snapshot, [], [], [], null, [], null, [], null, null, {}, assessment);
 
     assert.ok(html.includes('<h2>Assessment</h2>'), 'renders Assessment heading');
     assert.ok(html.includes('First paragraph with &lt;script&gt;'), 'escapes HTML in narrative');
@@ -1143,7 +1143,7 @@ describe('generateRepoReport restructure', () => {
       pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
       summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 0, human_prs: 0, bot_prs: 0, releases: 0, latest_release: 'none', ci_workflows: 0, bus_factor: 0, time_to_close_median: null },
     };
-    const html = generateRepoReport(snapshot, [], [], [], null, null, [], null, [], null, null, {});
+    const html = generateRepoReport(snapshot, [], [], [], null, [], null, [], null, null, {});
     assert.ok(!html.includes('<h2>Assessment</h2>'), 'no Assessment heading when narrative is null');
   });
 });
@@ -1210,7 +1210,7 @@ describe('dashboard inspiration polish', () => {
 
   it('per-repo report renders the site footer with all documentation links', async () => {
     const { generateRepoReport } = await import('./report-repo.js');
-    const html = generateRepoReport(minimalRepoSnapshot(), [], [], [], null, null, [], null, [], null, null, {});
+    const html = generateRepoReport(minimalRepoSnapshot(), [], [], [], null, [], null, [], null, null, {});
     assert.ok(html.includes('class="site-footer"'), 'per-repo report should render the site footer');
     for (const link of FOOTER_LINKS) {
       assert.ok(html.includes(link), `per-repo footer should link to ${link}`);

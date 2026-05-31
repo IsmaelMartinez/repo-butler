@@ -5,7 +5,7 @@ import { isBugIssue, isBlocked, isFeatureIssue, isPublishedRelease, getAlertSumm
 // per-repo and portfolio observation, threads results onto context, persists
 // the snapshot, and loads the weekly history needed by ASSESS.
 export async function runObserve(context) {
-  const { store, triageBot } = context;
+  const { store } = context;
 
   const snapshot = await observe(context);
   context.snapshot = snapshot;
@@ -15,8 +15,6 @@ export async function runObserve(context) {
 
   context.previousSnapshot = await store.readSnapshot();
   await store.writeSnapshot(snapshot);
-
-  if (triageBot) await triageBot.ingestEvents(snapshot);
 
   context.weeklyHistory = await store.readWeeklyHistory();
   console.log(`Loaded ${context.weeklyHistory.length} weekly snapshots for trends.`);

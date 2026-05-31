@@ -11,7 +11,6 @@ import { runGovernance } from './governance.js';
 import { createStore } from './store.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ClaudeProvider } from './providers/claude.js';
-import { createTriageBotClient } from './triage-bot.js';
 import { validateProvider } from './safety.js';
 import { onboard } from './onboard.js';
 import { createClient } from './github.js';
@@ -268,7 +267,6 @@ async function main() {
   }
 
   context.store = createStore(context);
-  context.triageBot = await createTriageBotClient(context);
 
   await runPhases(phasesToRun, context, defaultProvider, deepProvider);
 

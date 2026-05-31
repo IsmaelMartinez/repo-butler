@@ -351,7 +351,7 @@ describe('buildIdeatePrompt', () => {
       { type: 'policy-drift', category: 'license', repo: 'd', expected: 'MIT', actual: 'Apache-2.0', priority: 'medium' },
       { type: 'tier-uplift', repo: 'e', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Release in the last 90 days', required_for: 'gold' }], priority: 'high' },
     ];
-    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null, findings);
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
     assert.ok(prompt.includes('Portfolio Governance Findings'));
     assert.ok(prompt.includes('license (universal)'));
     assert.ok(prompt.includes('2/3 repos compliant'));

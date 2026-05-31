@@ -115,14 +115,14 @@ describe('prompt builder golden snapshots', () => {
 
   it('buildIdeatePrompt — standard inputs', () => {
     assert.equal(
-      buildIdeatePrompt(snapshot, assessment, 'A widget toolkit', 3, null, null),
+      buildIdeatePrompt(snapshot, assessment, 'A widget toolkit', 3, null),
       golden('ideate.txt')
     );
   });
 
   it('buildIdeatePrompt — governance-mode with findings', () => {
     assert.equal(
-      buildIdeatePrompt(snapshot, null, null, 2, null, [
+      buildIdeatePrompt(snapshot, null, null, 2, [
         { type: 'standards-gap', tool: 'codeowners', scope: { type: 'all' }, compliant: ['a', 'b'], nonCompliant: ['c'] },
         { type: 'policy-drift', repo: 'octo/x', actual: 'mit', expected: 'apache-2.0', category: 'license' },
         { type: 'tier-uplift', repo: 'octo/y', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }] },
