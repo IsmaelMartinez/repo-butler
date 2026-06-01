@@ -63,6 +63,8 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
+
+Automated Dependabot rebase nudge feature shipped 2026-06-01 (PR #253). Introduced a mechanism that automatically nudges stale Dependabot PRs by posting a `@dependabot rebase` comment, helping to keep repository automated workflows active and unblocked without manual intervention.
 ---
 
 ## Roadmap
@@ -156,6 +158,10 @@ Shipped 2026-05-01 via `src/apply.js`, `.github/workflows/apply.yml`, and `src/d
 ~~`governance:apply`~~ — SHIPPED. `applyGovernanceFindings` reads findings from the data branch, validates shape, generates templated config files for code-scanning + dependabot, opens PRs on target repos with the `governance-apply` label. Manual-dispatch only via `apply.yml`, dry-run by default (fail-closed semantics), batch-cap of 5 PRs per run, behind `require_approval`. See [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md) for the full layered-gate rationale.
 
 ~~`dependabot:audit`~~ — SHIPPED. `auditDependabot` at `src/dependabot-audit.js` flags repos with stale unmerged Dependabot PRs (>30d high-priority, >60d critical). Findings persist as `dependabot-stale` entries in `governance.json` and are surfaced via the MCP `list_stale_dependabot_prs` tool plus the dashboard's Governance section.
+
+### ~~`dependabot:rebase` — act on stale Dependabot PRs~~ SHIPPED
+
+The Governance Apply phase now actively addresses stale Dependabot PR findings by posting a single `@dependabot rebase` comment on the oldest stale PR per repository, rather than merely flagging them as dashboard findings. This new `nudgeStaleDependabotPRs` action operates as a sequential canary that processes the most-stale PRs first, capped at a default of five per run. It strictly adheres to all five existing ADR-005 gates, including workflow_dispatch-only execution, dry-run fail-closed behaviour, and a seven-day deduplication mechanism to prevent double-commenting. Because this functionality is implemented as a new action type within the existing apply phase without relaxing the trust model, no ADR amendment was required. Operators can preview both actions in dry-run mode with a blank `tools` input or scope a nudge-only run by specifying `tools=dependabot-rebase`.
 
 ### Phase 5 — Portfolio Governance Engine
 
