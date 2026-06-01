@@ -309,3 +309,116 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
   console.log(`apply: ${owner}/${repo} — PR created: ${pr.html_url}`);
   return { repo, tool, status: 'created', pr: pr.html_url };
 }
+
+// --- Stale Dependabot PR nudge ----------------------------------------------
+// A new cross-repo write action that rides the same five ADR-005 gates as the
+// templated-PR path above (workflow_dispatch-only, dry-run fail-closed,
+// require_approval, per-run cap, repo-name validation + dedup). It is a new
+// action *type* behind the existing gate stack, not a relaxation of the trust
+// model, so no ADR amendment is needed — only relaxing a gate would.
+//
+// For each `dependabot-stale` finding it nudges the single oldest stale PR per
+// repo with one `@dependabot rebase` comment — a sequential canary (one PR per
+// repo per run, most-stale first) per the maintainer's "rebase one at a time"
+// preference. Rebasing refreshes the PR onto the latest base and re-runs CI,
+// surfacing whether the dependency update is actually mergeable. No branch or
+// file is written: the specialist tool (Dependabot) executes, the butler only
+// orchestrates.
+const NUDGE_BODY = '@dependabot rebase';
+const NUDGE_DEDUP_DAYS = 7;
+
+// From dependabot-stale findings, pick the single oldest stale PR per repo,
+// validate the repo name, sort most-stale first, and cap. Pure function.
+export function selectNudgeTargets(findings, maxPerRun = 5) {
+  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const targets = [];
+  for (const f of Array.isArray(findings) ? findings : []) {
+    if (!f || f.type !== 'dependabot-stale') continue;
+    if (!f.repo || !REPO_NAME_PATTERN.test(f.repo)) {
+      if (f.repo) console.warn(`nudge: skipping repo with invalid name: ${f.repo}`);
+      continue;
+    }
+    if (!Array.isArray(f.stalePRs)) continue;
+    // Findings are read from the persisted data branch, so guard against a
+    // malformed entry (null, missing/non-numeric age, non-integer number)
+    // before the reduce/sort — a bad element would otherwise throw or corrupt
+    // the most-stale ordering with NaN comparisons.
+    const validPRs = f.stalePRs.filter(
+      pr => pr && Number.isInteger(pr.number) && typeof pr.age === 'number',
+    );
+    if (validPRs.length === 0) continue;
+    const oldest = validPRs.reduce((a, b) => (b.age > a.age ? b : a));
+    targets.push({ repo: f.repo, number: oldest.number, title: oldest.title, age: oldest.age });
+  }
+  targets.sort((a, b) => b.age - a.age);
+  return targets.slice(0, cap);
+}
+
+// True if the PR already carries an `@dependabot rebase` comment newer than the
+// dedup window, so consecutive dispatches do not double-comment. Fails open
+// (returns false) if comments cannot be read — better to risk one duplicate
+// nudge than to silently never nudge.
+async function alreadyNudged(gh, owner, repo, number) {
+  let comments;
+  try {
+    comments = await gh.paginate(`/repos/${owner}/${repo}/issues/${number}/comments`, {
+      params: { per_page: 100 },
+      max: 100,
+    });
+  } catch {
+    return false;
+  }
+  const cutoff = Date.now() - NUDGE_DEDUP_DAYS * 86400000;
+  return Array.isArray(comments) && comments.some(
+    c => c?.body?.trim() === NUDGE_BODY && c?.created_at && new Date(c.created_at).getTime() >= cutoff,
+  );
+}
+
+export async function nudgeStaleDependabotPRs(gh, owner, findings, config, options = {}) {
+  const { dryRun, maxPerRun = 5 } = options;
+
+  // Gate 3: require_approval master switch.
+  if (!config?.limits?.require_approval) {
+    console.error('nudge: config.limits.require_approval is not true — refusing to run');
+    return { status: 'refused', reason: 'require_approval not set' };
+  }
+
+  // Gate 5 (repo-name validation) + gate 4 (per-run cap) applied here.
+  const targets = selectNudgeTargets(findings, maxPerRun);
+
+  // Gate 2: dry-run fail-closed — only literal false acts.
+  if (dryRun !== false) {
+    console.log(`nudge [DRY RUN]: would rebase ${targets.length} stale Dependabot PR(s)`);
+    for (const t of targets) {
+      console.log(`  - ${owner}/${t.repo}#${t.number} (${t.age}d): ${t.title}`);
+    }
+    return { status: 'dry-run', targets };
+  }
+
+  // Sequential canary: one PR at a time, never a parallel fan-out.
+  const results = [];
+  for (const t of targets) {
+    try {
+      if (await alreadyNudged(gh, owner, t.repo, t.number)) {
+        console.log(`nudge: ${owner}/${t.repo}#${t.number} already nudged recently, skipping`);
+        results.push({ repo: t.repo, number: t.number, status: 'skipped', reason: 'recent nudge' });
+        continue;
+      }
+      await gh.request(`/repos/${owner}/${t.repo}/issues/${t.number}/comments`, {
+        method: 'POST',
+        body: { body: NUDGE_BODY },
+      });
+      console.log(`nudge: ${owner}/${t.repo}#${t.number} — rebase requested`);
+      results.push({ repo: t.repo, number: t.number, status: 'nudged' });
+    } catch (err) {
+      console.error(`nudge: error on ${t.repo}#${t.number}: ${err.message}`);
+      results.push({ repo: t.repo, number: t.number, status: 'error', error: err.message });
+    }
+  }
+
+  const nudged = results.filter(r => r.status === 'nudged').length;
+  const skipped = results.filter(r => r.status === 'skipped').length;
+  const errors = results.filter(r => r.status === 'error').length;
+  console.log(`nudge: done — ${nudged} rebased, ${skipped} skipped, ${errors} errors`);
+  return { status: 'completed', results, summary: { nudged, skipped, errors } };
+}

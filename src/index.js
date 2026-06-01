@@ -27,9 +27,9 @@ async function runApply(context) {
   const maxPerRun = parseInt(process.env.INPUT_MAX_APPLY_PER_RUN, 10) || 5;
   const tools = (process.env.INPUT_TOOLS || '').split(',').map(s => s.trim()).filter(Boolean);
   const isDryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
-  let applyGovernanceFindings;
+  let applyGovernanceFindings, nudgeStaleDependabotPRs;
   try {
-    ({ applyGovernanceFindings } = await import('./apply.js'));
+    ({ applyGovernanceFindings, nudgeStaleDependabotPRs } = await import('./apply.js'));
   } catch {
     console.error('Apply module not available yet (src/apply.js). Skipping.');
     return;
@@ -51,18 +51,46 @@ async function runApply(context) {
     );
   }
 
+  // Stale-Dependabot nudge rides the same dispatch and gates. It runs on a blank
+  // `tools` (all actionable) or when `tools` explicitly names `dependabot-rebase`
+  // — so a tool-scoped dispatch (e.g. tools=code-scanning) never nudges by
+  // surprise, and tools=dependabot-rebase is a nudge-only run.
+  const nudgeRequested = tools.length === 0 || tools.includes('dependabot-rebase');
+  const nudgeResult = nudgeRequested
+    ? await nudgeStaleDependabotPRs(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun })
+    : null;
+  if (nudgeResult?.summary && process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `nudge=${JSON.stringify(nudgeResult.summary)}\n`,
+    );
+  }
+
   // Per-repo errors (e.g. App lacks workflows: write on a target installation)
   // are operator-actionable failures: each one represents a finding the operator
   // explicitly asked to remediate that did not produce a PR. Surface them by
   // throwing so runPhases marks the phase failed and the workflow exits non-zero.
+  const errParts = [];
   if (summary?.errors > 0) {
     const failed = result.results
       .filter(r => r.status === 'error')
       .map(r => `${r.repo}/${r.tool}`)
       .join(', ');
-    throw new Error(
+    errParts.push(
       `apply: ${summary.errors} per-repo error(s) [${failed}]; ${summary.created} PR(s) created, ${summary.skipped} skipped`,
     );
+  }
+  if (nudgeResult?.summary?.errors > 0) {
+    const failed = nudgeResult.results
+      .filter(r => r.status === 'error')
+      .map(r => `${r.repo}#${r.number}`)
+      .join(', ');
+    errParts.push(
+      `nudge: ${nudgeResult.summary.errors} error(s) [${failed}]; ${nudgeResult.summary.nudged} rebased, ${nudgeResult.summary.skipped} skipped`,
+    );
+  }
+  if (errParts.length > 0) {
+    throw new Error(errParts.join(' | '));
   }
 }
 
