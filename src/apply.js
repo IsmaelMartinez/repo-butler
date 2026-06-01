@@ -338,9 +338,16 @@ export function selectNudgeTargets(findings, maxPerRun = 5) {
       if (f.repo) console.warn(`nudge: skipping repo with invalid name: ${f.repo}`);
       continue;
     }
-    if (!Array.isArray(f.stalePRs) || f.stalePRs.length === 0) continue;
-    const oldest = f.stalePRs.reduce((a, b) => (b.age > a.age ? b : a));
-    if (!Number.isInteger(oldest.number)) continue;
+    if (!Array.isArray(f.stalePRs)) continue;
+    // Findings are read from the persisted data branch, so guard against a
+    // malformed entry (null, missing/non-numeric age, non-integer number)
+    // before the reduce/sort — a bad element would otherwise throw or corrupt
+    // the most-stale ordering with NaN comparisons.
+    const validPRs = f.stalePRs.filter(
+      pr => pr && Number.isInteger(pr.number) && typeof pr.age === 'number',
+    );
+    if (validPRs.length === 0) continue;
+    const oldest = validPRs.reduce((a, b) => (b.age > a.age ? b : a));
     targets.push({ repo: f.repo, number: oldest.number, title: oldest.title, age: oldest.age });
   }
   targets.sort((a, b) => b.age - a.age);
@@ -362,8 +369,8 @@ async function alreadyNudged(gh, owner, repo, number) {
     return false;
   }
   const cutoff = Date.now() - NUDGE_DEDUP_DAYS * 86400000;
-  return comments.some(
-    c => c.body?.trim() === NUDGE_BODY && new Date(c.created_at).getTime() >= cutoff,
+  return Array.isArray(comments) && comments.some(
+    c => c?.body?.trim() === NUDGE_BODY && c?.created_at && new Date(c.created_at).getTime() >= cutoff,
   );
 }
 

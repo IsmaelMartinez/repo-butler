@@ -423,6 +423,16 @@ describe('selectNudgeTargets', () => {
     ];
     assert.equal(selectNudgeTargets(findings, 5).length, 0);
   });
+
+  it('tolerates null/malformed entries in stalePRs without throwing', () => {
+    const findings = [
+      { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [null, { title: 'no number', age: 50 }, { number: 9, title: 'ok', age: 40 }] },
+      { type: 'dependabot-stale', repo: 'repo-b', stalePRs: [{ number: 2, title: 'bad age', age: 'old' }] },
+    ];
+    const targets = selectNudgeTargets(findings, 5);
+    // repo-a keeps only the well-formed PR (#9); repo-b has no valid PR
+    assert.deepEqual(targets.map(t => `${t.repo}#${t.number}`), ['repo-a#9']);
+  });
 });
 
 describe('nudgeStaleDependabotPRs', () => {
