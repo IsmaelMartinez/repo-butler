@@ -1,0 +1,1630 @@
+{
+  "timestamp": "2026-06-01T07:54:57.179Z",
+  "repository": "IsmaelMartinez/repo-butler",
+  "meta": {
+    "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
+    "language": "JavaScript",
+    "stars": 3,
+    "forks": 0,
+    "watchers": 0,
+    "open_issues_count": 2,
+    "default_branch": "main",
+    "license": "MIT",
+    "topics": [],
+    "created_at": "2026-03-19T00:10:09Z",
+    "pushed_at": "2026-06-01T07:35:48Z",
+    "archived": false
+  },
+  "issues": {
+    "open": [],
+    "recently_closed": [
+      {
+        "number": 220,
+        "title": "GOVERNANCE: libyear abort cascade still drains event loop mid-phase (root-cause fix for #218)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-05-21T06:52:37Z",
+        "created_at": "2026-05-20T22:15:08Z"
+      },
+      {
+        "number": 218,
+        "title": "GOVERNANCE phase silently exits with code=0 exactly 12s after libyear timeout fires",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-05-14T06:57:02Z",
+        "created_at": "2026-05-13T22:01:08Z"
+      },
+      {
+        "number": 216,
+        "title": "Pages-deploy gate silently skips and reports success when reports/index.html is missing",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-05-13T20:59:47Z",
+        "created_at": "2026-05-13T19:03:34Z"
+      },
+      {
+        "number": 215,
+        "title": "GOVERNANCE phase silently exits when libyear network calls abort, skipping IDEATE/PROPOSE/REPORT",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-05-13T20:59:46Z",
+        "created_at": "2026-05-13T19:03:19Z"
+      },
+      {
+        "number": 211,
+        "title": "UPDATE prompt: strikethrough stripped + SHIPPED paragraph deleted in #202 (soak regression)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-05-11T18:39:38Z",
+        "created_at": "2026-05-11T13:17:38Z"
+      },
+      {
+        "number": 208,
+        "title": "apply phase swallows per-repo errors — workflow exits 0 despite 0 PRs created",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-05-10T22:02:00Z",
+        "created_at": "2026-05-10T12:28:57Z"
+      },
+      {
+        "number": 203,
+        "title": "phase=all silently exits during GOVERNANCE, skipping IDEATE/PROPOSE/REPORT/MONITOR with success status",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug"
+        ],
+        "closed_at": "2026-05-08T22:56:03Z",
+        "created_at": "2026-05-08T16:02:50Z"
+      }
+    ]
+  },
+  "pull_requests": {
+    "recently_merged": [
+      {
+        "number": 252,
+        "title": "chore: remove dead triage-bot integration",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-31T08:01:40Z"
+      },
+      {
+        "number": 250,
+        "title": "docs: record implementation-time design gaps in ADR-007 and ADR-008",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-30T00:23:32Z"
+      },
+      {
+        "number": 249,
+        "title": "docs: ADR-008 — live event emission design (Phase 9 transport)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T23:40:07Z"
+      },
+      {
+        "number": 248,
+        "title": "docs: amend ADR-007 with Stage 4/5 design + defer decision",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T23:40:03Z"
+      },
+      {
+        "number": 247,
+        "title": "fix: mention-check the roadmap before it ships (validateRoadmap)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T23:40:00Z"
+      },
+      {
+        "number": 246,
+        "title": "feat: templatize issue-form-templates in the apply phase",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T23:39:56Z"
+      },
+      {
+        "number": 245,
+        "title": "fix: recover dropped LLM intent in update/council/ideate parsers",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T22:18:34Z"
+      },
+      {
+        "number": 244,
+        "title": "feat: per-tool apply cap override (ADR-007 Track A stage 3)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T20:49:18Z"
+      },
+      {
+        "number": 243,
+        "title": "feat: executor is the authoritative apply signal + dashboard breakdown",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T11:29:49Z"
+      },
+      {
+        "number": 242,
+        "title": "feat: AsyncAPI 3.0 event spec (discovery-only contract)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T11:20:33Z"
+      },
+      {
+        "number": 241,
+        "title": "feat: repo-butler-apply routes findings by executor (ADR-007 stage 2)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T08:39:34Z"
+      },
+      {
+        "number": 240,
+        "title": "fix: reconcile dependabot template key with dependabot-actions tool name",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T08:39:20Z"
+      },
+      {
+        "number": 239,
+        "title": "feat: portable remediation-plan contract on governance findings",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-29T06:44:19Z"
+      },
+      {
+        "number": 238,
+        "title": "docs: landscape evaluation + ADR-007 agents-and-execution design",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-28T10:49:11Z"
+      },
+      {
+        "number": 236,
+        "title": "chore: update roadmap (repo-butler)",
+        "author": "repo-butler-app[bot]",
+        "labels": [],
+        "merged_at": "2026-05-27T13:12:00Z"
+      },
+      {
+        "number": 235,
+        "title": "fix: bridge repo renames via stable GitHub ID",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-27T09:06:06Z"
+      },
+      {
+        "number": 234,
+        "title": "docs: update roadmap with section-edit mode, 14 Gold, triage bot status",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-27T00:22:29Z"
+      },
+      {
+        "number": 233,
+        "title": "chore: update roadmap (repo-butler)",
+        "author": "repo-butler-app[bot]",
+        "labels": [],
+        "merged_at": "2026-05-26T15:36:21Z"
+      },
+      {
+        "number": 232,
+        "title": "chore: update roadmap (repo-butler)",
+        "author": "repo-butler-app[bot]",
+        "labels": [],
+        "merged_at": "2026-05-26T11:07:01Z"
+      },
+      {
+        "number": 231,
+        "title": "feat(update): section-edit mode — LLM emits JSON ops, code applies",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T10:30:30Z"
+      },
+      {
+        "number": 230,
+        "title": "fix(update): bump Gemini to 3.5 Flash, tighten verbatim prompt",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T09:50:07Z"
+      },
+      {
+        "number": 228,
+        "title": "fix: use 'shipped' keyword in #84 paragraph",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T09:12:05Z"
+      },
+      {
+        "number": 227,
+        "title": "fix: remove strikethrough from #84 paragraph",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T09:03:28Z"
+      },
+      {
+        "number": 226,
+        "title": "fix(update): revert #84 strikethrough, let Claude pass all guards",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T08:12:32Z"
+      },
+      {
+        "number": 225,
+        "title": "fix(update): switch UPDATE to Claude and protect #84 paragraph",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T07:05:22Z"
+      },
+      {
+        "number": 224,
+        "title": "fix(update): emit soak telemetry in live mode too",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T06:37:33Z"
+      },
+      {
+        "number": 223,
+        "title": "fix(update): graduate UPDATE off dry-run",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T06:24:07Z"
+      },
+      {
+        "number": 222,
+        "title": "fix(update): emit soak telemetry before guards",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-26T06:03:47Z"
+      },
+      {
+        "number": 221,
+        "title": "fix(libyear): per-fetch timeouts replace cascading abort (#220)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-21T06:52:36Z"
+      },
+      {
+        "number": 219,
+        "title": "fix(governance): beforeExit diagnostic + defence-in-depth libyear catch (#218)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-14T06:57:01Z"
+      },
+      {
+        "number": 217,
+        "title": "fix(index): surface silent pipeline exits and missing-report deploys",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-13T20:59:45Z"
+      },
+      {
+        "number": 192,
+        "title": "chore(deps): bump dependabot/fetch-metadata from 2 to 3",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-05-12T06:12:52Z"
+      },
+      {
+        "number": 191,
+        "title": "chore(deps): bump github/codeql-action from 3 to 4",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-05-12T06:10:12Z"
+      },
+      {
+        "number": 190,
+        "title": "chore(deps): bump actions/checkout from 4 to 6",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-05-12T06:07:38Z"
+      },
+      {
+        "number": 214,
+        "title": "fix(update): preserve every #NN PR/issue reference across edits",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-11T18:39:36Z"
+      },
+      {
+        "number": 212,
+        "title": "fix(update): preserve strikethrough markers and refresh open roadmap PRs",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-11T16:15:54Z"
+      },
+      {
+        "number": 210,
+        "title": "fix(safety): detect polyglot ecosystems via byte-weighted language map",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-11T10:06:00Z"
+      },
+      {
+        "number": 209,
+        "title": "fix(apply): surface per-repo errors via exit code and GITHUB_OUTPUT",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-10T22:01:59Z"
+      },
+      {
+        "number": 207,
+        "title": "fix(report-portfolio): exclude blocked bugs from portfolio open_bugs too",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-09T22:23:20Z"
+      },
+      {
+        "number": 206,
+        "title": "fix(observe): exclude blocked bugs from open_bugs count",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-09T18:53:14Z"
+      },
+      {
+        "number": 205,
+        "title": "docs(consumer-guide): standardise deployed-page URL convention",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-09T06:57:01Z"
+      },
+      {
+        "number": 204,
+        "title": "fix(index): surface silent process exits during phase pipeline",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-08T22:56:02Z"
+      },
+      {
+        "number": 201,
+        "title": "fix(index): isolate phases so one failure doesn't skip downstream",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-08T10:13:25Z"
+      },
+      {
+        "number": 200,
+        "title": "fix(pages): include hidden files when uploading reports artifact",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-08T08:39:13Z"
+      },
+      {
+        "number": 199,
+        "title": "docs: simplify docs/ tree by removing shipped artefacts",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-07T22:56:13Z"
+      },
+      {
+        "number": 197,
+        "title": "docs: fix broken links, stale facts, and Pages dotfile 404",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-07T22:51:50Z"
+      },
+      {
+        "number": 196,
+        "title": "docs(plans): deployed-page link surfacing implementation plan",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-07T21:37:02Z"
+      },
+      {
+        "number": 195,
+        "title": "feat(skills): switch read-side skills to MCP-first data sourcing",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-07T16:06:21Z"
+      },
+      {
+        "number": 194,
+        "title": "feat(skills): optional config file for path/branch/projects-dirs",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-07T13:22:07Z"
+      },
+      {
+        "number": 193,
+        "title": "feat(skills): add install-skills.sh helper for local skill registry symlinks",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-07T09:15:28Z"
+      },
+      {
+        "number": 189,
+        "title": "chore(update): widen dry-run preview for soak quality monitoring; mark soak window",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-06T21:45:09Z"
+      },
+      {
+        "number": 188,
+        "title": "fix(providers): bump max output tokens 4096 -> 32768; disable Gemini thinking",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-06T14:00:15Z"
+      },
+      {
+        "number": 187,
+        "title": "chore(update): log rejected output head+tail when length guard fires",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-06T13:38:19Z"
+      },
+      {
+        "number": 186,
+        "title": "feat(skills): Reginald uplift (PR 4/4)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-06T07:22:39Z"
+      },
+      {
+        "number": 185,
+        "title": "docs(roadmap): add deployed-page link surfacing to Future",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-06T07:11:35Z"
+      },
+      {
+        "number": 183,
+        "title": "chore(skills): rename butler-apply to repo-butler-apply (PR 3/4)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-06T07:08:15Z"
+      },
+      {
+        "number": 184,
+        "title": "feat(skills): merge briefing+debrief into /repo-butler (PR 2/4)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-06T07:08:12Z"
+      },
+      {
+        "number": 182,
+        "title": "chore(skills): butler skills hygiene + portability (PR 1/4)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-05T23:30:06Z"
+      },
+      {
+        "number": 181,
+        "title": "docs(roadmap): drop dangling reginald-session-reports research link",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-05T16:01:57Z"
+      },
+      {
+        "number": 179,
+        "title": "feat(update): rebuild UPDATE prompt for edit-only behaviour",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-05T15:43:38Z"
+      },
+      {
+        "number": 177,
+        "title": "chore(update): revert UPDATE graduation back to dry-run",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T11:34:16Z"
+      },
+      {
+        "number": 175,
+        "title": "feat(update): graduate UPDATE off dry-run with same-PR idempotency",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T10:33:28Z"
+      },
+      {
+        "number": 174,
+        "title": "docs(roadmap): add butler-briefing/debrief refresh-or-retire entry",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T08:41:48Z"
+      },
+      {
+        "number": 173,
+        "title": "refactor: extract shared helpers and remove dead import",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:51:14Z"
+      },
+      {
+        "number": 172,
+        "title": "feat(report): polish dashboard with intro, About section, and shared footer",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:45:14Z"
+      },
+      {
+        "number": 171,
+        "title": "feat(mcp): add weekly-trend, governance-PR, and stale-dependabot tools",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:44:19Z"
+      },
+      {
+        "number": 168,
+        "title": "fix(safety): validate roadmap PR body before sending to GitHub API",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:43:39Z"
+      },
+      {
+        "number": 169,
+        "title": "security: sanitize onboard repo names and council author/labels",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:43:11Z"
+      },
+      {
+        "number": 167,
+        "title": "docs: add ADRs 004-006 for governance split, write trust, and MCP strategy",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:43:00Z"
+      },
+      {
+        "number": 170,
+        "title": "docs: refresh CLAUDE.md workflows section and extend secret patterns",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-03T07:42:34Z"
+      },
+      {
+        "number": 166,
+        "title": "docs: refresh for seven-phase pipeline and external contributors",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-02T22:46:56Z"
+      },
+      {
+        "number": 165,
+        "title": "refactor(governance): split detection into its own phase, run daily",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-02T08:39:15Z"
+      },
+      {
+        "number": 163,
+        "title": "feat(governance): add repoEcosystems to standards-gap findings",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T15:46:01Z"
+      },
+      {
+        "number": 164,
+        "title": "fix: remove accidentally committed worktree submodule entries",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T15:46:33Z"
+      },
+      {
+        "number": 161,
+        "title": "feat(governance): add dependabot-audit for stale PR detection",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T15:40:34Z"
+      },
+      {
+        "number": 162,
+        "title": "feat(governance): add apply.js core with templates and shape validation",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T15:40:22Z"
+      },
+      {
+        "number": 160,
+        "title": "feat(governance): add apply phase dispatcher and workflow",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T15:40:01Z"
+      },
+      {
+        "number": 159,
+        "title": "docs: cross-repo automation design spec",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T15:26:58Z"
+      },
+      {
+        "number": 158,
+        "title": "docs: mark Code Health deferred + Hardening Sweep shipped",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T14:27:18Z"
+      },
+      {
+        "number": 157,
+        "title": "feat(governance): policy-drift-exempt config for by-design divergences",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T12:46:11Z"
+      },
+      {
+        "number": 156,
+        "title": "fix(security): make libyear sanitization complete (CodeQL high)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-05-01T06:03:29Z"
+      },
+      {
+        "number": 84,
+        "title": "fix: tune down license concern severity in dashboard",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-04T15:06:15Z"
+      },
+      {
+        "number": 155,
+        "title": "chore: auto-merge dependabot PRs (non-major)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-30T07:02:28Z"
+      },
+      {
+        "number": 153,
+        "title": "docs: roadmap — Portfolio Hardening Sweep (2026-04-29)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-30T06:42:23Z"
+      },
+      {
+        "number": 154,
+        "title": "chore: add CodeQL workflow",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-30T06:45:34Z"
+      },
+      {
+        "number": 152,
+        "title": "fix: wire prs_merged_days config (Code Health follow-up)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:25Z"
+      },
+      {
+        "number": 151,
+        "title": "refactor: CSS custom properties for colour tokens (Code Health follow-up)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:22Z"
+      },
+      {
+        "number": 150,
+        "title": "feat: monitor scanner logging (Code Health follow-up)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:19Z"
+      },
+      {
+        "number": 149,
+        "title": "fix: parseIdeas BODY-then-stop (Code Health follow-up)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:15Z"
+      },
+      {
+        "number": 148,
+        "title": "ops: dashboard refresh 4× daily during UK waking hours",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T21:11:11Z"
+      },
+      {
+        "number": 147,
+        "title": "docs: mark Code Health Sprint shipped + deferred follow-ups",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T20:01:31Z"
+      },
+      {
+        "number": 146,
+        "title": "refactor: utility colour classes (Code Health T3.10)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:37:57Z"
+      },
+      {
+        "number": 145,
+        "title": "refactor: extract gitShow helper (Code Health T3.11)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:37:53Z"
+      },
+      {
+        "number": 144,
+        "title": "refactor: extract buildStatCard helper (Code Health T3.9)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:14Z"
+      },
+      {
+        "number": 143,
+        "title": "refactor: simplify parseIdeas to field-loop (Code Health T3.7)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:10Z"
+      },
+      {
+        "number": 142,
+        "title": "refactor: extract bucketVerdicts helper (Code Health T3.3)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:07Z"
+      },
+      {
+        "number": 141,
+        "title": "refactor: import PERSONAS from council.js (Code Health T3.2)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T19:22:03Z"
+      },
+      {
+        "number": 140,
+        "title": "refactor: extract htmlPage shell (Code Health T3.8)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T15:43:51Z"
+      },
+      {
+        "number": 139,
+        "title": "refactor: extract pruneDir helper (Code Health T3.6)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T15:43:47Z"
+      },
+      {
+        "number": 138,
+        "title": "refactor: fetchMergedPRs via /pulls paginate (Code Health T3.5)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T15:43:43Z"
+      },
+      {
+        "number": 137,
+        "title": "refactor: collapse mcp tool dispatch (Code Health T3.1)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T15:43:40Z"
+      },
+      {
+        "number": 136,
+        "title": "refactor: extract detectMetricDrift helper (Code Health T3.4)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T15:43:25Z"
+      },
+      {
+        "number": 135,
+        "title": "refactor: extract wrapPrompt helper (Code Health T2.4)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T15:43:13Z"
+      },
+      {
+        "number": 134,
+        "title": "refactor: extract colorByThreshold helper (Code Health T2.2)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:48:43Z"
+      },
+      {
+        "number": 133,
+        "title": "refactor: dedupe alert severity tallying (Code Health T2.1)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:48:27Z"
+      },
+      {
+        "number": 132,
+        "title": "refactor: thin index.js dispatcher (Code Health T1.3)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:29:34Z"
+      },
+      {
+        "number": 131,
+        "title": "refactor: dedupe LLM providers via fetchJson (Code Health T2.3)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:29:16Z"
+      },
+      {
+        "number": 130,
+        "title": "refactor: unify repo-snapshot construction (Code Health T1.2)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:04:05Z"
+      },
+      {
+        "number": 129,
+        "title": "refactor: route store through gh file helpers (Code Health T1.4)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T14:03:44Z"
+      },
+      {
+        "number": 128,
+        "title": "refactor: unify campaign defs (Code Health T1.1)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T10:16:46Z"
+      },
+      {
+        "number": 127,
+        "title": "fix: persist monitor cursor and council watchlist (Code Health Tier 0)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T10:16:33Z"
+      },
+      {
+        "number": 126,
+        "title": "fix: skip draft releases when computing released_at",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-28T07:15:28Z"
+      },
+      {
+        "number": 122,
+        "title": "docs: refresh portfolio tier count (10 Gold + 3 Silver)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-19T08:44:45Z"
+      },
+      {
+        "number": 121,
+        "title": "docs: note agent-card module, A2A endpoint, and weekly/monitor workflows",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-18T00:40:31Z"
+      },
+      {
+        "number": 120,
+        "title": "feat: publish A2A AgentCard for capability discovery",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-17T23:50:02Z"
+      },
+      {
+        "number": 119,
+        "title": "feat: wire UPDATE into daily + IDEATE weekly cron (dry-run)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-17T21:56:51Z"
+      },
+      {
+        "number": 118,
+        "title": "Wire ASSESS phase into daily self-test workflow",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-17T08:34:22Z"
+      },
+      {
+        "number": 117,
+        "title": "docs: add scheduled pipeline wiring section to roadmap",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-15T22:17:03Z"
+      },
+      {
+        "number": 116,
+        "title": "feat: run observe alongside report on the daily schedule",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-15T21:35:50Z"
+      },
+      {
+        "number": 115,
+        "title": "fix: hide private repos from the portfolio",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-15T09:48:07Z"
+      },
+      {
+        "number": 114,
+        "title": "fix: include private repos in portfolio discovery + refresh docs",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-14T20:04:58Z"
+      },
+      {
+        "number": 113,
+        "title": "docs: mark Astro integration shipped and refresh portfolio count",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-14T16:18:30Z"
+      },
+      {
+        "number": 112,
+        "title": "feat: surface governance findings on the portfolio dashboard",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-14T10:08:32Z"
+      },
+      {
+        "number": 111,
+        "title": "fix: restructure REPORT_FORCE expression so scheduled runs actually regenerate",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-14T06:47:40Z"
+      },
+      {
+        "number": 110,
+        "title": "fix: add full_name to portfolio repos and force Pages deploy on push",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-13T22:51:44Z"
+      },
+      {
+        "number": 109,
+        "title": "docs: add portfolio review for 2026-04-13",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-13T22:40:30Z"
+      },
+      {
+        "number": 108,
+        "title": "feat: Astro prerequisites — cache fix, parallel libyear, incremental reports",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-13T21:21:16Z"
+      },
+      {
+        "number": 107,
+        "title": "fix: improve mobile responsiveness for dashboard reports",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-13T08:48:02Z"
+      },
+      {
+        "number": 106,
+        "title": "feat: capture 14-day traffic (views/clones) in weekly portfolio snapshots",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-11T22:46:06Z"
+      },
+      {
+        "number": 105,
+        "title": "feat: add continuous monitoring and agent council deliberation system",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-11T18:07:42Z"
+      },
+      {
+        "number": 104,
+        "title": "docs: add distributable butler skills to roadmap",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-11T08:37:59Z"
+      },
+      {
+        "number": 103,
+        "title": "feat: add butler-briefing and butler-debrief skills",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-11T08:02:48Z"
+      },
+      {
+        "number": 102,
+        "title": "fix: fetch open PR count directly for accurate dashboard data",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-10T15:28:04Z"
+      },
+      {
+        "number": 101,
+        "title": "feat: Astro integration Stream 1 — enriched snapshots, cache fix, libyear",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-09T09:42:50Z"
+      },
+      {
+        "number": 100,
+        "title": "feat: add open PRs column to simplified portfolio table",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T21:04:57Z"
+      },
+      {
+        "number": 99,
+        "title": "feat: re-add Issues column with proper App permissions",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T20:24:02Z"
+      },
+      {
+        "number": 98,
+        "title": "fix: remove misleading Issues column from simplified portfolio table",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T10:09:02Z"
+      },
+      {
+        "number": 97,
+        "title": "fix: rename Bugs column to Issues in portfolio table",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T09:54:34Z"
+      },
+      {
+        "number": 96,
+        "title": "fix: fall back to repo listing issue count when issues API returns empty",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T09:45:36Z"
+      },
+      {
+        "number": 95,
+        "title": "fix: show total issues alongside bug count in portfolio table",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T09:33:48Z"
+      },
+      {
+        "number": 94,
+        "title": "fix: derive PRs Merged (90d) from author data for consistency",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T07:12:12Z"
+      },
+      {
+        "number": 93,
+        "title": "feat: restructure dashboards into narrative decision tools",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-08T06:39:52Z"
+      },
+      {
+        "number": 92,
+        "title": "docs: update roadmap to reflect 14 Gold portfolio",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-07T22:44:02Z"
+      },
+      {
+        "number": 91,
+        "title": "docs: add dashboard narrative restructure spec",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-07T22:05:58Z"
+      },
+      {
+        "number": 90,
+        "title": "feat: classify issues by label — only bugs count toward Gold tier",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-06T10:11:53Z"
+      },
+      {
+        "number": 89,
+        "title": "docs: add local-brain integration research",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-06T08:12:50Z"
+      },
+      {
+        "number": 87,
+        "title": "fix: use node24 runtime",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-06T08:01:01Z"
+      },
+      {
+        "number": 88,
+        "title": "fix: use node20 in action.yml for maximum runner compatibility",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-05T10:23:58Z"
+      },
+      {
+        "number": 86,
+        "title": "docs: update roadmap with April 4 session progress",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-04T15:51:53Z"
+      },
+      {
+        "number": 85,
+        "title": "feat: auto-onboard new portfolio repos",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-04T15:46:06Z"
+      },
+      {
+        "number": 83,
+        "title": "fix: use GitHub App token for vulnerability alert access",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-04T09:59:38Z"
+      },
+      {
+        "number": 82,
+        "title": "feat: security trifecta and release opt-out",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-03T23:10:06Z"
+      },
+      {
+        "number": 78,
+        "title": "build(deps): Bump actions/create-github-app-token from 2 to 3",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-04-03T11:34:01Z"
+      },
+      {
+        "number": 81,
+        "title": "fix: raise Gold tier open issues threshold from 10 to 20",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-03T11:26:14Z"
+      },
+      {
+        "number": 80,
+        "title": "docs: add skills and documentation landscape research",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-03T06:23:11Z"
+      },
+      {
+        "number": 79,
+        "title": "docs: simplify Phase 10 — agents as needed, existing tools for execution",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-02T10:01:22Z"
+      },
+      {
+        "number": 77,
+        "title": "docs: add multi-repo tool landscape to roadmap",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-01T22:20:46Z"
+      },
+      {
+        "number": 76,
+        "title": "feat: add trigger_refresh MCP tool",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-01T13:31:25Z"
+      },
+      {
+        "number": 75,
+        "title": "fix: only retry 403 when rate limit is actually exhausted",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-01T11:32:42Z"
+      },
+      {
+        "number": 74,
+        "title": "fix: scope App token to owner for cross-repo onboarding",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-01T07:24:55Z"
+      },
+      {
+        "number": 73,
+        "title": "feat: auto-onboard repos with consumer guide and MCP setup",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-04-01T06:53:05Z"
+      },
+      {
+        "number": 72,
+        "title": "fix: detect Dependabot config via file fallback",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T22:57:04Z"
+      },
+      {
+        "number": 71,
+        "title": "docs: rename consumer guide, add Phase 10 agent swarm",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T22:54:14Z"
+      },
+      {
+        "number": 70,
+        "title": "docs: add consumer guide skill for portfolio repos",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T21:08:49Z"
+      },
+      {
+        "number": 69,
+        "title": "fix: fail fast on 403 permission errors",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T19:49:08Z"
+      },
+      {
+        "number": 68,
+        "title": "fix: add security-events:read for Dependabot alerts",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T19:00:09Z"
+      },
+      {
+        "number": 67,
+        "title": "fix: group license concerns by license type",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T12:56:27Z"
+      },
+      {
+        "number": 66,
+        "title": "fix: improve portfolio dashboard readability",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T09:38:35Z"
+      },
+      {
+        "number": 65,
+        "title": "feat: Phase 5 Portfolio Governance Engine",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-31T07:08:09Z"
+      },
+      {
+        "number": 64,
+        "title": "docs: mark security prerequisites shipped, update safety docs",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-30T22:29:43Z"
+      },
+      {
+        "number": 63,
+        "title": "security: harden trust boundaries across all external inputs",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-30T21:24:37Z"
+      },
+      {
+        "number": 62,
+        "title": "docs: mark Phases 6-7 shipped, adopt GitHub App for cross-repo auth",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-30T18:17:16Z"
+      },
+      {
+        "number": 61,
+        "title": "docs: update CLAUDE.md and README for report split, MCP server, schemas",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-30T15:27:33Z"
+      },
+      {
+        "number": 60,
+        "title": "feat: MCP server for AI agent access to portfolio health",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-30T15:10:39Z"
+      },
+      {
+        "number": 59,
+        "title": "feat: interoperability layer Phase 1 — data contracts, AI skill, eval tests",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-30T07:14:12Z"
+      },
+      {
+        "number": 58,
+        "title": "refactor: split report.js into focused modules",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-29T10:55:49Z"
+      },
+      {
+        "number": 57,
+        "title": "fix: camelCase mismatch between ideate and propose",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-29T10:51:10Z"
+      },
+      {
+        "number": 56,
+        "title": "fix: exclude repos with unavailable data from campaigns",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-28T08:34:27Z"
+      },
+      {
+        "number": 55,
+        "title": "feat: contributor funnel for per-repo and portfolio reports",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:32:40Z"
+      },
+      {
+        "number": 52,
+        "title": "feat: add libyear dependency freshness metric",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:28:08Z"
+      },
+      {
+        "number": 54,
+        "title": "feat: campaign view on portfolio dashboard",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:24:25Z"
+      },
+      {
+        "number": 53,
+        "title": "feat: sparkline mini-charts in portfolio table",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-26T15:21:37Z"
+      },
+      {
+        "number": 51,
+        "title": "build(deps): Bump actions/deploy-pages from 4 to 5",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-26T12:30:40Z"
+      },
+      {
+        "number": 48,
+        "title": "build(deps): Bump actions/setup-node from 4 to 6",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-26T12:29:18Z"
+      },
+      {
+        "number": 47,
+        "title": "build(deps): Bump actions/checkout from 4 to 6",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-26T12:27:12Z"
+      },
+      {
+        "number": 50,
+        "title": "fix: group Dependabot minor/patch updates",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-25T18:30:28Z"
+      },
+      {
+        "number": 46,
+        "title": "build(deps): Bump actions/upload-pages-artifact from 3 to 4",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-03-25T18:28:41Z"
+      },
+      {
+        "number": 49,
+        "title": "docs: ADR-002 portfolio governance boundary",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-25T11:04:30Z"
+      },
+      {
+        "number": 45,
+        "title": "feat: add Dependabot config and prepare v1 release packaging",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-03-24T21:55:16Z"
+      }
+    ]
+  },
+  "labels": [
+    {
+      "name": "agent-generated",
+      "description": "Created by an automated agent",
+      "color": "c5def5"
+    },
+    {
+      "name": "bug",
+      "description": "Something isn't working",
+      "color": "d73a4a"
+    },
+    {
+      "name": "dependencies",
+      "description": "Pull requests that update a dependency file",
+      "color": "0366d6"
+    },
+    {
+      "name": "documentation",
+      "description": "Improvements or additions to documentation",
+      "color": "0075ca"
+    },
+    {
+      "name": "duplicate",
+      "description": "This issue or pull request already exists",
+      "color": "cfd3d7"
+    },
+    {
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "name": "github_actions",
+      "description": "Pull requests that update GitHub Actions code",
+      "color": "000000"
+    },
+    {
+      "name": "good first issue",
+      "description": "Good for newcomers",
+      "color": "7057ff"
+    },
+    {
+      "name": "help wanted",
+      "description": "Extra attention is needed",
+      "color": "008672"
+    },
+    {
+      "name": "invalid",
+      "description": "This doesn't seem right",
+      "color": "e4e669"
+    },
+    {
+      "name": "question",
+      "description": "Further information is requested",
+      "color": "d876e3"
+    },
+    {
+      "name": "roadmap-proposal",
+      "description": "Issue proposed by repo-butler",
+      "color": "7057ff"
+    },
+    {
+      "name": "wontfix",
+      "description": "This will not be worked on",
+      "color": "ffffff"
+    }
+  ],
+  "milestones": [],
+  "releases": [
+    {
+      "tag": "v1.1.0",
+      "name": "v1.1.0 — Governance Engine + Security Hardening",
+      "published_at": "2026-03-31T22:55:25Z",
+      "prerelease": false
+    }
+  ],
+  "workflows": [
+    {
+      "name": "Governance Apply",
+      "path": ".github/workflows/apply.yml",
+      "state": "active"
+    },
+    {
+      "name": "CI",
+      "path": ".github/workflows/ci.yml",
+      "state": "active"
+    },
+    {
+      "name": "CodeQL",
+      "path": ".github/workflows/codeql.yml",
+      "state": "active"
+    },
+    {
+      "name": "Dependabot auto-merge",
+      "path": ".github/workflows/dependabot-auto-merge.yml",
+      "state": "active"
+    },
+    {
+      "name": "Repo Butler Monitor",
+      "path": ".github/workflows/monitor.yml",
+      "state": "active"
+    },
+    {
+      "name": "Onboard Repos",
+      "path": ".github/workflows/onboard.yml",
+      "state": "active"
+    },
+    {
+      "name": "Repo Butler",
+      "path": ".github/workflows/self-test.yml",
+      "state": "active"
+    },
+    {
+      "name": "Repo Butler Weekly Ideate",
+      "path": ".github/workflows/weekly-ideate.yml",
+      "state": "active"
+    },
+    {
+      "name": "Dependabot Updates",
+      "path": "dynamic/dependabot/dependabot-updates",
+      "state": "active"
+    }
+  ],
+  "roadmap": {
+    "path": "ROADMAP.md",
+    "content": "# Repo Butler — Roadmap\n\n**Last Updated:** 2026-05-27\n**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.\n\n---\n\n## Vision\n\nRepo Butler is evolving from a reporting tool into a genuine butler — one that not only tells you what your repos need but takes care of it. The positioning is deliberate: don't replicate what Renovate, Dependabot, SonarCloud, or the triage bot already do well. Instead, consume their data, present a unified view, and open PRs to install the tools that are missing. The butler orchestrates; the specialist tools execute.\n\nThe competitive landscape confirms this is a unique niche. Implementation agents (Copilot Coding Agent, Sweep, Devin) take known issues and write code. Planning tools (CodeRabbit Issue Planner) produce implementation plans. Project intelligence platforms (Linear AI, OSSInsight, GrimoireLab) either require infrastructure or are SaaS. No tool does the full loop of observe → assess → propose → act across an entire portfolio from a zero-dependency GitHub Action.\n\n## Architecture\n\n```text\nOBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT\n```\n\n1. **OBSERVE** — Gather project state via GitHub API. Portfolio-level classification. Consume data from installed tools. No LLM needed.\n2. **ASSESS** — Diff snapshots, compute trends, detect health gaps. Optionally summarise with Gemini Flash.\n3. **UPDATE** — Generate an updated roadmap document and open a PR. Safety-validated.\n4. **GOVERNANCE** — Run deterministic detectors over the portfolio (standards gaps, policy drift, tier-uplift, stale Dependabot PRs). No LLM cost; runs 4×/day on the daily pipeline.\n5. **IDEATE** — Generate improvement ideas informed by triage bot intelligence, health signals, and fresh governance findings.\n6. **PROPOSE** — Create GitHub issues from ideas, safety-filtered, capped and labelled.\n7. **REPORT** — Generate HTML dashboards for every portfolio repo, deploy to GitHub Pages.\n\nSee [ADR-001](docs/decisions/001-repo-butler-vs-triage-bot.md) for the boundary between this project and the triage bot.\n\n## Implemented\n\nAll six original phases are working end-to-end with real Gemini API calls validated. The system runs daily at 2am UTC via GitHub Actions cron, generating fresh reports and deploying them to GitHub Pages.\n\nObserving covers open/closed issues, merged PRs, labels, milestones, releases, workflows, repo metadata, roadmap content, and package.json parsing. Portfolio observation classifies all repos by activity level (active, dormant, archive candidate, fork, test).\n\nAssessing persists snapshots on a `repo-butler-data` orphan branch via the Git Data API, computes diffs between runs, and tracks weekly snapshot history for trend analysis. The `computeTrends` function produces a direction signal (growing/shrinking/stable) from up to 12 weeks of data.\n\nReporting generates per-repo HTML dashboards for every active portfolio repo, with full charts for active repos and lightweight cards for quieter ones. Report caching skips regeneration when the snapshot hash hasn't changed. Multi-repo trend charts store lightweight weekly snapshots per portfolio repo. A safety layer validates all LLM output before publishing. Triage bot integration is optional and auto-discovered. The ASSESS and IDEATE prompts include triage bot intelligence when available.\n\nPhase 1 (Richer Observation) shipped 2026-03-22 via PR #18. Added community health profile, Dependabot vulnerability alerts, CI pass rate, bus factor, and time-to-close median. Portfolio table gained Community, Vulns, and CI% columns. Per-repo reports gained a Repository Health section with five cards. Follow-up fixes: YAML issue template detection (PR #22), search API replaced with list endpoints halving runtime from 26 to 13 minutes (PR #23), open issue counts exclude PRs (PR #24).\n\nPhase 2 (Richer Reports) in progress since 2026-03-23. Open PR triage view (PR #26), issue staleness detection (PR #27), blocked issue context with upstream classification (PR #28). 74 tests, 28 merged PRs.\n\nSecurity trifecta shipped 2026-04-04 (PR #82). Broadened security assessment from Dependabot-only to three GitHub security scanners: Dependabot alerts, code scanning (CodeQL/SAST), and secret scanning. Gold tier check changed from \"Dependabot configured\" to \"any security scanner configured\" with findings checked across all configured scanners. Added `release_exempt` config option for stable repos that don't need frequent releases. Added `getAlertSummary` shared helper for DRY severity computation across observe and portfolio paths.\n\nGitHub App token for vulnerability access shipped 2026-04-04 (PR #83). Switched the main workflow from the default GITHUB_TOKEN to the GitHub App token, granting access to Dependabot alerts, code scanning alerts, and secret scanning alerts APIs across all portfolio repos.\n\nLicense concern severity shipped 2026-04-04 (PR #84). Replaced blanket red flags for all copyleft with a two-level system: high concern (AGPL, shown in red) and low risk (GPL, LGPL, MPL — collapsed grey summary). Non-commercial projects using permissive licenses are not meaningfully affected by weak copyleft dependencies.\n\nAuto-onboarding shipped 2026-04-04 (PR #85). The pipeline now automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. Skipped during dry runs.\n\nBug-only Gold tier shipped 2026-04-06 (PR #90). Gold tier check changed from \"Fewer than 20 open issues\" to \"Fewer than 10 open bugs\", classifying issues by label (`bug`/`defect`/`bugfix`). Feature requests and unlabelled issues no longer penalise health.\n\nNode runtime compatibility fixed 2026-04-05 (PRs #87–#88). Resolved `'using: node22' is not supported` errors on some runners by switching `action.yml` to node20, then node24, ensuring compatibility across all GitHub Actions runner versions.\n\nDashboard narrative restructure spec added 2026-04-07 (PR #91). Multi-persona review identified the dashboards as data dumps lacking narrative flow. The restructure shipped across PRs #93–#100, reframing both portfolio and per-repo pages around a situation-problem-action arc.\n\nPrivate repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so private repos such as `value-punter` appear in the portfolio when the workflow token can see them. Portfolio entries now carry `private` and `visibility` fields.\n\nThe GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 711 tests and secret-leak checks on every PR.\n\n\nSection-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.\n\nGitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.\n---\n\n## Roadmap\n\n### ~~Phase 1 — Richer Observation (consume, don't replicate)~~ SHIPPED\n\nShipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pass rate, bus factor, time-to-close median. Portfolio table + per-repo health cards.\n\n**GitHub Community Health Profile** — Call `/repos/{owner}/{repo}/community/profile` (one unauthenticated call per public repo) to get a health percentage and presence/absence of README, CODE_OF_CONDUCT, CONTRIBUTING, issue templates, PR template, and LICENSE. Add to the portfolio health matrix as a \"Community\" column. The API returns structured data that directly maps to a gap checklist for the CARE phase.\n\n**Dependabot Vulnerability Alerts** — Call `/repos/{owner}/{repo}/dependabot/alerts?state=open` to get open security alerts with severity (critical/high/medium/low), affected package, and patched version. Add a \"Vulns\" column to the health matrix, colour-coded by maximum severity. Requires `vulnerability_alerts: read` scope on the token for cross-repo access.\n\n**CI Workflow Pass Rate** — Call `/repos/{owner}/{repo}/actions/runs?status=completed&per_page=100` and compute `success / (success + failure + cancelled + timed_out)`, excluding skipped runs. Display as a percentage in the health matrix and flag repos below 90% as having flaky CI.\n\n**Time to First Response** — From existing issue data (already fetched), compute the median time between issue creation and the first comment by someone other than the author. This is a CHAOSS standard metric and a key community health signal.\n\n**Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.\n\n### ~~Phase 2 — Richer Reports~~ SHIPPED\n\nShipped 2026-03-24 (PRs #23–#37). All 10 items complete: release cadence bug fix, open PR triage view, issue staleness detection, blocked issue context, calendar heatmap, PR cycle time, issue velocity imbalance alert, narrative weekly digest, embeddable SVG health badges, SBOM dependency inventory, and AI agent actionability score. 105 tests.\n\n### ~~Phase 3 — Tiered Health Model~~ SHIPPED\n\nShipped 2026-03-24 (PR #39). Replaced the numeric health score with Gold/Silver/Bronze tiers. Each tier has explicit pass/fail criteria shown as a checklist on per-repo reports. Portfolio table shows tier badges. SVG badges updated with tier names. 119 tests.\n\n### ~~Phase 4 — Structured Issue Specs~~ SHIPPED\n\nShipped 2026-03-24 (PRs #41–#42). IDEATE now requests structured specs (current/proposed state, affected files, scope, signal rationale). PROPOSE builds rich markdown issue bodies and uses Jaccard similarity duplicate detection (threshold 0.6) before creating issues. Backward compatible with old-format LLM output. 27 new tests across ideate.test.js and propose.test.js.\n\n### ~~Consumer Packaging~~ SHIPPED\n\nShipped 2026-03-24. No `ncc` bundling needed — the project has zero npm dependencies, so GitHub Actions' native `node22` runtime runs `src/index.js` directly. The `action.yml` already declares `using: 'node22'` and `main: 'src/index.js'`, which is all that's required. Consumers reference the action as `uses: IsmaelMartinez/repo-butler@v1`. Dependabot is configured for the `github-actions` ecosystem to keep workflow dependencies current. README includes Usage, Quick Start, and Configuration sections for consumers.\n\n---\n\n## Next Up\n\n### ~~Dashboard Narrative Restructure~~ SHIPPED\n\nShipped 2026-04-08 (PRs #93–#100). Restructured both portfolio and per-repo dashboards from data dumps into narrative decision tools following a situation-problem-action arc. Portfolio page: tier distribution pulse, attention required section, simplified health table (Repo, Tier, Issues, PRs, CI%, Vulns, Next Step) with full view behind toggle, collapsible charts and dependency inventory, doughnut charts removed. Per-repo page: health grid merged into tier checklist with inline annotations, trends moved up, Open Work section, collapsible Activity History and Community. Also fixed PRs Merged (90d) data consistency, added issues:read to the GitHub App, and added open PRs column.\n\n### ~~Astro Integration + Dynamic Dashboards~~ SHIPPED\n\nShipped 2026-04-14. The presentation layer now lives in the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON from the `repo-butler-data` branch at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load. Repo-butler remains the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The GitHub Pages reports stay as a standalone fallback.\n\n~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison).\n\n### Scheduled pipeline wiring\n\nFive of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS, UPDATE (dry-run), and REPORT run daily via `self-test.yml`, and IDEATE runs weekly via `weekly-ideate.yml` (dry-run). Only PROPOSE remains manual-only. Alongside the main pipeline, MONITOR runs every 6h via `monitor.yml`. `.github/roadmap.yml:6-8` declares `schedule: { assess: daily, ideate: weekly }` — both now match reality. The 2026-04-14 incident where `snapshots/latest.json` had been frozen since 2026-04-03 (because `self-test.yml` defaulted to `phase=report` with no OBSERVE) exposed this gap; the fix landed as commit `9795952` on main. The remaining work is a two-week soak test on UPDATE and IDEATE before graduating either off dry-run.\n\n~~**Wire ASSESS into the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`, so the daily run diffs snapshots, calls the LLM for a narrative, proposes a ROADMAP.md update in dry-run mode, and computes weekly trends. The per-repo report for the butler repo now renders an Assessment section from `context.assessment.assessment` alongside the trend direction from `context.trends`. `schedule.assess: daily` in roadmap.yml is no longer aspirational.\n\n~~**Weekly IDEATE workflow (dry-run first)**~~ — SHIPPED. `.github/workflows/weekly-ideate.yml` runs `observe,ideate` every Monday at 06:00 UTC with `dry-run: true`. No issue or PR writes; governance findings still persist to the `repo-butler-data` branch for the MCP `get_governance_findings` tool. Graduate to `observe,ideate,propose` later once the council output is trusted. Acceptance (pending): governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality.\n\n~~**UPDATE in dry-run mode on the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file.\n\n~~**Graduate UPDATE off dry-run**~~ — SHIPPED 2026-05-26. First attempt reverted 2026-05-03 (PR #175 → PR #176 exposed destructive rewrites). Re-graduated via PRs #222–#231 after switching to section-edit mode: the LLM now emits JSON append ops instead of reproducing the full document, eliminating the class of bugs that plagued the full-document approach across three models (Gemini 2.5, Claude Sonnet 4, Gemini 3.5). PR #223 flipped `INPUT_DRY_RUN` to false; PR #231 shipped section-edit mode; PRs #232 and #233 were the first successfully generated and merged roadmap updates.\n\n~~**UPDATE prompt rebuild + section-edit mode**~~ — SHIPPED 2026-05-26. The full-document reproduction approach (PRs #179, #187, #188) proved fundamentally unsuitable: three models (Gemini 2.5 Flash, Claude Sonnet 4, Gemini 3.5 Flash) all consistently deleted or rewrote paragraphs despite explicit verbatim instructions, and four safety guards (length 80%, strikethrough count, PR-reference count, validateRoadmap) correctly caught every bad edit but meant no PR was ever created. PR #231 replaced it with section-edit mode: the LLM receives the roadmap as read-only context and emits a JSON array of `{\"action\": \"append\", \"section\": \"...\", \"text\": \"...\"}` ops; the code applies them deterministically and updates the date without LLM involvement. The LLM can only add content, never delete or rewrite. Run time dropped from ~40s to ~6s, and the first two generated PRs (#232, #233) merged cleanly. Gemini bumped from 2.5 to 3.5 Flash in PR #230. The legacy guards remain defined but inactive, with `validateRoadmap` as the active defence-in-depth.\n\n**Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.\n\n### ~~Code Health Sprint — multi-agent simplification review~~ SHIPPED\n\nShipped 2026-04-28 across PRs #127–#146 (twenty PRs in total, plus the precursor #126 release-tier draft-filter fix). Originated from a four-team subagent review of the whole codebase (~12.5k LOC, 22 source files) that surfaced two correctness bugs and roughly twenty mechanical dedupe opportunities.\n\nTier 0 (correctness): #127 fixed broken monitor cursor and council watchlist persistence — `loadCursor` was returning `null` unconditionally and `saveCursor` was guarding on a `store.writeFile` method that the store had never exposed, so the every-6h monitor was reporting every open issue/PR/alert as new on every run and the council was re-triaging the same backlog forever. Same root cause for the watchlist. Fixed by adding `readJSON`/`writeJSON` to the store factory and routing both callers through it.\n\nTier 1 (structural): #128 unified the duplicate campaign definitions between `mcp.js` and `report-portfolio.js` into a shared `CAMPAIGN_DEFS` constant. #130 extracted `buildRepoSnapshot` to replace three drift-prone construction sites that all feed `computeHealthTier`. #129 added `gh.putFile`/`deleteFile` and an optional `{ ref }` to `getFileContent`/`listDir` so `store.js` could drop its hand-rolled `/contents/{path}` blocks and route through the github client. #132 reshaped `src/index.js` from 286 LOC of mixed concerns into a 159-LOC thin dispatcher, with each phase exporting its own `runX(context)` wrapper.\n\nTier 2 (pattern dedup): #133 collapsed the severity-tally bodies in `observe.js` and the three near-identical scanner blocks in `monitor.js` via the existing `getAlertSummary` helper, extended additively to expose per-severity counts. #134 added a `colorByThreshold` helper used at nine sites across the report files. #131 merged the two LLM providers via a shared `fetchJson` helper in `providers/base.js`. #135 extracted `wrapPrompt` so the `PROMPT_DEFENCE` + `DATA_BOUNDARY_START` scaffolding lives in one place — defence-in-depth as much as simplification.\n\nTier 3 (local cleanups): #137 collapsed the `mcp.js` 9-arm `callTool` switch by attaching handlers to each tool entry. #141 replaced the hardcoded persona list in `mcp.js` with `import { PERSONAS } from './council.js'`. #142 extracted `bucketVerdicts` for `triageEvents`/`reviewProposals`. #136 extracted `detectMetricDrift` for the CI and community-health drift detectors in `governance.js`. #138 switched `observe.js fetchMergedPRs` from the search API to `gh.paginate('/pulls', { state: closed })`. #139 extracted `pruneDir` for the weekly snapshot rotation. #143 replaced the `parseIdeas` regex pyramid with a field-loop parser. #140 extracted `htmlPage` for the report shell. #144 extracted `buildStatCard` for the repeated repo-health card fragments. #146 promoted `.muted`/`.text-success`/`.text-warning`/`.text-danger` utility classes for the literal-colour inline styles. #145 added `runGitOnDataBranch` (the data-branch reads in `mcp.js` previously hand-rolled the origin/-prefixed → bare ref fallback in two places).\n\nSide outcomes from the sprint: a latent CI bug surfaced and was fixed inside #131 (the `npm test` glob `src/**/*.test.js` only matched the providers subdirectory once subdirectory test files appeared, so CI was silently running 15 tests instead of 496). The `repo-butler-data` per-repo cache schema was bumped to invalidate stale entries when `released_at` shape changed (#126 precursor). Items deliberately left untouched: `config.js` hand-rolled YAML parser (well-scoped to CLAUDE.md's flat + one-level-nested contract), `libyear.js` cohesion (single-purpose, single caller), and any further file splitting (the 5-file report split is intentional).\n\n### ~~Code Health Sprint — deferred follow-ups~~ SHIPPED\n\nAll four follow-ups shipped across PRs #149–#152: parseIdeas BODY-then-stop (#149), monitor scanner logging (#150), CSS custom properties (#151), prs_merged_days config wiring (#152).\n\n### ~~Portfolio Hardening Sweep — 2026-04-29~~ SHIPPED\n\nShipped 2026-05-01. Code-scanning rollout (13/13 repos, security alerts zeroed across portfolio via 10 fix PRs), Dependabot config audit (all repos now have npm + github-actions, 4 PRs merged), and licence policy update (policy-drift-exempt config added in PR #157 whitelisting teams-for-linux GPL-3.0 and bonnie-wee-plot Community Allotment Licence). Zero open vulnerabilities across the portfolio as of snapshot 2026-W18.\n\n### ~~Cross-repo PR automation (follow-up)~~ SHIPPED\n\nShipped 2026-05-01 via `src/apply.js`, `.github/workflows/apply.yml`, and `src/dependabot-audit.js`.\n\n~~`governance:apply`~~ — SHIPPED. `applyGovernanceFindings` reads findings from the data branch, validates shape, generates templated config files for code-scanning + dependabot, opens PRs on target repos with the `governance-apply` label. Manual-dispatch only via `apply.yml`, dry-run by default (fail-closed semantics), batch-cap of 5 PRs per run, behind `require_approval`. See [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md) for the full layered-gate rationale.\n\n~~`dependabot:audit`~~ — SHIPPED. `auditDependabot` at `src/dependabot-audit.js` flags repos with stale unmerged Dependabot PRs (>30d high-priority, >60d critical). Findings persist as `dependabot-stale` entries in `governance.json` and are surfaced via the MCP `list_stale_dependabot_prs` tool plus the dashboard's Governance section.\n\n### Phase 5 — Portfolio Governance Engine\n\nReplaces the original CARE phase with a broader portfolio governance model. See [ADR-002](docs/decisions/002-portfolio-governance-boundary.md) for the full rationale on why this replaces the generic IDEATE/PROPOSE approach.\n\nThe core insight: repo-butler's unique value is the cross-repo view. It sees which tools are configured where, what changed when, and which repos are out of alignment. The IDEATE/PROPOSE phases should generate proposals that only make sense with this portfolio context, not generic per-repo improvement ideas (which the triage bot does better with deeper context).\n\nDetection engine shipped (`src/governance.js`). The pipeline runs `detectStandardsGaps`, `detectPolicyDrift`, and `generateUpliftProposals` after OBSERVE, persists the merged findings to the data branch via `store.writeGovernanceFindings`, feeds them into IDEATE's governance-focused prompt, and exposes them via the MCP `get_governance_findings` tool.\n\n~~**Portfolio policy definition**~~ — SHIPPED. `.github/roadmap.yml` accepts a flat `standards` section; `config.js` transforms it into structured scope/exclusion data for governance.\n\n~~**Standards propagation**~~ — SHIPPED. `detectStandardsGaps` at `src/governance.js:71` checks each applicable repo against built-in detectors (issue-form-templates, contributing-guide, license, dependabot-actions, ci-workflows, code-scanning, secret-scanning), filtered by scope and exclusions.\n\n~~**Policy drift detection**~~ — SHIPPED. `detectPolicyDrift` at `src/governance.js:122` flags license divergence from the ≥80% majority, and CI/community health scores >20pp below the portfolio median.\n\n~~**Health tier uplift proposals**~~ — SHIPPED. `generateUpliftProposals` at `src/governance.js:211` proposes tier uplift when ≤3 checks fail for the next tier, listing exactly which checks to close.\n\n~~**Rewrite IDEATE prompt**~~ — SHIPPED. `buildIdeatePrompt` at `src/ideate.js:34` switches to a portfolio governance advisor persona when governance findings are present and includes full findings via `appendGovernanceContext`.\n\n~~**Governance findings dashboard**~~ — SHIPPED. `buildGovernanceSection` at `src/report-portfolio.js:421` renders a Governance section on the portfolio report with three tables: Standards Gaps (by tool, sorted by adoption rate), Policy Drift (by category), and Tier Uplift Opportunities (silver→gold prioritised, listing remaining checks per repo).\n\n~~**Cross-repo PR creation**~~ — SHIPPED. `src/apply.js` + `.github/workflows/apply.yml`. Uses the GitHub App token (`actions/create-github-app-token`) for cross-repo writes, dispatch-only, dry-run fail-closed, `require_approval` gated, batch-capped at 5 PRs per run. See ADR-005 for the layered-gate rationale.\n\n~~**Auto-onboarding**~~ — SHIPPED (PR #85). The pipeline automatically checks all active portfolio repos after the report phase and opens onboarding PRs for any repo missing the CLAUDE.md consumer guide. No webhook needed — runs on every daily pipeline execution.\n\nSecurity prerequisites (from architecture review): ~~bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting in safety.js~~, ~~contributor name sanitisation~~, GitHub App for cross-repo auth. Five of six shipped in PRs #63 and #65 (329 tests). Also shipped: LLM prompt injection defence, triage bot response schema validation, governance detection engine.\n\n~~**Landscape evaluation**~~ — EVALUATED 2026-05-28 ([docs/research/2026-05-28-multi-repo-tooling-landscape.md](docs/research/2026-05-28-multi-repo-tooling-landscape.md)). Conclusion: embed no external tool into the Action — the zero-dependency, API-only, zero-infra moat rules out clone-based CLIs (`multi-gitter`, `git-xargs`) and self-hosted Probot apps (`safe-settings`, `allstar`). Community-health-file propagation extends `apply.js` natively rather than adopting `repo-file-sync-action`; `multi-gitter` is kept as a manual escape-hatch; `ossf/scorecard` is deferred as a future OBSERVE signal. See [ADR-007](docs/decisions/007-agents-and-execution.md) and the Landscape section.\n\n\nSection-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents. This reduces token consumption, eliminates truncation errors, and guarantees deterministic application of roadmap updates.\n---\n\n## Future\n\nThese are ideas for later evaluation, not commitments.\n\n~~**Libyear dependency freshness**~~ — SHIPPED. Implemented via SBOM data plus npm registry lookups. Shows cumulative dependency age per repo in the portfolio table and per-repo reports.\n\n**External tool metric consumption** — Auto-discover SonarCloud (`.sonarcloud.properties`) or CodeClimate (`.codeclimate.yml`) configurations and pull maintainability grades into the health matrix. Read Renovate's Dependency Dashboard issue to extract pending update counts. All opt-in, following the triage bot auto-discovery pattern. Phase 6 schemas lay the groundwork for structured consumption of these external signals. Also evaluate `ossf/scorecard` as a security health signal — its 0-10 score across 18 dimensions could feed into or complement the health tier model rather than the butler computing its own security metrics.\n\n**Deployed-page link surfacing** — Many portfolio repos have a deployed homepage (GitHub Pages site, custom domain, or the repo-level `homepage` API field), but the dashboard shows only the repo name today, so reaching the live page is a multi-step click-through. Future work would surface the deployed-page URL directly in the portfolio table and on the per-repo dashboard when present, pulled from the `homepage` field already returned by the GitHub API call in `src/observe.js` or, where useful, from the GitHub Pages API. Discovery-only — no live health checking or uptime probing — and a small UX win that capitalises on data already fetched.\n\n~~**Contributor funnel**~~ — SHIPPED. `fetchPRAuthors` at `src/report-repo.js:49` marks authors via `pr.author_association === 'FIRST_TIME_CONTRIBUTOR'`. `computeContributorStats` at `src/report-repo.js:147` computes total, first-timers, and contributor confidence ratio (unique contributors / stargazers × 100). Rendered on per-repo reports as three cards: Unique Contributors (90d), First-Time Contributors, Contributor Confidence.\n\n~~**Sparkline mini-charts**~~ — SHIPPED. `generateSparklineSVG` at `src/report-portfolio.js:282` renders per-repo weekly activity inline in the portfolio table rows. Pure SVG, no library.\n\n~~**Campaign view**~~ — SHIPPED. `buildCampaignSection` at `src/report-portfolio.js:318` groups Community Health, Vulnerability Free, CI Reliability, License Compliance, and Issue Templates adoption into progress cards with non-compliant repo lists.\n\n**Skills and documentation review** — Review the research at `docs/research/2026-04-02-skills-and-documentation-landscape.md` and evaluate: distributing per-repo governance findings as Claude Code skills via the onboarding workflow, adding YAML frontmatter to ADRs for machine-parseability, establishing a documentation taxonomy (ADRs, specs, plans, research) consistent across both repo-butler and the triage bot, and pointing CLAUDE.md to relevant ADRs per area (\"documentation as system prompt\"). The butler's unique skill opportunity is cross-repo findings, not generic documentation — the ETH Zurich study found auto-generated context files reduced task success. Also evaluate the cross-org CLAUDE.md propagation gap as a natural extension of the onboarding workflow.\n\n~~**Butler skills consolidation**~~ — SHIPPED 2026-05-06 across four PRs. Closes both predecessor entries — \"Distributable butler skills\" and \"Butler-briefing/debrief refresh or retirement\". End state: two skills shipped from `skills/` in this repo — `repo-butler` (read-side, briefing/debrief modes via positional arg) and `repo-butler-apply` (write-side, confirm-gated). PR #182 hygiene + portability, PR #184 merged briefing+debrief into `repo-butler`, PR #183 renamed apply → `repo-butler-apply`, PR #186 the Reginald uplift: dropped the stick-figure for two ASCII silhouettes (bowler+moustache+bow tie for read; silver tray with mood-varying contents for apply), mixed whisky into the closings, added streak awareness, household-member metaphors, recurring grievances, giving-up lore for stale findings, disapproving `*ahem*` for unreviewed merges, and reserved extremis signals (mourning frame, fortnight-rate-limited Burns half-line) — all under a hard line/word budget (≤250 lines body, ≤30 persona, ≤8 closings per mode). Distribution polish (settings-key for project dirs, MCP-first data fetcher, install.sh) is deferred to a separate PR.\n\n### ~~Phase 6 — Data Contracts + AI Skill~~ SHIPPED\n\nShipped 2026-03-29 (PR #59). Six JSON Schema 2020-12 definitions in `schemas/v1/` covering snapshot, portfolio, health tiers, config, weekly trends, and enriched portfolio details. Claude Code skill at `docs/skill.md` with 11 eval tests. Schema validation tests in CI. Weekly portfolio snapshots enriched with health tier computation fields. ADR-003 documenting standards choices. 208 tests.\n\n### ~~Phase 7 — MCP Server~~ SHIPPED\n\nShipped 2026-03-30 (PR #60). Zero-dependency MCP server at `src/mcp.js` (JSON-RPC 2.0 over stdio). Three resources (latest snapshot, portfolio health, campaign status) and four tools on launch: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`. Later expanded to nine tools: `get_governance_findings`, `trigger_refresh`, `get_monitor_events`, `get_watchlist`, `get_council_personas`. Connect with `claude mcp add repo-butler node src/mcp.js`.\n\n### Phase 8 — A2A Agent Card + Triage Bot Contract\n\nA2A v0.3 Agent Card published at `/.well-known/agent.json` for capability discovery by other agents. A formalised integration contract with the triage bot, defining typed event schemas for the signals the butler consumes (issue intelligence, per-repo health summaries).\n\n~~**Agent Card**~~ — SHIPPED. `src/agent-card.js` builds an A2A AgentCard and the REPORT phase writes it to `reports/.well-known/agent-card.json` so it deploys to Pages at `ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`. Declares six skills (portfolio-health, governance-findings, campaign-status, snapshot-diff, monitor-events, council-triage), capability flags, provider, and documentation URL. The card is discovery-only for now — the butler's primary programmatic interface remains the MCP server from Phase 7. `supportedInterfaces` stays empty until an A2A transport is actually exposed.\n\n**Triage bot contract** — PAUSED 2026-05-03; archival under consideration as of 2026-05-25. The integration is shipping no signal in practice: only 2 of 14 portfolio repos carry `.github/butler.json`, `TRIAGE_BOT_INGEST_SECRET` is unset, and the `/ingest` path is a no-op. The `/teams-for-linux-issue-review` Claude Code skill handles issue triage more effectively than the bot's RAG-based approach. If the triage bot is archived, the butler codebase has these touchpoints: `src/triage-bot.js`, `validateTriageBotTrends` in safety.js, and this roadmap entry.\n\n**Security prerequisites** — ~~Bot URL validation~~, ~~ecosystem detection allowlists~~, ~~PR deduplication~~, ~~URL allowlist splitting~~, ~~LLM prompt injection defence~~, ~~triage bot response validation~~ (all shipped in PR #63). Remaining: GitHub App for cross-repo auth, contributor name sanitisation for CODEOWNERS.\n\n### Phase 9 — AsyncAPI Events\n\nAsyncAPI 3.0 spec describing the event-driven interface for consumers that want push rather than pull. Health-change events and governance-proposal events are published via GitHub `repository_dispatch`, allowing external systems to react without polling the snapshot branch.\n\n**Health-change channel** — Emitted when a repo's health tier changes (Bronze → Silver, etc.). Payload matches the Phase 6 `health-tiers` schema.\n\n**Governance-proposal channel** — Emitted when the butler opens a cross-repo PR or creates a governance issue. Payload includes the proposal type, affected repos, and campaign membership.\n\n**Spec file** — ~~`docs/asyncapi.yml` validated against the AsyncAPI 3.0 schema in CI.~~ Shipped: the AsyncAPI 3.0 spec lives at `docs/asyncapi.yml` as a discovery-only contract — like the A2A Agent Card, it describes the interface without a live transport. It defines the two channels (`healthTierChanged`, `governanceProposalOpened`), each with a `send` operation, whose payloads reference the Phase 6 schemas (`health-tier.v1.schema.json`, `governance-finding.v1.schema.json`) and document the GitHub `repository_dispatch` event types (`repo-butler.health-tier-changed`, `repo-butler.governance-proposal-opened`) used as the transport. It is validated by a structural smoke test in CI (`src/asyncapi.test.js`); full AsyncAPI-schema validation is a dev-time step, since the zero-dependency runtime has no AsyncAPI validator. Live `repository_dispatch` emission is deferred — it needs tier-change detection that does not exist yet.\n\n### Phase 10 — Agents and Execution (revised 2026-05-28)\n\nExecution splits into two tracks by the nature of the finding, evolving step by step toward full automation. See [ADR-007](docs/decisions/007-agents-and-execution.md) for the full design and the [landscape evaluation](docs/research/2026-05-28-multi-repo-tooling-landscape.md) for why no external execution tool is embedded.\n\n~~**Track B stages 1–2**~~ — SHIPPED 2026-05-28 to 2026-05-29 across PRs #239, #240 and #241. Stage 1 introduced deterministic remediation plans with executor hints and change specs (no LLM, persisted alongside the findings, exposed via the MCP `get_governance_findings` `byExecutor` summary and a JSON schema), and a follow-up reconciled the dependabot template key so `dependabot-actions` findings became actionable in the apply phase. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor, dispatching template findings to the cloud Governance Apply workflow, drafting local review PRs for agent findings, and listing manual findings for the owner. A follow-on increment established the executor hint as the authoritative actionability signal in `apply.js` (only `template` findings auto-apply) and surfaced a per-executor breakdown on the governance dashboard. Remaining stages: lift the hardened logic into a hosted Actions agent (stage 4), and selective per-class auto-merge (stage 5).\n\n~~**Track A stage 3**~~ — SHIPPED 2026-05-29. Adds a per-tool override for the Governance Apply per-run PR cap via a new `apply-cap` block in `roadmap.yml` mapping a tool name to its maximum PRs per run. Tools not listed fall back to the global default of five, so an unlisted or new tool cannot exceed the global default without an explicit reviewed config entry. This is the conservative reading of \"relax gates per finding-class\": only the per-run cap is made per-tool — every other ADR-005 gate (require_approval, dry-run fail-closed, no cron trigger, batch size, repo-name validation) stays global and unchanged, so the trust model is untouched and no ADR amendment was needed. With no `apply-cap` configured, behaviour is identical to before.\n\nTrack A covers templatable findings (a `dependabot.yml`, enabling a scanner), which are already cloud-capable via `src/apply.js`. They reach full automation by relaxing ADR-005's gates incrementally and per finding-class (manual dispatch → schedule, dry-run → live, `require_approval` retained as the master switch). No agent is involved and every promotion is reversible.\n\nTrack B covers reasoning findings (a repo-tailored CONTRIBUTING.md, a CI fix, a tier uplift needing code) and is agent-driven, evolving local-first: the butler first emits a structured remediation plan per finding — an `executor` hint plus a change spec — as a portable contract; the `repo-butler-apply` skill then consumes it locally, opens PRs and lets a human review, which is where agent judgement is hardened; Track A's gates relax in parallel; the hardened logic then lifts into a hosted Actions agent consuming the same contract, behind ADR-005 gates; and selective per-class auto-merge is the destination. Decoupling the decision logic from the runtime is what makes the local stage transfer to the cloud without a rewrite.\n\nAgent behaviours remain defined via CLAUDE.md files and the MCP server (Phase 7) stays the integration surface. Earlier guidance to adopt `multi-gitter`, `git-xargs`, or `safe-settings` as the execution layer is superseded by the landscape evaluation: no external tool is embedded, because the zero-dependency, API-only, zero-infra moat rules out clone-based CLIs and self-hosted apps. `multi-gitter` is retained only as a documented manual escape-hatch for complex migrations `apply.js` cannot template.\n\n## What NOT to build\n\nCross-platform identity resolution (GitHub + Slack + Discord) — that's Orbit/Common Room territory. File-level code ownership analysis — requires git cloning which breaks the API-only architecture. Natural-language data querying — cool but requires a database. Grafana dashboards — the static HTML approach is the right constraint. Anything that requires self-hosted infrastructure — the zero-cost, zero-dependency positioning is the moat. Per-repo code improvement suggestions — that's the triage bot's domain (see ADR-002).\n\n## Relationship to Other Tools\n\nThe butler consumes, it doesn't compete. Renovate handles dependency updates — the butler installs Renovate across the portfolio. Dependabot handles security alerts — the butler reads them and propagates Dependabot config to repos that lack it. The triage bot handles per-issue intelligence and per-repo improvement proposals — the butler reads its trends, configures it on new repos, and focuses on portfolio-level governance. SonarCloud handles code quality — the butler reads its scores. GitHub's community health profile defines the checklist — the butler runs through it across every repo and fixes the gaps.\n\nThe boundary is clear: the triage bot goes deep on one repo, the butler goes broad across the portfolio. The triage bot says \"issue #47 is a duplicate of #12.\" The butler says \"you adopted CodeRabbit in 5 repos — here are the 14 that should have it too.\"\n\n## Landscape — Multi-Repo Tools to Evaluate\n\nThe butler's unique value is the observe-assess-report loop. The enforcement and remediation side (opening cross-repo PRs, syncing configs, propagating settings) overlaps with mature existing tools. Before building custom solutions in future phases, evaluate whether to use these tools directly, integrate with them, or learn from their approach.\n\n**Evaluation outcome (2026-05-28)** — see the [full landscape evaluation](docs/research/2026-05-28-multi-repo-tooling-landscape.md). Headline verdicts: embed no tool into the Action runtime (the moat rules out clone-based CLIs and self-hosted Probot apps); extend `apply.js` natively for community-health-file propagation rather than adopting `repo-file-sync-action`; keep `multi-gitter` as the manual escape-hatch for complex migrations; defer `ossf/scorecard` as a future OBSERVE signal; learn from `octoherd` (per-repo model), `safe-settings` (config hierarchy), and GitHub custom properties (targeting). The catalogue below remains as reference.\n\n**Bulk change tools** — Clone N repos, run a script in each, open PRs with results. Imperative (you trigger them) rather than continuously observing.\n\n- [multi-gitter](https://github.com/lindell/multi-gitter) — Go CLI, supports GitHub/GitLab/Gitea/Bitbucket, dry-run mode. Evaluate as execution layer for governance proposals from Phase 5 and as alternative to custom agents in Phase 10.\n- [git-xargs](https://github.com/gruntwork-io/git-xargs) — Go CLI by Gruntwork, parallel execution with detailed summary reports. Similar to multi-gitter.\n- [turbolift](https://github.com/Skyscanner/turbolift) — Go CLI by Skyscanner, more manual workflow (edit repos.txt, run commands, create PRs as separate steps). Good for large-scale migrations.\n- [octoherd](https://github.com/octoherd/octoherd) — JavaScript framework, you write a JS function that receives an Octokit instance per repo. Pre-built composable scripts ecosystem. Evaluate as a model for Phase 10's agent design.\n\n**Config sync tools** — Keep files or repository settings in sync declaratively, typically via a GitHub App or Action.\n\n- [github/safe-settings](https://github.com/github/safe-settings) — GitHub App (Probot-based), policy-as-code for repo settings with three-tier hierarchy (org-wide, sub-org, per-repo overrides). Manages branch protections, rulesets, teams, collaborators, labels, environments, custom properties. Evaluate for Phase 5's settings propagation.\n- [repo-file-sync-action](https://github.com/BetaHuhn/repo-file-sync-action) — GitHub Action, syncs files/directories from source to target repos by opening PRs when files drift. Configure via sync.yml. Evaluate for Phase 5's community health file propagation (CONTRIBUTING.md, issue templates, PR templates, CI workflow templates).\n- [actions-template-sync](https://github.com/AndreasAugustin/actions-template-sync) — GitHub Action, syncs downstream repos with template repository changes. Evaluate for CI workflow template propagation.\n\n**Security and governance enforcement** — Continuously audit repositories against policies and report violations or auto-remediate.\n\n- [ossf/allstar](https://github.com/ossf/allstar) — GitHub App by OpenSSF, continuously checks repo settings against security policies (branch protection, SECURITY.md, outside collaborators). Can file issues, fix settings, or log violations. YAML config in a `.allstar` org repo. Closest existing tool to the butler's observe-and-enforce model, but narrowly focused on security.\n- [ossf/scorecard](https://github.com/ossf/scorecard) — Produces a 0-10 security health score across ~18 dimensions (dependency pinning, signed releases, SAST, fuzzing, CI tests). Runs as a GitHub Action. Evaluate as a security signal the butler could ingest into health tier computation.\n- [todogroup/repolinter](https://github.com/todogroup/repolinter) — **Archived**. Rule-based repo linting (LICENSE, README, CONTRIBUTING presence) by the TODO Group / Linux Foundation. Worth studying the rule definition approach.\n\n**GitHub native governance** — First-party features that cover some of what custom tooling would build.\n\n- **Organization Rulesets** define branch/tag protection rules at the org level, targeting repos by name pattern, custom properties, or manual selection. Available on Team plans (expanded mid-2025). Rules are additive (repo-level can only be more restrictive). Evaluate before building branch protection propagation in Phase 5.\n- **Custom Properties** tag repos with structured metadata (risk level, team, compliance framework) and dynamically target rulesets. Evaluate as an alternative to the butler's own repo classification for governance targeting.\n- The [Well-Architected Framework](https://wellarchitected.github.com) provides governance guidance covering rulesets, custom properties, audit log streaming, and CODEOWNERS patterns.\n"
+  },
+  "package": {
+    "version": "0.1.0",
+    "dependencies": [],
+    "devDependencies": []
+  },
+  "community_profile": {
+    "health_percentage": 100,
+    "files": {
+      "readme": true,
+      "license": true,
+      "contributing": true,
+      "code_of_conduct": true,
+      "issue_template": true,
+      "pull_request_template": true
+    }
+  },
+  "dependabot_alerts": {
+    "count": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "max_severity": null
+  },
+  "code_scanning_alerts": {
+    "count": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "max_severity": null
+  },
+  "secret_scanning_alerts": {
+    "count": 0
+  },
+  "ci_pass_rate": {
+    "pass_rate": 0.9879518072289156,
+    "total_runs": 83,
+    "passed": 82,
+    "failed": 1
+  },
+  "summary": {
+    "repo": "3 stars, 0 forks",
+    "open_issues": 0,
+    "open_bugs": 0,
+    "open_features": 0,
+    "blocked_issues": 0,
+    "awaiting_feedback": 0,
+    "recently_closed": 7,
+    "recently_merged_prs": 189,
+    "bot_prs": 8,
+    "human_prs": 181,
+    "unique_contributors": 3,
+    "releases": 1,
+    "latest_release": "v1.1.0",
+    "top_open_labels": [],
+    "high_reaction_issues": [],
+    "stale_awaiting_feedback": [],
+    "community_health": 100,
+    "dependabot_alert_count": 0,
+    "dependabot_max_severity": null,
+    "code_scanning_alert_count": 0,
+    "code_scanning_max_severity": null,
+    "secret_scanning_alert_count": 0,
+    "ci_pass_rate": 0.9879518072289156,
+    "bus_factor": 1,
+    "time_to_close_median": {
+      "median_days": 0.3,
+      "sample_size": 7
+    }
+  }
+}
