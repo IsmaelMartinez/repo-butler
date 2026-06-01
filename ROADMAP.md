@@ -157,6 +157,10 @@ Shipped 2026-05-01 via `src/apply.js`, `.github/workflows/apply.yml`, and `src/d
 
 ~~`dependabot:audit`~~ — SHIPPED. `auditDependabot` at `src/dependabot-audit.js` flags repos with stale unmerged Dependabot PRs (>30d high-priority, >60d critical). Findings persist as `dependabot-stale` entries in `governance.json` and are surfaced via the MCP `list_stale_dependabot_prs` tool plus the dashboard's Governance section.
 
+### ~~`dependabot:rebase` — act on stale Dependabot PRs~~ SHIPPED
+
+The Governance Apply phase now actively addresses stale Dependabot PR findings by posting a single `@dependabot rebase` comment on the oldest stale PR per repository, rather than merely flagging them as dashboard findings. This new `nudgeStaleDependabotPRs` action operates as a sequential canary that processes the most-stale PRs first, capped at a default of five per run. It strictly adheres to all five existing ADR-005 gates, including workflow_dispatch-only execution, dry-run fail-closed behaviour, and a seven-day deduplication mechanism to prevent double-commenting. Because this functionality is implemented as a new action type within the existing apply phase without relaxing the trust model, no ADR amendment was required. Operators can preview both actions in dry-run mode with a blank `tools` input or scope a nudge-only run by specifying `tools=dependabot-rebase`.
+
 ### Phase 5 — Portfolio Governance Engine
 
 Replaces the original CARE phase with a broader portfolio governance model. See [ADR-002](docs/decisions/002-portfolio-governance-boundary.md) for the full rationale on why this replaces the generic IDEATE/PROPOSE approach.

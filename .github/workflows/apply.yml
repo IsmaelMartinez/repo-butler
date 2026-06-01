@@ -7,7 +7,7 @@ on:
         description: 'Dry run (log only, no PRs)'
         default: 'true'
       tools:
-        description: 'Comma-separated tools to apply (blank = all actionable)'
+        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only)'
         required: false
       max-apply-per-run:
         description: 'Max PRs to open (default 5)'

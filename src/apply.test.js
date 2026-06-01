@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -380,5 +380,126 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.status, 'dry-run');
     assert.equal(result.pairs.length, 1, 'issue-form-templates is now an actionable template tool');
     assert.equal(result.pairs[0].tool, 'issue-form-templates');
+  });
+});
+
+describe('selectNudgeTargets', () => {
+  it('picks the single oldest stale PR per repo, most-stale first', () => {
+    const findings = [
+      { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [{ number: 1, title: 'bump x', age: 40 }, { number: 2, title: 'bump y', age: 70 }] },
+      { type: 'dependabot-stale', repo: 'repo-b', stalePRs: [{ number: 3, title: 'bump z', age: 35 }] },
+    ];
+    const targets = selectNudgeTargets(findings, 5);
+    assert.equal(targets.length, 2);
+    // repo-a's oldest (70d, #2) comes before repo-b (35d), one per repo
+    assert.deepEqual(targets.map(t => `${t.repo}#${t.number}`), ['repo-a#2', 'repo-b#3']);
+  });
+
+  it('caps to maxPerRun', () => {
+    const findings = Array.from({ length: 8 }, (_, i) => ({
+      type: 'dependabot-stale', repo: `repo-${i}`, stalePRs: [{ number: i + 1, title: 't', age: 31 + i }],
+    }));
+    const targets = selectNudgeTargets(findings, 3);
+    assert.equal(targets.length, 3);
+    // most-stale first: ages 38, 37, 36 → repo-7, repo-6, repo-5
+    assert.deepEqual(targets.map(t => t.repo), ['repo-7', 'repo-6', 'repo-5']);
+  });
+
+  it('skips invalid repo names and non-dependabot-stale findings', () => {
+    const findings = [
+      { type: 'dependabot-stale', repo: '../evil', stalePRs: [{ number: 1, title: 't', age: 99 }] },
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-x'] },
+      { type: 'dependabot-stale', repo: 'good-repo', stalePRs: [{ number: 5, title: 't', age: 33 }] },
+    ];
+    const targets = selectNudgeTargets(findings, 5);
+    assert.equal(targets.length, 1);
+    assert.equal(targets[0].repo, 'good-repo');
+  });
+
+  it('ignores findings with empty or missing stalePRs', () => {
+    const findings = [
+      { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [] },
+      { type: 'dependabot-stale', repo: 'repo-b' },
+    ];
+    assert.equal(selectNudgeTargets(findings, 5).length, 0);
+  });
+});
+
+describe('nudgeStaleDependabotPRs', () => {
+  const baseConfig = { limits: { require_approval: true } };
+  const baseFindings = [
+    { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [{ number: 7, title: 'bump lodash', age: 45 }] },
+  ];
+
+  function mkGh(comments = []) {
+    const calls = [];
+    const gh = {
+      request: async (path, opts) => { calls.push({ path, opts }); return {}; },
+      paginate: async (path) => { calls.push({ path }); return comments; },
+    };
+    return { gh, calls };
+  }
+
+  it('refuses to run when require_approval is not set', async () => {
+    const { gh, calls } = mkGh();
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
+    assert.equal(result.status, 'refused');
+    assert.equal(calls.length, 0);
+  });
+
+  it('dry-run makes no API calls and lists targets', async () => {
+    const { gh, calls } = mkGh();
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.targets.length, 1);
+    assert.equal(calls.length, 0);
+  });
+
+  it('dry-run fail-closed: undefined dryRun stays dry-run', async () => {
+    const { gh } = mkGh();
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, {});
+    assert.equal(result.status, 'dry-run');
+  });
+
+  it('posts a single @dependabot rebase comment when live', async () => {
+    const { gh, calls } = mkGh();
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { nudged: 1, skipped: 0, errors: 0 });
+    const posted = calls.find(c => c.opts?.method === 'POST');
+    assert.ok(posted.path.includes('/repos/owner/repo-a/issues/7/comments'));
+    assert.equal(posted.opts.body.body, '@dependabot rebase');
+  });
+
+  it('skips a PR already nudged within the dedup window', async () => {
+    const recent = new Date(Date.now() - 2 * 86400000).toISOString();
+    const { gh, calls } = mkGh([{ body: '@dependabot rebase', created_at: recent }]);
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'skipped');
+    assert.equal(result.results[0].reason, 'recent nudge');
+    assert.equal(calls.filter(c => c.opts?.method === 'POST').length, 0);
+  });
+
+  it('re-nudges when the prior nudge is older than the dedup window', async () => {
+    const old = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { gh } = mkGh([{ body: '@dependabot rebase', created_at: old }]);
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'nudged');
+  });
+
+  it('records a per-PR error without aborting the run', async () => {
+    const calls = [];
+    const gh = {
+      request: async (path, opts) => { calls.push({ path, opts }); throw new Error('403 Forbidden'); },
+      paginate: async () => [],
+    };
+    const findings = [
+      { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [{ number: 7, title: 't', age: 45 }] },
+      { type: 'dependabot-stale', repo: 'repo-b', stalePRs: [{ number: 9, title: 't', age: 40 }] },
+    ];
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', findings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.equal(result.summary.errors, 2);
+    assert.equal(result.results.length, 2);
   });
 });
