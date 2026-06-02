@@ -194,10 +194,10 @@
       "open_issues": 19,
       "open_bugs": 6,
       "commits_6mo": 399,
-      "stars": 4737,
+      "stars": 4736,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.918918918918919,
+      "ciPassRate": 0.9166666666666666,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -877,7 +877,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-02T07:30:10Z",
+      "pushed_at": "2026-06-02T08:34:43Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
