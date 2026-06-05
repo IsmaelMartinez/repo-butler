@@ -240,7 +240,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       gh.request(`/repos/${owner}/${r.name}`)
         .then(d => ({ license: d.license?.spdx_id || 'None', allowAutoMerge: !!d.allow_auto_merge }))
         .catch(() => ({ license: 'None', allowAutoMerge: false })),
-      gh.request(`/repos/${owner}/${r.name}/actions/workflows`)
+      gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
         .then(d => ({ ci: d.total_count || 0, hasAutoMergeWorkflow: (d.workflows || []).some(w => w.path === '.github/workflows/dependabot-auto-merge.yml') }))
         .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false })),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)

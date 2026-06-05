@@ -218,13 +218,25 @@ describe('applyGovernanceFindings', () => {
 
   it('treats a dependabot-auto-merge standards-gap as actionable (produces a pair)', async () => {
     const findings = [
-      { type: 'standards-gap', tool: 'dependabot-auto-merge', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' }, remediation: { executor: 'template' } },
+      { type: 'standards-gap', tool: 'dependabot-auto-merge', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
     ];
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.pairs.length, 1);
     assert.equal(result.pairs[0].repo, 'repo-a');
     assert.equal(result.pairs[0].tool, 'dependabot-auto-merge');
+  });
+
+  it('documents the auto-merge prerequisite in the opened PR body', async () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'dependabot-auto-merge', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    const prCall = calls.find(c => c.type === 'request' && c.opts?.method === 'POST' && c.path.includes('/pulls'));
+    assert.ok(prCall, 'a PR should have been opened');
+    assert.ok(prCall.opts.body.body.includes('Allow auto-merge'), 'PR body should carry the auto-merge prerequisite note');
+    assert.ok(prCall.opts.body.body.includes('Phase 2'), 'PR body should note repo-settings management is deferred');
   });
 
   it('enforces batch cap', async () => {
