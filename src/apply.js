@@ -94,10 +94,12 @@ body:
   },
   'dependabot-auto-merge': {
     // A single ecosystem-agnostic workflow that auto-merges non-major Dependabot
-    // PRs. No --squash: each repo uses its own default merge method (the exemplar
-    // hardcodes --squash, which assumes squash merges are enabled). Takes effect
-    // only once "Allow auto-merge" is enabled in repo settings and branch
-    // protection requires status checks — documented as a PR prerequisite.
+    // PRs. Uses --squash (matching the proven exemplar): `gh pr merge --auto`
+    // with NO method flag errors ("you must specify a merge method") on any repo
+    // that has more than one merge method enabled — the GitHub default — so an
+    // explicit method is required, not optional. Takes effect only once "Allow
+    // auto-merge" is enabled in repo settings and branch protection requires
+    // status checks — documented as a PR prerequisite.
     path: '.github/workflows/dependabot-auto-merge.yml',
     content: () => `name: Dependabot auto-merge
 
@@ -123,7 +125,7 @@ jobs:
         env:
           PR_URL: \${{ github.event.pull_request.html_url }}
           GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-        run: gh pr merge --auto "$PR_URL"
+        run: gh pr merge --auto --squash "$PR_URL"
 `,
   },
 };

@@ -112,14 +112,14 @@ describe('generateTemplate', () => {
     assert.equal(generateTemplate('issue-form-templates', 'Go').content, result.content);
   });
 
-  it('generates a dependabot-auto-merge workflow (ecosystem-agnostic, no --squash)', () => {
+  it('generates a dependabot-auto-merge workflow (ecosystem-agnostic, explicit --squash)', () => {
     const result = generateTemplate('dependabot-auto-merge', 'JavaScript');
     assert.equal(result.path, '.github/workflows/dependabot-auto-merge.yml');
     assert.ok(result.content.includes('dependabot/fetch-metadata@v3'));
-    assert.ok(result.content.includes('gh pr merge --auto'));
     assert.ok(result.content.includes("version-update:semver-major"));
-    // The altitude change: the template must NOT pin a merge method.
-    assert.ok(!result.content.includes('--squash'));
+    // gh pr merge --auto needs an explicit method: it errors ("you must specify a
+    // merge method") on repos with more than one merge method enabled (the default).
+    assert.ok(result.content.includes('gh pr merge --auto --squash'));
     // Identical regardless of ecosystem — a single generic workflow.
     assert.equal(generateTemplate('dependabot-auto-merge', 'Go').content, result.content);
   });
