@@ -112,6 +112,18 @@ describe('generateTemplate', () => {
     assert.equal(generateTemplate('issue-form-templates', 'Go').content, result.content);
   });
 
+  it('generates a dependabot-auto-merge workflow (ecosystem-agnostic, no --squash)', () => {
+    const result = generateTemplate('dependabot-auto-merge', 'JavaScript');
+    assert.equal(result.path, '.github/workflows/dependabot-auto-merge.yml');
+    assert.ok(result.content.includes('dependabot/fetch-metadata@v3'));
+    assert.ok(result.content.includes('gh pr merge --auto'));
+    assert.ok(result.content.includes("version-update:semver-major"));
+    // The altitude change: the template must NOT pin a merge method.
+    assert.ok(!result.content.includes('--squash'));
+    // Identical regardless of ecosystem — a single generic workflow.
+    assert.equal(generateTemplate('dependabot-auto-merge', 'Go').content, result.content);
+  });
+
   it('returns null for unknown tool', () => {
     assert.equal(generateTemplate('secret-scanning', 'JavaScript'), null);
   });
@@ -202,6 +214,17 @@ describe('applyGovernanceFindings', () => {
     const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, {}, { dryRun: false });
     assert.equal(result.status, 'refused');
     assert.equal(calls.length, 0);
+  });
+
+  it('treats a dependabot-auto-merge standards-gap as actionable (produces a pair)', async () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'dependabot-auto-merge', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' }, remediation: { executor: 'template' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1);
+    assert.equal(result.pairs[0].repo, 'repo-a');
+    assert.equal(result.pairs[0].tool, 'dependabot-auto-merge');
   });
 
   it('enforces batch cap', async () => {

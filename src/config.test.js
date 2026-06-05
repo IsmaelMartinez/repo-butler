@@ -26,6 +26,13 @@ describe('parseStandardsConfig', () => {
     assert.deepEqual(result[1], { tool: 'license', scope: { type: 'universal' }, exclude: [] });
   });
 
+  it('parses the dependabot-auto-merge universal standard', () => {
+    const config = { standards: { 'dependabot-auto-merge': 'universal' } };
+    const result = parseStandardsConfig(config);
+    assert.equal(result.length, 1);
+    assert.deepEqual(result[0], { tool: 'dependabot-auto-merge', scope: { type: 'universal' }, exclude: [] });
+  });
+
   it('parses ecosystem-scoped standards', () => {
     const config = { standards: { 'renovate-npm': 'javascript', 'golangci-lint': 'go' } };
     const result = parseStandardsConfig(config);

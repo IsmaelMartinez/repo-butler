@@ -92,6 +92,7 @@ export async function observe(context) {
     milestones,
     releases,
     workflows,
+    has_auto_merge_workflow: (workflows || []).some(w => w.path === '.github/workflows/dependabot-auto-merge.yml'),
     roadmap: roadmapContent ? { path: roadmapPath, content: roadmapContent } : null,
     package: packageData ? {
       version: packageData.version,

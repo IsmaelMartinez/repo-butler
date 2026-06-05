@@ -1370,6 +1370,63 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.ok(apiCallCount > 0, 'should call API without cache');
     assert.deepEqual(details._cachedRepos, [], 'no repos should be cached');
   });
+
+  it('derives hasAutoMergeWorkflow and allowAutoMerge from the reused fetchers', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      // Order matters: the bare /repos/{owner}/{repo} path is a prefix of the
+      // /actions/workflows path, so match the more-specific subpaths first.
+      request: (path) => {
+        if (path.includes('/actions/workflows')) {
+          return Promise.resolve({ total_count: 1, workflows: [{ name: 'Dependabot auto-merge', path: '.github/workflows/dependabot-auto-merge.yml' }] });
+        }
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        // Bare /repos/{owner}/{repo} — matched last.
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: true });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'am-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['am-repo'].hasAutoMergeWorkflow, true);
+    assert.equal(details['am-repo'].allowAutoMerge, true);
+  });
+
+  it('reports hasAutoMergeWorkflow false when the workflow is absent and allow_auto_merge off', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) {
+          return Promise.resolve({ total_count: 1, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }] });
+        }
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'no-am', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['no-am'].hasAutoMergeWorkflow, false);
+    assert.equal(details['no-am'].allowAutoMerge, false);
+  });
 });
 
 describe('buildGovernanceSection', () => {
