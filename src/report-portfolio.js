@@ -301,24 +301,29 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .catch(() => null),
       fetchTraffic(gh, owner, r.name),
       // CODEOWNERS / SECURITY.md presence across the three GitHub-recognised
-      // locations (root, .github/, docs/) — three directory listings, not
-      // per-file probes. gh.request (not gh.listDir) so the per-repo test mocks,
+      // locations (root, .github/, docs/). Fetch root first; descend into
+      // .github/ or docs/ only when they exist in root and a file is still
+      // unfound — so a compliant repo costs one call and a missing directory
+      // costs none. gh.request (not gh.listDir) so the per-repo test mocks,
       // which stub only request, keep working — matching the issue-template
       // detection above. Drives the codeowners + security-md governance standards.
       (async () => {
         const listNames = (path) => gh.request(`/repos/${owner}/${r.name}/contents${path ? '/' + path : ''}`)
-          .then(d => Array.isArray(d) ? d.map(f => f.name) : [])
+          .then(d => Array.isArray(d) ? d.map(f => String(f.name).toLowerCase()) : [])
           .catch(() => []);
-        const [rootNames, ghNames, docsNames] = await Promise.all([
-          listNames(''),
-          listNames('.github'),
-          listNames('docs'),
-        ]);
-        const names = new Set([...rootNames, ...ghNames, ...docsNames].map(n => String(n).toLowerCase()));
-        return {
-          hasCodeowners: names.has('codeowners'),
-          hasSecurityPolicy: names.has('security.md') || names.has('security.markdown'),
-        };
+        const hasCodeownersIn = (names) => names.includes('codeowners');
+        const hasSecurityIn = (names) => names.includes('security.md') || names.includes('security.markdown');
+        const root = await listNames('');
+        let hasCodeowners = hasCodeownersIn(root);
+        let hasSecurityPolicy = hasSecurityIn(root);
+        for (const dir of ['.github', 'docs']) {
+          if (hasCodeowners && hasSecurityPolicy) break;
+          if (!root.includes(dir)) continue;
+          const names = await listNames(dir);
+          hasCodeowners ||= hasCodeownersIn(names);
+          hasSecurityPolicy ||= hasSecurityIn(names);
+        }
+        return { hasCodeowners, hasSecurityPolicy };
       })(),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;

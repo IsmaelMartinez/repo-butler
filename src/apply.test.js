@@ -132,6 +132,10 @@ describe('generateTemplate', () => {
     assert.equal(generateTemplate('codeowners', 'Go', 'someone-else').content, '* @someone-else\n');
   });
 
+  it('throws when generating CODEOWNERS without an owner (cross-repo write guard)', () => {
+    assert.throws(() => generateTemplate('codeowners', 'JavaScript'), /requires an owner/);
+  });
+
   it('generates a generic SECURITY.md policy (ecosystem- and owner-agnostic)', () => {
     const result = generateTemplate('security-md', 'JavaScript', 'IsmaelMartinez');
     assert.equal(result.path, '.github/SECURITY.md');

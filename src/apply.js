@@ -132,9 +132,14 @@ jobs:
     // Route review of every path to the repo owner. The owner is the GitHub
     // login the apply run targets, so `* @<owner>` is valid and correct for a
     // single-maintainer estate — derived from the owner, not hardcoded, so the
-    // standard stays adoptable by other owners.
+    // standard stays adoptable by other owners. Guard owner before writing: a
+    // missing owner would produce a malformed `* @undefined` rule, and this is a
+    // cross-repo write boundary (ADR-005), so fail loud rather than ship it.
     path: '.github/CODEOWNERS',
-    content: (_eco, owner) => `* @${owner}\n`,
+    content: (_eco, owner) => {
+      if (!owner) throw new Error('codeowners template requires an owner');
+      return `* @${owner}\n`;
+    },
   },
   'security-md': {
     // A generic, ecosystem-agnostic security policy that points reporters at
