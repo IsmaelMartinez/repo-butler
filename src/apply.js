@@ -128,6 +128,38 @@ jobs:
         run: gh pr merge --auto --squash "$PR_URL"
 `,
   },
+  'codeowners': {
+    // Route review of every path to the repo owner. The owner is the GitHub
+    // login the apply run targets, so `* @<owner>` is valid and correct for a
+    // single-maintainer estate — derived from the owner, not hardcoded, so the
+    // standard stays adoptable by other owners.
+    path: '.github/CODEOWNERS',
+    content: (_eco, owner) => `* @${owner}\n`,
+  },
+  'security-md': {
+    // A generic, ecosystem-agnostic security policy that points reporters at
+    // GitHub's private vulnerability reporting. No repo-specific contact, so it
+    // applies as-is to any repo and can be tailored later.
+    path: '.github/SECURITY.md',
+    content: () => `# Security Policy
+
+## Reporting a Vulnerability
+
+Please report security vulnerabilities privately rather than opening a public issue.
+
+Use GitHub's private vulnerability reporting on this repository: open the
+**Security** tab and choose **Report a vulnerability**. This creates a private
+advisory visible only to the maintainers.
+
+We aim to acknowledge reports within a few days and will keep you updated as we
+investigate and prepare a fix.
+
+## Supported Versions
+
+Security fixes are applied to the latest released version. Older versions are not
+guaranteed to receive updates.
+`,
+  },
 };
 
 // Tool-specific notes appended to the PR body. Used to document manual
@@ -136,10 +168,10 @@ const TOOL_PR_NOTES = {
   'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
 };
 
-export function generateTemplate(tool, ecosystem) {
+export function generateTemplate(tool, ecosystem, owner) {
   const tmpl = TEMPLATES[tool];
   if (!tmpl) return null;
-  return { path: tmpl.path, content: tmpl.content(ecosystem || '') };
+  return { path: tmpl.path, content: tmpl.content(ecosystem || '', owner) };
 }
 
 export function validateFindings(findings) {
@@ -295,7 +327,7 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
   const defaultBranch = repoMeta.default_branch || 'main';
 
   // Generate template
-  const template = generateTemplate(tool, ecosystem);
+  const template = generateTemplate(tool, ecosystem, owner);
   if (!template) {
     return { repo, tool, status: 'skipped', reason: 'no template' };
   }

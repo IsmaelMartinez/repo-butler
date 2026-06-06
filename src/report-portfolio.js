@@ -230,7 +230,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       console.log(`  ↩ ${r.name} — unchanged, using cache`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -300,12 +300,30 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .then(prs => prs.length)
         .catch(() => null),
       fetchTraffic(gh, owner, r.name),
+      // CODEOWNERS / SECURITY.md presence across the three GitHub-recognised
+      // locations (root, .github/, docs/) in two directory listings rather than
+      // per-file probes. Drives the codeowners + security-md governance standards.
+      (async () => {
+        const listNames = (path) => gh.request(`/repos/${owner}/${r.name}/contents${path ? '/' + path : ''}`)
+          .then(d => Array.isArray(d) ? d.map(f => f.name) : [])
+          .catch(() => []);
+        const [rootNames, ghNames, docsNames] = await Promise.all([
+          listNames(''),
+          listNames('.github'),
+          listNames('docs'),
+        ]);
+        const names = new Set([...rootNames, ...ghNames, ...docsNames].map(n => String(n).toLowerCase()));
+        return {
+          hasCodeowners: names.has('codeowners'),
+          hasSecurityPolicy: names.has('security.md') || names.has('security.markdown'),
+        };
+      })(),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
     const { ci, hasAutoMergeWorkflow } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, libyear: null, codeScanning, secretScanning, traffic };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -418,6 +436,8 @@ const STANDARD_LABELS = {
   'dependabot-actions': 'Dependabot alerts access',
   'dependabot-auto-merge': 'Dependabot auto-merge',
   'ci-workflows': 'CI workflows',
+  'codeowners': 'CODEOWNERS',
+  'security-md': 'Security policy',
 };
 
 const DRIFT_LABELS = {

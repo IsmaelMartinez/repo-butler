@@ -124,6 +124,23 @@ describe('generateTemplate', () => {
     assert.equal(generateTemplate('dependabot-auto-merge', 'Go').content, result.content);
   });
 
+  it('generates a CODEOWNERS file routing review to the repo owner', () => {
+    const result = generateTemplate('codeowners', 'JavaScript', 'IsmaelMartinez');
+    assert.equal(result.path, '.github/CODEOWNERS');
+    assert.equal(result.content, '* @IsmaelMartinez\n');
+    // Owner is derived from the apply target, not hardcoded.
+    assert.equal(generateTemplate('codeowners', 'Go', 'someone-else').content, '* @someone-else\n');
+  });
+
+  it('generates a generic SECURITY.md policy (ecosystem- and owner-agnostic)', () => {
+    const result = generateTemplate('security-md', 'JavaScript', 'IsmaelMartinez');
+    assert.equal(result.path, '.github/SECURITY.md');
+    assert.ok(result.content.includes('# Security Policy'));
+    assert.ok(result.content.includes('Report a vulnerability'));
+    // Identical regardless of ecosystem or owner — a generic policy.
+    assert.equal(generateTemplate('security-md', 'Go', 'someone-else').content, result.content);
+  });
+
   it('returns null for unknown tool', () => {
     assert.equal(generateTemplate('secret-scanning', 'JavaScript'), null);
   });
