@@ -1,1 +1,122 @@
-[]
+[
+  {
+    "type": "standards-gap",
+    "tool": "codeowners",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "teams-for-linux",
+      "delegate-local"
+    ],
+    "nonCompliant": [
+      "yourear",
+      "sound3fy",
+      "ismaelmartinez.me.uk",
+      "generator-atlassian-compass-event-catalog",
+      "bonnie-wee-plot",
+      "betis-escocia",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv"
+    ],
+    "repoEcosystems": {
+      "yourear": null,
+      "sound3fy": null,
+      "ismaelmartinez.me.uk": null,
+      "generator-atlassian-compass-event-catalog": null,
+      "bonnie-wee-plot": null,
+      "betis-escocia": null,
+      "ai-model-advisor": null,
+      "github-issue-triage-bot": null,
+      "repo-butler": null,
+      "wifisentinel": null,
+      "votescot": null,
+      "lounge-tv": null
+    },
+    "repoAutoMerge": {
+      "yourear": true,
+      "sound3fy": true,
+      "ismaelmartinez.me.uk": true,
+      "generator-atlassian-compass-event-catalog": true,
+      "bonnie-wee-plot": true,
+      "betis-escocia": true,
+      "ai-model-advisor": true,
+      "github-issue-triage-bot": true,
+      "repo-butler": true,
+      "wifisentinel": true,
+      "votescot": true,
+      "lounge-tv": true
+    },
+    "adoptionRate": 0.14285714285714285,
+    "priority": "high",
+    "remediation": {
+      "executor": "template",
+      "targetFiles": [
+        ".github/CODEOWNERS"
+      ],
+      "intent": "Add codeowners to 12 non-compliant repo(s)",
+      "rationale": "Standards gap: codeowners adopted by 14% of in-scope repos; missing in yourear, sound3fy, ismaelmartinez.me.uk, generator-atlassian-compass-event-catalog, bonnie-wee-plot, betis-escocia, ai-model-advisor, github-issue-triage-bot, repo-butler, wifisentinel, votescot, lounge-tv.",
+      "acceptanceCriteria": [
+        "Every non-compliant repo passes the codeowners standard check"
+      ]
+    }
+  },
+  {
+    "type": "standards-gap",
+    "tool": "security-md",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "sound3fy",
+      "teams-for-linux",
+      "generator-atlassian-compass-event-catalog",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "delegate-local"
+    ],
+    "nonCompliant": [
+      "yourear",
+      "ismaelmartinez.me.uk",
+      "bonnie-wee-plot",
+      "betis-escocia",
+      "ai-model-advisor",
+      "lounge-tv"
+    ],
+    "repoEcosystems": {
+      "yourear": null,
+      "ismaelmartinez.me.uk": null,
+      "bonnie-wee-plot": null,
+      "betis-escocia": null,
+      "ai-model-advisor": null,
+      "lounge-tv": null
+    },
+    "repoAutoMerge": {
+      "yourear": true,
+      "ismaelmartinez.me.uk": true,
+      "bonnie-wee-plot": true,
+      "betis-escocia": true,
+      "ai-model-advisor": true,
+      "lounge-tv": true
+    },
+    "adoptionRate": 0.5714285714285714,
+    "priority": "medium",
+    "remediation": {
+      "executor": "template",
+      "targetFiles": [
+        ".github/SECURITY.md"
+      ],
+      "intent": "Add security-md to 6 non-compliant repo(s)",
+      "rationale": "Standards gap: security-md adopted by 57% of in-scope repos; missing in yourear, ismaelmartinez.me.uk, bonnie-wee-plot, betis-escocia, ai-model-advisor, lounge-tv.",
+      "acceptanceCriteria": [
+        "Every non-compliant repo passes the security-md standard check"
+      ]
+    }
+  }
+]
