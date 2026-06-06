@@ -27,6 +27,12 @@ const DEFAULTS = {
   // back to the global cap (INPUT_MAX_APPLY_PER_RUN, default 5). Blast-radius
   // sizing only — every other ADR-005 gate stays global.
   'apply-cap': {},
+  // Per-finding-class promotion allow-list for the scheduled apply path (ADR-007
+  // stage 4). Key-presence allow-list: `tool-name: true` promotes that class onto
+  // the no-human scheduled run; absent (the default) keeps it dispatch-only. This
+  // is the per-class relaxation of ADR-005 gate 1 — opt-in and reversible. Empty
+  // by default, so a scheduled run opens nothing until a class is explicitly added.
+  'apply-schedule': {},
   release_exempt: '',
 };
 

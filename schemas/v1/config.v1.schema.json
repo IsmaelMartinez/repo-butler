@@ -124,6 +124,12 @@
       "description": "Per-tool override for the Governance Apply per-run PR cap (ADR-007 stage 3). Keys are templatable tool names, values are the max PRs per run for that tool. Tools absent here fall back to the global cap (INPUT_MAX_APPLY_PER_RUN, default 5). Blast-radius sizing only — every other ADR-005 gate stays global.",
       "additionalProperties": { "type": "integer" },
       "examples": [{ "code-scanning": 10, "dependabot-actions": 5 }]
+    },
+    "apply-schedule": {
+      "type": "object",
+      "description": "Per-finding-class promotion allow-list for the scheduled apply path (ADR-007 stage 4). Key-presence allow-list: a tool mapped to true is promoted onto the no-human scheduled run; tools absent (the default) stay workflow_dispatch-only. The per-class, opt-in, reversible relaxation of ADR-005 gate 1 — require_approval and the blast-radius cap are unaffected. Defaults to empty, so a scheduled run opens nothing until a class is explicitly added. 'dependabot-rebase' promotes the stale-Dependabot-PR nudge onto the schedule.",
+      "additionalProperties": { "type": "boolean" },
+      "examples": [{ "code-scanning": true, "dependabot-rebase": true }]
     }
   }
 }

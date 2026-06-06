@@ -437,6 +437,61 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.pairs.length, 1, 'issue-form-templates is now an actionable template tool');
     assert.equal(result.pairs[0].tool, 'issue-form-templates');
   });
+
+  // --- Stage 4 (ADR-007): scheduled, no-human path is default-closed ---------
+
+  it('scheduled run with empty apply-schedule opens nothing (default-closed)', async () => {
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, baseConfig, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 0, 'no class is promoted, so the scheduled gate excludes everything');
+  });
+
+  it('scheduled run applies only allow-listed finding classes', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'only the promoted class passes the schedule gate');
+    assert.equal(result.pairs[0].tool, 'code-scanning');
+  });
+
+  it('manual dispatch ignores apply-schedule entirely (regression guard)', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
+    ];
+    // scheduled omitted → workflow_dispatch path: full actionable set, identical to before stage 4
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 2);
+  });
+
+  it('scheduled path still honours require_approval', async () => {
+    const config = { limits: { require_approval: false }, 'apply-schedule': { 'code-scanning': true } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'refused');
+    assert.equal(calls.length, 0);
+  });
+
+  it('scheduled path stays dry-run fail-closed even for an allow-listed class', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    // dryRun omitted → must not act
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'the class is allow-listed, so it would be applied');
+    assert.equal(calls.length, 0, 'but dry-run fail-closed means no API calls');
+  });
+
+  it('scheduled live run opens PRs for an allow-listed class', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'completed');
+    assert.equal(result.summary.created, 1);
+  });
 });
 
 describe('selectNudgeTargets', () => {
@@ -567,5 +622,32 @@ describe('nudgeStaleDependabotPRs', () => {
     assert.equal(result.status, 'completed');
     assert.equal(result.summary.errors, 2);
     assert.equal(result.results.length, 2);
+  });
+
+  // --- Stage 4 (ADR-007): the nudge is default-closed on the scheduled path ---
+
+  it('scheduled run skips the nudge when dependabot-rebase is not allow-listed', async () => {
+    const { gh, calls } = mkGh();
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+    assert.equal(result.targets.length, 0);
+    assert.equal(calls.length, 0);
+  });
+
+  it('scheduled run nudges when dependabot-rebase is allow-listed', async () => {
+    const { gh } = mkGh();
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-rebase': true } };
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { nudged: 1, skipped: 0, errors: 0 });
+  });
+
+  it('manual dispatch ignores apply-schedule for the nudge (regression guard)', async () => {
+    const { gh } = mkGh();
+    // scheduled omitted → manual path; apply-schedule must not gate the nudge
+    const config = { limits: { require_approval: true }, 'apply-schedule': {} };
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.targets.length, 1);
   });
 });
