@@ -291,7 +291,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.9767441860465116,
+      "ciPassRate": 0.9880952380952381,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -313,7 +313,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-05T13:14:32Z",
+      "pushed_at": "2026-06-05T21:49:53Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -381,7 +381,7 @@
       "id": 853382390,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 169,
+      "commits_6mo": 167,
       "stars": 4,
       "license": "MIT",
       "communityHealth": 85,
@@ -761,7 +761,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9651162790697675,
+      "ciPassRate": 0.9655172413793104,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -855,7 +855,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9885057471264368,
+      "ciPassRate": 0.9883720930232558,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -877,7 +877,7 @@
       },
       "ci": 9,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-05T20:35:05Z",
+      "pushed_at": "2026-06-06T07:02:51Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1227,7 +1227,7 @@
       "id": 1223288066,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 214,
+      "commits_6mo": 216,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1253,7 +1253,7 @@
       },
       "ci": 7,
       "released_at": "2026-06-04T19:33:43Z",
-      "pushed_at": "2026-06-05T20:02:49Z",
+      "pushed_at": "2026-06-06T01:53:12Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
