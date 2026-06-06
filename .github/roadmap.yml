@@ -37,6 +37,7 @@ standards:
   dependabot-actions: universal
   code-scanning: universal
   secret-scanning: universal
+  dependabot-auto-merge: universal
 
 release_exempt: sound3fy
 

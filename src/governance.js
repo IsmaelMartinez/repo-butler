@@ -59,6 +59,7 @@ export async function runGovernance(context) {
 // Each detector receives (repo, details) and returns boolean.
 const STANDARD_DETECTORS = {
   'issue-form-templates': (_repo, details) => !!details?.hasIssueTemplate,
+  'dependabot-auto-merge': (_repo, details) => !!details?.hasAutoMergeWorkflow,
   'contributing-guide': (_repo, details) => (details?.communityHealth ?? 0) >= 50,
   'license': (_repo, details) => !!(details?.license && details.license !== 'None'),
   'dependabot-actions': (_repo, details) => details?.vulns != null,
@@ -148,10 +149,12 @@ export function detectStandardsGaps(standards, repos, details) {
     if (nonCompliant.length > 0) {
       const adoptionRate = compliant.length / applicable.length;
       const repoEcosystems = {};
+      const repoAutoMerge = {};
       for (const name of nonCompliant) {
         const repo = applicable.find(r => r.name === name);
         const ecos = repo ? detectEcosystem(repo) : new Set();
         repoEcosystems[name] = ecos.size > 0 ? [...ecos][0] : null;
+        repoAutoMerge[name] = details?.[name]?.allowAutoMerge ?? null;
       }
       findings.push({
         type: 'standards-gap',
@@ -160,6 +163,7 @@ export function detectStandardsGaps(standards, repos, details) {
         compliant,
         nonCompliant,
         repoEcosystems,
+        repoAutoMerge,
         adoptionRate,
         priority: adoptionPriority(adoptionRate),
       });
@@ -344,11 +348,13 @@ export function generateUpliftProposals(repos, details, config = null) {
 
 // Standards tools the butler can emit as a static templated file (apply.js has
 // a generator for these), each matching an apply.js TEMPLATES key directly:
-// code-scanning, dependabot-actions, and issue-form-templates (a generic
-// bug-report form — one file in .github/ISSUE_TEMPLATE/ satisfies the detector).
+// code-scanning, dependabot-actions, issue-form-templates (a generic
+// bug-report form — one file in .github/ISSUE_TEMPLATE/ satisfies the detector),
+// and dependabot-auto-merge (a single ecosystem-agnostic workflow that enables
+// auto-merge on non-major Dependabot PRs).
 // ci-workflows is deliberately NOT here: a static CI workflow fanned across
 // heterogeneous repos would open red-CI PRs, so it stays agent-routed.
-const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates']);
+const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge']);
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
 const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
@@ -360,6 +366,7 @@ const STANDARD_TARGET_FILES = {
   'dependabot-actions': ['.github/dependabot.yml'],
   'contributing-guide': ['CONTRIBUTING.md'],
   'issue-form-templates': ['.github/ISSUE_TEMPLATE/bug_report.yml'],
+  'dependabot-auto-merge': ['.github/workflows/dependabot-auto-merge.yml'],
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],

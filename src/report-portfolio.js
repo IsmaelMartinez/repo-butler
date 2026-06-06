@@ -230,7 +230,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       console.log(`  ↩ ${r.name} — unchanged, using cache`);
       return;
     }
-    const [commits, weekly, license, ci, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -238,11 +238,11 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .then(d => d.owner?.slice(-26) || [])
         .catch(() => []),
       gh.request(`/repos/${owner}/${r.name}`)
-        .then(d => d.license?.spdx_id || 'None')
-        .catch(() => 'None'),
-      gh.request(`/repos/${owner}/${r.name}/actions/workflows`)
-        .then(d => d.total_count || 0)
-        .catch(() => 0),
+        .then(d => ({ license: d.license?.spdx_id || 'None', allowAutoMerge: !!d.allow_auto_merge }))
+        .catch(() => ({ license: 'None', allowAutoMerge: false })),
+      gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
+        .then(d => ({ ci: d.total_count || 0, hasAutoMergeWorkflow: (d.workflows || []).some(w => w.path === '.github/workflows/dependabot-auto-merge.yml') }))
+        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false })),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
           let hasIssueTemplate = !!d.files?.issue_template;
@@ -303,7 +303,9 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, libyear: null, codeScanning, secretScanning, traffic };
+    const { license, allowAutoMerge } = repoMeta;
+    const { ci, hasAutoMergeWorkflow } = workflowsMeta;
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -414,6 +416,7 @@ const STANDARD_LABELS = {
   'contributing-guide': 'CONTRIBUTING guide',
   'license': 'License',
   'dependabot-actions': 'Dependabot alerts access',
+  'dependabot-auto-merge': 'Dependabot auto-merge',
   'ci-workflows': 'CI workflows',
 };
 

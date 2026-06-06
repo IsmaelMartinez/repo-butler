@@ -162,6 +162,31 @@ describe('detectStandardsGaps', () => {
     assert.deepEqual(result.findings[0].nonCompliant, ['b']);
     assert.deepEqual(result.findings[0].compliant, ['a']);
   });
+
+  it('detects dependabot-auto-merge gaps', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasAutoMergeWorkflow: true },
+      b: { hasAutoMergeWorkflow: false },
+    });
+    const standards = [{ tool: 'dependabot-auto-merge', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+  });
+
+  it('attaches the allowAutoMerge advisory per non-compliant repo', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasAutoMergeWorkflow: true, allowAutoMerge: true },
+      b: { hasAutoMergeWorkflow: false, allowAutoMerge: false },
+    });
+    const standards = [{ tool: 'dependabot-auto-merge', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.equal(result.findings[0].repoAutoMerge.b, false);
+  });
 });
 
 // --- detectPolicyDrift ---
@@ -416,6 +441,12 @@ describe('buildRemediationPlan', () => {
     const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'issue-form-templates', nonCompliant: ['r'], adoptionRate: 0.5 });
     assert.equal(plan.executor, 'template');
     assert.deepEqual(plan.targetFiles, ['.github/ISSUE_TEMPLATE/bug_report.yml']);
+  });
+
+  it('routes dependabot-auto-merge to template with the workflow target file', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'dependabot-auto-merge', nonCompliant: ['r'], adoptionRate: 0.5 });
+    assert.equal(plan.executor, 'template');
+    assert.deepEqual(plan.targetFiles, ['.github/workflows/dependabot-auto-merge.yml']);
   });
 
   it('routes a content-tailored standards tool to the agent executor', () => {

@@ -92,6 +92,48 @@ body:
       required: false
 `,
   },
+  'dependabot-auto-merge': {
+    // A single ecosystem-agnostic workflow that auto-merges non-major Dependabot
+    // PRs. Uses --squash (matching the proven exemplar): `gh pr merge --auto`
+    // with NO method flag errors ("you must specify a merge method") on any repo
+    // that has more than one merge method enabled — the GitHub default — so an
+    // explicit method is required, not optional. Takes effect only once "Allow
+    // auto-merge" is enabled in repo settings and branch protection requires
+    // status checks — documented as a PR prerequisite.
+    path: '.github/workflows/dependabot-auto-merge.yml',
+    content: () => `name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge on non-major updates
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        env:
+          PR_URL: \${{ github.event.pull_request.html_url }}
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash "$PR_URL"
+`,
+  },
+};
+
+// Tool-specific notes appended to the PR body. Used to document manual
+// prerequisites the butler cannot perform itself.
+const TOOL_PR_NOTES = {
+  'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
 };
 
 export function generateTemplate(tool, ecosystem) {
@@ -292,7 +334,7 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
       title: `chore: add ${tool} configuration`,
       head: branchName,
       base: defaultBranch,
-      body: `## Governance: add ${tool}\n\nThis repo was identified as missing ${tool} configuration by the portfolio governance scan.\n\nThis PR adds the standard template. Review and merge when ready.\n\n---\n*Opened automatically by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler)*`,
+      body: `## Governance: add ${tool}\n\nThis repo was identified as missing ${tool} configuration by the portfolio governance scan.\n\nThis PR adds the standard template. Review and merge when ready.${TOOL_PR_NOTES[tool] ? '\n\n> ' + TOOL_PR_NOTES[tool] : ''}\n\n---\n*Opened automatically by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler)*`,
     },
   });
 
