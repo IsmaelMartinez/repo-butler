@@ -230,6 +230,16 @@ export function capPerTool(pairs, applyCap, globalCap) {
   return kept;
 }
 
+// A finding class is promoted onto the scheduled path when its `apply-schedule`
+// value is boolean true. The hand-rolled YAML parser yields a real boolean for an
+// unquoted `true`, but tolerate a quoted `'true'` string too — `capPerTool`
+// already coerces stringy config values, so a quoting slip should not silently
+// fail to promote a class (it errs strict, never loose). Pure function.
+export function isScheduleAllowed(scheduleAllow, tool) {
+  const v = scheduleAllow?.[tool];
+  return v === true || v === 'true';
+}
+
 export async function applyGovernanceFindings(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, tools, scheduled } = options;
 
@@ -258,7 +268,7 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
   // actionable set, ignoring `apply-schedule` entirely.
   const scheduleAllow = config?.['apply-schedule'] || {};
   const scheduleGated = scheduled
-    ? actionable.filter(f => scheduleAllow[f.tool] === true)
+    ? actionable.filter(f => isScheduleAllowed(scheduleAllow, f.tool))
     : actionable;
   if (scheduled) {
     const excluded = actionable.length - scheduleGated.length;
@@ -484,7 +494,7 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
   // so the same default-closed rule applies on the no-human scheduled path. It
   // runs on a scheduled dispatch only when promoted via
   // `apply-schedule: { dependabot-rebase: true }`. Manual dispatch is unaffected.
-  if (scheduled && config?.['apply-schedule']?.['dependabot-rebase'] !== true) {
+  if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], 'dependabot-rebase')) {
     console.log('nudge [scheduled]: dependabot-rebase not on the apply-schedule allow-list — skipping');
     return { status: 'skipped-unscheduled', targets: [] };
   }

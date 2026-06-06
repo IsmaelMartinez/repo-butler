@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -59,6 +59,22 @@ describe('capPerTool', () => {
     assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 'invalid' }, 5).length, 5);
     assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 0 }, 5).length, 5);
     assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': -3 }, 5).length, 5);
+  });
+});
+
+describe('isScheduleAllowed', () => {
+  it('promotes a class on boolean true', () => {
+    assert.equal(isScheduleAllowed({ 'code-scanning': true }, 'code-scanning'), true);
+  });
+  it('promotes a class on the string "true" (quoted-YAML tolerance)', () => {
+    assert.equal(isScheduleAllowed({ 'code-scanning': 'true' }, 'code-scanning'), true);
+  });
+  it('does not promote on false, absent, or other truthy values', () => {
+    assert.equal(isScheduleAllowed({ 'code-scanning': false }, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed({}, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed(undefined, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed({ 'code-scanning': 1 }, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed({ 'code-scanning': 'yes' }, 'code-scanning'), false);
   });
 });
 
@@ -492,6 +508,13 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.status, 'completed');
     assert.equal(result.summary.created, 1);
   });
+
+  it('tolerates a quoted "true" in apply-schedule (stringy YAML)', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': 'true' } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'a quoted "true" still promotes the class');
+  });
 });
 
 describe('selectNudgeTargets', () => {
@@ -647,6 +670,14 @@ describe('nudgeStaleDependabotPRs', () => {
     // scheduled omitted → manual path; apply-schedule must not gate the nudge
     const config = { limits: { require_approval: true }, 'apply-schedule': {} };
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.targets.length, 1);
+  });
+
+  it('tolerates a quoted "true" for dependabot-rebase on the scheduled path', async () => {
+    const { gh } = mkGh();
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-rebase': 'true' } };
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.targets.length, 1);
   });
