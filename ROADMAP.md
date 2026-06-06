@@ -64,7 +64,9 @@ Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mec
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
 
-Governance and vulnerability disclosure standards established 2026-06-06 (PR #255). Introduced a `CODEOWNERS` configuration and a `SECURITY.md` file, defining clear repository maintenance ownership and formalizing security vulnerability disclosure protocols to secure the project's long-term administrative structure.
+Track B stages 1–2 remediation plans shipped 2026-05-29 (PRs #239–#241). Stage 1 added deterministic remediation plans with executor hints and change specs persisted alongside findings. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor, auto-applying template findings and drafting local review PRs for agent findings. A follow-up reconciled the dependabot template key to make `dependabot-actions` findings fully actionable.
+
+Track A stage 3 per-tool override shipped 2026-05-29. Introduced a new `apply-cap` block in `roadmap.yml` mapping a tool name to its maximum PRs per run, allowing operators to relax the global PR cap on a per-tool basis without altering any of the other global ADR-005 trust gates.
 ---
 
 ## Roadmap
