@@ -301,8 +301,10 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .catch(() => null),
       fetchTraffic(gh, owner, r.name),
       // CODEOWNERS / SECURITY.md presence across the three GitHub-recognised
-      // locations (root, .github/, docs/) in two directory listings rather than
-      // per-file probes. Drives the codeowners + security-md governance standards.
+      // locations (root, .github/, docs/) — three directory listings, not
+      // per-file probes. gh.request (not gh.listDir) so the per-repo test mocks,
+      // which stub only request, keep working — matching the issue-template
+      // detection above. Drives the codeowners + security-md governance standards.
       (async () => {
         const listNames = (path) => gh.request(`/repos/${owner}/${r.name}/contents${path ? '/' + path : ''}`)
           .then(d => Array.isArray(d) ? d.map(f => f.name) : [])
