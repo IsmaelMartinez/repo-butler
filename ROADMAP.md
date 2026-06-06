@@ -64,7 +64,9 @@ Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mec
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
 
-Dependabot auto-merge governance standard (Phase 1) shipped 2026-06-06 (PR #254). Added a new universal governance standard that checks eligible repositories for a `.github/workflows/dependabot-auto-merge.yml` workflow, enabling automated merging of non-major Dependabot PRs to reduce manual maintenance overhead.
+Track B stages 1–2 of the execution model shipped 2026-05-29 across PRs #239, #240, and #241. Stage 1 introduced deterministic remediation plans with executor hints and change specs persisted alongside findings, which are exposed via the MCP `get_governance_findings` tool. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor (dispatching template findings to the cloud, drafting review PRs for agent findings, and listing manual findings). A follow-on established the executor hint as the authoritative actionability signal in `apply.js` and added a per-executor breakdown on the governance dashboard.
+
+Track A stage 3 shipped 2026-05-29, adding support for a per-tool override of the Governance Apply per-run PR cap via a new `apply-cap` block in `roadmap.yml`. This allows mapping a tool name to its maximum PRs per run while keeping all other ADR-005 security gates global and unchanged.
 ---
 
 ## Roadmap
