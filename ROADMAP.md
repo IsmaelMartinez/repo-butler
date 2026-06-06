@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-05
+**Last Updated:** 2026-06-06
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -63,6 +63,8 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
+
+Dependabot auto-merge governance standard (Phase 1) shipped 2026-06-06 (PR #254). Added a new universal governance standard that checks eligible repositories for a `.github/workflows/dependabot-auto-merge.yml` workflow, enabling automated merging of non-major Dependabot PRs to reduce manual maintenance overhead.
 ---
 
 ## Roadmap
@@ -160,6 +162,10 @@ Shipped 2026-05-01 via `src/apply.js`, `.github/workflows/apply.yml`, and `src/d
 ### ~~`dependabot:rebase` — act on stale Dependabot PRs~~ SHIPPED
 
 The Governance Apply phase now actively addresses stale Dependabot PR findings by posting a single `@dependabot rebase` comment on the oldest stale PR per repository, rather than merely flagging them as dashboard findings. This new `nudgeStaleDependabotPRs` action operates as a sequential canary that processes the most-stale PRs first, capped at a default of five per run. It strictly adheres to all five existing ADR-005 gates, including workflow_dispatch-only execution, dry-run fail-closed behaviour, and a seven-day deduplication mechanism to prevent double-commenting. Because this functionality is implemented as a new action type within the existing apply phase without relaxing the trust model, no ADR amendment was required. Operators can preview both actions in dry-run mode with a blank `tools` input or scope a nudge-only run by specifying `tools=dependabot-rebase`.
+
+### ~~Dependabot auto-merge standard~~ SHIPPED
+
+A new universal governance standard checks every eligible repo for a `.github/workflows/dependabot-auto-merge.yml` workflow that enables auto-merge on non-major Dependabot PRs. Detection reuses the existing portfolio `/actions/workflows` fetcher (no new API calls) to set `hasAutoMergeWorkflow` per repo, and the standard routes through the templatable apply path, so `governance:apply` can open a remediation PR that drops in an ecosystem-agnostic workflow built on `dependabot/fetch-metadata@v3` and `gh pr merge --auto` (no `--squash`, so each repo keeps its own default merge method). The detector also reads the repo's `allow_auto_merge` setting as an advisory (`allowAutoMerge` / per-finding `repoAutoMerge`) since the workflow only takes effect once Allow auto-merge is enabled and branch protection requires status checks; the remediation PR documents these prerequisites. Phase 2 — having the butler flip the `allow_auto_merge` repo setting and configure branch protection itself, plus the corresponding ADR-005 amendment — is deliberately deferred.
 
 ### Phase 5 — Portfolio Governance Engine
 
