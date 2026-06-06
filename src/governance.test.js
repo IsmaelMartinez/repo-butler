@@ -187,6 +187,31 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].repoAutoMerge.b, false);
   });
+
+  it('detects codeowners gaps', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasCodeowners: true },
+      b: { hasCodeowners: false },
+    });
+    const standards = [{ tool: 'codeowners', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+  });
+
+  it('detects security-md gaps', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasSecurityPolicy: true },
+      b: { hasSecurityPolicy: false },
+    });
+    const standards = [{ tool: 'security-md', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+  });
 });
 
 // --- detectPolicyDrift ---

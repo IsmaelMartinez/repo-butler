@@ -33,6 +33,15 @@ describe('parseStandardsConfig', () => {
     assert.deepEqual(result[0], { tool: 'dependabot-auto-merge', scope: { type: 'universal' }, exclude: [] });
   });
 
+  it('parses the codeowners and security-md universal standards', () => {
+    const config = { standards: { 'codeowners': 'universal', 'security-md': 'universal' } };
+    const result = parseStandardsConfig(config);
+    assert.deepEqual(result, [
+      { tool: 'codeowners', scope: { type: 'universal' }, exclude: [] },
+      { tool: 'security-md', scope: { type: 'universal' }, exclude: [] },
+    ]);
+  });
+
   it('parses ecosystem-scoped standards', () => {
     const config = { standards: { 'renovate-npm': 'javascript', 'golangci-lint': 'go' } };
     const result = parseStandardsConfig(config);

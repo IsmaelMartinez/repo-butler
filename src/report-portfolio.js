@@ -230,7 +230,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       console.log(`  ↩ ${r.name} — unchanged, using cache`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -300,12 +300,37 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .then(prs => prs.length)
         .catch(() => null),
       fetchTraffic(gh, owner, r.name),
+      // CODEOWNERS / SECURITY.md presence across the three GitHub-recognised
+      // locations (root, .github/, docs/). Fetch root first; descend into
+      // .github/ or docs/ only when they exist in root and a file is still
+      // unfound — so a compliant repo costs one call and a missing directory
+      // costs none. gh.request (not gh.listDir) so the per-repo test mocks,
+      // which stub only request, keep working — matching the issue-template
+      // detection above. Drives the codeowners + security-md governance standards.
+      (async () => {
+        const listNames = (path) => gh.request(`/repos/${owner}/${r.name}/contents${path ? '/' + path : ''}`)
+          .then(d => Array.isArray(d) ? d.map(f => String(f.name).toLowerCase()) : [])
+          .catch(() => []);
+        const hasCodeownersIn = (names) => names.includes('codeowners');
+        const hasSecurityIn = (names) => names.includes('security.md') || names.includes('security.markdown');
+        const root = await listNames('');
+        let hasCodeowners = hasCodeownersIn(root);
+        let hasSecurityPolicy = hasSecurityIn(root);
+        for (const dir of ['.github', 'docs']) {
+          if (hasCodeowners && hasSecurityPolicy) break;
+          if (!root.includes(dir)) continue;
+          const names = await listNames(dir);
+          hasCodeowners ||= hasCodeownersIn(names);
+          hasSecurityPolicy ||= hasSecurityIn(names);
+        }
+        return { hasCodeowners, hasSecurityPolicy };
+      })(),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
     const { ci, hasAutoMergeWorkflow } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, libyear: null, codeScanning, secretScanning, traffic };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -418,6 +443,8 @@ const STANDARD_LABELS = {
   'dependabot-actions': 'Dependabot alerts access',
   'dependabot-auto-merge': 'Dependabot auto-merge',
   'ci-workflows': 'CI workflows',
+  'codeowners': 'CODEOWNERS',
+  'security-md': 'Security policy',
 };
 
 const DRIFT_LABELS = {

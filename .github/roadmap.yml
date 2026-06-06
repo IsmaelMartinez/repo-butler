@@ -38,6 +38,8 @@ standards:
   code-scanning: universal
   secret-scanning: universal
   dependabot-auto-merge: universal
+  codeowners: universal
+  security-md: universal
 
 release_exempt: sound3fy
 

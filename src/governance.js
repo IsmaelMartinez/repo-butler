@@ -66,6 +66,8 @@ const STANDARD_DETECTORS = {
   'ci-workflows': (_repo, details) => (details?.ci || 0) >= 1,
   'code-scanning': (_repo, details) => details?.codeScanning != null,
   'secret-scanning': (_repo, details) => details?.secretScanning != null,
+  'codeowners': (_repo, details) => !!details?.hasCodeowners,
+  'security-md': (_repo, details) => !!details?.hasSecurityPolicy,
 };
 
 // Minimum adoption rate to infer an implicit universal standard.
@@ -350,11 +352,13 @@ export function generateUpliftProposals(repos, details, config = null) {
 // a generator for these), each matching an apply.js TEMPLATES key directly:
 // code-scanning, dependabot-actions, issue-form-templates (a generic
 // bug-report form — one file in .github/ISSUE_TEMPLATE/ satisfies the detector),
-// and dependabot-auto-merge (a single ecosystem-agnostic workflow that enables
-// auto-merge on non-major Dependabot PRs).
+// dependabot-auto-merge (a single ecosystem-agnostic workflow that enables
+// auto-merge on non-major Dependabot PRs), codeowners (a `* @<owner>` file
+// routing review to the repo owner), and security-md (a generic SECURITY.md
+// vulnerability-reporting policy).
 // ci-workflows is deliberately NOT here: a static CI workflow fanned across
 // heterogeneous repos would open red-CI PRs, so it stays agent-routed.
-const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge']);
+const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md']);
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
 const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
@@ -367,6 +371,8 @@ const STANDARD_TARGET_FILES = {
   'contributing-guide': ['CONTRIBUTING.md'],
   'issue-form-templates': ['.github/ISSUE_TEMPLATE/bug_report.yml'],
   'dependabot-auto-merge': ['.github/workflows/dependabot-auto-merge.yml'],
+  'codeowners': ['.github/CODEOWNERS'],
+  'security-md': ['.github/SECURITY.md'],
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],
