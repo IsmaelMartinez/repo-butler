@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-06
+**Last Updated:** 2026-06-07
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -64,7 +64,7 @@ Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mec
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
 
-Track B stages 1–2 and Track A stage 3 shipped 2026-05-29 across PRs #239–#241. Stage 1 introduced deterministic remediation plans with executor hints and change specs, and aligned the dependabot template key to make `dependabot-actions` findings actionable. Stage 2 enabled the `repo-butler-apply` skill to route findings by executor (template findings to cloud Governance Apply, agent findings to local review PRs, manual findings listed for the owner). Stage 3 added a per-tool override for the Governance Apply per-run PR cap via a new `apply-cap` block in `roadmap.yml` mapping a tool name to its maximum PRs per run.
+Scheduled governance apply Phase 10 Stage 4 shipped (PR #257). This increment integrates methodical scheduled governance tasks into the production pipeline, enabling the system to execute scheduled apply tasks automatically as part of its multi-phase rollout.
 ---
 
 ## Roadmap
