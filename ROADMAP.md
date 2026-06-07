@@ -63,8 +63,6 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
-
-Scheduled governance apply Phase 10 Stage 4 shipped (PR #257). This increment integrates methodical scheduled governance tasks into the production pipeline, enabling the system to execute scheduled apply tasks automatically as part of its multi-phase rollout.
 ---
 
 ## Roadmap
