@@ -128,6 +128,26 @@ apply-cap:
     });
   });
 
+  it('parses apply-schedule block as tool -> boolean allow-list', async () => {
+    const yaml = `repository: owner/repo
+
+apply-schedule:
+  code-scanning: true
+  dependabot-rebase: true
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config['apply-schedule']['code-scanning'], true);
+      assert.equal(config['apply-schedule']['dependabot-rebase'], true);
+      assert.equal(typeof config['apply-schedule']['code-scanning'], 'boolean');
+    });
+  });
+
+  it('defaults apply-schedule to an empty object (scheduled path default-closed)', async () => {
+    const config = await loadConfig('/nonexistent/path/roadmap.yml');
+    assert.deepEqual(config['apply-schedule'], {});
+  });
+
   it('parses nested observe block from YAML', async () => {
     const yaml = `repository: owner/repo
 

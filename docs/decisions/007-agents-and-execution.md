@@ -4,6 +4,8 @@ Date: 2026-05-28
 
 Amended: 2026-05-30 — expanded the stage-4 (lift to hosted) and stage-5 (selective auto-merge) bullets into full design subsections plus a defer decision.
 
+Amended: 2026-06-06 — stage 4 (scheduled apply) implemented and shipped default-closed (empty `apply-schedule` allow-list, dry-run by default) after the codeowners + security-md standards put real work through the manual apply path. Stage 5 (selective auto-merge) remains design-only.
+
 Status: Accepted
 
 ## Context
@@ -47,6 +49,12 @@ Reversibility is a precondition, not an afterthought. A class is only auto-merge
 This amendment is recorded now so the gates and controls for stages 4 and 5 are settled before any hosted-agent or auto-merge code is written, as ADR-005 and ADR-007 both require. The implementation of both stages is deferred. The portfolio currently sits at 14 Gold with zero open governance findings, so `apply.js`'s `executor === 'template'` actionable filter returns empty on every run — building a no-human-at-dispatch runtime and an auto-merge path now would be building consumers for an empty queue, with no human-reviewed apply track record to justify removing the human or the review.
 
 The unblock condition is deliberately falsifiable: a sustained track record of human-reviewed `governance-apply` PRs (on the order of several merged across several weeks with no rollbacks), reached only after a finding-generating direction first puts real work through the manual apply path. Templatizing `issue-form-templates` is the first such direction; until that track record exists, stages 4 and 5 remain design-only.
+
+### Update (2026-06-06): stage 4 implemented, default-closed
+
+The first half of the unblock condition is met. The `codeowners` and `security-md` standards (shipped 2026-06-06) put real work through the manual apply path: the `executor === 'template'` actionable filter now returns eighteen (repo, tool) pairs where it previously returned empty, so the scheduled consumer is no longer being built for an empty queue. Stage 4 ships now as dormant machinery rather than waiting for the full track record, because it is default-closed on two independent axes. The `apply-schedule` allow-list is empty, so no finding class runs on the schedule, and the scheduled workflow's `INPUT_DRY_RUN` defaults to `'true'`, so no PRs open even if a class were promoted. Neither axis can act without a deliberate, separately-reviewed config change.
+
+The live graduation — populating `apply-schedule` for a class and flipping the scheduled workflow's dry-run to `'false'` — remains gated on the second half of the unblock condition (several human-reviewed `governance-apply` PRs merged across several weeks with no rollbacks) and lands as its own reviewed PR. Stage 5 (selective auto-merge) stays design-only. The implementation adds an `apply-schedule` block to `src/config.js` and the config schema, a `scheduled` option on `applyGovernanceFindings` and `nudgeStaleDependabotPRs` in `src/apply.js` that filters the actionable set to allow-listed classes before the existing gates run, the `INPUT_SCHEDULED` wiring in `runApply`, and `.github/workflows/apply-scheduled.yml` mirroring `apply.yml` with a weekly cron, `INPUT_SCHEDULED=true`, and a run-summary notification step. ADR-005 gate 1 is amended to record the per-class relaxation.
 
 ## Consequences
 

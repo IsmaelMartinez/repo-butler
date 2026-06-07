@@ -1,0 +1,81 @@
+name: Governance Apply (scheduled)
+
+# Stage 4 (ADR-007): the no-human-at-dispatch apply path. Unlike apply.yml
+# (workflow_dispatch only, ADR-005 gate 1), this runs on a schedule — so it is
+# default-closed twice over: it ships dry-run by default AND only acts on finding
+# classes explicitly promoted via `apply-schedule` in roadmap.yml (empty today,
+# so a scheduled run opens nothing until a class is added and the soak graduates
+# to live in a follow-up PR). require_approval, the per-run cap, batching, and
+# repo-name validation (ADR-005 gates 2-5) all still apply.
+
+on:
+  schedule:
+    # Weekly, low-traffic slot — avoids the daily self-test (07/11/16/20),
+    # the 6-hourly monitor (00/06/12/18) and the Monday 06:00 ideate run.
+    - cron: '0 5 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Dry run (log only, no PRs)'
+        default: 'true'
+      tools:
+        description: 'Comma-separated tools to apply (blank = all allow-listed actionable; "dependabot-rebase" = nudge stale Dependabot PRs only)'
+        required: false
+      max-apply-per-run:
+        description: 'Max PRs to open (default 5)'
+        required: false
+        default: '5'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Run apply phase
+        id: apply
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          INPUT_PHASE: apply
+          INPUT_CONFIG_PATH: .github/roadmap.yml
+          # Default-closed for the soak: dry-run unless explicitly dispatched live.
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+          INPUT_TOOLS: ${{ github.event.inputs.tools || '' }}
+          INPUT_MAX_APPLY_PER_RUN: ${{ github.event.inputs.max-apply-per-run || '5' }}
+          # Marks this as the no-human scheduled path: apply.js gates each finding
+          # class behind the apply-schedule allow-list.
+          INPUT_SCHEDULED: 'true'
+        run: node src/index.js
+
+      - name: Run summary
+        # Replaces the dispatch-time accountability moment ADR-005 relies on: a
+        # hands-off run records what it did so the operator learns without digging.
+        if: always()
+        env:
+          APPLY: ${{ steps.apply.outputs.apply }}
+          NUDGE: ${{ steps.apply.outputs.nudge }}
+          DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+        run: |
+          mode="dry-run"
+          [ "$DRY_RUN" = "false" ] && mode="LIVE"
+          {
+            echo "## Scheduled Governance Apply ($mode)"
+            echo ""
+            echo "Ran without a human at dispatch (ADR-007 stage 4). Finding classes act only when promoted via \`apply-schedule\` in roadmap.yml."
+            echo ""
+            echo "- Apply summary: \`${APPLY:-(none — dry-run or nothing actionable)}\`"
+            echo "- Nudge summary: \`${NUDGE:-(none — dry-run or nothing actionable)}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none}"

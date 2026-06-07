@@ -63,3 +63,15 @@ policy-drift-exempt:
 # apply-cap:
 #   code-scanning: 10
 #   dependabot-actions: 5
+
+# Per-finding-class promotion allow-list for the SCHEDULED apply path (ADR-007
+# stage 4). A class listed here as `tool: true` runs on the no-human scheduled
+# apply workflow; classes not listed stay workflow_dispatch-only. This is the
+# per-class, opt-in, reversible relaxation of ADR-005 gate 1 — require_approval,
+# dry-run, batching, the per-run cap and repo-name validation all still apply, so
+# a scheduled run can open no more PRs than a dispatched one. Empty/absent means
+# the scheduled run opens nothing. `dependabot-rebase` promotes the stale-PR nudge.
+# Uncomment a class only once it has earned a track record on the manual path:
+# apply-schedule:
+#   code-scanning: true
+#   dependabot-rebase: true

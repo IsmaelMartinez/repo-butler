@@ -27,6 +27,9 @@ async function runApply(context) {
   const maxPerRun = parseInt(process.env.INPUT_MAX_APPLY_PER_RUN, 10) || 5;
   const tools = (process.env.INPUT_TOOLS || '').split(',').map(s => s.trim()).filter(Boolean);
   const isDryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
+  // Stage 4 (ADR-007): set by the scheduled apply workflow only. On the no-human
+  // path, apply.js gates each finding class behind the apply-schedule allow-list.
+  const scheduled = process.env.INPUT_SCHEDULED === 'true';
   let applyGovernanceFindings, nudgeStaleDependabotPRs;
   try {
     ({ applyGovernanceFindings, nudgeStaleDependabotPRs } = await import('./apply.js'));
@@ -39,6 +42,7 @@ async function runApply(context) {
     dryRun: isDryRun,
     maxPerRun,
     tools: tools.length > 0 ? tools : null,
+    scheduled,
   });
   const processed = result?.results?.length || 0;
   console.log(`Apply complete: ${processed} repos processed.`);
@@ -57,7 +61,7 @@ async function runApply(context) {
   // surprise, and tools=dependabot-rebase is a nudge-only run.
   const nudgeRequested = tools.length === 0 || tools.includes('dependabot-rebase');
   const nudgeResult = nudgeRequested
-    ? await nudgeStaleDependabotPRs(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun })
+    ? await nudgeStaleDependabotPRs(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
     : null;
   if (nudgeResult?.summary && process.env.GITHUB_OUTPUT) {
     appendFileSync(

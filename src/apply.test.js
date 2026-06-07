@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -59,6 +59,22 @@ describe('capPerTool', () => {
     assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 'invalid' }, 5).length, 5);
     assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': 0 }, 5).length, 5);
     assert.equal(capPerTool(pairs('code-scanning', 8), { 'code-scanning': -3 }, 5).length, 5);
+  });
+});
+
+describe('isScheduleAllowed', () => {
+  it('promotes a class on boolean true', () => {
+    assert.equal(isScheduleAllowed({ 'code-scanning': true }, 'code-scanning'), true);
+  });
+  it('promotes a class on the string "true" (quoted-YAML tolerance)', () => {
+    assert.equal(isScheduleAllowed({ 'code-scanning': 'true' }, 'code-scanning'), true);
+  });
+  it('does not promote on false, absent, or other truthy values', () => {
+    assert.equal(isScheduleAllowed({ 'code-scanning': false }, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed({}, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed(undefined, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed({ 'code-scanning': 1 }, 'code-scanning'), false);
+    assert.equal(isScheduleAllowed({ 'code-scanning': 'yes' }, 'code-scanning'), false);
   });
 });
 
@@ -437,6 +453,68 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.pairs.length, 1, 'issue-form-templates is now an actionable template tool');
     assert.equal(result.pairs[0].tool, 'issue-form-templates');
   });
+
+  // --- Stage 4 (ADR-007): scheduled, no-human path is default-closed ---------
+
+  it('scheduled run with empty apply-schedule opens nothing (default-closed)', async () => {
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, baseConfig, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 0, 'no class is promoted, so the scheduled gate excludes everything');
+  });
+
+  it('scheduled run applies only allow-listed finding classes', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
+    ];
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'only the promoted class passes the schedule gate');
+    assert.equal(result.pairs[0].tool, 'code-scanning');
+  });
+
+  it('manual dispatch ignores apply-schedule entirely (regression guard)', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const findings = [
+      { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
+    ];
+    // scheduled omitted → workflow_dispatch path: full actionable set, identical to before stage 4
+    const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 2);
+  });
+
+  it('scheduled path still honours require_approval', async () => {
+    const config = { limits: { require_approval: false }, 'apply-schedule': { 'code-scanning': true } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'refused');
+    assert.equal(calls.length, 0);
+  });
+
+  it('scheduled path stays dry-run fail-closed even for an allow-listed class', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    // dryRun omitted → must not act
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'the class is allow-listed, so it would be applied');
+    assert.equal(calls.length, 0, 'but dry-run fail-closed means no API calls');
+  });
+
+  it('scheduled live run opens PRs for an allow-listed class', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'completed');
+    assert.equal(result.summary.created, 1);
+  });
+
+  it('tolerates a quoted "true" in apply-schedule (stringy YAML)', async () => {
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': 'true' } };
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.pairs.length, 1, 'a quoted "true" still promotes the class');
+  });
 });
 
 describe('selectNudgeTargets', () => {
@@ -567,5 +645,40 @@ describe('nudgeStaleDependabotPRs', () => {
     assert.equal(result.status, 'completed');
     assert.equal(result.summary.errors, 2);
     assert.equal(result.results.length, 2);
+  });
+
+  // --- Stage 4 (ADR-007): the nudge is default-closed on the scheduled path ---
+
+  it('scheduled run skips the nudge when dependabot-rebase is not allow-listed', async () => {
+    const { gh, calls } = mkGh();
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+    assert.equal(result.targets.length, 0);
+    assert.equal(calls.length, 0);
+  });
+
+  it('scheduled run nudges when dependabot-rebase is allow-listed', async () => {
+    const { gh } = mkGh();
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-rebase': true } };
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { nudged: 1, skipped: 0, errors: 0 });
+  });
+
+  it('manual dispatch ignores apply-schedule for the nudge (regression guard)', async () => {
+    const { gh } = mkGh();
+    // scheduled omitted → manual path; apply-schedule must not gate the nudge
+    const config = { limits: { require_approval: true }, 'apply-schedule': {} };
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.targets.length, 1);
+  });
+
+  it('tolerates a quoted "true" for dependabot-rebase on the scheduled path', async () => {
+    const { gh } = mkGh();
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-rebase': 'true' } };
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.targets.length, 1);
   });
 });

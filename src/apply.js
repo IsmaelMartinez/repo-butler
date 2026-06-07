@@ -230,8 +230,18 @@ export function capPerTool(pairs, applyCap, globalCap) {
   return kept;
 }
 
+// A finding class is promoted onto the scheduled path when its `apply-schedule`
+// value is boolean true. The hand-rolled YAML parser yields a real boolean for an
+// unquoted `true`, but tolerate a quoted `'true'` string too — `capPerTool`
+// already coerces stringy config values, so a quoting slip should not silently
+// fail to promote a class (it errs strict, never loose). Pure function.
+export function isScheduleAllowed(scheduleAllow, tool) {
+  const v = scheduleAllow?.[tool];
+  return v === true || v === 'true';
+}
+
 export async function applyGovernanceFindings(gh, owner, findings, config, options = {}) {
-  const { dryRun, maxPerRun = 5, tools } = options;
+  const { dryRun, maxPerRun = 5, tools, scheduled } = options;
 
   // Require approval gate
   if (!config?.limits?.require_approval) {
@@ -249,7 +259,25 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
   const actionable = validated.filter(
     f => TEMPLATES[f.tool] && (f.remediation?.executor ?? 'template') === 'template'
   );
-  const filtered = tools ? actionable.filter(f => tools.includes(f.tool)) : actionable;
+
+  // Stage 4 (ADR-007): the scheduled, no-human-at-dispatch path is default-closed.
+  // A finding class runs on it only when explicitly promoted via an
+  // `apply-schedule: { <tool>: true }` config entry. This is the per-finding-class
+  // relaxation of ADR-005 gate 1 (workflow_dispatch-only) — opt-in and reversible.
+  // Manual dispatch (`scheduled` falsy) is byte-identical to before: the full
+  // actionable set, ignoring `apply-schedule` entirely.
+  const scheduleAllow = config?.['apply-schedule'] || {};
+  const scheduleGated = scheduled
+    ? actionable.filter(f => isScheduleAllowed(scheduleAllow, f.tool))
+    : actionable;
+  if (scheduled) {
+    const excluded = actionable.length - scheduleGated.length;
+    if (excluded > 0) {
+      console.log(`apply [scheduled]: ${excluded} actionable finding(s) excluded — tool not on the apply-schedule allow-list`);
+    }
+  }
+
+  const filtered = tools ? scheduleGated.filter(f => tools.includes(f.tool)) : scheduleGated;
   const pairs = [];
   for (const f of filtered) {
     for (const repo of f.nonCompliant) {
@@ -454,12 +482,21 @@ async function alreadyNudged(gh, owner, repo, number) {
 }
 
 export async function nudgeStaleDependabotPRs(gh, owner, findings, config, options = {}) {
-  const { dryRun, maxPerRun = 5 } = options;
+  const { dryRun, maxPerRun = 5, scheduled } = options;
 
   // Gate 3: require_approval master switch.
   if (!config?.limits?.require_approval) {
     console.error('nudge: config.limits.require_approval is not true — refusing to run');
     return { status: 'refused', reason: 'require_approval not set' };
+  }
+
+  // Stage 4 (ADR-007): the nudge is a finding-class action like a templated PR,
+  // so the same default-closed rule applies on the no-human scheduled path. It
+  // runs on a scheduled dispatch only when promoted via
+  // `apply-schedule: { dependabot-rebase: true }`. Manual dispatch is unaffected.
+  if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], 'dependabot-rebase')) {
+    console.log('nudge [scheduled]: dependabot-rebase not on the apply-schedule allow-list — skipping');
+    return { status: 'skipped-unscheduled', targets: [] };
   }
 
   // Gate 5 (repo-name validation) + gate 4 (per-run cap) applied here.
