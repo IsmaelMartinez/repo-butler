@@ -193,11 +193,11 @@
       "id": 151476958,
       "open_issues": 21,
       "open_bugs": 8,
-      "commits_6mo": 408,
-      "stars": 4744,
+      "commits_6mo": 409,
+      "stars": 4745,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9836065573770492,
+      "ciPassRate": 0.9827586206896551,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -219,7 +219,7 @@
       },
       "ci": 14,
       "released_at": "2026-05-29T19:31:34Z",
-      "pushed_at": "2026-06-08T11:49:32Z",
+      "pushed_at": "2026-06-08T14:54:31Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -313,7 +313,7 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-08T06:16:52Z",
+      "pushed_at": "2026-06-08T13:39:32Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -855,7 +855,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9512195121951219,
+      "ciPassRate": 0.9518072289156626,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -877,7 +877,7 @@
       },
       "ci": 10,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-08T10:22:59Z",
+      "pushed_at": "2026-06-08T13:20:37Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -945,7 +945,7 @@
       "id": 1196601911,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 255,
+      "commits_6mo": 257,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -971,7 +971,7 @@
       },
       "ci": 5,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-06-08T06:16:15Z",
+      "pushed_at": "2026-06-08T13:55:39Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1227,7 +1227,7 @@
       "id": 1223288066,
       "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 224,
+      "commits_6mo": 226,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1252,8 +1252,8 @@
         "count": 0
       },
       "ci": 7,
-      "released_at": "2026-06-07T07:34:11Z",
-      "pushed_at": "2026-06-07T09:07:33Z",
+      "released_at": "2026-06-08T13:57:56Z",
+      "pushed_at": "2026-06-08T14:48:10Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
