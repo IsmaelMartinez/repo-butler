@@ -99,9 +99,10 @@ describe('validateIssueBody', () => {
     assert.equal(validateIssueBody(body).valid, false);
   });
 
-  it('rejects bodies with OPENSSH/PKCS#8 private key headers', () => {
+  it('rejects bodies with OPENSSH/PKCS#8/PGP private key headers', () => {
     assert.equal(validateIssueBody('Key:\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk...').valid, false);
     assert.equal(validateIssueBody('Key:\n-----BEGIN PRIVATE KEY-----\nMIIEvQIBADAN...').valid, false);
+    assert.equal(validateIssueBody('Key:\n-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQVYBF...').valid, false);
   });
 
   it('rejects bodies with OAuth/user-to-server/refresh GitHub tokens', () => {
@@ -116,6 +117,7 @@ describe('validateIssueBody', () => {
 
   it('rejects bodies with Slack tokens', () => {
     assert.equal(validateIssueBody('Token: xoxb-123456789012-abcdefghij').valid, false);
+    assert.equal(validateIssueBody('Token: xoxe-123456789012-abcdefghij').valid, false);
   });
 
   it('rejects disallowed URLs regardless of scheme case', () => {

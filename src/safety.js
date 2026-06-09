@@ -41,9 +41,9 @@ const BLOCKED_PATTERNS = [
   /\bAIza[a-zA-Z0-9_-]{30,}\b/,      // Google API keys
   /\bgh[pousr]_[a-zA-Z0-9]{36,}\b/,  // GitHub tokens (ghp_ PAT, ghs_ server, gho_ OAuth, ghu_ user-to-server, ghr_ refresh)
   /\bgithub_pat_[a-zA-Z0-9_]{20,}\b/, // GitHub fine-grained PATs
-  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/, // Any PEM private key (RSA, EC, DSA, OPENSSH, PGP, PKCS#8)
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY( BLOCK)?-----/, // Any PEM private key (RSA, EC, DSA, OPENSSH, PKCS#8, PGP "... KEY BLOCK")
   /\b(AKIA|ASIA)[A-Z0-9]{16}\b/,     // AWS access key IDs
-  /\bxox[baprs]-[a-zA-Z0-9-]{10,}\b/, // Slack tokens
+  /\bxox[baprse]-[a-zA-Z0-9-]{10,}\b/, // Slack tokens (incl. xoxe- Enterprise Grid)
   /\bpassword\s*[:=]\s*\S+/i,        // Password assignments
   /<script[\s>]/i,                     // Script injection
   /javascript:/i,                      // JS protocol
