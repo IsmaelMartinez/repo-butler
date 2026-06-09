@@ -280,7 +280,6 @@ The boundary is: triage bot goes deep on one repo (webhook-driven, vector search
 - `src/safety.js` — `validateIssueTitle()`, `validateIssueBody()`, `validateRoadmap()`, `validateIdeas()`, `validateProvider()`
 - `src/config.js` — `loadConfig()`, `DEFAULTS`
 - `src/github.js` — `createClient()`, `request()`, `paginate()`, `getFileContent()`, `listDir()`
-- `src/triage-bot.js` — `createTriageBotClient()`, auto-discovery via `.github/butler.json`
 - `src/providers/gemini.js`, `src/providers/claude.js` — LLM providers, interface: `async generate(prompt)`
 - `schemas/v1/` — JSON Schema definitions for all data structures (snapshot, portfolio, config, health tiers)
 - `docs/decisions/001-repo-butler-vs-triage-bot.md` — system boundary ADR

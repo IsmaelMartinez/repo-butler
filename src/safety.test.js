@@ -6,6 +6,7 @@ import {
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, detectEcosystem,
   sanitizeContributorName, validateGitHubUsername,
+  sanitizeLabels, redactErrorForLog,
   wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
 } from './safety.js';
 
@@ -96,6 +97,72 @@ describe('validateIssueBody', () => {
   it('rejects bodies over 8000 chars', () => {
     const body = 'A'.repeat(8001);
     assert.equal(validateIssueBody(body).valid, false);
+  });
+
+  it('rejects bodies with OPENSSH/PKCS#8 private key headers', () => {
+    assert.equal(validateIssueBody('Key:\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk...').valid, false);
+    assert.equal(validateIssueBody('Key:\n-----BEGIN PRIVATE KEY-----\nMIIEvQIBADAN...').valid, false);
+  });
+
+  it('rejects bodies with OAuth/user-to-server/refresh GitHub tokens', () => {
+    assert.equal(validateIssueBody(`Token: gho_${'a'.repeat(36)}`).valid, false);
+    assert.equal(validateIssueBody(`Token: ghu_${'a'.repeat(36)}`).valid, false);
+    assert.equal(validateIssueBody(`Token: ghr_${'a'.repeat(40)}`).valid, false);
+  });
+
+  it('rejects bodies with AWS access key IDs', () => {
+    assert.equal(validateIssueBody('Use AKIAIOSFODNN7EXAMPLE for S3.').valid, false);
+  });
+
+  it('rejects bodies with Slack tokens', () => {
+    assert.equal(validateIssueBody('Token: xoxb-123456789012-abcdefghij').valid, false);
+  });
+
+  it('rejects disallowed URLs regardless of scheme case', () => {
+    const result = validateIssueBody('Check HTTPS://evil-site.com/payload for more.');
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => e.includes('disallowed host')));
+  });
+});
+
+describe('sanitizeLabels', () => {
+  it('passes clean labels through', () => {
+    assert.deepEqual(sanitizeLabels(['bug', 'enhancement']), ['bug', 'enhancement']);
+  });
+
+  it('returns empty array for non-array input', () => {
+    assert.deepEqual(sanitizeLabels(null), []);
+    assert.deepEqual(sanitizeLabels('bug'), []);
+  });
+
+  it('drops non-string entries and empties', () => {
+    assert.deepEqual(sanitizeLabels(['bug', 42, null, '  ', {}]), ['bug']);
+  });
+
+  it('strips control characters and leading @', () => {
+    assert.deepEqual(sanitizeLabels(['bu\x00g', '@user-shaped']), ['bug', 'user-shaped']);
+  });
+
+  it('drops labels over the 50-char GitHub limit', () => {
+    assert.deepEqual(sanitizeLabels(['a'.repeat(51), 'ok']), ['ok']);
+  });
+
+  it('deduplicates and caps the count', () => {
+    assert.deepEqual(sanitizeLabels(['x', 'x', 'y']), ['x', 'y']);
+    assert.equal(sanitizeLabels(Array.from({ length: 20 }, (_, i) => `l${i}`)).length, 10);
+  });
+});
+
+describe('redactErrorForLog', () => {
+  it('keeps the category prefix and redacts the rest', () => {
+    assert.equal(
+      redactErrorForLog('Body contains @mention: @victim — LLM should not ping real users'),
+      'Body contains @mention [REDACTED]',
+    );
+  });
+
+  it('returns errors without a colon unchanged', () => {
+    assert.equal(redactErrorForLog('Title contains newlines'), 'Title contains newlines');
   });
 });
 

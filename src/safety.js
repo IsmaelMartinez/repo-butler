@@ -39,11 +39,11 @@ const BLOCKED_PATTERNS = [
   /\bsk-[a-zA-Z0-9]{20,}\b/,         // OpenAI-style API keys
   /\bsk-ant-[a-zA-Z0-9_-]{20,}\b/,   // Anthropic API keys (Claude)
   /\bAIza[a-zA-Z0-9_-]{30,}\b/,      // Google API keys
-  /\bghp_[a-zA-Z0-9]{36}\b/,         // GitHub personal access tokens
-  /\bghs_[a-zA-Z0-9]{36}\b/,         // GitHub server tokens
+  /\bgh[pousr]_[a-zA-Z0-9]{36,}\b/,  // GitHub tokens (ghp_ PAT, ghs_ server, gho_ OAuth, ghu_ user-to-server, ghr_ refresh)
   /\bgithub_pat_[a-zA-Z0-9_]{20,}\b/, // GitHub fine-grained PATs
-  /-----BEGIN RSA PRIVATE KEY-----/,  // RSA private key (e.g. GitHub App)
-  /-----BEGIN EC PRIVATE KEY-----/,   // EC private key
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/, // Any PEM private key (RSA, EC, DSA, OPENSSH, PGP, PKCS#8)
+  /\b(AKIA|ASIA)[A-Z0-9]{16}\b/,     // AWS access key IDs
+  /\bxox[baprs]-[a-zA-Z0-9-]{10,}\b/, // Slack tokens
   /\bpassword\s*[:=]\s*\S+/i,        // Password assignments
   /<script[\s>]/i,                     // Script injection
   /javascript:/i,                      // JS protocol
@@ -343,11 +343,43 @@ export function validateGitHubUsername(username) {
     && username.length <= 39;
 }
 
+// Sanitise LLM-suggested issue label names before they reach the GitHub API.
+// Labels are not validated by validateIssueBody (they're not body text), so
+// this is their dedicated gate: strings only, control characters stripped,
+// no leading @ (avoids mention-shaped labels), trimmed, capped at GitHub's
+// 50-char label limit, at most `max` labels. Returns a cleaned array.
+export function sanitizeLabels(labels, max = 10) {
+  if (!Array.isArray(labels)) return [];
+  const cleaned = [];
+  for (const label of labels) {
+    if (typeof label !== 'string') continue;
+    // eslint-disable-next-line no-control-regex
+    const name = label.replace(/[\x00-\x1f\x7f]/g, '').replace(/^@+/, '').trim();
+    if (name.length === 0 || name.length > 50) continue;
+    if (!cleaned.includes(name)) cleaned.push(name);
+    if (cleaned.length >= max) break;
+  }
+  return cleaned;
+}
+
+// Strip user-controlled content from validation error strings before they
+// reach CI logs. Safety errors include the matched @mention handle, URL host,
+// or other adversary-supplied substring; logging those verbatim reproduces
+// the leak in a different sink. Keep the category prefix (everything up to
+// the first ':') and replace the remainder with [REDACTED].
+export function redactErrorForLog(err) {
+  const idx = err.indexOf(':');
+  if (idx === -1) return err;
+  return `${err.slice(0, idx)} [REDACTED]`;
+}
+
 // --- Internal helpers ---
 
 function validateUrls(text, { allowDocs = false } = {}) {
   const errors = [];
-  const urlRegex = /https?:\/\/[^\s)>\]"']+/g;
+  // Case-insensitive: URL schemes are case-insensitive, so HTTPS://evil.com
+  // must be caught just like https://evil.com.
+  const urlRegex = /https?:\/\/[^\s)>\]"']+/gi;
   let match;
 
   const allowedHosts = allowDocs ? [...CORE_URL_HOSTS, ...DOCS_URL_HOSTS] : CORE_URL_HOSTS;

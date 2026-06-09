@@ -2,7 +2,7 @@
 // Respects max_issues_per_run and require_approval settings.
 
 import { createClient, paginateIssues } from './github.js';
-import { validateIdeas } from './safety.js';
+import { validateIdeas, validateIssueBody, sanitizeLabels, redactErrorForLog } from './safety.js';
 
 // Common words stripped from titles before comparison to reduce false positives.
 const STOP_WORDS = new Set([
@@ -245,8 +245,19 @@ export async function propose(context) {
       continue;
     }
 
-    const labels = [proposalLabel, agentLabel, ...idea.labels];
+    const labels = [proposalLabel, agentLabel, ...sanitizeLabels(idea.labels)];
     const body = buildIssueBody(idea);
+
+    // validateIdeas only checks idea.body, but the composed body also embeds
+    // the structured LLM fields (rationale, currentState, proposedState,
+    // scope, affectedFiles). Validate the final string that actually reaches
+    // GitHub so those fields pass the same gate (URLs, @mentions, keys, length).
+    const bodyCheck = validateIssueBody(body);
+    if (!bodyCheck.valid) {
+      console.warn(`SAFETY: composed body for '${idea.title}' failed validation, skipping idea:`);
+      for (const err of bodyCheck.errors) console.warn(`  - ${redactErrorForLog(err)}`);
+      continue;
+    }
 
     if (dryRun) {
       console.log(`DRY RUN — would create issue: "${idea.title}" [${labels.join(', ')}]`);

@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { jaccardSimilarity, buildIssueBody, findDuplicatePRs, isGovernanceDeclined } from './propose.js';
+import { validateIdeas, validateIssueBody } from './safety.js';
 
 describe('jaccardSimilarity', () => {
   it('returns 1.0 for identical strings', () => {
@@ -82,6 +83,26 @@ describe('buildIssueBody', () => {
     assert.ok(result.includes('- .github/workflows/ci.yml'));
     assert.ok(result.includes('- jest.config.js'));
     assert.ok(result.includes('*Priority: high'));
+  });
+
+  it('composed body re-validation catches unsafe structured fields that validateIdeas misses', () => {
+    // validateIdeas only checks idea.body — the structured fields (rationale,
+    // currentState, …) are embedded by buildIssueBody and reach GitHub. This
+    // is the gap propose() closes by running validateIssueBody on the
+    // composed string before POSTing the issue.
+    const idea = {
+      title: 'Looks harmless',
+      priority: 'high',
+      labels: [],
+      body: 'A perfectly safe body.',
+      rationale: 'Ping @victim and see https://evil-site.com/payload',
+    };
+    assert.equal(validateIdeas([idea]).valid, true, 'validateIdeas alone does not see structured fields');
+    const composed = buildIssueBody(idea);
+    const result = validateIssueBody(composed);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => e.includes('@mention')));
+    assert.ok(result.errors.some(e => e.includes('disallowed host')));
   });
 
   it('falls back to plain format when structured fields are missing (backward compat)', () => {
