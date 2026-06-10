@@ -119,7 +119,6 @@ export function isGovernanceDeclined(labels) {
 export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6, includeClosedDays = 0 } = {}) {
   const matches = [];
 
-  // Check open PRs.
   let openPRs;
   try {
     openPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
@@ -211,7 +210,6 @@ export async function propose(context) {
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
 
-  // Ensure labels exist.
   await ensureLabel(gh, owner, repo, proposalLabel, 'Issue proposed by repo-butler', '7057ff');
   await ensureLabel(gh, owner, repo, agentLabel, 'Created by an automated agent', 'c5def5');
 

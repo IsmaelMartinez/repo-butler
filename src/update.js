@@ -264,7 +264,6 @@ export async function update(context) {
     return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false };
   }
 
-  // Write updated roadmap to the branch.
   await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
     method: 'PUT',
     body: {
@@ -301,7 +300,6 @@ export async function update(context) {
     return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: true };
   }
 
-  // Create new PR.
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
     method: 'POST',
     body: {

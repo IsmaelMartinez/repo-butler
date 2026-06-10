@@ -83,7 +83,6 @@ export async function onboard(token, repos) {
 }
 
 async function onboardRepo(gh, owner, repo) {
-  // Check if CLAUDE.md already references repo-butler.
   const existing = await gh.getFileContent(owner, repo, 'CLAUDE.md');
 
   if (existing && existing.includes(MARKER)) {
@@ -91,7 +90,6 @@ async function onboardRepo(gh, owner, repo) {
     return { status: 'skipped', reason: 'already onboarded' };
   }
 
-  // Check if a PR already exists for this.
   let existingPRs;
   try {
     existingPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
@@ -107,11 +105,9 @@ async function onboardRepo(gh, owner, repo) {
     return { status: 'skipped', reason: 'PR already open', pr: existingPRs[0].html_url };
   }
 
-  // Get the default branch.
   const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
   const defaultBranch = repoMeta.default_branch || 'main';
 
-  // Prepare the new CLAUDE.md content.
   const section = CONSUMER_GUIDE_SECTION.replace(/\{REPO_NAME\}/g, repo);
   const newContent = existing
     ? existing + '\n' + section
@@ -134,7 +130,6 @@ async function onboardRepo(gh, owner, repo) {
     });
   }
 
-  // Write the CLAUDE.md file.
   let fileSha;
   try {
     const existingFile = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, {
@@ -155,7 +150,6 @@ async function onboardRepo(gh, owner, repo) {
     },
   });
 
-  // Open the PR.
   const prBody = PR_BODY.replace(/\{REPO_NAME\}/g, repo);
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
     method: 'POST',
@@ -171,7 +165,6 @@ async function onboardRepo(gh, owner, repo) {
   return { status: 'created', pr: pr.html_url };
 }
 
-// CLI entry point.
 const isMain = process.argv[1]?.endsWith('onboard.js');
 if (isMain) {
   const token = process.env.GITHUB_TOKEN;

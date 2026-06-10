@@ -44,12 +44,10 @@ export async function monitor(context) {
 
   console.log(`Monitoring ${owner}/${repo} for new events...`);
 
-  // Load cursor — last known state.
   const cursor = await loadCursor(store);
   const now = new Date().toISOString();
   const since = cursor?.timestamp || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  // Run all detectors in parallel.
   const [issues, prs, security, ci, releases] = await Promise.all([
     detectNewIssues(gh, owner, repo, cursor),
     detectNewPRs(gh, owner, repo, cursor),
@@ -66,10 +64,8 @@ export async function monitor(context) {
     events.push(...stale);
   }
 
-  // Sort by severity (highest first), then by timestamp.
   events.sort((a, b) => (SEVERITY[b.severity] || 0) - (SEVERITY[a.severity] || 0));
 
-  // Save new cursor.
   const newCursor = buildCursor({ events, timestamp: now, owner, repo, issues, prs, security, ci, releases });
   await saveCursor(store, newCursor);
 
