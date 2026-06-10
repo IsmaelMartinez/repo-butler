@@ -143,6 +143,15 @@ export function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Encode a string for safe embedding inside an inline <script> block (e.g.
+// chart labels). JSON.stringify handles quotes/backslashes/newlines; the
+// extra escapes stop a value containing `</script>` or `<!--` from breaking
+// out of the script element. Git tag names may contain quotes and angle
+// brackets, so raw `'${tag}'` interpolation is injectable — always use this.
+export function jsStr(s) {
+  return JSON.stringify(String(s)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+}
+
 export function fmt(n) {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n || 0);
 }

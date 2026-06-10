@@ -1,7 +1,11 @@
 // UPDATE phase: generate an updated roadmap document and open a PR.
 
 import { createClient } from './github.js';
-import { validateIssueBody, validateRoadmap, sanitizeForPrompt, wrapPrompt } from './safety.js';
+import { validateIssueBody, validateRoadmap, sanitizeForPrompt, wrapPrompt, redactErrorForLog } from './safety.js';
+
+// Canonical home is safety.js (the security boundary); re-exported here for
+// backwards compat with existing imports.
+export { redactErrorForLog };
 
 const FALLBACK_PR_BODY_TAIL = 'No assessment available — roadmap updated based on current observation data.';
 
@@ -133,17 +137,6 @@ export function checkPrReferencePreservation(input, output) {
   return { valid: true, inputCount: inputRefs.size, outputCount: outputRefs.size, missing: [] };
 }
 
-// Strip user-controlled content from validation error strings before they
-// reach CI logs. Safety errors include the matched @mention handle, URL host,
-// or other adversary-supplied substring; logging those verbatim reproduces
-// the leak in a different sink. Keep the category prefix (everything up to
-// the first ':') and replace the remainder with [REDACTED].
-export function redactErrorForLog(err) {
-  const idx = err.indexOf(':');
-  if (idx === -1) return err;
-  return `${err.slice(0, idx)} [REDACTED]`;
-}
-
 // Build a safety-validated PR body. If the assessment-bearing body fails
 // validation (blocked URLs, @mentions, key patterns, length, etc.), fall back
 // to the assessment-free body so the roadmap PR can still ship with safe text.
@@ -271,7 +264,6 @@ export async function update(context) {
     return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false };
   }
 
-  // Write updated roadmap to the branch.
   await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
     method: 'PUT',
     body: {
@@ -308,7 +300,6 @@ export async function update(context) {
     return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: true };
   }
 
-  // Create new PR.
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
     method: 'POST',
     body: {

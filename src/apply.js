@@ -339,7 +339,6 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
 async function applyToRepo(gh, owner, repo, tool, ecosystem) {
   const branchName = `repo-butler/apply-${tool}`;
 
-  // Deduplication: check for existing open PR
   let existingPRs;
   try {
     existingPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
@@ -355,17 +354,14 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
     return { repo, tool, status: 'skipped', reason: 'PR already open' };
   }
 
-  // Get default branch
   const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
   const defaultBranch = repoMeta.default_branch || 'main';
 
-  // Generate template
   const template = generateTemplate(tool, ecosystem, owner);
   if (!template) {
     return { repo, tool, status: 'skipped', reason: 'no template' };
   }
 
-  // Create branch from HEAD of default branch
   const ref = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
 
   try {
@@ -382,7 +378,6 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
     });
   }
 
-  // Write template file via Contents API
   await gh.request(`/repos/${owner}/${repo}/contents/${template.path}`, {
     method: 'PUT',
     body: {

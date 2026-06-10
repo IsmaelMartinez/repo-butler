@@ -2,7 +2,7 @@
 // Respects max_issues_per_run and require_approval settings.
 
 import { createClient, paginateIssues } from './github.js';
-import { validateIdeas } from './safety.js';
+import { validateIdeas, validateIssueBody, sanitizeLabels, redactErrorForLog } from './safety.js';
 
 // Common words stripped from titles before comparison to reduce false positives.
 const STOP_WORDS = new Set([
@@ -119,7 +119,6 @@ export function isGovernanceDeclined(labels) {
 export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6, includeClosedDays = 0 } = {}) {
   const matches = [];
 
-  // Check open PRs.
   let openPRs;
   try {
     openPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
@@ -211,7 +210,6 @@ export async function propose(context) {
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
 
-  // Ensure labels exist.
   await ensureLabel(gh, owner, repo, proposalLabel, 'Issue proposed by repo-butler', '7057ff');
   await ensureLabel(gh, owner, repo, agentLabel, 'Created by an automated agent', 'c5def5');
 
@@ -245,8 +243,19 @@ export async function propose(context) {
       continue;
     }
 
-    const labels = [proposalLabel, agentLabel, ...idea.labels];
+    const labels = [proposalLabel, agentLabel, ...sanitizeLabels(idea.labels)];
     const body = buildIssueBody(idea);
+
+    // validateIdeas only checks idea.body, but the composed body also embeds
+    // the structured LLM fields (rationale, currentState, proposedState,
+    // scope, affectedFiles). Validate the final string that actually reaches
+    // GitHub so those fields pass the same gate (URLs, @mentions, keys, length).
+    const bodyCheck = validateIssueBody(body);
+    if (!bodyCheck.valid) {
+      console.warn(`SAFETY: composed body for '${idea.title}' failed validation, skipping idea:`);
+      for (const err of bodyCheck.errors) console.warn(`  - ${redactErrorForLog(err)}`);
+      continue;
+    }
 
     if (dryRun) {
       console.log(`DRY RUN — would create issue: "${idea.title}" [${labels.join(', ')}]`);

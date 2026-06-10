@@ -919,7 +919,6 @@ export function generateDigestReport(owner, repos, repoDetails) {
   const totalIssues = enriched.reduce((s, r) => s + r.open_issues, 0);
   const totalVulns = vulnRepos.reduce((s, r) => s + r.vulns.count, 0);
 
-  // Build digest cards.
   const cards = [];
 
   // Opening summary card.

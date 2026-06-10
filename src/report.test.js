@@ -1,7 +1,25 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr } from './report-shared.js';
+
+describe('jsStr', () => {
+  it('quotes and escapes strings for inline <script> embedding', () => {
+    assert.equal(jsStr('v1.2.3'), '"v1.2.3"');
+    assert.equal(jsStr(`v1'+alert(1)+'`), '"v1\'+alert(1)+\'"');
+  });
+
+  it('neutralises script-element breakout sequences', () => {
+    const out = jsStr('</script><script>alert(1)</script>');
+    assert.ok(!out.includes('</script>'));
+    assert.ok(!out.includes('<'));
+    assert.ok(!out.includes('>'));
+  });
+
+  it('escapes quotes, backslashes, and newlines', () => {
+    assert.equal(jsStr('a"b\\c\nd'), '"a\\"b\\\\c\\nd"');
+  });
+});
 
 describe('report module', () => {
   it('exports report and generateDigestReport', async () => {

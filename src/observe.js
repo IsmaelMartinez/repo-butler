@@ -35,7 +35,6 @@ export async function observe(context) {
 
   console.log(`Observing ${owner}/${repo}...`);
 
-  // Run independent API calls in parallel for speed.
   const [
     openIssues,
     closedIssues,
@@ -66,11 +65,9 @@ export async function observe(context) {
     fetchCIPassRate(gh, owner, repo),
   ]);
 
-  // Fetch roadmap content if configured.
   const roadmapPath = config.roadmap?.path || 'ROADMAP.md';
   const roadmapContent = await gh.getFileContent(owner, repo, roadmapPath);
 
-  // Fetch package.json for dependency info.
   const packageJson = await gh.getFileContent(owner, repo, 'package.json');
   let packageData = null;
   if (packageJson) {

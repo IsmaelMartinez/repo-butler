@@ -47,6 +47,11 @@ export async function loadConfig(path) {
   return deepMerge(DEFAULTS, parsed);
 }
 
+// Keys that must never be assigned from parsed YAML — assigning them on a
+// plain object pollutes Object.prototype (or rewires the object's prototype
+// chain) for the whole process.
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 // Minimal YAML parser — handles flat and one-level-nested keys.
 // Avoids adding a dependency for a config file that's mostly flat.
 function parseSimpleYaml(text) {
@@ -63,6 +68,7 @@ function parseSimpleYaml(text) {
     if (!match) continue;
 
     const [, key, value] = match;
+    if (FORBIDDEN_KEYS.has(key)) continue;
 
     if (indent === 0) {
       if (value) {
@@ -111,6 +117,7 @@ export function parseStandardsConfig(config) {
 function deepMerge(target, source) {
   const result = { ...target };
   for (const key of Object.keys(source)) {
+    if (FORBIDDEN_KEYS.has(key)) continue;
     if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])
         && target[key] && typeof target[key] === 'object') {
       result[key] = deepMerge(target[key], source[key]);

@@ -127,17 +127,14 @@ export function createStore(context) {
   async function writeSnapshot(snapshot) {
     await ensureDataBranch();
 
-    // Move current latest to previous.
     const currentLatest = await readFile(SNAPSHOT_PATH);
     if (currentLatest) {
       await writeFile(PREVIOUS_PATH, currentLatest);
     }
 
-    // Write new snapshot as latest.
     await writeFile(SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2));
     console.log(`Snapshot saved to ${DATA_BRANCH}:${SNAPSHOT_PATH}`);
 
-    // Write/overwrite the current week's weekly snapshot.
     const weekKey = isoWeekKey(new Date());
     await writeFile(`${WEEKLY_DIR}/${weekKey}.json`, JSON.stringify(snapshot, null, 2));
     console.log(`Weekly snapshot saved as ${weekKey}`);

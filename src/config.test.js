@@ -113,6 +113,23 @@ standards:
     });
   });
 
+  it('ignores prototype-polluting keys in YAML', async () => {
+    const yaml = `repository: owner/repo
+
+__proto__:
+  polluted: true
+
+constructor:
+  polluted: true
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal({}.polluted, undefined);
+      assert.equal(config.polluted, undefined);
+      assert.equal(Object.getPrototypeOf(config), Object.prototype);
+    });
+  });
+
   it('parses apply-cap block as tool -> integer caps', async () => {
     const yaml = `repository: owner/repo
 
