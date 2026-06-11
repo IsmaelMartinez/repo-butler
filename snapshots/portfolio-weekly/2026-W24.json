@@ -197,7 +197,7 @@
       "stars": 4758,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9743589743589743,
+      "ciPassRate": 0.9736842105263158,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -877,7 +877,7 @@
       },
       "ci": 10,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-11T07:31:55Z",
+      "pushed_at": "2026-06-11T08:34:52Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
