@@ -542,6 +542,31 @@ describe('applyEditOps', () => {
     assert.ok(result.indexOf('Feature D') < result.indexOf('---'), 'lands in Implemented section');
   });
 
+  it('skips an append whose every #NN ref is already documented (re-summary)', () => {
+    // PR #262 appended a paragraph citing only PRs #239–#241, all already
+    // covered by existing SHIPPED entries — a duplicate, not an update.
+    const documented = roadmap + '\n\nStage shipped (PRs #239, #240 and #241).';
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Stages 1–2 shipped 2026-05-29 (PRs #239–#241). Summary of the same work.' }];
+    const { result, applied, skipped } = applyEditOps(documented, ops, '2026-06-12');
+    assert.equal(result, documented);
+    assert.equal(applied.length, 0);
+    assert.ok(skipped.some(s => s.includes('already documented')));
+  });
+
+  it('applies an append that cites a new ref alongside existing ones', () => {
+    const documented = roadmap + '\n\nStage 1 shipped (PR #239).';
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Stage 4 graduated (PRs #239, #300).' }];
+    const { result, applied } = applyEditOps(documented, ops, '2026-06-12');
+    assert.ok(result.includes('Stage 4 graduated'));
+    assert.ok(applied.some(a => a.includes('Implemented')));
+  });
+
+  it('applies an append with no refs at all', () => {
+    const ops = [{ action: 'append', section: 'Next Up', text: 'Investigate scorecard ingestion.' }];
+    const { result } = applyEditOps(roadmap, ops, '2026-06-12');
+    assert.ok(result.includes('Investigate scorecard ingestion.'));
+  });
+
   it('preserves all existing content', () => {
     const ops = [{ action: 'append', section: 'Implemented', text: 'New.' }];
     const { result } = applyEditOps(roadmap, ops, '2026-05-26');

@@ -402,6 +402,7 @@ export function applyEditOps(roadmap, ops, today) {
   let result = roadmap;
   const applied = [];
   const skipped = [];
+  const documentedRefs = extractIssueRefs(roadmap);
 
   for (const rawOp of ops) {
     const op = normalizeEditOp(rawOp);
@@ -415,6 +416,17 @@ export function applyEditOps(roadmap, ops, today) {
       const text = op.text?.trim();
       if (!section || !text) {
         skipped.push(`append: missing section or text`);
+        continue;
+      }
+      // Reject re-summaries: an entry whose every #NN ref is already in the
+      // roadmap adds no new information, despite the prompt forbidding
+      // repetition. PR #262 appended a paragraph citing only PRs #239–#241,
+      // all covered by existing SHIPPED entries. An entry with at least one
+      // new ref (a follow-up citing old work plus a new PR) still applies;
+      // ref-less entries can't be judged deterministically and pass through.
+      const refs = [...extractIssueRefs(text)];
+      if (refs.length > 0 && refs.every(r => documentedRefs.has(r))) {
+        skipped.push(`append: every ref (${refs.join(', ')}) is already documented in the roadmap — duplicate entry`);
         continue;
       }
       const insertAt = findSectionInsertPoint(result, section);
