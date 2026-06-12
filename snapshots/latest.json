@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-12T16:59:46.538Z",
+  "timestamp": "2026-06-12T20:45:12.197Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 2,
+    "open_issues_count": 0,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-06-12T15:31:30Z",
+    "pushed_at": "2026-06-12T18:35:02Z",
     "archived": false
   },
   "issues": {
@@ -80,6 +80,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 263,
+        "title": "fix(update): skip date-only roadmap PRs",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-06-12T17:36:47Z"
+      },
       {
         "number": 261,
         "title": "chore: update roadmap (repo-butler)",
@@ -1395,20 +1402,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-29T10:51:10Z"
-      },
-      {
-        "number": 56,
-        "title": "fix: exclude repos with unavailable data from campaigns",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-28T08:34:27Z"
-      },
-      {
-        "number": 55,
-        "title": "feat: contributor funnel for per-repo and portfolio reports",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-26T15:32:40Z"
       }
     ]
   },
@@ -1585,9 +1578,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9770114942528736,
-    "total_runs": 87,
-    "passed": 85,
+    "pass_rate": 0.9772727272727273,
+    "total_runs": 88,
+    "passed": 86,
     "failed": 2
   },
   "summary": {
@@ -1598,9 +1591,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 7,
-    "recently_merged_prs": 188,
+    "recently_merged_prs": 187,
     "bot_prs": 4,
-    "human_prs": 184,
+    "human_prs": 183,
     "unique_contributors": 3,
     "releases": 1,
     "latest_release": "v1.1.0",
@@ -1613,7 +1606,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9770114942528736,
+    "ci_pass_rate": 0.9772727272727273,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
