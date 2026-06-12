@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -448,8 +448,25 @@ describe('applyEditOps', () => {
     'Ideas here.',
   ].join('\n');
 
-  it('updates the Last Updated date deterministically', () => {
+  it('does not bump the date when there are no content ops (date-only churn)', () => {
+    // Daily runs with an empty op list were producing PRs whose entire diff
+    // was the "Last Updated" line. No content change → no date bump → the
+    // unchanged-roadmap guard in update() skips the PR.
     const { result, applied } = applyEditOps(roadmap, [], '2026-05-26');
+    assert.equal(result, roadmap);
+    assert.equal(applied.length, 0);
+  });
+
+  it('does not bump the date when every op is skipped', () => {
+    const ops = [{ action: 'append', section: 'Nonexistent', text: 'X' }];
+    const { result, applied } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.equal(result, roadmap);
+    assert.equal(applied.length, 0);
+  });
+
+  it('updates the Last Updated date when a content op applies', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Feature B shipped 2026-05-26 (PR #99).' }];
+    const { result, applied } = applyEditOps(roadmap, ops, '2026-05-26');
     assert.ok(result.includes('**Last Updated:** 2026-05-26'));
     assert.ok(!result.includes('2026-05-01'));
     assert.ok(applied.some(a => a.includes('update_date')));
@@ -531,6 +548,29 @@ describe('applyEditOps', () => {
     assert.ok(result.includes('Feature A shipped.'));
     assert.ok(result.includes('Some future work.'));
     assert.ok(result.includes('Ideas here.'));
+  });
+});
+
+describe('isDateOnlyChange', () => {
+  it('is true for identical documents', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-01\nBody'), true);
+  });
+
+  it('is true when only the Last Updated date differs', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-12\nBody'), true);
+  });
+
+  it('is false when content differs alongside the date', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-12\nBody\n\nNew entry.'), false);
+  });
+
+  it('is false when content differs and the date does not', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-01\nOther body'), false);
+  });
+
+  it('is false against empty/null input', () => {
+    assert.equal(isDateOnlyChange(null, '# R\n**Last Updated:** 2026-06-01'), false);
+    assert.equal(isDateOnlyChange('', '# R'), false);
   });
 });
 
