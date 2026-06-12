@@ -448,8 +448,25 @@ describe('applyEditOps', () => {
     'Ideas here.',
   ].join('\n');
 
-  it('updates the Last Updated date deterministically', () => {
+  it('does not bump the date when there are no content ops (date-only churn)', () => {
+    // Daily runs with an empty op list were producing PRs whose entire diff
+    // was the "Last Updated" line. No content change → no date bump → the
+    // unchanged-roadmap guard in update() skips the PR.
     const { result, applied } = applyEditOps(roadmap, [], '2026-05-26');
+    assert.equal(result, roadmap);
+    assert.equal(applied.length, 0);
+  });
+
+  it('does not bump the date when every op is skipped', () => {
+    const ops = [{ action: 'append', section: 'Nonexistent', text: 'X' }];
+    const { result, applied } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.equal(result, roadmap);
+    assert.equal(applied.length, 0);
+  });
+
+  it('updates the Last Updated date when a content op applies', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Feature B shipped 2026-05-26 (PR #99).' }];
+    const { result, applied } = applyEditOps(roadmap, ops, '2026-05-26');
     assert.ok(result.includes('**Last Updated:** 2026-05-26'));
     assert.ok(!result.includes('2026-05-01'));
     assert.ok(applied.some(a => a.includes('update_date')));

@@ -390,16 +390,6 @@ export function applyEditOps(roadmap, ops, today) {
   const applied = [];
   const skipped = [];
 
-  // Always update the date line deterministically.
-  const dateReplaced = result.replace(
-    /(\*\*Last Updated:\*\*)\s*\d{4}-\d{2}-\d{2}/,
-    `$1 ${today}`,
-  );
-  if (dateReplaced !== result) {
-    result = dateReplaced;
-    applied.push(`update_date → ${today}`);
-  }
-
   for (const rawOp of ops) {
     const op = normalizeEditOp(rawOp);
     if (!op || !op.action) {
@@ -423,6 +413,20 @@ export function applyEditOps(roadmap, ops, today) {
       applied.push(`append to "${section}" (${text.length} chars)`);
     } else {
       skipped.push(`unknown action: ${op.action}`);
+    }
+  }
+
+  // Bump the "Last Updated" line only when a content op actually changed the
+  // document. An unconditional bump made every daily run produce a PR whose
+  // entire diff was this one line — churn, not an update.
+  if (applied.length > 0) {
+    const dateReplaced = result.replace(
+      /(\*\*Last Updated:\*\*)\s*\d{4}-\d{2}-\d{2}/,
+      `$1 ${today}`,
+    );
+    if (dateReplaced !== result) {
+      result = dateReplaced;
+      applied.push(`update_date → ${today}`);
     }
   }
 
