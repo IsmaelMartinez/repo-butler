@@ -63,6 +63,8 @@ The GitHub API client handles rate limiting with automatic retry/backoff. Branch
 Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents, reducing token consumption, eliminating truncation errors, and guaranteeing deterministic application of roadmap updates.
 
 GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core repository metadata model to bridge repository renames using stable GitHub IDs, securing data integrity and preventing historical data loss when external GitHub repositories are renamed.
+
+Roadmap PR noise reduction shipped 2026-06-12 (PR #263). Refined the automated update workflow to skip opening pull requests when changes are limited solely to date-only updates, significantly reducing automated volume and noise during routine maintenance runs.
 ---
 
 ## Roadmap
