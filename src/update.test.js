@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -548,6 +548,29 @@ describe('applyEditOps', () => {
     assert.ok(result.includes('Feature A shipped.'));
     assert.ok(result.includes('Some future work.'));
     assert.ok(result.includes('Ideas here.'));
+  });
+});
+
+describe('isDateOnlyChange', () => {
+  it('is true for identical documents', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-01\nBody'), true);
+  });
+
+  it('is true when only the Last Updated date differs', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-12\nBody'), true);
+  });
+
+  it('is false when content differs alongside the date', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-12\nBody\n\nNew entry.'), false);
+  });
+
+  it('is false when content differs and the date does not', () => {
+    assert.equal(isDateOnlyChange('# R\n**Last Updated:** 2026-06-01\nBody', '# R\n**Last Updated:** 2026-06-01\nOther body'), false);
+  });
+
+  it('is false against empty/null input', () => {
+    assert.equal(isDateOnlyChange(null, '# R\n**Last Updated:** 2026-06-01'), false);
+    assert.equal(isDateOnlyChange('', '# R'), false);
   });
 });
 

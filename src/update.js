@@ -137,6 +137,19 @@ export function checkPrReferencePreservation(input, output) {
   return { valid: true, inputCount: inputRefs.size, outputCount: outputRefs.size, missing: [] };
 }
 
+// True when the two documents are identical apart from the "**Last Updated:**"
+// date (or identical outright). Used by the refresh path: a long-open roadmap
+// PR would otherwise receive a commit every tick whose entire diff is the date
+// line, because the LLM re-emits the same ops until the PR merges. Exported
+// for testing.
+export function isDateOnlyChange(a, b) {
+  const norm = t => (t || '').replace(
+    /(\*\*Last Updated:\*\*)\s*\d{4}-\d{2}-\d{2}/,
+    '$1 <date>',
+  );
+  return norm(a) === norm(b);
+}
+
 // Build a safety-validated PR body. If the assessment-bearing body fails
 // validation (blocked URLs, @mentions, key patterns, length, etc.), fall back
 // to the assessment-free body so the roadmap PR can still ship with safe text.
@@ -185,12 +198,11 @@ export async function update(context) {
 
   // Idempotency: the daily pipeline runs 4×/day. If a previous run's PR is
   // still open, refresh its branch with the latest output rather than open a
-  // duplicate (or — as before this change — skip and produce no soak signal).
-  // PR #202 stayed open from 2026-05-08 → 2026-05-11 and silenced 12 cron
-  // ticks of soak data because the skip path returned early before the LLM
-  // call. Refreshing means every tick produces an updated preview the soak
-  // can spot-check, and the unchanged-content guard below prevents spurious
-  // no-op commits on the existing branch.
+  // duplicate. PR #202 stayed open from 2026-05-08 → 2026-05-11 and silenced
+  // 12 cron ticks of soak data because the old skip path returned early
+  // before the LLM call. The LLM still runs every tick; a tick whose ops
+  // produce no content change (or only a date delta vs the PR branch) skips
+  // the push without touching the open PR.
   const existing = await findOpenRoadmapPr(gh, owner, repo);
   const isRefresh = !!existing;
 
@@ -212,7 +224,7 @@ export async function update(context) {
 
   if (updatedRoadmap === currentRoadmap) {
     console.log('SECTION-EDIT: no changes after applying ops — skipping PR.');
-    return { roadmap: updatedRoadmap, pr: null, safety: { valid: true, errors: [] } };
+    return { roadmap: updatedRoadmap, pr: existing?.html_url || null, safety: { valid: true, errors: [] } };
   }
 
   // Defence-in-depth: the section-edit approach is additive-only, so these
@@ -258,8 +270,9 @@ export async function update(context) {
   }
 
   // No-op short-circuit: if the new output matches what's already on the
-  // refresh branch, skip the commit + PR PATCH to avoid spurious churn.
-  if (isRefresh && existingContent === updatedRoadmap) {
+  // refresh branch — exactly, or apart from the "Last Updated" date — skip
+  // the commit + PR PATCH to avoid spurious churn.
+  if (isRefresh && existingContent !== null && isDateOnlyChange(existingContent, updatedRoadmap)) {
     console.log(`Roadmap unchanged from existing PR ${existing.html_url} — skipping refresh push.`);
     return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false };
   }
@@ -419,7 +432,7 @@ export function applyEditOps(roadmap, ops, today) {
   // Bump the "Last Updated" line only when a content op actually changed the
   // document. An unconditional bump made every daily run produce a PR whose
   // entire diff was this one line — churn, not an update.
-  if (applied.length > 0) {
+  if (result !== roadmap) {
     const dateReplaced = result.replace(
       /(\*\*Last Updated:\*\*)\s*\d{4}-\d{2}-\d{2}/,
       `$1 ${today}`,
