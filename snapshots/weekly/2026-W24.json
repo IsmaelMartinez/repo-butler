@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-13T08:08:02.210Z",
+  "timestamp": "2026-06-13T09:04:34.126Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,12 +7,12 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 1,
+    "open_issues_count": 0,
     "default_branch": "main",
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-06-13T07:59:04Z",
+    "pushed_at": "2026-06-13T09:04:17Z",
     "archived": false
   },
   "issues": {
@@ -80,6 +80,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 269,
+        "title": "feat(update): roadmap compaction + raise length ceiling to 60k",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-06-13T09:04:16Z"
+      },
       {
         "number": 267,
         "title": "chore: update roadmap (repo-butler)",
@@ -1395,13 +1402,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-03-30T21:24:37Z"
-      },
-      {
-        "number": 62,
-        "title": "docs: mark Phases 6-7 shipped, adopt GitHub App for cross-repo auth",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-03-30T18:17:16Z"
       }
     ]
   },
@@ -1578,9 +1578,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9642857142857143,
-    "total_runs": 84,
-    "passed": 81,
+    "pass_rate": 0.963855421686747,
+    "total_runs": 83,
+    "passed": 80,
     "failed": 3
   },
   "summary": {
@@ -1606,7 +1606,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9642857142857143,
+    "ci_pass_rate": 0.963855421686747,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
