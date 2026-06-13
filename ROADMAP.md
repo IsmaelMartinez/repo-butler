@@ -67,6 +67,8 @@ GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core rep
 Roadmap PR noise reduction shipped 2026-06-12 (PR #263). Refined the automated update workflow to skip opening pull requests when changes are limited solely to date-only updates, significantly reducing automated volume and noise during routine maintenance runs.
 
 Roadmap scheduled action and reference append optimizations shipped 2026-06-13 (PRs #265 and #266). Refined the core roadmap update mechanisms to optimize scheduled actions and reference appending logic, ensuring cleaner maintenance cycles and robust long-term planning alignment.
+
+Standardized governance and code review automation shipped 2026-06-13 (PR #271). Introduced a standardized Copilot-based code-review-bot along with Architecture Decision Record ADR-009 to codify project standards and automate the pull request review process across the portfolio.
 ---
 
 ## Roadmap
@@ -100,6 +102,8 @@ Shipped 2026-03-24. Full detail in git history.
 Deadline-driven: Gemini Code Assist's consumer GitHub reviews cease 2026-07-17 (new installs blocked from 2026-06-18), and it is the last AI review bot still posting on repo-butler, so `/address-pr-comments` and the wait-for-bots step will soon find nothing. Pick one free replacement and apply it across most repos. Free-for-public-repo options (verified 2026-06): CodeRabbit Pro is free forever for public repos with the full feature set and is already configured here (restoring it may be a re-install); GitHub Copilot code review is free for public repos (the 2026-06-01 Actions-minutes/AI-credit billing hits private repos only) and is GitHub-native with zero added infrastructure. Qodo Merge's free tier caps at 75 reviews/org/month — too small for ~14 repos — and PR-Agent self-host is free software but needs a paid LLM key plus infra, against the zero-infra moat. Lean CodeRabbit Pro or Copilot review, pending a Copilot-licence check.
 
 Then add the functionality here: a `code-review-bot` governance standard plus a templatable apply config (a `.coderabbit.yaml`, or enabling Copilot review) so Governance Apply propagates the chosen agent to any repo missing it — the same pattern as code-scanning, dependabot-actions, and dependabot-auto-merge — turning portfolio-wide review coverage into a measured campaign rather than a manual rollout.
+
+Progress (2026-06-13): Copilot code review chosen as the standard. The detection half shipped — a `code-review-bot` governance standard checks each eligible repo for an active `copilot_code_review` repository ruleset (`details.hasCopilotReview`, derived in `fetchPortfolioDetails`), surfacing missing coverage as a standards-gap finding on the dashboard and MCP. Because Copilot review is a repository ruleset rather than a committed file, it does not fit the templatable file-PR apply path; remediation routes to the `manual` executor for now. The auto-enable path — having the butler create the ruleset via the REST API — is a PR-less settings write outside ADR-005's PR-based trust model, so it is specified in [ADR-009](docs/decisions/009-settings-level-writes.md) (Proposed) and gated on that ADR's acceptance.
 
 ### ~~Dashboard Narrative Restructure~~ SHIPPED
 
