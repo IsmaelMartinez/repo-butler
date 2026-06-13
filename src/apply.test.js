@@ -837,6 +837,20 @@ describe('findButlerCopilotRuleset / removeCopilotReviewRuleset', () => {
     assert.equal(result.status, 'skipped');
   });
 
+  it('returns a structured error (does not throw) when a delete API call fails', async () => {
+    const gh = {
+      paginate: async () => [{ id: 5, name: COPILOT_RULESET_NAME }],
+      request: async (path, opts) => {
+        if (opts?.method === 'DELETE') throw new Error('500 server error');
+        if (path.endsWith('/rulesets/5')) return { id: 5, name: COPILOT_RULESET_NAME, rules: [] };
+        return {};
+      },
+    };
+    const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'error');
+    assert.match(result.error, /500/);
+  });
+
   it('refuses to delete when the detail name does not match (defensive double-guard)', async () => {
     const deletes = [];
     const gh = {

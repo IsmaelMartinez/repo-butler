@@ -664,13 +664,20 @@ export async function findButlerCopilotRuleset(gh, owner, repo) {
 // maintainer's hand-created ruleset (ADR-005: each layer assumes the previous may
 // have failed).
 export async function removeCopilotReviewRuleset(gh, owner, repo) {
-  const id = await findButlerCopilotRuleset(gh, owner, repo);
-  if (id == null) return { repo, status: 'skipped', reason: 'no butler ruleset' };
-  const detail = await gh.request(`/repos/${owner}/${repo}/rulesets/${id}`);
-  if (detail?.name !== COPILOT_RULESET_NAME) {
-    return { repo, status: 'skipped', reason: 'name mismatch — refusing to delete' };
+  try {
+    const id = await findButlerCopilotRuleset(gh, owner, repo);
+    if (id == null) return { repo, status: 'skipped', reason: 'no butler ruleset' };
+    const detail = await gh.request(`/repos/${owner}/${repo}/rulesets/${id}`);
+    if (detail?.name !== COPILOT_RULESET_NAME) {
+      return { repo, status: 'skipped', reason: 'name mismatch — refusing to delete' };
+    }
+    await gh.request(`/repos/${owner}/${repo}/rulesets/${id}`, { method: 'DELETE' });
+    console.log(`copilot-review: ${owner}/${repo} — Copilot review ruleset removed`);
+    return { repo, status: 'removed' };
+  } catch (err) {
+    // Return a structured per-repo error rather than throwing, so a bulk rollback
+    // across repos isolates one failure and continues (mirrors the apply path).
+    console.error(`copilot-review: error removing ruleset on ${repo}: ${err.message}`);
+    return { repo, status: 'error', error: err.message };
   }
-  await gh.request(`/repos/${owner}/${repo}/rulesets/${id}`, { method: 'DELETE' });
-  console.log(`copilot-review: ${owner}/${repo} — Copilot review ruleset removed`);
-  return { repo, status: 'removed' };
 }
