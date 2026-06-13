@@ -212,6 +212,19 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings.length, 1);
     assert.deepEqual(result.findings[0].nonCompliant, ['b']);
   });
+
+  it('detects code-review-bot gaps (missing Copilot review ruleset)', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasCopilotReview: true },
+      b: { hasCopilotReview: false },
+    });
+    const standards = [{ tool: 'code-review-bot', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+  });
 });
 
 // --- detectPolicyDrift ---
@@ -488,6 +501,12 @@ describe('buildRemediationPlan', () => {
   it('routes license and secret-scanning gaps to the manual executor', () => {
     assert.equal(buildRemediationPlan({ type: 'standards-gap', tool: 'license', nonCompliant: ['r'] }).executor, 'manual');
     assert.equal(buildRemediationPlan({ type: 'standards-gap', tool: 'secret-scanning', nonCompliant: ['r'] }).executor, 'manual');
+  });
+
+  it('routes code-review-bot to manual with no target file (ruleset toggle, not a committed file)', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['r'], adoptionRate: 0.4 });
+    assert.equal(plan.executor, 'manual');
+    assert.deepEqual(plan.targetFiles, []);
   });
 
   it('routes tier-uplift to agent with one acceptance criterion per failing check', () => {

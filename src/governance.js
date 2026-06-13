@@ -68,6 +68,7 @@ const STANDARD_DETECTORS = {
   'secret-scanning': (_repo, details) => details?.secretScanning != null,
   'codeowners': (_repo, details) => !!details?.hasCodeowners,
   'security-md': (_repo, details) => !!details?.hasSecurityPolicy,
+  'code-review-bot': (_repo, details) => !!details?.hasCopilotReview,
 };
 
 // Minimum adoption rate to infer an implicit universal standard.
@@ -376,6 +377,10 @@ const STANDARD_TARGET_FILES = {
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],
+  // code-review-bot is enabled via a repository ruleset (a copilot_code_review
+  // rule), not a committed file, so there is no file to template. It stays
+  // manual-routed until ADR-005 is amended to allow PR-less ruleset writes.
+  'code-review-bot': [],
 };
 
 function standardsExecutor(tool) {

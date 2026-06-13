@@ -1445,6 +1445,91 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['no-am'].hasAutoMergeWorkflow, false);
     assert.equal(details['no-am'].allowAutoMerge, false);
   });
+
+  it('derives hasCopilotReview from an active copilot_code_review ruleset', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        // Ruleset detail (/rulesets/{id}) is more specific than the list — match it first.
+        if (path.match(/\/rulesets\/\d+$/)) return Promise.resolve({ id: 7, rules: [{ type: 'copilot_code_review' }] });
+        if (path.endsWith('/rulesets')) return Promise.resolve([{ id: 7, enforcement: 'active' }]);
+        if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'cr-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['cr-repo'].hasCopilotReview, true);
+  });
+
+  it('reports hasCopilotReview false when no active ruleset carries the copilot rule', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        // Detail per id: the DISABLED ruleset (8) carries the copilot rule, the ACTIVE one (9) does not.
+        // So the false result holds only because the enforcement filter skips id 8 — if that filter
+        // were dropped, id 8 would be fetched and flip the result to true, failing this test.
+        if (path.match(/\/rulesets\/8$/)) return Promise.resolve({ id: 8, rules: [{ type: 'copilot_code_review' }] });
+        if (path.match(/\/rulesets\/\d+$/)) return Promise.resolve({ id: 9, rules: [{ type: 'pull_request' }] });
+        if (path.endsWith('/rulesets')) return Promise.resolve([{ id: 8, enforcement: 'disabled' }, { id: 9, enforcement: 'active' }]);
+        if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'no-cr', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['no-cr'].hasCopilotReview, false);
+  });
+
+  it('keeps scanning when one ruleset detail fetch fails and a later one carries the rule', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        // First active ruleset's detail throws (transient/permissions); the scan must continue.
+        if (path.match(/\/rulesets\/1$/)) return Promise.reject(new Error('boom'));
+        if (path.match(/\/rulesets\/2$/)) return Promise.resolve({ id: 2, rules: [{ type: 'copilot_code_review' }] });
+        if (path.endsWith('/rulesets')) return Promise.resolve([{ id: 1, enforcement: 'active' }, { id: 2, enforcement: 'active' }]);
+        if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'flaky-cr', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['flaky-cr'].hasCopilotReview, true);
+  });
 });
 
 describe('buildGovernanceSection', () => {
