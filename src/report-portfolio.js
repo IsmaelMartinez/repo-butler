@@ -467,6 +467,7 @@ const STANDARD_LABELS = {
   'ci-workflows': 'CI workflows',
   'codeowners': 'CODEOWNERS',
   'security-md': 'Security policy',
+  'code-review-bot': 'Copilot code review',
 };
 
 const DRIFT_LABELS = {

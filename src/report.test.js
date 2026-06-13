@@ -1477,8 +1477,11 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     const gh = {
       request: (path) => {
+        // Detail per id: the DISABLED ruleset (8) carries the copilot rule, the ACTIVE one (9) does not.
+        // So the false result holds only because the enforcement filter skips id 8 — if that filter
+        // were dropped, id 8 would be fetched and flip the result to true, failing this test.
+        if (path.match(/\/rulesets\/8$/)) return Promise.resolve({ id: 8, rules: [{ type: 'copilot_code_review' }] });
         if (path.match(/\/rulesets\/\d+$/)) return Promise.resolve({ id: 9, rules: [{ type: 'pull_request' }] });
-        // A disabled ruleset (skipped by the enforcement filter) plus an active one without the rule.
         if (path.endsWith('/rulesets')) return Promise.resolve([{ id: 8, enforcement: 'disabled' }, { id: 9, enforcement: 'active' }]);
         if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
         if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
