@@ -542,6 +542,61 @@ describe('applyEditOps', () => {
     assert.ok(result.indexOf('Feature D') < result.indexOf('---'), 'lands in Implemented section');
   });
 
+  it('skips an append whose every #NN ref is already documented (re-summary)', () => {
+    // PR #262 appended a paragraph citing only PRs #239–#241, all already
+    // covered by existing SHIPPED entries — a duplicate, not an update.
+    const documented = roadmap + '\n\nStage shipped (PRs #239, #240 and #241).';
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Stages 1–2 shipped 2026-05-29 (PRs #239–#241). Summary of the same work.' }];
+    const { result, applied, skipped } = applyEditOps(documented, ops, '2026-06-12');
+    assert.equal(result, documented);
+    assert.equal(applied.length, 0);
+    assert.ok(skipped.some(s => s.includes('already documented')));
+  });
+
+  it('applies an append that cites a new ref alongside existing ones', () => {
+    const documented = roadmap + '\n\nStage 1 shipped (PR #239).';
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Stage 4 graduated (PRs #239, #300).' }];
+    const { result, applied } = applyEditOps(documented, ops, '2026-06-12');
+    assert.ok(result.includes('Stage 4 graduated'));
+    assert.ok(applied.some(a => a.includes('Implemented')));
+  });
+
+  it('applies an append with no refs at all', () => {
+    const ops = [{ action: 'append', section: 'Next Up', text: 'Investigate scorecard ingestion.' }];
+    const { result } = applyEditOps(roadmap, ops, '2026-06-12');
+    assert.ok(result.includes('Investigate scorecard ingestion.'));
+  });
+
+  it('applies a shipped announcement for an issue tracked in a live entry', () => {
+    // Resolved issues reach the prompt as bare #NN numbers; an entry
+    // announcing the fix may cite only the issue ref already listed under
+    // Next Up. A live (non-shipped) mention must not block it.
+    const tracked = roadmap + '\n\nFix scorecard ingestion (issue #211).';
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Scorecard ingestion fixed 2026-06-12 (issue #211).' }];
+    const { result, applied } = applyEditOps(tracked, ops, '2026-06-12');
+    assert.ok(result.includes('Scorecard ingestion fixed'));
+    assert.ok(applied.some(a => a.includes('Implemented')));
+  });
+
+  it('skips an intra-run restatement of an op it just applied', () => {
+    const ops = [
+      { action: 'append', section: 'Implemented', text: 'Stage 4 graduated (PR #300).' },
+      { action: 'append', section: 'Implemented', text: 'Governance apply stage 4 shipped (PR #300).' },
+    ];
+    const { result, applied, skipped } = applyEditOps(roadmap, ops, '2026-06-12');
+    assert.ok(result.includes('Stage 4 graduated'));
+    assert.ok(!result.includes('Governance apply stage 4 shipped'));
+    assert.equal(applied.filter(a => a.includes('Implemented')).length, 1);
+    assert.ok(skipped.some(s => s.includes('already documented')));
+  });
+
+  it('reports a bad section before judging duplicate refs', () => {
+    const documented = roadmap + '\n\n~~Stage 1~~ SHIPPED (PR #239).';
+    const ops = [{ action: 'append', section: 'Nonexistent', text: 'Restating stage 1 (PR #239).' }];
+    const { skipped } = applyEditOps(documented, ops, '2026-06-12');
+    assert.ok(skipped.some(s => s.includes('not found')));
+  });
+
   it('preserves all existing content', () => {
     const ops = [{ action: 'append', section: 'Implemented', text: 'New.' }];
     const { result } = applyEditOps(roadmap, ops, '2026-05-26');

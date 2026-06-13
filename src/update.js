@@ -402,6 +402,15 @@ export function applyEditOps(roadmap, ops, today) {
   let result = roadmap;
   const applied = [];
   const skipped = [];
+  // Refs the roadmap already records as completed work: only refs on lines
+  // carrying the shipped convention (~~strikethrough~~ or a "shipped" marker)
+  // count. A ref in a live entry (e.g. "Fix X (issue #211)" under Next Up)
+  // must not block the append announcing that work shipped — resolved issues
+  // reach the prompt as bare issue numbers with no PR number to cite, so a
+  // legitimate shipped entry may carry no new ref at all.
+  const shippedRefs = extractIssueRefs(
+    roadmap.split('\n').filter(l => /~~|\bshipped\b/i.test(l)).join('\n'),
+  );
 
   for (const rawOp of ops) {
     const op = normalizeEditOp(rawOp);
@@ -422,8 +431,25 @@ export function applyEditOps(roadmap, ops, today) {
         skipped.push(`append: section "${section}" not found`);
         continue;
       }
+      // Reject re-summaries: an entry whose every #NN ref is already recorded
+      // as shipped adds no new information, despite the prompt forbidding
+      // repetition. PR #262 appended a paragraph citing only PRs #239–#241,
+      // all covered by existing SHIPPED entries. An entry with at least one
+      // new ref (a follow-up citing old work plus a new PR) still applies;
+      // ref-less entries can't be judged deterministically and pass through.
+      // Ref-list logging is capped like checkPrReferencePreservation's.
+      const refs = [...extractIssueRefs(text)];
+      if (refs.length > 0 && refs.every(r => shippedRefs.has(r))) {
+        const head = refs.slice(0, 10).join(', ');
+        const overflow = refs.length > 10 ? ` (and ${refs.length - 10} more)` : '';
+        skipped.push(`append: every ref (${head}${overflow}) is already documented as shipped — duplicate entry`);
+        continue;
+      }
       result = result.slice(0, insertAt) + '\n\n' + text + result.slice(insertAt);
       applied.push(`append to "${section}" (${text.length} chars)`);
+      // An applied entry's refs now count as documented, so a second op in
+      // the same response restating the same work is caught intra-run too.
+      for (const r of refs) shippedRefs.add(r);
     } else {
       skipped.push(`unknown action: ${op.action}`);
     }
