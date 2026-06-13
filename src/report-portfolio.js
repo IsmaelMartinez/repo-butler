@@ -337,9 +337,15 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
           if (!Array.isArray(rulesets)) return { hasCopilotReview: false };
           for (const rs of rulesets) {
             if (rs.enforcement !== 'active') continue;
-            const detail = await gh.request(`/repos/${owner}/${r.name}/rulesets/${rs.id}`);
-            if ((detail.rules || []).some(rule => rule.type === 'copilot_code_review')) {
-              return { hasCopilotReview: true };
+            try {
+              const detail = await gh.request(`/repos/${owner}/${r.name}/rulesets/${rs.id}`);
+              if (detail && Array.isArray(detail.rules) && detail.rules.some(rule => rule.type === 'copilot_code_review')) {
+                return { hasCopilotReview: true };
+              }
+            } catch {
+              // A single ruleset's detail failing (transient API error or a
+              // per-ruleset permission issue) must not abort the scan — a later
+              // active ruleset may still carry the rule.
             }
           }
           return { hasCopilotReview: false };
