@@ -217,6 +217,16 @@ describe('validateRoadmap', () => {
     const result = validateRoadmap(roadmap);
     assert.equal(result.valid, true, `ROADMAP.md failed validation: ${result.errors.join('; ')}`);
   });
+
+  it('accepts a roadmap at the 60000-char ceiling and rejects one over it', () => {
+    const atLimit = '# R\n' + 'x'.repeat(60000 - 4);
+    assert.equal(atLimit.length, 60000);
+    assert.equal(validateRoadmap(atLimit).valid, true);
+    const over = atLimit + 'y';
+    const result = validateRoadmap(over);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => e.includes('too long')));
+  });
 });
 
 describe('URL allowlist context tiers', () => {

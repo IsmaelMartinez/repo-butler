@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -705,5 +705,96 @@ describe('buildSectionEditPrompt', () => {
     assert.ok(prompt.includes('"Implemented"'));
     assert.ok(prompt.includes('"Next Up"'));
     assert.ok(prompt.includes('"Future"'));
+  });
+});
+
+describe('compactRoadmap', () => {
+  const today = '2026-06-13';
+  // ~600-char body, struck heading, dated ~5 months ago.
+  const oldBody = 'Shipped 2026-01-10 (PR #18). ' + 'Detailed prose about the work that was done, '.repeat(12) + 'Follow-up fixes landed in PR #22.';
+  const make = () => [
+    '# Roadmap',
+    '',
+    '**Last Updated:** 2026-06-13',
+    '',
+    '## Roadmap',
+    '',
+    '### ~~Phase 1 — Old Work~~ SHIPPED',
+    '',
+    oldBody,
+    '',
+    '### Active Phase — In Progress',
+    '',
+    'This active block is just as long. ' + 'It has plenty of body text to exceed the minimum threshold easily here. '.repeat(8),
+    '',
+    '### ~~Recent Thing~~ SHIPPED',
+    '',
+    'Shipped 2026-06-01 (PR #260). ' + 'Recent and long enough to exceed the minimum body threshold for sure. '.repeat(8),
+    '',
+    '---',
+    '',
+    '## Future',
+    '',
+    'Ideas.',
+  ].join('\n');
+
+  it('compacts an old, long, struck subsection — preserving heading, date and refs', () => {
+    const { result, compacted } = compactRoadmap(make(), today);
+    assert.ok(result.includes('### ~~Phase 1 — Old Work~~ SHIPPED'), 'heading preserved verbatim');
+    assert.ok(result.includes('Shipped 2026-01-10 (#18, #22). Full detail in git history.'), 'summary preserves newest date + all refs');
+    assert.ok(!result.includes('Detailed prose about the work'), 'verbose body removed');
+    assert.equal(compacted.length, 1);
+    assert.ok(compacted[0].includes('Phase 1 — Old Work'));
+  });
+
+  it('leaves an active (non-struck) subsection untouched even when old and long', () => {
+    const { result } = compactRoadmap(make(), today);
+    assert.ok(result.includes('### Active Phase — In Progress'));
+    assert.ok(result.includes('This active block is just as long.'));
+  });
+
+  it('leaves a recent struck subsection untouched (within the age window)', () => {
+    const { result } = compactRoadmap(make(), today);
+    assert.ok(result.includes('Shipped 2026-06-01 (PR #260).'));
+    assert.ok(result.includes('Recent and long enough'));
+  });
+
+  it('leaves a short struck subsection untouched (below the body threshold)', () => {
+    const roadmap = ['## Roadmap', '', '### ~~Tiny~~ SHIPPED', '', 'Shipped 2026-01-01 (PR #1).', '', '## Future', '', 'x'].join('\n');
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.equal(compacted.length, 0);
+  });
+
+  it('is idempotent — a second pass changes nothing', () => {
+    const once = compactRoadmap(make(), today).result;
+    const twice = compactRoadmap(once, today).result;
+    assert.equal(twice, once);
+  });
+
+  it('does not touch h2 prose sections like ## Implemented', () => {
+    const roadmap = ['## Implemented', '', 'Phase 1 shipped 2026-01-01 (PR #18). ' + 'Long narrative prose here that exceeds the threshold by a wide margin indeed. '.repeat(10), '', '## Future', '', 'x'].join('\n');
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.equal(compacted.length, 0);
+  });
+
+  it('returns the roadmap unchanged when there is nothing to compact', () => {
+    const roadmap = '# Roadmap\n\n## Future\n\nNothing struck here.';
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.equal(compacted.length, 0);
+  });
+
+  it('handles empty input', () => {
+    const { result, compacted } = compactRoadmap('', today);
+    assert.equal(result, '');
+    assert.equal(compacted.length, 0);
+  });
+
+  it('produces a roadmap shorter than the input when it compacts', () => {
+    const input = make();
+    const { result } = compactRoadmap(input, today);
+    assert.ok(result.length < input.length);
   });
 });

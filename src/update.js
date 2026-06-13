@@ -207,7 +207,20 @@ export async function update(context) {
   const isRefresh = !!existing;
 
   const today = new Date().toISOString().slice(0, 10);
-  const prompt = buildSectionEditPrompt(currentRoadmap, snapshot, assessment, config.context);
+
+  // Deterministic compaction before the LLM: trim the verbose bodies of
+  // long-completed ~~SHIPPED~~ subsections so the live roadmap stays well under
+  // the length ceiling (git history keeps the full prose). Running it first
+  // makes the compacted document the baseline the prompt, applied ops, and
+  // validation all see. The section-edit model is additive-only, so without
+  // this the roadmap only ever grows.
+  const compactAfterDays = config.roadmap?.compact_after_days ?? 60;
+  const { result: baseRoadmap, compacted } = compactRoadmap(currentRoadmap, today, { maxAgeDays: compactAfterDays });
+  if (compacted.length > 0) {
+    console.log(`SECTION-EDIT: compacted ${compacted.length} long-completed subsection(s): ${compacted.join(' | ')}`);
+  }
+
+  const prompt = buildSectionEditPrompt(baseRoadmap, snapshot, assessment, config.context);
   const rawResponse = await provider.generate(prompt);
 
   const parsed = parseEditOps(rawResponse);
@@ -217,7 +230,9 @@ export async function update(context) {
     return { roadmap: currentRoadmap, pr: null, safety: { valid: false, errors: [parsed.error] } };
   }
 
-  const { result: updatedRoadmap, applied, skipped } = applyEditOps(currentRoadmap, parsed.ops, today);
+  // Apply ops to the compacted baseline. Compare against the ORIGINAL roadmap
+  // below, so a compaction-only run (LLM returned nothing new) still opens a PR.
+  const { result: updatedRoadmap, applied, skipped } = applyEditOps(baseRoadmap, parsed.ops, today);
   console.log(`SECTION-EDIT: ${applied.length} ops applied, ${skipped.length} skipped.`);
   for (const op of applied) console.log(`  applied: ${op}`);
   for (const op of skipped) console.warn(`  skipped: ${op}`);
@@ -470,6 +485,67 @@ export function applyEditOps(roadmap, ops, today) {
   }
 
   return { result, applied, skipped };
+}
+
+// Whole days from ISO date `aIso` to `bIso` (positive when b is later). Both
+// are `YYYY-MM-DD`; parsed at UTC midnight so DST never shifts the count.
+function daysBetween(aIso, bIso) {
+  const a = new Date(`${aIso}T00:00:00Z`).getTime();
+  const b = new Date(`${bIso}T00:00:00Z`).getTime();
+  return Math.round((b - a) / 86400000);
+}
+
+// Newest `YYYY-MM-DD` in `text`, or null. ISO dates sort lexically as they sort
+// chronologically, so the last after a plain sort is the most recent.
+function newestDate(text) {
+  const dates = (text || '').match(/\d{4}-\d{2}-\d{2}/g) || [];
+  return dates.length ? dates.sort().at(-1) : null;
+}
+
+// Compact long-completed roadmap subsections so the live document stays well
+// under the length ceiling; git history keeps the full prose. A subsection is a
+// `### <heading>` block spanning to the next `###`/`## `/`---`/EOF. A block is
+// eligible only when its heading is struck through (`~~...~~`, the SHIPPED
+// convention), its body is at least `minBodyChars`, and its newest embedded date
+// is at least `maxAgeDays` old. The body is then replaced with a one-line pointer
+// preserving the newest date and every #NN reference; the heading is left exactly
+// as-is. Active (non-struck) blocks, recent completions, and the free-prose
+// `## Implemented` section are never touched — this only trims work the project
+// finished long ago. Idempotent: a compacted one-line body falls below
+// `minBodyChars`, so re-running is a no-op. Pure function. Exported for testing.
+export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars = 400 } = {}) {
+  if (!roadmap) return { result: roadmap, compacted: [] };
+  const lines = roadmap.split('\n');
+
+  // Locate the [headingIdx, end) line span of every `### ` subsection.
+  const blocks = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/^### /.test(lines[i])) {
+      let j = i + 1;
+      while (j < lines.length && !/^(### |## |---\s*$)/.test(lines[j])) j++;
+      blocks.push({ headingIdx: i, end: j });
+      i = j - 1;
+    }
+  }
+
+  const compacted = [];
+  // Splice from the back so earlier line indices stay valid as spans shrink.
+  for (const { headingIdx, end } of blocks.reverse()) {
+    const heading = lines[headingIdx];
+    if (!/~~.*~~/.test(heading)) continue;                  // not struck → still active
+    const body = lines.slice(headingIdx + 1, end).join('\n');
+    if (body.trim().length < minBodyChars) continue;        // already short
+    const newest = newestDate(body) || newestDate(heading);
+    if (!newest) continue;                                  // undatable → leave it
+    if (daysBetween(newest, today) < maxAgeDays) continue;  // too recent
+    const refs = [...extractIssueRefs(body)];
+    const refPart = refs.length ? ` (${refs.join(', ')})` : '';
+    const summary = `Shipped ${newest}${refPart}. Full detail in git history.`;
+    lines.splice(headingIdx + 1, end - headingIdx - 1, '', summary, '');
+    compacted.push(heading.replace(/^###\s+/, '').trim());
+  }
+
+  return { result: lines.join('\n'), compacted: compacted.reverse() };
 }
 
 export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, projectContext, now = new Date()) {
