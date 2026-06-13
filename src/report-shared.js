@@ -39,7 +39,8 @@ export function isExcludedRepo(name) {
 // so existing per-repo cache entries are recomputed even if pushed_at is unchanged.
 // v3: added hasAutoMergeWorkflow + allowAutoMerge to details (dependabot-auto-merge standard).
 // v4: added hasCodeowners + hasSecurityPolicy to details (codeowners + security-md standards).
-export const REPO_CACHE_SCHEMA_VERSION = 4;
+// v5: added hasCopilotReview to details (code-review-bot standard).
+export const REPO_CACHE_SCHEMA_VERSION = 5;
 
 // True for releases that are actually published. GitHub returns drafts (with
 // null published_at) at the top of /releases when ordered by created_at, so

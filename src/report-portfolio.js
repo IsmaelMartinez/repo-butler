@@ -230,7 +230,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       console.log(`  ↩ ${r.name} — unchanged, using cache`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -325,12 +325,34 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         }
         return { hasCodeowners, hasSecurityPolicy };
       })(),
+      // GitHub Copilot automatic code review is enabled via a `copilot_code_review`
+      // rule inside a repository ruleset, not a committed file — so detection reads
+      // the repo's rulesets and looks for an ACTIVE one carrying that rule. The
+      // rulesets list omits rule bodies, so each active ruleset's detail is fetched
+      // (most repos have 0–2). Drives the code-review-bot governance standard.
+      // Returns false on any error (no rulesets, or the token lacks the scope).
+      (async () => {
+        try {
+          const rulesets = await gh.request(`/repos/${owner}/${r.name}/rulesets`, { params: { per_page: 100 } });
+          if (!Array.isArray(rulesets)) return { hasCopilotReview: false };
+          for (const rs of rulesets) {
+            if (rs.enforcement !== 'active') continue;
+            const detail = await gh.request(`/repos/${owner}/${r.name}/rulesets/${rs.id}`);
+            if ((detail.rules || []).some(rule => rule.type === 'copilot_code_review')) {
+              return { hasCopilotReview: true };
+            }
+          }
+          return { hasCopilotReview: false };
+        } catch {
+          return { hasCopilotReview: false };
+        }
+      })(),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
     const { ci, hasAutoMergeWorkflow } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, libyear: null, codeScanning, secretScanning, traffic };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);

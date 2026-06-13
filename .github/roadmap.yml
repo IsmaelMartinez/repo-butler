@@ -44,6 +44,10 @@ standards:
   dependabot-auto-merge: universal
   codeowners: universal
   security-md: universal
+  # AI code review coverage: an active copilot_code_review repository ruleset.
+  # Detection-only for now (manual remediation) — auto-enabling a ruleset is a
+  # PR-less settings write that needs the ADR-009 amendment (docs/decisions/009).
+  code-review-bot: universal
 
 release_exempt: sound3fy
 
