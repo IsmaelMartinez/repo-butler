@@ -548,7 +548,9 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     if (!/^###\s+~~.+~~/.test(heading)) continue;
     const body = lines.slice(headingIdx + 1, end).join('\n');
     if (body.trim().length < minBodyChars) continue;        // already short
-    const newest = newestDate(body) || newestDate(heading);
+    // Consider both body and heading dates (some entries date the heading, e.g.
+    // `### ~~Landscape evaluation~~ — EVALUATED 2026-05-28`) and take the newest.
+    const newest = newestDate(`${body}\n${heading}`);
     if (!newest) continue;                                  // undatable → leave it
     const age = daysBetween(newest, today);
     // Fail safe: if the age can't be computed (a malformed date token wins the
