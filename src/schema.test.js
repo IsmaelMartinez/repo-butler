@@ -266,6 +266,7 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
 
     const sampleFindings = [
       { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], adoptionRate: 0.5 },
+      { type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a'], adoptionRate: 0.3 },
       { type: 'tier-uplift', repo: 'repo-b', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'security trifecta' }] },
       { type: 'policy-drift', category: 'license', repo: 'repo-c', expected: 'MIT', actual: 'GPL-3.0' },
       { type: 'dependabot-stale', repo: 'repo-d', stalePRs: [{ number: 1, title: 'bump', age: 45 }] },
@@ -293,6 +294,9 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
 
     const manualTool = buildRemediationPlan({ type: 'standards-gap', tool: 'license', nonCompliant: ['r'] });
     assert.equal(manualTool.executor, 'manual');
+
+    const settingsTool = buildRemediationPlan({ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['r'] });
+    assert.equal(settingsTool.executor, 'settings');
 
     const drift = buildRemediationPlan({ type: 'policy-drift', category: 'ci-reliability', repo: 'r', expected: '90%', actual: '60%' });
     assert.equal(drift.executor, 'manual');
