@@ -851,11 +851,11 @@
       "id": 1185787142,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 329,
+      "commits_6mo": 330,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9642857142857143,
+      "ciPassRate": 0.963855421686747,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -877,7 +877,7 @@
       },
       "ci": 10,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-13T09:04:17Z",
+      "pushed_at": "2026-06-13T09:06:31Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1253,7 +1253,7 @@
       },
       "ci": 7,
       "released_at": "2026-06-12T06:28:24Z",
-      "pushed_at": "2026-06-13T08:41:32Z",
+      "pushed_at": "2026-06-13T09:08:05Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
