@@ -1,5 +1,71 @@
 [
   {
+    "type": "standards-gap",
+    "tool": "code-review-bot",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "betis-escocia"
+    ],
+    "nonCompliant": [
+      "yourear",
+      "sound3fy",
+      "teams-for-linux",
+      "ismaelmartinez.me.uk",
+      "generator-atlassian-compass-event-catalog",
+      "bonnie-wee-plot",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv",
+      "delegate-local"
+    ],
+    "repoEcosystems": {
+      "yourear": null,
+      "sound3fy": null,
+      "teams-for-linux": null,
+      "ismaelmartinez.me.uk": null,
+      "generator-atlassian-compass-event-catalog": null,
+      "bonnie-wee-plot": null,
+      "ai-model-advisor": null,
+      "github-issue-triage-bot": null,
+      "repo-butler": null,
+      "wifisentinel": null,
+      "votescot": null,
+      "lounge-tv": null,
+      "delegate-local": null
+    },
+    "repoAutoMerge": {
+      "yourear": true,
+      "sound3fy": true,
+      "teams-for-linux": true,
+      "ismaelmartinez.me.uk": true,
+      "generator-atlassian-compass-event-catalog": true,
+      "bonnie-wee-plot": true,
+      "ai-model-advisor": true,
+      "github-issue-triage-bot": true,
+      "repo-butler": true,
+      "wifisentinel": true,
+      "votescot": true,
+      "lounge-tv": true,
+      "delegate-local": true
+    },
+    "adoptionRate": 0.07142857142857142,
+    "priority": "high",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Add code-review-bot to 13 non-compliant repo(s)",
+      "rationale": "Standards gap: code-review-bot adopted by 7% of in-scope repos; missing in yourear, sound3fy, teams-for-linux, ismaelmartinez.me.uk, generator-atlassian-compass-event-catalog, bonnie-wee-plot, ai-model-advisor, github-issue-triage-bot, repo-butler, wifisentinel, votescot, lounge-tv, delegate-local.",
+      "acceptanceCriteria": [
+        "Every non-compliant repo passes the code-review-bot standard check"
+      ]
+    }
+  },
+  {
     "type": "tier-uplift",
     "repo": "teams-for-linux",
     "currentTier": "silver",
