@@ -116,7 +116,7 @@ describe('config schema matches DEFAULTS', () => {
     const schema = await loadSchema('config.v1.schema.json');
 
     const DEFAULTS = {
-      roadmap: { path: 'ROADMAP.md' },
+      roadmap: { path: 'ROADMAP.md', compact_after_days: 60 },
       schedule: { assess: 'daily', ideate: 'weekly' },
       providers: { default: 'gemini' },
       limits: {

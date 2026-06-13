@@ -18,6 +18,11 @@
           "type": "string",
           "default": "ROADMAP.md",
           "description": "Path to the roadmap file within the target repository"
+        },
+        "compact_after_days": {
+          "type": "integer",
+          "default": 60,
+          "description": "Age in days after which a completed (~~SHIPPED~~) roadmap subsection's verbose body is compacted to a one-line pointer by the UPDATE phase; full prose remains in git history."
         }
       }
     },

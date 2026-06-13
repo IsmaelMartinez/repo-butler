@@ -215,7 +215,12 @@ export async function update(context) {
   // validation all see. The section-edit model is additive-only, so without
   // this the roadmap only ever grows.
   const compactAfterDays = config.roadmap?.compact_after_days ?? 60;
-  const { result: baseRoadmap, compacted } = compactRoadmap(currentRoadmap, today, { maxAgeDays: compactAfterDays });
+  const { result: compactedRoadmap, compacted } = compactRoadmap(currentRoadmap, today, { maxAgeDays: compactAfterDays });
+  // Compaction is itself an edit, so freshen the date when it changes anything
+  // (applyEditOps only bumps on an LLM content op, which a compaction-only tick
+  // has none of — without this the PR would ship trimmed bodies under a stale
+  // "Last Updated" date).
+  const baseRoadmap = compacted.length > 0 ? bumpLastUpdated(compactedRoadmap, today) : compactedRoadmap;
   if (compacted.length > 0) {
     console.log(`SECTION-EDIT: compacted ${compacted.length} long-completed subsection(s): ${compacted.join(' | ')}`);
   }
@@ -474,10 +479,7 @@ export function applyEditOps(roadmap, ops, today) {
   // document. An unconditional bump made every daily run produce a PR whose
   // entire diff was this one line — churn, not an update.
   if (result !== roadmap) {
-    const dateReplaced = result.replace(
-      /(\*\*Last Updated:\*\*)\s*\d{4}-\d{2}-\d{2}/,
-      `$1 ${today}`,
-    );
+    const dateReplaced = bumpLastUpdated(result, today);
     if (dateReplaced !== result) {
       result = dateReplaced;
       applied.push(`update_date → ${today}`);
@@ -485,6 +487,13 @@ export function applyEditOps(roadmap, ops, today) {
   }
 
   return { result, applied, skipped };
+}
+
+// Replace the date on the "**Last Updated:**" line with `today`. No-op when the
+// line is absent. Shared by applyEditOps and the compaction path so a
+// compaction-only run still freshens the date. Exported for testing.
+export function bumpLastUpdated(text, today) {
+  return text.replace(/(\*\*Last Updated:\*\*)\s*\d{4}-\d{2}-\d{2}/, `$1 ${today}`);
 }
 
 // Whole days from ISO date `aIso` to `bIso` (positive when b is later). Both
@@ -532,12 +541,20 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
   // Splice from the back so earlier line indices stay valid as spans shrink.
   for (const { headingIdx, end } of blocks.reverse()) {
     const heading = lines[headingIdx];
-    if (!/~~.*~~/.test(heading)) continue;                  // not struck → still active
+    // The title itself must be struck through (`### ~~...~~`) — the SHIPPED
+    // convention for a completed entry. An active heading that merely mentions
+    // a struck phrase mid-line (`### Phase 2 (replaces ~~old idea~~)`) is not a
+    // completed entry and must not be compacted.
+    if (!/^###\s+~~.+~~/.test(heading)) continue;
     const body = lines.slice(headingIdx + 1, end).join('\n');
     if (body.trim().length < minBodyChars) continue;        // already short
     const newest = newestDate(body) || newestDate(heading);
     if (!newest) continue;                                  // undatable → leave it
-    if (daysBetween(newest, today) < maxAgeDays) continue;  // too recent
+    const age = daysBetween(newest, today);
+    // Fail safe: if the age can't be computed (a malformed date token wins the
+    // sort, or `today` is invalid), keep the block rather than compact it —
+    // NaN comparisons are false, so the "too recent" skip would otherwise miss.
+    if (!Number.isFinite(age) || age < maxAgeDays) continue; // undatable or too recent
     const refs = [...extractIssueRefs(body)];
     const refPart = refs.length ? ` (${refs.join(', ')})` : '';
     const summary = `Shipped ${newest}${refPart}. Full detail in git history.`;
