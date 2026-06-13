@@ -193,11 +193,11 @@
       "id": 151476958,
       "open_issues": 26,
       "open_bugs": 11,
-      "commits_6mo": 410,
+      "commits_6mo": 411,
       "stars": 4769,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.8076923076923077,
+      "ciPassRate": 0.8333333333333334,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -219,7 +219,7 @@
       },
       "ci": 14,
       "released_at": "2026-05-29T19:31:34Z",
-      "pushed_at": "2026-06-13T07:54:28Z",
+      "pushed_at": "2026-06-13T16:39:38Z",
       "traffic": null,
       "computed": {
         "tier": "silver",
@@ -855,7 +855,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9518072289156626,
+      "ciPassRate": 0.95,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -877,7 +877,7 @@
       },
       "ci": 10,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-13T12:29:43Z",
+      "pushed_at": "2026-06-13T18:17:25Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
