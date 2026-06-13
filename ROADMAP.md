@@ -103,6 +103,12 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 ## Next Up
 
+### AI code review agent — replace Gemini, standardise across the portfolio
+
+Deadline-driven: Gemini Code Assist's consumer GitHub reviews cease 2026-07-17 (new installs blocked from 2026-06-18), and it is the last AI review bot still posting on repo-butler, so `/address-pr-comments` and the wait-for-bots step will soon find nothing. Pick one free replacement and apply it across most repos. Free-for-public-repo options (verified 2026-06): CodeRabbit Pro is free forever for public repos with the full feature set and is already configured here (restoring it may be a re-install); GitHub Copilot code review is free for public repos (the 2026-06-01 Actions-minutes/AI-credit billing hits private repos only) and is GitHub-native with zero added infrastructure. Qodo Merge's free tier caps at 75 reviews/org/month — too small for ~14 repos — and PR-Agent self-host is free software but needs a paid LLM key plus infra, against the zero-infra moat. Lean CodeRabbit Pro or Copilot review, pending a Copilot-licence check.
+
+Then add the functionality here: a `code-review-bot` governance standard plus a templatable apply config (a `.coderabbit.yaml`, or enabling Copilot review) so Governance Apply propagates the chosen agent to any repo missing it — the same pattern as code-scanning, dependabot-actions, and dependabot-auto-merge — turning portfolio-wide review coverage into a measured campaign rather than a manual rollout.
+
 ### ~~Dashboard Narrative Restructure~~ SHIPPED
 
 Shipped 2026-04-08 (PRs #93–#100). Restructured both portfolio and per-repo dashboards from data dumps into narrative decision tools following a situation-problem-action arc. Portfolio page: tier distribution pulse, attention required section, simplified health table (Repo, Tier, Issues, PRs, CI%, Vulns, Next Step) with full view behind toggle, collapsible charts and dependency inventory, doughnut charts removed. Per-repo page: health grid merged into tier checklist with inline annotations, trends moved up, Open Work section, collapsible Activity History and Community. Also fixed PRs Merged (90d) data consistency, added issues:read to the GitHub App, and added open PRs column.
@@ -195,8 +201,6 @@ Security prerequisites (from architecture review): ~~bot URL validation~~, ~~eco
 
 ~~**Landscape evaluation**~~ — EVALUATED 2026-05-28 ([docs/research/2026-05-28-multi-repo-tooling-landscape.md](docs/research/2026-05-28-multi-repo-tooling-landscape.md)). Conclusion: embed no external tool into the Action — the zero-dependency, API-only, zero-infra moat rules out clone-based CLIs (`multi-gitter`, `git-xargs`) and self-hosted Probot apps (`safe-settings`, `allstar`). Community-health-file propagation extends `apply.js` natively rather than adopting `repo-file-sync-action`; `multi-gitter` is kept as a manual escape-hatch; `ossf/scorecard` is deferred as a future OBSERVE signal. See [ADR-007](docs/decisions/007-agents-and-execution.md) and the Landscape section.
 
-
-Section-edit mode shipped 2026-05-26 (PR #231). Upgraded the core LLM update mechanism so the model emits structured JSON operations rather than rewriting full documents. This reduces token consumption, eliminates truncation errors, and guarantees deterministic application of roadmap updates.
 ---
 
 ## Future
