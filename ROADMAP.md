@@ -67,8 +67,6 @@ GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core rep
 Roadmap PR noise reduction shipped 2026-06-12 (PR #263). Refined the automated update workflow to skip opening pull requests when changes are limited solely to date-only updates, significantly reducing automated volume and noise during routine maintenance runs.
 
 Roadmap scheduled action and reference append optimizations shipped 2026-06-13 (PRs #265 and #266). Refined the core roadmap update mechanisms to optimize scheduled actions and reference appending logic, ensuring cleaner maintenance cycles and robust long-term planning alignment.
-
-Roadmap compaction and capacity ceiling expansion shipped 2026-06-13 (PR #269). Refined core data structures to optimize token efficiency and raised the document length ceiling to 60k characters, providing robust runway for future planning cycles.
 ---
 
 ## Roadmap
