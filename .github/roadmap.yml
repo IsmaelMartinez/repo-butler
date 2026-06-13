@@ -71,7 +71,17 @@ policy-drift-exempt:
 # dry-run, batching, the per-run cap and repo-name validation all still apply, so
 # a scheduled run can open no more PRs than a dispatched one. Empty/absent means
 # the scheduled run opens nothing. `dependabot-rebase` promotes the stale-PR nudge.
-# Uncomment a class only once it has earned a track record on the manual path:
-# apply-schedule:
-#   code-scanning: true
-#   dependabot-rebase: true
+#
+# Every actionable class is promoted here, but apply-scheduled.yml still defaults
+# the cron run to dry-run (INPUT_DRY_RUN=true), so the scheduled path only LOGS
+# the PRs it would open — no cross-repo writes until the cron default flips to
+# live in a follow-up. The manual dispatch path (apply.yml) ignores this block
+# entirely. Remove a key to demote that class back to dispatch-only.
+apply-schedule:
+  code-scanning: true
+  dependabot-actions: true
+  issue-form-templates: true
+  dependabot-auto-merge: true
+  codeowners: true
+  security-md: true
+  dependabot-rebase: true
