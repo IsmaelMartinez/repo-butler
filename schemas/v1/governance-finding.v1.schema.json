@@ -40,8 +40,8 @@
       "properties": {
         "executor": {
           "type": "string",
-          "enum": ["template", "agent", "manual"],
-          "description": "Routing hint: `template` for findings the butler can write as a static file, `agent` for findings needing tailored reasoning, `manual` for findings needing human judgement. A hint, not a guarantee the apply phase can act on it today."
+          "enum": ["template", "settings", "agent", "manual"],
+          "description": "Routing hint: `template` for findings the butler can write as a static file, `settings` for findings enabled via a repository-settings/ruleset write (ADR-009, e.g. code-review-bot), `agent` for findings needing tailored reasoning, `manual` for findings needing human judgement. A hint, not a guarantee the apply phase can act on it today."
         },
         "targetFiles": {
           "type": "array",

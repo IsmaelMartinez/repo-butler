@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -680,5 +680,189 @@ describe('nudgeStaleDependabotPRs', () => {
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.targets.length, 1);
+  });
+});
+
+describe('selectCopilotReviewTargets', () => {
+  it('collects non-compliant repos from code-review-bot findings, dedups, ignores other tools', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['a', 'b', 'a'] },
+      { type: 'standards-gap', tool: 'codeowners', nonCompliant: ['c'] },
+      { type: 'dependabot-stale', repo: 'x' },
+    ];
+    assert.deepEqual(selectCopilotReviewTargets(findings, 5), ['a', 'b']);
+  });
+
+  it('drops invalid repo names', () => {
+    const findings = [{ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['ok', 'bad name!'] }];
+    assert.deepEqual(selectCopilotReviewTargets(findings, 5), ['ok']);
+  });
+
+  it('caps at maxPerRun', () => {
+    const findings = [{ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['a', 'b', 'c'] }];
+    assert.deepEqual(selectCopilotReviewTargets(findings, 2), ['a', 'b']);
+  });
+
+  it('returns [] when there are no code-review-bot findings', () => {
+    assert.deepEqual(selectCopilotReviewTargets([{ type: 'standards-gap', tool: 'codeowners', nonCompliant: ['a'] }], 5), []);
+  });
+});
+
+describe('buildCopilotReviewRuleset', () => {
+  it('builds a scope-minimised default-branch ruleset carrying only the copilot rule', () => {
+    const rs = buildCopilotReviewRuleset();
+    assert.equal(rs.name, COPILOT_RULESET_NAME);
+    assert.equal(rs.target, 'branch');
+    assert.equal(rs.enforcement, 'active');
+    assert.deepEqual(rs.conditions.ref_name.include, ['~DEFAULT_BRANCH']);
+    assert.deepEqual(rs.conditions.ref_name.exclude, []);
+    assert.equal(rs.rules.length, 1);
+    assert.equal(rs.rules[0].type, 'copilot_code_review');
+  });
+});
+
+describe('applyCopilotReviewRulesets', () => {
+  const baseConfig = { limits: { require_approval: true } };
+  const baseFindings = [{ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a'] }];
+
+  it('refuses to run when require_approval is not set', async () => {
+    const calls = [];
+    const gh = { request: async (p, o) => { calls.push({ p, o }); return {}; }, paginate: async () => [] };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
+    assert.equal(result.status, 'refused');
+    assert.equal(calls.length, 0);
+  });
+
+  it('dry-run previews the exact payload and makes no writes', async () => {
+    const calls = [];
+    const gh = { request: async (p, o) => { calls.push({ p, o }); return {}; }, paginate: async () => [] };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.equal(result.targets.length, 1);
+    assert.equal(result.ruleset.rules[0].type, 'copilot_code_review');
+    assert.equal(calls.length, 0);
+  });
+
+  it('dry-run fail-closed: undefined dryRun stays dry-run', async () => {
+    const gh = { request: async () => ({}), paginate: async () => [] };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, {});
+    assert.equal(result.status, 'dry-run');
+  });
+
+  it('creates the ruleset when live and none exists', async () => {
+    const calls = [];
+    const gh = {
+      paginate: async () => [],
+      request: async (path, opts) => { calls.push({ path, method: opts?.method }); return {}; },
+    };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { created: 1, skipped: 0, errors: 0 });
+    const post = calls.find(c => c.method === 'POST');
+    assert.ok(post && post.path === '/repos/owner/repo-a/rulesets', 'POSTs the ruleset to the repo');
+  });
+
+  it('skips a repo that already has an active Copilot ruleset (live idempotency, no duplicate)', async () => {
+    const posts = [];
+    const gh = {
+      paginate: async (path) => (path.endsWith('/rulesets') ? [{ id: 9, enforcement: 'active' }] : []),
+      request: async (path, opts) => {
+        if (opts?.method === 'POST') posts.push(path);
+        if (path.match(/\/rulesets\/\d+$/)) return { id: 9, rules: [{ type: 'copilot_code_review' }] };
+        return {};
+      },
+    };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { created: 0, skipped: 1, errors: 0 });
+    assert.equal(posts.length, 0, 'must not POST a duplicate ruleset');
+  });
+
+  it('isolates a per-repo write error and continues to the next repo', async () => {
+    const findings = [{ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a', 'repo-b'] }];
+    const gh = {
+      paginate: async () => [],
+      request: async (path, opts) => {
+        if (opts?.method === 'POST' && path.includes('/repo-a/')) throw new Error('403 administration: write required');
+        return {};
+      },
+    };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', findings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { created: 1, skipped: 0, errors: 1 });
+  });
+
+  it('scheduled run skips: code-review-bot is not on the apply-schedule allow-list', async () => {
+    const gh = { paginate: async () => [], request: async () => ({}) };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+  });
+
+  it('scheduled run acts when code-review-bot is allow-listed', async () => {
+    const gh = { paginate: async () => [], request: async () => ({}) };
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-review-bot': true } };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
+    assert.equal(result.status, 'dry-run');
+  });
+});
+
+describe('findButlerCopilotRuleset / removeCopilotReviewRuleset', () => {
+  it('finds the butler ruleset id by its distinctive name', async () => {
+    const gh = { paginate: async () => [{ id: 3, name: 'other' }, { id: 5, name: COPILOT_RULESET_NAME }], request: async () => ({}) };
+    assert.equal(await findButlerCopilotRuleset(gh, 'owner', 'repo-a'), 5);
+  });
+
+  it('returns null when no butler ruleset is present', async () => {
+    const gh = { paginate: async () => [{ id: 3, name: 'other' }], request: async () => ({}) };
+    assert.equal(await findButlerCopilotRuleset(gh, 'owner', 'repo-a'), null);
+  });
+
+  it('deletes only the butler-named ruleset', async () => {
+    const calls = [];
+    const gh = {
+      paginate: async () => [{ id: 5, name: COPILOT_RULESET_NAME }],
+      request: async (path, opts) => {
+        calls.push({ path, method: opts?.method });
+        if (path.endsWith('/rulesets/5') && opts?.method !== 'DELETE') return { id: 5, name: COPILOT_RULESET_NAME, rules: [] };
+        return {};
+      },
+    };
+    const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'removed');
+    assert.ok(calls.some(c => c.method === 'DELETE' && c.path === '/repos/owner/repo-a/rulesets/5'));
+  });
+
+  it('skips deletion when no butler ruleset is present', async () => {
+    const gh = { paginate: async () => [{ id: 5, name: 'someone-elses-ruleset' }], request: async () => ({}) };
+    const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'skipped');
+  });
+
+  it('returns a structured error (does not throw) when a delete API call fails', async () => {
+    const gh = {
+      paginate: async () => [{ id: 5, name: COPILOT_RULESET_NAME }],
+      request: async (path, opts) => {
+        if (opts?.method === 'DELETE') throw new Error('500 server error');
+        if (path.endsWith('/rulesets/5')) return { id: 5, name: COPILOT_RULESET_NAME, rules: [] };
+        return {};
+      },
+    };
+    const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'error');
+    assert.match(result.error, /500/);
+  });
+
+  it('refuses to delete when the detail name does not match (defensive double-guard)', async () => {
+    const deletes = [];
+    const gh = {
+      paginate: async () => [{ id: 5, name: COPILOT_RULESET_NAME }],
+      request: async (path, opts) => {
+        if (opts?.method === 'DELETE') { deletes.push(path); return {}; }
+        if (path.endsWith('/rulesets/5')) return { id: 5, name: 'tampered', rules: [] };
+        return {};
+      },
+    };
+    const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'skipped');
+    assert.equal(deletes.length, 0, 'never DELETEs a non-butler-named ruleset');
   });
 });

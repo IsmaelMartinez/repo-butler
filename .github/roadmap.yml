@@ -45,8 +45,10 @@ standards:
   codeowners: universal
   security-md: universal
   # AI code review coverage: an active copilot_code_review repository ruleset.
-  # Detection-only for now (manual remediation) — auto-enabling a ruleset is a
-  # PR-less settings write that needs the ADR-009 amendment (docs/decisions/009).
+  # Routes to the `settings` executor — a PR-less ruleset write (ADR-009), run on
+  # the manual apply.yml dispatch (tools=code-review-bot), dry-run by default. NOT
+  # on the apply-schedule allow-list below, and going live needs the GitHub App's
+  # administration:write scope.
   code-review-bot: universal
 
 release_exempt: sound3fy

@@ -503,9 +503,9 @@ describe('buildRemediationPlan', () => {
     assert.equal(buildRemediationPlan({ type: 'standards-gap', tool: 'secret-scanning', nonCompliant: ['r'] }).executor, 'manual');
   });
 
-  it('routes code-review-bot to manual with no target file (ruleset toggle, not a committed file)', () => {
+  it('routes code-review-bot to the settings executor with no target file (ruleset toggle, not a committed file)', () => {
     const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['r'], adoptionRate: 0.4 });
-    assert.equal(plan.executor, 'manual');
+    assert.equal(plan.executor, 'settings');
     assert.deepEqual(plan.targetFiles, []);
   });
 

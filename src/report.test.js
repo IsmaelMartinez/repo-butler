@@ -1446,13 +1446,17 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['no-am'].allowAutoMerge, false);
   });
 
-  it('derives hasCopilotReview from an active copilot_code_review ruleset', async () => {
+  it('surfaces hasCopilotReview through fetchPortfolioDetails (active Copilot ruleset → true)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // The shared detection helper lists rulesets via gh.paginate and reads each
+    // detail via gh.request; helper-internal cases live in github.test.js. This
+    // only checks the field is threaded through onto the per-repo details object.
     const gh = {
+      paginate: (path) => path.endsWith('/rulesets')
+        ? Promise.resolve([{ id: 7, enforcement: 'active' }])
+        : Promise.resolve([]),
       request: (path) => {
-        // Ruleset detail (/rulesets/{id}) is more specific than the list — match it first.
         if (path.match(/\/rulesets\/\d+$/)) return Promise.resolve({ id: 7, rules: [{ type: 'copilot_code_review' }] });
-        if (path.endsWith('/rulesets')) return Promise.resolve([{ id: 7, enforcement: 'active' }]);
         if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
         if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
         if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
@@ -1463,7 +1467,6 @@ describe('fetchPortfolioDetails incremental cache', () => {
         if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
         return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
       },
-      paginate: () => Promise.resolve([]),
       getFileContent: () => Promise.resolve(null),
     };
     const repos = [
@@ -1471,64 +1474,6 @@ describe('fetchPortfolioDetails incremental cache', () => {
     ];
     const details = await fetchPortfolioDetails(gh, 'owner', repos);
     assert.equal(details['cr-repo'].hasCopilotReview, true);
-  });
-
-  it('reports hasCopilotReview false when no active ruleset carries the copilot rule', async () => {
-    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    const gh = {
-      request: (path) => {
-        // Detail per id: the DISABLED ruleset (8) carries the copilot rule, the ACTIVE one (9) does not.
-        // So the false result holds only because the enforcement filter skips id 8 — if that filter
-        // were dropped, id 8 would be fetched and flip the result to true, failing this test.
-        if (path.match(/\/rulesets\/8$/)) return Promise.resolve({ id: 8, rules: [{ type: 'copilot_code_review' }] });
-        if (path.match(/\/rulesets\/\d+$/)) return Promise.resolve({ id: 9, rules: [{ type: 'pull_request' }] });
-        if (path.endsWith('/rulesets')) return Promise.resolve([{ id: 8, enforcement: 'disabled' }, { id: 9, enforcement: 'active' }]);
-        if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
-        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
-        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
-        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
-        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
-        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
-        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
-        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
-        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
-      },
-      paginate: () => Promise.resolve([]),
-      getFileContent: () => Promise.resolve(null),
-    };
-    const repos = [
-      { name: 'no-cr', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
-    ];
-    const details = await fetchPortfolioDetails(gh, 'owner', repos);
-    assert.equal(details['no-cr'].hasCopilotReview, false);
-  });
-
-  it('keeps scanning when one ruleset detail fetch fails and a later one carries the rule', async () => {
-    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    const gh = {
-      request: (path) => {
-        // First active ruleset's detail throws (transient/permissions); the scan must continue.
-        if (path.match(/\/rulesets\/1$/)) return Promise.reject(new Error('boom'));
-        if (path.match(/\/rulesets\/2$/)) return Promise.resolve({ id: 2, rules: [{ type: 'copilot_code_review' }] });
-        if (path.endsWith('/rulesets')) return Promise.resolve([{ id: 1, enforcement: 'active' }, { id: 2, enforcement: 'active' }]);
-        if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
-        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
-        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
-        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
-        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
-        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
-        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
-        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
-        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
-      },
-      paginate: () => Promise.resolve([]),
-      getFileContent: () => Promise.resolve(null),
-    };
-    const repos = [
-      { name: 'flaky-cr', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
-    ];
-    const details = await fetchPortfolioDetails(gh, 'owner', repos);
-    assert.equal(details['flaky-cr'].hasCopilotReview, true);
   });
 });
 
@@ -1563,12 +1508,14 @@ describe('buildGovernanceSection', () => {
   it('shows a per-executor remediation breakdown when findings carry executor hints', () => {
     const findings = [
       { type: 'standards-gap', tool: 'code-scanning', scope: { type: 'universal' }, compliant: [], nonCompliant: ['repo-a'], adoptionRate: 0, priority: 'high', remediation: { executor: 'template' } },
+      { type: 'standards-gap', tool: 'code-review-bot', scope: { type: 'universal' }, compliant: [], nonCompliant: ['repo-d'], adoptionRate: 0, priority: 'high', remediation: { executor: 'settings' } },
       { type: 'standards-gap', tool: 'contributing-guide', scope: { type: 'universal' }, compliant: [], nonCompliant: ['repo-b'], adoptionRate: 0, priority: 'high', remediation: { executor: 'agent' } },
       { type: 'policy-drift', category: 'license', repo: 'repo-c', expected: 'MIT', actual: 'GPL-3.0', priority: 'medium', remediation: { executor: 'manual' } },
     ];
     const html = buildGovernanceSection(findings);
     assert.ok(html.includes('By remediation:'), 'should render the remediation breakdown line');
     assert.ok(html.includes('1 template'), 'should count template findings');
+    assert.ok(html.includes('1 settings'), 'should count settings findings (ADR-009 ruleset writes)');
     assert.ok(html.includes('1 agent'), 'should count agent findings');
     assert.ok(html.includes('1 manual'), 'should count manual findings');
   });
