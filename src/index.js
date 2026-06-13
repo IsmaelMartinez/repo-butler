@@ -30,9 +30,9 @@ async function runApply(context) {
   // Stage 4 (ADR-007): set by the scheduled apply workflow only. On the no-human
   // path, apply.js gates each finding class behind the apply-schedule allow-list.
   const scheduled = process.env.INPUT_SCHEDULED === 'true';
-  let applyGovernanceFindings, nudgeStaleDependabotPRs;
+  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets;
   try {
-    ({ applyGovernanceFindings, nudgeStaleDependabotPRs } = await import('./apply.js'));
+    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets } = await import('./apply.js'));
   } catch {
     console.error('Apply module not available yet (src/apply.js). Skipping.');
     return;
@@ -70,6 +70,22 @@ async function runApply(context) {
     );
   }
 
+  // Copilot-review enablement (ADR-009 settings write) rides the same dispatch and
+  // gates. It runs on a blank `tools` (all actionable) or when `tools` explicitly
+  // names `code-review-bot` — so a tool-scoped dispatch never enables it by
+  // surprise. Live writes need the App's `administration: write` scope; without it
+  // the dry-run preview still runs and live writes surface as per-repo errors.
+  const copilotRequested = tools.length === 0 || tools.includes('code-review-bot');
+  const copilotResult = copilotRequested
+    ? await applyCopilotReviewRulesets(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
+    : null;
+  if (copilotResult?.summary && process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `copilotReview=${JSON.stringify(copilotResult.summary)}\n`,
+    );
+  }
+
   // Per-repo errors (e.g. App lacks workflows: write on a target installation)
   // are operator-actionable failures: each one represents a finding the operator
   // explicitly asked to remediate that did not produce a PR. Surface them by
@@ -91,6 +107,15 @@ async function runApply(context) {
       .join(', ');
     errParts.push(
       `nudge: ${nudgeResult.summary.errors} error(s) [${failed}]; ${nudgeResult.summary.nudged} rebased, ${nudgeResult.summary.skipped} skipped`,
+    );
+  }
+  if (copilotResult?.summary?.errors > 0) {
+    const failed = copilotResult.results
+      .filter(r => r.status === 'error')
+      .map(r => r.repo)
+      .join(', ');
+    errParts.push(
+      `copilot-review: ${copilotResult.summary.errors} error(s) [${failed}]; ${copilotResult.summary.created} created, ${copilotResult.summary.skipped} skipped`,
     );
   }
   if (errParts.length > 0) {

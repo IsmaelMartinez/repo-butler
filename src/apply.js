@@ -3,6 +3,7 @@
 // validates shape, generates templated config files, and opens PRs.
 
 import { REPO_NAME_PATTERN } from './safety.js';
+import { hasActiveCopilotReviewRuleset } from './github.js';
 // Re-export for backwards compat with existing onboard.js import.
 // Canonical home is safety.js (the security boundary).
 export { REPO_NAME_PATTERN };
@@ -532,4 +533,144 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
   const errors = results.filter(r => r.status === 'error').length;
   console.log(`nudge: done — ${nudged} rebased, ${skipped} skipped, ${errors} errors`);
   return { status: 'completed', results, summary: { nudged, skipped, errors } };
+}
+
+// --- Copilot code review enablement (settings write, ADR-009) ----------------
+// A PR-less settings write: enabling GitHub Copilot automatic code review is a
+// `copilot_code_review` rule inside a repository ruleset, not a committed file,
+// so it cannot ride the templated-PR path. This is a new action *type* behind the
+// same five ADR-005 gates (require_approval, dry-run fail-closed, per-run cap,
+// repo-name validation, workflow_dispatch-only) plus the three ADR-009 gates:
+// additive/idempotent (one distinctively named ruleset, skip-if-already-enabled
+// checked LIVE at apply time), scope-minimised (only the Copilot rule on the
+// default branch — never blocks merges or restricts access), and a name-guarded
+// revert path (removeCopilotReviewRuleset). Going live additionally requires the
+// GitHub App to carry `administration: write` (broader than the PR path's token);
+// until then the live write 403s and only the dry-run preview runs. See ADR-009.
+
+export const COPILOT_RULESET_NAME = 'repo-butler/copilot-code-review';
+
+// The exact ruleset payload — additive, scope-minimised to the default branch,
+// carrying only the copilot_code_review rule. Pure. `~DEFAULT_BRANCH` is a
+// GitHub-defined token (not a literal branch name) that targets each repo's own
+// default branch, so the same payload is correct across the portfolio.
+export function buildCopilotReviewRuleset() {
+  return {
+    name: COPILOT_RULESET_NAME,
+    target: 'branch',
+    enforcement: 'active',
+    conditions: { ref_name: { include: ['~DEFAULT_BRANCH'], exclude: [] } },
+    rules: [
+      { type: 'copilot_code_review', parameters: { review_on_push: true, review_draft_pull_requests: false } },
+    ],
+  };
+}
+
+// From code-review-bot standards-gap findings, collect the non-compliant repos,
+// validate names (gate 5), dedup, and cap (gate 4). Pure function.
+export function selectCopilotReviewTargets(findings, maxPerRun = 5) {
+  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const repos = [];
+  for (const f of Array.isArray(findings) ? findings : []) {
+    if (!f || f.type !== 'standards-gap' || f.tool !== 'code-review-bot') continue;
+    if (!Array.isArray(f.nonCompliant)) continue;
+    for (const repo of f.nonCompliant) {
+      if (!REPO_NAME_PATTERN.test(repo)) {
+        console.warn(`copilot-review: skipping repo with invalid name: ${repo}`);
+        continue;
+      }
+      if (!repos.includes(repo)) repos.push(repo);
+    }
+  }
+  return repos.slice(0, cap);
+}
+
+export async function applyCopilotReviewRulesets(gh, owner, findings, config, options = {}) {
+  const { dryRun, maxPerRun = 5, scheduled } = options;
+
+  // Gate 3: require_approval master switch.
+  if (!config?.limits?.require_approval) {
+    console.error('copilot-review: config.limits.require_approval is not true — refusing to run');
+    return { status: 'refused', reason: 'require_approval not set' };
+  }
+
+  // Stage 4 (ADR-007) / ADR-009: default-closed on the no-human scheduled path.
+  // v1 ships with code-review-bot absent from the apply-schedule allow-list, so a
+  // scheduled dispatch skips it until the track-record gate is met. Manual dispatch
+  // is unaffected.
+  if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], 'code-review-bot')) {
+    console.log('copilot-review [scheduled]: code-review-bot not on the apply-schedule allow-list — skipping');
+    return { status: 'skipped-unscheduled', targets: [] };
+  }
+
+  // Gate 5 (repo-name validation) + gate 4 (per-run cap).
+  const targets = selectCopilotReviewTargets(findings, maxPerRun);
+  const ruleset = buildCopilotReviewRuleset();
+
+  // Gate 2: dry-run fail-closed — only literal false acts. Preview the exact payload
+  // (the audit/"see it before it lands" record that stands in for a PR diff).
+  if (dryRun !== false) {
+    console.log(`copilot-review [DRY RUN]: would create the "${COPILOT_RULESET_NAME}" ruleset on ${targets.length} repo(s)`);
+    for (const repo of targets) console.log(`  - ${owner}/${repo}`);
+    console.log(`  payload: ${JSON.stringify(ruleset)}`);
+    return { status: 'dry-run', targets, ruleset };
+  }
+
+  // Sequential canary, one repo at a time — a new write type, so no parallel fan-out.
+  const results = [];
+  for (const repo of targets) {
+    try {
+      // Idempotency guard, LIVE at apply time (not the stale OBSERVE snapshot):
+      // skip if an active Copilot-review ruleset already exists, so re-runs and
+      // hand-enabled repos never get a duplicate.
+      if (await hasActiveCopilotReviewRuleset(gh, owner, repo)) {
+        console.log(`copilot-review: ${owner}/${repo} already has Copilot review, skipping`);
+        results.push({ repo, status: 'skipped', reason: 'already enabled' });
+        continue;
+      }
+      await gh.request(`/repos/${owner}/${repo}/rulesets`, { method: 'POST', body: ruleset });
+      console.log(`copilot-review: ${owner}/${repo} — Copilot review ruleset created`);
+      results.push({ repo, status: 'created' });
+    } catch (err) {
+      console.error(`copilot-review: error on ${repo}: ${err.message}`);
+      results.push({ repo, status: 'error', error: err.message });
+    }
+  }
+
+  const created = results.filter(r => r.status === 'created').length;
+  const skipped = results.filter(r => r.status === 'skipped').length;
+  const errors = results.filter(r => r.status === 'error').length;
+  console.log(`copilot-review: done — ${created} created, ${skipped} skipped, ${errors} errors`);
+  return { status: 'completed', results, summary: { created, skipped, errors } };
+}
+
+// Find the butler's Copilot-review ruleset on a repo by its distinctive name.
+// Returns the ruleset id, or null if absent / on error. Paginated.
+export async function findButlerCopilotRuleset(gh, owner, repo) {
+  let rulesets;
+  try {
+    rulesets = await gh.paginate(`/repos/${owner}/${repo}/rulesets`, { max: 200 });
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(rulesets)) return null;
+  const match = rulesets.find(rs => rs?.name === COPILOT_RULESET_NAME);
+  return match ? match.id : null;
+}
+
+// Reversibility affordance (ADR-009): delete the butler's Copilot-review ruleset
+// on a repo. Name-guarded twice — by the find above and by re-asserting the name
+// from the ruleset detail at the delete boundary — so it can NEVER remove a
+// maintainer's hand-created ruleset (ADR-005: each layer assumes the previous may
+// have failed).
+export async function removeCopilotReviewRuleset(gh, owner, repo) {
+  const id = await findButlerCopilotRuleset(gh, owner, repo);
+  if (id == null) return { repo, status: 'skipped', reason: 'no butler ruleset' };
+  const detail = await gh.request(`/repos/${owner}/${repo}/rulesets/${id}`);
+  if (detail?.name !== COPILOT_RULESET_NAME) {
+    return { repo, status: 'skipped', reason: 'name mismatch — refusing to delete' };
+  }
+  await gh.request(`/repos/${owner}/${repo}/rulesets/${id}`, { method: 'DELETE' });
+  console.log(`copilot-review: ${owner}/${repo} — Copilot review ruleset removed`);
+  return { repo, status: 'removed' };
 }

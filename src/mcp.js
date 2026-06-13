@@ -328,6 +328,7 @@ function toolGetGovernanceFindings() {
         // ADR-007 remediation contract: route findings by executor hint.
         byExecutor: {
           template: findings.filter(f => f.remediation?.executor === 'template').length,
+          settings: findings.filter(f => f.remediation?.executor === 'settings').length,
           agent: findings.filter(f => f.remediation?.executor === 'agent').length,
           manual: findings.filter(f => f.remediation?.executor === 'manual').length,
         },
