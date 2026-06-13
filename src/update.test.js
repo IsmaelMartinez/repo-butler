@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -705,5 +705,156 @@ describe('buildSectionEditPrompt', () => {
     assert.ok(prompt.includes('"Implemented"'));
     assert.ok(prompt.includes('"Next Up"'));
     assert.ok(prompt.includes('"Future"'));
+  });
+});
+
+describe('compactRoadmap', () => {
+  const today = '2026-06-13';
+  // ~600-char body, struck heading, dated ~5 months ago.
+  const oldBody = 'Shipped 2026-01-10 (PR #18). ' + 'Detailed prose about the work that was done, '.repeat(12) + 'Follow-up fixes landed in PR #22.';
+  const make = () => [
+    '# Roadmap',
+    '',
+    '**Last Updated:** 2026-06-13',
+    '',
+    '## Roadmap',
+    '',
+    '### ~~Phase 1 — Old Work~~ SHIPPED',
+    '',
+    oldBody,
+    '',
+    '### Active Phase — In Progress',
+    '',
+    'This active block is just as long. ' + 'It has plenty of body text to exceed the minimum threshold easily here. '.repeat(8),
+    '',
+    '### ~~Recent Thing~~ SHIPPED',
+    '',
+    'Shipped 2026-06-01 (PR #260). ' + 'Recent and long enough to exceed the minimum body threshold for sure. '.repeat(8),
+    '',
+    '---',
+    '',
+    '## Future',
+    '',
+    'Ideas.',
+  ].join('\n');
+
+  it('compacts an old, long, struck subsection — preserving heading, date and refs', () => {
+    const { result, compacted } = compactRoadmap(make(), today);
+    assert.ok(result.includes('### ~~Phase 1 — Old Work~~ SHIPPED'), 'heading preserved verbatim');
+    assert.ok(result.includes('Shipped 2026-01-10 (#18, #22). Full detail in git history.'), 'summary preserves newest date + all refs');
+    assert.ok(!result.includes('Detailed prose about the work'), 'verbose body removed');
+    assert.equal(compacted.length, 1);
+    assert.ok(compacted[0].includes('Phase 1 — Old Work'));
+  });
+
+  it('leaves an active (non-struck) subsection untouched even when old and long', () => {
+    const { result } = compactRoadmap(make(), today);
+    assert.ok(result.includes('### Active Phase — In Progress'));
+    assert.ok(result.includes('This active block is just as long.'));
+  });
+
+  it('leaves a recent struck subsection untouched (within the age window)', () => {
+    const { result } = compactRoadmap(make(), today);
+    assert.ok(result.includes('Shipped 2026-06-01 (PR #260).'));
+    assert.ok(result.includes('Recent and long enough'));
+  });
+
+  it('leaves a short struck subsection untouched (below the body threshold)', () => {
+    const roadmap = ['## Roadmap', '', '### ~~Tiny~~ SHIPPED', '', 'Shipped 2026-01-01 (PR #1).', '', '## Future', '', 'x'].join('\n');
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.equal(compacted.length, 0);
+  });
+
+  it('is idempotent — a second pass changes nothing', () => {
+    const once = compactRoadmap(make(), today).result;
+    const twice = compactRoadmap(once, today).result;
+    assert.equal(twice, once);
+  });
+
+  it('does not touch h2 prose sections like ## Implemented', () => {
+    const roadmap = ['## Implemented', '', 'Phase 1 shipped 2026-01-01 (PR #18). ' + 'Long narrative prose here that exceeds the threshold by a wide margin indeed. '.repeat(10), '', '## Future', '', 'x'].join('\n');
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.equal(compacted.length, 0);
+  });
+
+  it('returns the roadmap unchanged when there is nothing to compact', () => {
+    const roadmap = '# Roadmap\n\n## Future\n\nNothing struck here.';
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.equal(compacted.length, 0);
+  });
+
+  it('handles empty input', () => {
+    const { result, compacted } = compactRoadmap('', today);
+    assert.equal(result, '');
+    assert.equal(compacted.length, 0);
+  });
+
+  it('produces a roadmap shorter than the input when it compacts', () => {
+    const input = make();
+    const { result } = compactRoadmap(input, today);
+    assert.ok(result.length < input.length);
+  });
+});
+
+describe('compactRoadmap — review hardening', () => {
+  const today = '2026-06-13';
+  const longBody = (date) => `Shipped ${date} (PR #18). ` + 'Detailed prose about the work that was done here. '.repeat(12);
+
+  it('does not compact an active heading that merely mentions a struck phrase', () => {
+    const roadmap = [
+      '## Roadmap', '',
+      '### Phase 2 — supersedes ~~the old idea~~ and ~~another~~',
+      '',
+      longBody('2026-01-10'),
+      '', '## Future', '', 'x',
+    ].join('\n');
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(compacted.length, 0, 'mid-heading strikethrough is not a completed entry');
+    assert.equal(result, roadmap);
+  });
+
+  it('keeps a block whose newest date token is malformed (fail-safe, no NaN compaction)', () => {
+    // A typo date like 2026-13-45 sorts highest; daysBetween → NaN. The block
+    // must be KEPT, not compacted, so a recent entry is never wiped on a typo.
+    const roadmap = [
+      '## Roadmap', '',
+      '### ~~Recent Thing~~ SHIPPED',
+      '',
+      'Shipped 2026-06-01 but typo 2026-13-45 (PR #260). ' + 'Long enough body to exceed the minimum threshold by a wide margin here. '.repeat(8),
+      '', '## Future', '', 'x',
+    ].join('\n');
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(compacted.length, 0);
+    assert.equal(result, roadmap);
+  });
+
+  it('keeps a struck block dated in the future (negative age is "recent")', () => {
+    const roadmap = [
+      '## Roadmap', '',
+      '### ~~Future-dated~~ SHIPPED',
+      '',
+      'Shipped 2027-01-01 (PR #999). ' + 'Body long enough to clear the minimum character threshold for sure here. '.repeat(8),
+      '', '## Future', '', 'x',
+    ].join('\n');
+    const { compacted } = compactRoadmap(roadmap, today);
+    assert.equal(compacted.length, 0);
+  });
+
+  it('tolerates a malformed today by keeping everything (no NaN compaction)', () => {
+    const roadmap = ['## Roadmap', '', '### ~~Old~~ SHIPPED', '', longBody('2026-01-10'), '', '## Future', '', 'x'].join('\n');
+    const { compacted } = compactRoadmap(roadmap, 'not-a-date');
+    assert.equal(compacted.length, 0);
+  });
+});
+
+describe('bumpLastUpdated', () => {
+  it('replaces the date on the Last Updated line', () => {
+    assert.equal(bumpLastUpdated('**Last Updated:** 2026-01-01\nbody', '2026-06-13'), '**Last Updated:** 2026-06-13\nbody');
+  });
+  it('is a no-op when there is no Last Updated line', () => {
+    assert.equal(bumpLastUpdated('# Roadmap\nbody', '2026-06-13'), '# Roadmap\nbody');
   });
 });

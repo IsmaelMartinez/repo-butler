@@ -178,7 +178,7 @@ Source: `src/safety.js`. Every phase that writes to GitHub must pass LLM output 
 
 `validateIssueBody(body)` — checks non-empty string, max 8000 chars, URL allowlist (`github.com`, `ismaelmartinez.github.io`), no `@mentions` (except `@repo-butler`, `@dependabot`, `@github-actions`), no blocked patterns.
 
-`validateRoadmap(content)` — checks non-empty string, max 50000 chars, min 100 chars, must contain `#` (markdown heading), URL allowlist, no blocked patterns.
+`validateRoadmap(content)` — checks non-empty string, max 60000 chars, min 100 chars, must contain `#` (markdown heading), URL allowlist, no blocked patterns.
 
 `validateIdeas(ideas)` — validates an array of idea objects; each idea runs `validateIssueTitle` + `validateIssueBody` + priority check (`'high'|'medium'|'low'`). Returns `{ valid, errors, filtered }` where `filtered` contains only ideas that passed.
 

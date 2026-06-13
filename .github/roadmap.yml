@@ -2,6 +2,10 @@ repository: IsmaelMartinez/repo-butler
 
 roadmap:
   path: ROADMAP.md
+  # Age (days) after which a completed ~~SHIPPED~~ subsection's verbose body is
+  # compacted to a one-line pointer by the UPDATE phase (full prose stays in git
+  # history). Default 60. Lower it to trim more aggressively.
+  # compact_after_days: 60
 
 schedule:
   assess: daily

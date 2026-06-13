@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 
 const DEFAULTS = {
-  roadmap: { path: 'ROADMAP.md' },
+  roadmap: { path: 'ROADMAP.md', compact_after_days: 60 },
   schedule: { assess: 'daily', ideate: 'weekly' },
   providers: { default: 'gemini' },
   context: '',

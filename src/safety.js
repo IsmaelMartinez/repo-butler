@@ -4,7 +4,7 @@
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_BODY_LENGTH = 8000;
-const MAX_ROADMAP_LENGTH = 50000;
+const MAX_ROADMAP_LENGTH = 60000;
 
 // Core domains — always allowed in generated content.
 const CORE_URL_HOSTS = [
