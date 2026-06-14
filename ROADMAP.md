@@ -193,8 +193,6 @@ Security prerequisites (from architecture review): ~~bot URL validation~~, ~~eco
 
 ~~**Landscape evaluation**~~ — EVALUATED 2026-05-28 ([docs/research/2026-05-28-multi-repo-tooling-landscape.md](docs/research/2026-05-28-multi-repo-tooling-landscape.md)). Conclusion: embed no external tool into the Action — the zero-dependency, API-only, zero-infra moat rules out clone-based CLIs (`multi-gitter`, `git-xargs`) and self-hosted Probot apps (`safe-settings`, `allstar`). Community-health-file propagation extends `apply.js` natively rather than adopting `repo-file-sync-action`; `multi-gitter` is kept as a manual escape-hatch; `ossf/scorecard` is deferred as a future OBSERVE signal. See [ADR-007](docs/decisions/007-agents-and-execution.md) and the Landscape section.
 
-
-Progress (2026-06-14): Automated Copilot review auto-enablement via gated ruleset write successfully shipped (PR #272), implementing the settings-level write pattern designed in ADR-009 to streamline repository governance without manual rollout overhead.
 ---
 
 ## Future
