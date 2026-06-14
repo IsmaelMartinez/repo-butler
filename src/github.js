@@ -178,6 +178,38 @@ export function createClient(token) {
   return { request, paginate, getFileContent, listDir, putFile, deleteFile };
 }
 
+// True if the repo has an ACTIVE repository ruleset carrying a `copilot_code_review`
+// rule (GitHub Copilot automatic code review). The rulesets list omits rule
+// bodies, so each active ruleset's detail is fetched and scanned for the rule;
+// the list is paginated so a repo with many rulesets cannot hide the match.
+// Returns false on any error (no rulesets, or the token lacks the scope) and on a
+// single ruleset's detail failing — a later active ruleset may still carry the
+// rule. Single source of truth shared by the code-review-bot governance detection
+// (report-portfolio.js) and the settings-apply idempotency guard (apply.js), so
+// both agree on what "Copilot review already enabled" means. Detects repo-level
+// rulesets only (org-inherited rulesets are not surfaced).
+export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
+  try {
+    const rulesets = await gh.paginate(`/repos/${owner}/${repo}/rulesets`, { max: 200 });
+    if (!Array.isArray(rulesets)) return false;
+    for (const rs of rulesets) {
+      if (rs.enforcement !== 'active') continue;
+      try {
+        const detail = await gh.request(`/repos/${owner}/${repo}/rulesets/${rs.id}`);
+        if (detail && Array.isArray(detail.rules) && detail.rules.some(rule => rule.type === 'copilot_code_review')) {
+          return true;
+        }
+      } catch {
+        // A single ruleset's detail failing (transient/permissions) must not
+        // abort the scan — a later active ruleset may still carry the rule.
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 // Paginate /repos/{owner}/{repo}/issues and filter out PRs (which the GitHub
 // issues endpoint includes). Single source of truth for the "real issues only"
 // pattern used by observe, propose, and report fetchers.

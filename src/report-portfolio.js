@@ -3,6 +3,7 @@
 import { CSS, SITE_FOOTER, htmlPage } from './report-styles.js';
 import { computeLibyearWithTimeout } from './libyear.js';
 import { buildActionItems } from './report-repo.js';
+import { hasActiveCopilotReviewRuleset } from './github.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
@@ -326,33 +327,10 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         return { hasCodeowners, hasSecurityPolicy };
       })(),
       // GitHub Copilot automatic code review is enabled via a `copilot_code_review`
-      // rule inside a repository ruleset, not a committed file — so detection reads
-      // the repo's rulesets and looks for an ACTIVE one carrying that rule. The
-      // rulesets list omits rule bodies, so each active ruleset's detail is fetched
-      // (most repos have 0–2). Drives the code-review-bot governance standard.
-      // Returns false on any error (no rulesets, or the token lacks the scope).
-      (async () => {
-        try {
-          const rulesets = await gh.request(`/repos/${owner}/${r.name}/rulesets`, { params: { per_page: 100 } });
-          if (!Array.isArray(rulesets)) return { hasCopilotReview: false };
-          for (const rs of rulesets) {
-            if (rs.enforcement !== 'active') continue;
-            try {
-              const detail = await gh.request(`/repos/${owner}/${r.name}/rulesets/${rs.id}`);
-              if (detail && Array.isArray(detail.rules) && detail.rules.some(rule => rule.type === 'copilot_code_review')) {
-                return { hasCopilotReview: true };
-              }
-            } catch {
-              // A single ruleset's detail failing (transient API error or a
-              // per-ruleset permission issue) must not abort the scan — a later
-              // active ruleset may still carry the rule.
-            }
-          }
-          return { hasCopilotReview: false };
-        } catch {
-          return { hasCopilotReview: false };
-        }
-      })(),
+      // rule inside a repository ruleset, not a committed file. Detection is shared
+      // with the settings-apply idempotency guard (apply.js) via github.js so both
+      // agree on what "already enabled" means. Drives the code-review-bot standard.
+      hasActiveCopilotReviewRuleset(gh, owner, r.name).then(hasCopilotReview => ({ hasCopilotReview })),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
@@ -502,15 +480,17 @@ export function buildGovernanceSection(findings) {
   const parts = [];
 
   // Remediation breakdown (ADR-007): how the findings route by executor —
-  // template (the apply pipeline opens a templated PR), agent (a local agent
-  // drafts a tailored PR), manual (needs the owner's own judgement).
-  const byExecutor = { template: 0, agent: 0, manual: 0 };
+  // template (the apply pipeline opens a templated PR), settings (the apply
+  // pipeline writes a repo setting/ruleset, ADR-009), agent (a local agent drafts
+  // a tailored PR), manual (needs the owner's own judgement).
+  const byExecutor = { template: 0, settings: 0, agent: 0, manual: 0 };
   for (const f of findings) {
     const ex = f.remediation?.executor;
-    if (ex === 'template' || ex === 'agent' || ex === 'manual') byExecutor[ex]++;
+    if (ex != null && Object.hasOwn(byExecutor, ex)) byExecutor[ex]++;
   }
   const executorBits = [];
   if (byExecutor.template) executorBits.push(`${byExecutor.template} template (auto-applies)`);
+  if (byExecutor.settings) executorBits.push(`${byExecutor.settings} settings (ruleset write)`);
   if (byExecutor.agent) executorBits.push(`${byExecutor.agent} agent (local PR)`);
   if (byExecutor.manual) executorBits.push(`${byExecutor.manual} manual (your hand)`);
   if (executorBits.length > 0) {

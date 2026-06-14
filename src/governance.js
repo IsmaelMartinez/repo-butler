@@ -364,6 +364,13 @@ const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue
 // Standards tools that need tailored, per-repo content an agent must reason about.
 const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
 
+// Standards tools the butler enables via a repository-settings write (a ruleset
+// or repo flag) rather than a committed file — there is no PR to template. These
+// route through the settings-apply path (apply.js applyCopilotReviewRulesets),
+// which rides the same ADR-005 gates as the PR path. See ADR-009 for the PR-less
+// write trust model.
+const SETTINGS_TOOLS = new Set(['code-review-bot']);
+
 // Known target file(s) per standards tool. An empty array means there is no
 // file to write (a repo-settings toggle or a human/legal decision).
 const STANDARD_TARGET_FILES = {
@@ -378,13 +385,14 @@ const STANDARD_TARGET_FILES = {
   'license': ['LICENSE'],
   'secret-scanning': [],
   // code-review-bot is enabled via a repository ruleset (a copilot_code_review
-  // rule), not a committed file, so there is no file to template. It stays
-  // manual-routed until ADR-005 is amended to allow PR-less ruleset writes.
+  // rule), not a committed file, so there is no file to template — it routes to
+  // the settings-apply path (ADR-009), not a PR.
   'code-review-bot': [],
 };
 
 function standardsExecutor(tool) {
   if (TEMPLATABLE_TOOLS.has(tool)) return 'template';
+  if (SETTINGS_TOOLS.has(tool)) return 'settings';
   if (AGENT_TOOLS.has(tool)) return 'agent';
   return 'manual';
 }
@@ -392,7 +400,7 @@ function standardsExecutor(tool) {
 /**
  * Build the deterministic remediation plan for a single finding.
  * @param {object} finding — a governance finding of any type
- * @returns {{ executor: 'template'|'agent'|'manual', targetFiles: string[], intent: string, rationale: string, acceptanceCriteria: string[] }}
+ * @returns {{ executor: 'template'|'settings'|'agent'|'manual', targetFiles: string[], intent: string, rationale: string, acceptanceCriteria: string[] }}
  */
 export function buildRemediationPlan(finding) {
   switch (finding?.type) {

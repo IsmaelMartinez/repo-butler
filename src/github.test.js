@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient } from './github.js';
+import { createClient, hasActiveCopilotReviewRuleset } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -269,5 +269,62 @@ describe('createClient — deleteFile', () => {
       gh.deleteFile('o', 'r', 'gone.json', { branch: 'data' }),
       /404/,
     );
+  });
+});
+
+describe('hasActiveCopilotReviewRuleset', () => {
+  // Mock gh with path-aware paginate (the rulesets list) + request (each detail).
+  function makeGh({ list, detail }) {
+    return {
+      paginate: async (path) => (path.endsWith('/rulesets') ? list() : []),
+      request: async (path) => detail(path),
+    };
+  }
+
+  it('returns true for an active ruleset carrying a copilot_code_review rule', async () => {
+    const gh = makeGh({
+      list: () => [{ id: 1, enforcement: 'active' }],
+      detail: () => ({ id: 1, rules: [{ type: 'copilot_code_review' }] }),
+    });
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), true);
+  });
+
+  it('skips disabled rulesets (enforcement filter) and returns false', async () => {
+    let detailCalls = 0;
+    const gh = makeGh({
+      list: () => [{ id: 1, enforcement: 'disabled' }],
+      detail: () => { detailCalls++; return { id: 1, rules: [{ type: 'copilot_code_review' }] }; },
+    });
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
+    assert.equal(detailCalls, 0, 'disabled ruleset detail must not be fetched');
+  });
+
+  it('returns false for an active ruleset whose rules do not include the copilot rule', async () => {
+    const gh = makeGh({
+      list: () => [{ id: 1, enforcement: 'active' }],
+      detail: () => ({ id: 1, rules: [{ type: 'pull_request' }] }),
+    });
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
+  });
+
+  it('keeps scanning when one ruleset detail fetch fails and a later one carries the rule', async () => {
+    const gh = makeGh({
+      list: () => [{ id: 1, enforcement: 'active' }, { id: 2, enforcement: 'active' }],
+      detail: (path) => {
+        if (path.endsWith('/rulesets/1')) throw new Error('boom');
+        return { id: 2, rules: [{ type: 'copilot_code_review' }] };
+      },
+    });
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), true);
+  });
+
+  it('returns false when the rulesets list is not an array', async () => {
+    const gh = { paginate: async () => ({}), request: async () => ({}) };
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
+  });
+
+  it('returns false when listing rulesets throws (no access / no scope)', async () => {
+    const gh = { paginate: async () => { throw new Error('403'); }, request: async () => ({}) };
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
   });
 });
