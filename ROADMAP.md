@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-13
+**Last Updated:** 2026-06-14
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -101,7 +101,7 @@ Deadline-driven: Gemini Code Assist's consumer GitHub reviews cease 2026-07-17 (
 
 Then add the functionality here: a `code-review-bot` governance standard plus a templatable apply config (a `.coderabbit.yaml`, or enabling Copilot review) so Governance Apply propagates the chosen agent to any repo missing it — the same pattern as code-scanning, dependabot-actions, and dependabot-auto-merge — turning portfolio-wide review coverage into a measured campaign rather than a manual rollout.
 
-Progress (2026-06-13): Copilot code review chosen as the standard. The detection half shipped — a `code-review-bot` governance standard checks each eligible repo for an active `copilot_code_review` repository ruleset (`details.hasCopilotReview`, derived in `fetchPortfolioDetails`), surfacing missing coverage as a standards-gap finding on the dashboard and MCP. Because Copilot review is a repository ruleset rather than a committed file, it does not fit the templatable file-PR apply path; remediation routes to the `manual` executor for now. The auto-enable path — having the butler create the ruleset via the REST API — is a PR-less settings write outside ADR-005's PR-based trust model, so it is specified in [ADR-009](docs/decisions/009-settings-level-writes.md) (Proposed) and gated on that ADR's acceptance.
+Progress (2026-06-13): Copilot code review chosen as the standard, and both halves now shipped. Detection: a `code-review-bot` governance standard checks each eligible repo for an active `copilot_code_review` repository ruleset (`details.hasCopilotReview`, derived in `fetchPortfolioDetails` via the shared `hasActiveCopilotReviewRuleset` helper), surfacing missing coverage as a standards-gap finding on the dashboard and MCP. Auto-enable: because Copilot review is a repository ruleset rather than a committed file, it cannot ride the templated file-PR path, so it routes to a new `settings` executor and a PR-less ruleset write — the trust model for which is set out in [ADR-009](docs/decisions/009-settings-level-writes.md) (Accepted 2026-06-13 after a five-persona council review). The apply path (`applyCopilotReviewRulesets`) rides the same five ADR-005 gates plus three writes-without-a-PR gates: additive/idempotent with a distinctively-named ruleset and a live pre-write detection check, scope-minimised to the single Copilot rule on the default branch (cannot block merges or restrict access), and a name-guarded `removeCopilotReviewRuleset` rollback affordance. v1 is manual-dispatch only (`apply.yml`, `tools=code-review-bot`), dry-run by default, and absent from the `apply-schedule` allow-list. Going live additionally requires granting the GitHub App `administration: write` (broader than the PR path's token) and is the maintainer's deliberate step; scheduled promotion waits on the codeowners/security-md track record per ADR-007's stage-4 gate.
 
 ### ~~Dashboard Narrative Restructure~~ SHIPPED
 
@@ -193,6 +193,8 @@ Security prerequisites (from architecture review): ~~bot URL validation~~, ~~eco
 
 ~~**Landscape evaluation**~~ — EVALUATED 2026-05-28 ([docs/research/2026-05-28-multi-repo-tooling-landscape.md](docs/research/2026-05-28-multi-repo-tooling-landscape.md)). Conclusion: embed no external tool into the Action — the zero-dependency, API-only, zero-infra moat rules out clone-based CLIs (`multi-gitter`, `git-xargs`) and self-hosted Probot apps (`safe-settings`, `allstar`). Community-health-file propagation extends `apply.js` natively rather than adopting `repo-file-sync-action`; `multi-gitter` is kept as a manual escape-hatch; `ossf/scorecard` is deferred as a future OBSERVE signal. See [ADR-007](docs/decisions/007-agents-and-execution.md) and the Landscape section.
 
+
+Progress (2026-06-14): Automated Copilot review auto-enablement via gated ruleset write successfully shipped (PR #272), implementing the settings-level write pattern designed in ADR-009 to streamline repository governance without manual rollout overhead.
 ---
 
 ## Future
