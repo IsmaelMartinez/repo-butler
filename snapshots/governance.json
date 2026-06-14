@@ -56,7 +56,7 @@
     "adoptionRate": 0.07142857142857142,
     "priority": "high",
     "remediation": {
-      "executor": "manual",
+      "executor": "settings",
       "targetFiles": [],
       "intent": "Add code-review-bot to 13 non-compliant repo(s)",
       "rationale": "Standards gap: code-review-bot adopted by 7% of in-scope repos; missing in yourear, sound3fy, teams-for-linux, ismaelmartinez.me.uk, generator-atlassian-compass-event-catalog, bonnie-wee-plot, ai-model-advisor, github-issue-triage-bot, repo-butler, wifisentinel, votescot, lounge-tv, delegate-local.",
