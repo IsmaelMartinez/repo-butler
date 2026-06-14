@@ -11,12 +11,12 @@
       "communityHealth": 100,
       "ciPassRate": 0.9375,
       "vulns": {
-        "count": 1,
+        "count": 2,
         "critical": 0,
-        "high": 0,
+        "high": 1,
         "medium": 0,
         "low": 1,
-        "max_severity": "low"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -34,7 +34,7 @@
       "pushed_at": "2026-06-12T22:49:06Z",
       "traffic": null,
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -68,7 +68,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -92,7 +92,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "sound3fy": {
@@ -293,12 +293,12 @@
       "communityHealth": 100,
       "ciPassRate": 0.9759036144578314,
       "vulns": {
-        "count": 1,
+        "count": 2,
         "critical": 0,
-        "high": 0,
+        "high": 1,
         "medium": 0,
         "low": 1,
-        "max_severity": "low"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -313,10 +313,10 @@
       },
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-14T01:15:08Z",
+      "pushed_at": "2026-06-14T12:50:27Z",
       "traffic": null,
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -350,7 +350,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -374,7 +374,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "generator-atlassian-compass-event-catalog": {
@@ -387,12 +387,12 @@
       "communityHealth": 85,
       "ciPassRate": 0.9896907216494846,
       "vulns": {
-        "count": 1,
+        "count": 2,
         "critical": 0,
-        "high": 0,
+        "high": 1,
         "medium": 0,
         "low": 1,
-        "max_severity": "low"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -410,7 +410,7 @@
       "pushed_at": "2026-06-12T10:24:45Z",
       "traffic": null,
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -444,7 +444,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -468,7 +468,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "bonnie-wee-plot": {
@@ -877,7 +877,7 @@
       },
       "ci": 10,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-14T08:25:54Z",
+      "pushed_at": "2026-06-14T12:32:44Z",
       "traffic": null,
       "computed": {
         "tier": "gold",
@@ -1045,12 +1045,12 @@
       "communityHealth": 100,
       "ciPassRate": 0.9204545454545454,
       "vulns": {
-        "count": 1,
+        "count": 2,
         "critical": 0,
-        "high": 0,
+        "high": 1,
         "medium": 0,
         "low": 1,
-        "max_severity": "low"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -1068,7 +1068,7 @@
       "pushed_at": "2026-06-12T17:45:01Z",
       "traffic": null,
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -1102,7 +1102,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -1126,7 +1126,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "lounge-tv": {
