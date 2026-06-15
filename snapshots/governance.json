@@ -18,50 +18,6 @@
   },
   {
     "type": "tier-uplift",
-    "repo": "yourear",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift yourear from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "ismaelmartinez.me.uk",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift ismaelmartinez.me.uk from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
     "repo": "generator-atlassian-compass-event-catalog",
     "currentTier": "silver",
     "targetTier": "gold",
@@ -76,28 +32,6 @@
       "executor": "agent",
       "targetFiles": [],
       "intent": "Uplift generator-atlassian-compass-event-catalog from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "votescot",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift votescot from silver to gold",
       "rationale": "1 check(s) block gold: Zero critical/high security findings.",
       "acceptanceCriteria": [
         "Check \"Zero critical/high security findings\" passes"
