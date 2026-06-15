@@ -82,11 +82,14 @@ policy-drift-exempt:
 # a scheduled run can open no more PRs than a dispatched one. Empty/absent means
 # the scheduled run opens nothing. `dependabot-rebase` promotes the stale-PR nudge.
 #
-# Every actionable class is promoted here, but apply-scheduled.yml still defaults
-# the cron run to dry-run (INPUT_DRY_RUN=true), so the scheduled path only LOGS
-# the PRs it would open — no cross-repo writes until the cron default flips to
-# live in a follow-up. The manual dispatch path (apply.yml) ignores this block
-# entirely. Remove a key to demote that class back to dispatch-only.
+# Every actionable class is promoted here, and as of 2026-06-15 (ADR-007 stage-4
+# live graduation) apply-scheduled.yml runs the weekly cron LIVE — it opens the
+# PRs / posts the nudges for these classes without a human at dispatch. Each PR is
+# still human-reviewed and merged; nothing auto-merges. A manual workflow_dispatch
+# of apply-scheduled.yml stays dry-run by default. The manual dispatch path
+# (apply.yml) ignores this block entirely. Remove a key to demote that class back
+# to dispatch-only. code-review-bot is intentionally absent — it is a settings
+# write with no PR-review moment, so it stays manual-dispatch-only per ADR-009.
 apply-schedule:
   code-scanning: true
   dependabot-actions: true
