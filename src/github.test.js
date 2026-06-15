@@ -328,3 +328,105 @@ describe('hasActiveCopilotReviewRuleset', () => {
     assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
   });
 });
+
+describe('createClient — mergePR', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('PUTs the merge endpoint with squash method and the sha guard', async () => {
+    const calls = [];
+    globalThis.fetch = mock.fn(async (url, opts) => {
+      calls.push({ url: url.toString(), method: opts.method, body: JSON.parse(opts.body) });
+      return jsonResponse({ merged: true, sha: 'merged-sha' });
+    });
+    const gh = createClient('tok');
+    const out = await gh.mergePR('o', 'r', 12, { method: 'squash', sha: 'head-sha' });
+    assert.deepEqual(out, { merged: true, sha: 'merged-sha' });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, 'PUT');
+    assert.match(calls[0].url, /\/repos\/o\/r\/pulls\/12\/merge$/);
+    assert.equal(calls[0].body.merge_method, 'squash');
+    assert.equal(calls[0].body.sha, 'head-sha');
+  });
+
+  it('defaults to squash and omits sha when not provided', async () => {
+    let captured;
+    globalThis.fetch = mock.fn(async (_url, opts) => { captured = JSON.parse(opts.body); return jsonResponse({ merged: true, sha: 's' }); });
+    const gh = createClient('tok');
+    await gh.mergePR('o', 'r', 3);
+    assert.equal(captured.merge_method, 'squash');
+    assert.ok(!('sha' in captured), 'no sha key when none supplied');
+  });
+
+  it('reports merged:false when the API does not confirm the merge', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({ merged: false, message: 'not mergeable' }));
+    const gh = createClient('tok');
+    const out = await gh.mergePR('o', 'r', 4, { sha: 'x' });
+    assert.equal(out.merged, false);
+  });
+});
+
+describe('createClient — prCiGreen', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  // Route the check-runs and combined-status endpoints to fixed bodies.
+  function route(checkRuns, statusBody) {
+    return mock.fn(async (url) => {
+      const u = url.toString();
+      if (u.includes('/check-runs')) return jsonResponse({ check_runs: checkRuns });
+      if (u.endsWith('/status')) return jsonResponse(statusBody);
+      return jsonResponse({});
+    });
+  }
+
+  it('true when all check-runs succeeded (neutral/skipped tolerated) and no failing status', async () => {
+    globalThis.fetch = route(
+      [{ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'skipped' }],
+      { state: 'success', statuses: [] },
+    );
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), true);
+  });
+
+  it('false when a check-run is still pending', async () => {
+    globalThis.fetch = route(
+      [{ status: 'completed', conclusion: 'success' }, { status: 'in_progress', conclusion: null }],
+      { state: 'pending', statuses: [] },
+    );
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+
+  it('false when a check-run failed', async () => {
+    globalThis.fetch = route(
+      [{ status: 'completed', conclusion: 'failure' }],
+      { state: 'success', statuses: [] },
+    );
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+
+  it('false when there is no CI signal at all (missing → not green)', async () => {
+    globalThis.fetch = route([], { state: 'pending', statuses: [] });
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+
+  it('false when a commit status is failing even if check-runs pass', async () => {
+    globalThis.fetch = route(
+      [{ status: 'completed', conclusion: 'success' }],
+      { state: 'failure', statuses: [{ state: 'failure' }] },
+    );
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+
+  it('false on error', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+});

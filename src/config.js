@@ -33,6 +33,14 @@ const DEFAULTS = {
   // is the per-class relaxation of ADR-005 gate 1 — opt-in and reversible. Empty
   // by default, so a scheduled run opens nothing until a class is explicitly added.
   'apply-schedule': {},
+  // Per-finding-class auto-merge allow-list (ADR-007 stage 5). Key-presence:
+  // `tool-name: true` lets the butler squash-merge its OWN green templated
+  // governance-apply PRs for that class — opt-in, never global, bounded to the
+  // deterministic template tools. Empty by default (default-closed), so nothing
+  // auto-merges until a class is explicitly added in a reviewed config change.
+  // Kill switches: empty this, set require_approval false, or disable the
+  // scheduled workflow.
+  'apply-automerge': {},
   release_exempt: '',
 };
 

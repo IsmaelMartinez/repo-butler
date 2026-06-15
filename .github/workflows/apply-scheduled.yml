@@ -74,6 +74,7 @@ jobs:
         env:
           APPLY: ${{ steps.apply.outputs.apply }}
           NUDGE: ${{ steps.apply.outputs.nudge }}
+          AUTOMERGE: ${{ steps.apply.outputs.automerge }}
           DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry-run || 'true') }}
         run: |
           mode="dry-run"
@@ -81,9 +82,10 @@ jobs:
           {
             echo "## Scheduled Governance Apply ($mode)"
             echo ""
-            echo "Ran without a human at dispatch (ADR-007 stage 4). Finding classes act only when promoted via \`apply-schedule\` in roadmap.yml."
+            echo "Ran without a human at dispatch (ADR-007 stage 4). Finding classes act only when promoted via \`apply-schedule\` in roadmap.yml. Auto-merge (stage 5) acts only on classes in \`apply-automerge\`."
             echo ""
             echo "- Apply summary: \`${APPLY:-(none — dry-run or nothing actionable)}\`"
             echo "- Nudge summary: \`${NUDGE:-(none — dry-run or nothing actionable)}\`"
+            echo "- Auto-merge summary: \`${AUTOMERGE:-(none — empty allow-list or nothing green)}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none}"
+          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none}"

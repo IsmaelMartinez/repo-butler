@@ -135,6 +135,12 @@
       "description": "Per-finding-class promotion allow-list for the scheduled apply path (ADR-007 stage 4). Key-presence allow-list: a tool mapped to true is promoted onto the no-human scheduled run; tools absent (the default) stay workflow_dispatch-only. The per-class, opt-in, reversible relaxation of ADR-005 gate 1 — require_approval and the blast-radius cap are unaffected. Defaults to empty, so a scheduled run opens nothing until a class is explicitly added. 'dependabot-rebase' promotes the stale-Dependabot-PR nudge onto the schedule.",
       "additionalProperties": { "type": "boolean" },
       "examples": [{ "code-scanning": true, "dependabot-rebase": true }]
+    },
+    "apply-automerge": {
+      "type": "object",
+      "description": "Per-finding-class auto-merge allow-list (ADR-007 stage 5). Key-presence allow-list: a deterministic template tool mapped to true lets the butler squash-merge its OWN green templated governance-apply PRs for that class. Opt-in, never global, bounded to the template tools (settings/nudge/policy-drift/tier-uplift/agent/manual classes are never eligible). Defaults to empty (default-closed), so nothing auto-merges until a class is explicitly added in a reviewed change. Preconditions: required CI green and PR mergeable; merges are squash (clean revert) with the merge SHA recorded. Kill switches: empty this, set require_approval false, or disable the scheduled workflow.",
+      "additionalProperties": { "type": "boolean" },
+      "examples": [{ "dependabot-actions": true }]
     }
   }
 }

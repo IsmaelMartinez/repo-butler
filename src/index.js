@@ -30,9 +30,9 @@ async function runApply(context) {
   // Stage 4 (ADR-007): set by the scheduled apply workflow only. On the no-human
   // path, apply.js gates each finding class behind the apply-schedule allow-list.
   const scheduled = process.env.INPUT_SCHEDULED === 'true';
-  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets;
+  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, autoMergeGovernancePRs;
   try {
-    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets } = await import('./apply.js'));
+    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, autoMergeGovernancePRs } = await import('./apply.js'));
   } catch {
     console.error('Apply module not available yet (src/apply.js). Skipping.');
     return;
@@ -86,6 +86,22 @@ async function runApply(context) {
     );
   }
 
+  // Selective auto-merge reconcile pass (ADR-007 stage 5). Squash-merges the
+  // butler's own green templated apply PRs for `apply-automerge`-allow-listed
+  // classes (default empty → no-op). Runs on the scheduled path, or on a manual
+  // dispatch with a blank `tools` (full run) or an explicit `automerge` token, so
+  // a tool-scoped dispatch never merges by surprise. Honours the run's dry-run.
+  const autoMergeRequested = scheduled || tools.length === 0 || tools.includes('automerge');
+  const autoMergeResult = autoMergeRequested
+    ? await autoMergeGovernancePRs(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun })
+    : null;
+  if (autoMergeResult?.summary && process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `automerge=${JSON.stringify(autoMergeResult.summary)}\n`,
+    );
+  }
+
   // Per-repo errors (e.g. App lacks workflows: write on a target installation)
   // are operator-actionable failures: each one represents a finding the operator
   // explicitly asked to remediate that did not produce a PR. Surface them by
@@ -116,6 +132,15 @@ async function runApply(context) {
       .join(', ');
     errParts.push(
       `copilot-review: ${copilotResult.summary.errors} error(s) [${failed}]; ${copilotResult.summary.created} created, ${copilotResult.summary.skipped} skipped`,
+    );
+  }
+  if (autoMergeResult?.summary?.errors > 0) {
+    const failed = autoMergeResult.results
+      .filter(r => r.status === 'error')
+      .map(r => `${r.repo}/${r.tool}`)
+      .join(', ');
+    errParts.push(
+      `automerge: ${autoMergeResult.summary.errors} error(s) [${failed}]; ${autoMergeResult.summary.merged} merged, ${autoMergeResult.summary.skipped} skipped`,
     );
   }
   if (errParts.length > 0) {

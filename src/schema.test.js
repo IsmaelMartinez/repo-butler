@@ -101,6 +101,7 @@ describe('config schema matches DEFAULTS', () => {
       'standards-exclude': {},
       'apply-cap': {},
       'apply-schedule': {},
+      'apply-automerge': {},
     };
 
     // The schema also has a `repository` property (runtime-injected, not in DEFAULTS) — skip it
