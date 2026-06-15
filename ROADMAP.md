@@ -67,23 +67,15 @@ GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core rep
 Roadmap PR noise reduction shipped 2026-06-12 (PR #263). Refined the automated update workflow to skip opening pull requests when changes are limited solely to date-only updates, significantly reducing automated volume and noise during routine maintenance runs.
 
 Roadmap scheduled action and reference append optimizations shipped 2026-06-13 (PRs #265 and #266). Refined the core roadmap update mechanisms to optimize scheduled actions and reference appending logic, ensuring cleaner maintenance cycles and robust long-term planning alignment.
+
+Copilot code review feature shipped 2026-06-15 (PR #273). This milestone officially completes the 'AI code review agent' implementation, marking the feature as live and fully integrated into the project roadmap.
 ---
 
 ## Roadmap
 
 ### ~~Phase 1 — Richer Observation (consume, don't replicate)~~ SHIPPED
 
-Shipped 2026-03-22 (PR #18). Community health profile, Dependabot alerts, CI pass rate, bus factor, time-to-close median. Portfolio table + per-repo health cards.
-
-**GitHub Community Health Profile** — Call `/repos/{owner}/{repo}/community/profile` (one unauthenticated call per public repo) to get a health percentage and presence/absence of README, CODE_OF_CONDUCT, CONTRIBUTING, issue templates, PR template, and LICENSE. Add to the portfolio health matrix as a "Community" column. The API returns structured data that directly maps to a gap checklist for the CARE phase.
-
-**Dependabot Vulnerability Alerts** — Call `/repos/{owner}/{repo}/dependabot/alerts?state=open` to get open security alerts with severity (critical/high/medium/low), affected package, and patched version. Add a "Vulns" column to the health matrix, colour-coded by maximum severity. Requires `vulnerability_alerts: read` scope on the token for cross-repo access.
-
-**CI Workflow Pass Rate** — Call `/repos/{owner}/{repo}/actions/runs?status=completed&per_page=100` and compute `success / (success + failure + cancelled + timed_out)`, excluding skipped runs. Display as a percentage in the health matrix and flag repos below 90% as having flaky CI.
-
-**Time to First Response** — From existing issue data (already fetched), compute the median time between issue creation and the first comment by someone other than the author. This is a CHAOSS standard metric and a key community health signal.
-
-**Bus Factor** — From existing PR author distribution data, compute the minimum number of contributors responsible for 50% of merged PRs. Flag repos where this number is 1-2 as single-maintainer risk.
+Shipped 2026-03-22 (#18). Full detail in git history.
 
 ### ~~Phase 2 — Richer Reports~~ SHIPPED
 
@@ -99,7 +91,7 @@ Shipped 2026-03-24 (PRs #41–#42). IDEATE now requests structured specs (curren
 
 ### ~~Consumer Packaging~~ SHIPPED
 
-Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm dependencies, so GitHub Actions' native `node22` runtime runs `src/index.js` directly. The `action.yml` already declares `using: 'node22'` and `main: 'src/index.js'`, which is all that's required. Consumers reference the action as `uses: IsmaelMartinez/repo-butler@v1`. Dependabot is configured for the `github-actions` ecosystem to keep workflow dependencies current. README includes Usage, Quick Start, and Configuration sections for consumers.
+Shipped 2026-03-24. Full detail in git history.
 
 ---
 
@@ -117,13 +109,11 @@ Progress (2026-06-15): SHIPPED and LIVE. PR #271 (detection) and PR #272 (ADR-00
 
 ### ~~Dashboard Narrative Restructure~~ SHIPPED
 
-Shipped 2026-04-08 (PRs #93–#100). Restructured both portfolio and per-repo dashboards from data dumps into narrative decision tools following a situation-problem-action arc. Portfolio page: tier distribution pulse, attention required section, simplified health table (Repo, Tier, Issues, PRs, CI%, Vulns, Next Step) with full view behind toggle, collapsible charts and dependency inventory, doughnut charts removed. Per-repo page: health grid merged into tier checklist with inline annotations, trends moved up, Open Work section, collapsible Activity History and Community. Also fixed PRs Merged (90d) data consistency, added issues:read to the GitHub App, and added open PRs column.
+Shipped 2026-04-08 (#93, #100). Full detail in git history.
 
 ### ~~Astro Integration + Dynamic Dashboards~~ SHIPPED
 
-Shipped 2026-04-14. The presentation layer now lives in the personal website (ismaelmartinez.me.uk) as Astro components that consume snapshot JSON from the `repo-butler-data` branch at build time and hydrate interactive islands for live metrics (open PRs, issues) from the GitHub API on page load. Repo-butler remains the data collection layer (zero-dependency GitHub Action producing JSON snapshots). The GitHub Pages reports stay as a standalone fallback.
-
-~~Immediate prerequisites: fix report cache invalidation (include template file hashes in cache key so presentation changes auto-deploy), parallelise libyear computation (~30s saving), and implement incremental report generation (skip unchanged repos, cut API calls by ~80%).~~ All three prerequisites shipped 2026-04-13. Cache key now includes `src/report.js` itself. Libyear runs all repos in parallel (was sequential batches of 4). Per-repo detail + chart data cache on the `repo-butler-data` branch skips both `fetchPortfolioDetails` API calls and per-repo chart fetches for unchanged repos (by `pushed_at` + `open_issues_count` comparison).
+Shipped 2026-04-14. Full detail in git history.
 
 ### Scheduled pipeline wiring
 
@@ -235,7 +225,7 @@ Shipped 2026-03-29 (PR #59). Six JSON Schema 2020-12 definitions in `schemas/v1/
 
 ### ~~Phase 7 — MCP Server~~ SHIPPED
 
-Shipped 2026-03-30 (PR #60). Zero-dependency MCP server at `src/mcp.js` (JSON-RPC 2.0 over stdio). Three resources (latest snapshot, portfolio health, campaign status) and four tools on launch: `get_health_tier`, `get_campaign_status`, `query_portfolio`, `get_snapshot_diff`. Later expanded to nine tools: `get_governance_findings`, `trigger_refresh`, `get_monitor_events`, `get_watchlist`, `get_council_personas`. Connect with `claude mcp add repo-butler node src/mcp.js`.
+Shipped 2026-03-30 (#60). Full detail in git history.
 
 ### Phase 8 — A2A Agent Card + Triage Bot Contract
 
