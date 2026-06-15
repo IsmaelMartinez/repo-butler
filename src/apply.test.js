@@ -895,19 +895,22 @@ describe('autoMergeGovernancePRs', () => {
   ];
 
   // Mock client: `open` maps "<repo>:<tool>" → array of open apply PRs.
-  function mkGh({ open = {}, green = true, mergeable = true, merges = [] } = {}) {
+  function mkGh({ open = {}, green = true, mergeable = true, mergeConfirmed = true, merges = [] } = {}) {
     return {
       paginate: async (path, opts) => {
         const head = opts?.params?.head || '';
         const tool = (head.match(/repo-butler\/apply-(.+)$/) || [])[1] || null;
         const repo = (path.match(/\/repos\/[^/]+\/([^/]+)\/pulls/) || [])[1] || null;
-        return open[`${repo}:${tool}`] || [];
+        const prs = open[`${repo}:${tool}`] || [];
+        // Mirror GitHub: returned PRs carry head.ref = the queried branch unless
+        // the fixture sets its own ref (used to exercise the branch-ref guard).
+        return prs.map(p => ({ ...p, head: { ...(p.head || {}), ref: p.head?.ref ?? `repo-butler/apply-${tool}` } }));
       },
       request: async () => ({ mergeable }),
       prCiGreen: async () => green,
       mergePR: async (owner, repo, number, mopts) => {
         merges.push({ repo, number, ...mopts });
-        return { merged: true, sha: 'sha-merged' };
+        return { merged: mergeConfirmed, sha: mergeConfirmed ? 'sha-merged' : undefined };
       },
     };
   }
@@ -1026,5 +1029,35 @@ describe('autoMergeGovernancePRs', () => {
     const r = await autoMergeGovernancePRs(gh, 'owner', manyFindings, cfg({ 'dependabot-actions': true }), { dryRun: false, maxPerRun: 2 });
     assert.equal(r.summary.merged, 2, 'global cap of 2 bounds the merge count');
     assert.equal(merges.length, 2);
+  });
+
+  it('skips a PR whose mergeable is null (GitHub still computing)', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, mergeable: null, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 0);
+    assert.equal(r.summary.merged, 0);
+    assert.match(r.results[0].reason, /not mergeable/);
+  });
+
+  it('records an error (not a merge) when the merge API does not confirm', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, mergeConfirmed: false, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 1, 'the merge was attempted');
+    assert.equal(r.summary.merged, 0);
+    assert.equal(r.summary.errors, 1);
+    assert.match(r.results[0].error, /not confirmed/);
+  });
+
+  it('does not merge a PR whose head branch is not the butler apply branch (write-path guard)', async () => {
+    const merges = [];
+    // A PR returned by the head filter but whose actual head.ref differs (e.g. a
+    // collision or an API edge case) must not be merged.
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7', ref: 'someone-elses-branch' } }] }, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 0, 'never merges a PR off the expected branch');
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /no open apply PR/);
   });
 });

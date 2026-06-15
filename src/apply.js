@@ -763,7 +763,11 @@ export async function autoMergeGovernancePRs(gh, owner, findings, config, option
         params: { state: 'open', head: `${owner}:${branchName}`, per_page: 10 },
         max: 10,
       }).catch(() => []);
-      const pr = Array.isArray(prs) ? prs.find(p => p && p.number) : null;
+      // Re-assert the head branch client-side, not just via the API `head:` filter:
+      // this is a merge (write) path, so confirm the PR is actually on the butler's
+      // `repo-butler/apply-<tool>` branch before merging, rather than trusting the
+      // server-side filter to have returned only matching PRs.
+      const pr = Array.isArray(prs) ? prs.find(p => p && p.number && p.head?.ref === branchName) : null;
       if (!pr) {
         results.push({ repo, tool, status: 'skipped', reason: 'no open apply PR' });
         continue;

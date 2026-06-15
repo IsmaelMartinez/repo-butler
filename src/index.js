@@ -88,10 +88,12 @@ async function runApply(context) {
 
   // Selective auto-merge reconcile pass (ADR-007 stage 5). Squash-merges the
   // butler's own green templated apply PRs for `apply-automerge`-allow-listed
-  // classes (default empty → no-op). Runs on the scheduled path, or on a manual
-  // dispatch with a blank `tools` (full run) or an explicit `automerge` token, so
-  // a tool-scoped dispatch never merges by surprise. Honours the run's dry-run.
-  const autoMergeRequested = scheduled || tools.length === 0 || tools.includes('automerge');
+  // classes (default empty → no-op). Deliberately NOT triggered by a blank-tools
+  // full run: it fires only on the real scheduled cron (the workflow sets
+  // INPUT_AUTOMERGE only when github.event_name == 'schedule') or an explicit
+  // `tools=automerge` dispatch — so opening PRs (a normal live apply run) never
+  // auto-merges by surprise once a class is allow-listed. Honours the run's dry-run.
+  const autoMergeRequested = process.env.INPUT_AUTOMERGE === 'true' || tools.includes('automerge');
   const autoMergeResult = autoMergeRequested
     ? await autoMergeGovernancePRs(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun })
     : null;

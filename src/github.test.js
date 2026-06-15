@@ -424,6 +424,28 @@ describe('createClient — prCiGreen', () => {
     assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
   });
 
+  it('true for a legacy-status-only repo (no check-runs, combined status success)', async () => {
+    globalThis.fetch = route([], { state: 'success', statuses: [{ state: 'success' }] });
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), true);
+  });
+
+  it('paginates check-runs: a failing run on page 2 (beyond the first 100) blocks green', async () => {
+    const page1 = Array.from({ length: 100 }, () => ({ status: 'completed', conclusion: 'success' }));
+    const page2 = [{ status: 'completed', conclusion: 'failure' }];
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = url.toString();
+      if (u.includes('/check-runs')) {
+        const page = Number(new URL(u).searchParams.get('page')) || 1;
+        return jsonResponse({ total_count: 101, check_runs: page === 1 ? page1 : page2 });
+      }
+      if (u.endsWith('/status')) return jsonResponse({ state: 'success', statuses: [] });
+      return jsonResponse({});
+    });
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+
   it('false on error', async () => {
     globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
     const gh = createClient('tok');

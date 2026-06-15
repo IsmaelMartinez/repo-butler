@@ -196,8 +196,20 @@ export function createClient(token) {
   async function prCiGreen(owner, repo, ref) {
     const OK = new Set(['success', 'neutral', 'skipped']);
     try {
-      const cr = await request(`/repos/${owner}/${repo}/commits/${ref}/check-runs`, { params: { per_page: 100 } });
-      const runs = Array.isArray(cr?.check_runs) ? cr.check_runs : [];
+      // Fetch ALL check-runs. The endpoint returns an object
+      // `{ total_count, check_runs }` (not a top-level array), so `paginate()`
+      // can't be used — page manually until `total_count` is collected. A single
+      // `per_page: 100` call would miss a failing or pending run beyond the first
+      // page on a repo with many checks (matrix builds), letting a not-green PR
+      // auto-merge. The page cap (10 → 1000 runs) is a runaway backstop.
+      const runs = [];
+      for (let page = 1; page <= 10; page++) {
+        const cr = await request(`/repos/${owner}/${repo}/commits/${ref}/check-runs`, { params: { per_page: 100, page } });
+        const batch = Array.isArray(cr?.check_runs) ? cr.check_runs : [];
+        runs.push(...batch);
+        const total = Number(cr?.total_count) || 0;
+        if (batch.length === 0 || runs.length >= total) break;
+      }
       const st = await request(`/repos/${owner}/${repo}/commits/${ref}/status`).catch(() => null);
       const statuses = Array.isArray(st?.statuses) ? st.statuses : [];
 
