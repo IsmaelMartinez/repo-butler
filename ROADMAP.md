@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-13
+**Last Updated:** 2026-06-15
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -105,13 +105,15 @@ Shipped 2026-03-24. No `ncc` bundling needed — the project has zero npm depend
 
 ## Next Up
 
-### AI code review agent — replace Gemini, standardise across the portfolio
+### ~~AI code review agent — replace Gemini, standardise across the portfolio~~ SHIPPED
 
 Deadline-driven: Gemini Code Assist's consumer GitHub reviews cease 2026-07-17 (new installs blocked from 2026-06-18), and it is the last AI review bot still posting on repo-butler, so `/address-pr-comments` and the wait-for-bots step will soon find nothing. Pick one free replacement and apply it across most repos. Free-for-public-repo options (verified 2026-06): CodeRabbit Pro is free forever for public repos with the full feature set and is already configured here (restoring it may be a re-install); GitHub Copilot code review is free for public repos (the 2026-06-01 Actions-minutes/AI-credit billing hits private repos only) and is GitHub-native with zero added infrastructure. Qodo Merge's free tier caps at 75 reviews/org/month — too small for ~14 repos — and PR-Agent self-host is free software but needs a paid LLM key plus infra, against the zero-infra moat. Lean CodeRabbit Pro or Copilot review, pending a Copilot-licence check.
 
 Then add the functionality here: a `code-review-bot` governance standard plus a templatable apply config (a `.coderabbit.yaml`, or enabling Copilot review) so Governance Apply propagates the chosen agent to any repo missing it — the same pattern as code-scanning, dependabot-actions, and dependabot-auto-merge — turning portfolio-wide review coverage into a measured campaign rather than a manual rollout.
 
 Progress (2026-06-13): Copilot code review chosen as the standard, and both halves now shipped. Detection: a `code-review-bot` governance standard checks each eligible repo for an active `copilot_code_review` repository ruleset (`details.hasCopilotReview`, derived in `fetchPortfolioDetails` via the shared `hasActiveCopilotReviewRuleset` helper), surfacing missing coverage as a standards-gap finding on the dashboard and MCP. Auto-enable: because Copilot review is a repository ruleset rather than a committed file, it cannot ride the templated file-PR path, so it routes to a new `settings` executor and a PR-less ruleset write — the trust model for which is set out in [ADR-009](docs/decisions/009-settings-level-writes.md) (Accepted 2026-06-13 after a five-persona council review). The apply path (`applyCopilotReviewRulesets`) rides the same five ADR-005 gates plus three writes-without-a-PR gates: additive/idempotent with a distinctively-named ruleset and a live pre-write detection check, scope-minimised to the single Copilot rule on the default branch (cannot block merges or restrict access), and a name-guarded `removeCopilotReviewRuleset` rollback affordance. v1 is manual-dispatch only (`apply.yml`, `tools=code-review-bot`), dry-run by default, and absent from the `apply-schedule` allow-list. Going live additionally requires granting the GitHub App `administration: write` (broader than the PR path's token) and is the maintainer's deliberate step; scheduled promotion waits on the codeowners/security-md track record per ADR-007's stage-4 gate.
+
+Progress (2026-06-15): SHIPPED and LIVE. PR #271 (detection) and PR #272 (ADR-009 auto-enable) merged, the maintainer granted the GitHub App `administration: write` scope and approved it on the installation, and two manual `apply.yml` dispatches (`tools=code-review-bot`, dry-run off) created the `repo-butler/copilot-code-review` ruleset across all 13 non-compliant repos — a five-repo canary followed by a sweep of the remaining eight at `max-apply-per-run=15`, with the live idempotency guard skipping the already-enabled five (0 errors, independently verified 13/13 via the rulesets API). The `code-review-bot` standards-gap finding is now clear: zero non-compliant repos, so Copilot code review covers the portfolio ahead of Gemini Code Assist's 2026-07-17 sunset. v1 stays manual-dispatch only and absent from the `apply-schedule` allow-list; promoting it onto the no-human scheduled apply is the remaining ADR-007 stage-4 step, now backed by this clean track record.
 
 ### ~~Dashboard Narrative Restructure~~ SHIPPED
 
