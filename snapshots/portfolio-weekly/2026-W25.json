@@ -32,7 +32,16 @@
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
       "pushed_at": "2026-06-12T22:49:06Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 6,
+          "uniques": 1
+        },
+        "clones_14d": {
+          "count": 131,
+          "uniques": 58
+        }
+      },
       "computed": {
         "tier": "silver",
         "checks": [
@@ -126,7 +135,16 @@
       "ci": 7,
       "released_at": "2025-12-20T09:59:52Z",
       "pushed_at": "2026-06-08T06:15:46Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 2,
+          "uniques": 2
+        },
+        "clones_14d": {
+          "count": 87,
+          "uniques": 38
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -191,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 25,
-      "open_bugs": 10,
-      "commits_6mo": 411,
-      "stars": 4773,
+      "open_issues": 24,
+      "open_bugs": 9,
+      "commits_6mo": 412,
+      "stars": 4774,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9473684210526315,
+      "ciPassRate": 0.9655172413793104,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -219,10 +237,19 @@
       },
       "ci": 14,
       "released_at": "2026-05-29T19:31:34Z",
-      "pushed_at": "2026-06-15T07:08:50Z",
-      "traffic": null,
+      "pushed_at": "2026-06-15T10:20:23Z",
+      "traffic": {
+        "views_14d": {
+          "count": 7997,
+          "uniques": 3946
+        },
+        "clones_14d": {
+          "count": 6660,
+          "uniques": 689
+        }
+      },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -236,7 +263,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -280,7 +307,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Fewer than 10 open bugs"
+        "next_step": null
       }
     },
     "ismaelmartinez.me.uk": {
@@ -314,7 +341,16 @@
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
       "pushed_at": "2026-06-14T18:38:33Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 26,
+          "uniques": 9
+        },
+        "clones_14d": {
+          "count": 2143,
+          "uniques": 512
+        }
+      },
       "computed": {
         "tier": "silver",
         "checks": [
@@ -408,7 +444,16 @@
       "ci": 8,
       "released_at": "2026-04-20T20:38:19Z",
       "pushed_at": "2026-06-12T10:24:45Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 9,
+          "uniques": 5
+        },
+        "clones_14d": {
+          "count": 112,
+          "uniques": 52
+        }
+      },
       "computed": {
         "tier": "silver",
         "checks": [
@@ -502,7 +547,16 @@
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
       "pushed_at": "2026-06-15T08:33:20Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 18,
+          "uniques": 6
+        },
+        "clones_14d": {
+          "count": 2707,
+          "uniques": 455
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -596,7 +650,16 @@
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
       "pushed_at": "2026-06-15T07:42:11Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 3,
+          "uniques": 1
+        },
+        "clones_14d": {
+          "count": 795,
+          "uniques": 168
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -690,7 +753,16 @@
       "ci": 8,
       "released_at": "2026-04-04T14:32:15Z",
       "pushed_at": "2026-06-15T02:45:49Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 22,
+          "uniques": 6
+        },
+        "clones_14d": {
+          "count": 407,
+          "uniques": 74
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -784,7 +856,16 @@
       "ci": 14,
       "released_at": "2026-04-01T12:26:05Z",
       "pushed_at": "2026-06-08T06:45:05Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 9,
+          "uniques": 6
+        },
+        "clones_14d": {
+          "count": 779,
+          "uniques": 122
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -851,11 +932,11 @@
       "id": 1185787142,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 332,
+      "commits_6mo": 333,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9753086419753086,
+      "ciPassRate": 0.975609756097561,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -875,10 +956,19 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 10,
+      "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-15T08:10:54Z",
-      "traffic": null,
+      "pushed_at": "2026-06-15T12:52:01Z",
+      "traffic": {
+        "views_14d": {
+          "count": 17,
+          "uniques": 2
+        },
+        "clones_14d": {
+          "count": 5608,
+          "uniques": 1575
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -972,7 +1062,16 @@
       "ci": 5,
       "released_at": "2026-04-01T08:19:52Z",
       "pushed_at": "2026-06-13T01:52:18Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 21,
+          "uniques": 10
+        },
+        "clones_14d": {
+          "count": 242,
+          "uniques": 79
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -1066,7 +1165,16 @@
       "ci": 8,
       "released_at": "2026-04-05T23:25:44Z",
       "pushed_at": "2026-06-12T17:45:01Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 1,
+          "uniques": 1
+        },
+        "clones_14d": {
+          "count": 127,
+          "uniques": 49
+        }
+      },
       "computed": {
         "tier": "silver",
         "checks": [
@@ -1160,7 +1268,16 @@
       "ci": 5,
       "released_at": "2026-04-07T07:04:50Z",
       "pushed_at": "2026-06-08T06:15:35Z",
-      "traffic": null,
+      "traffic": {
+        "views_14d": {
+          "count": 7,
+          "uniques": 4
+        },
+        "clones_14d": {
+          "count": 400,
+          "uniques": 54
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
@@ -1227,7 +1344,7 @@
       "id": 1223288066,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 249,
+      "commits_6mo": 251,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1251,10 +1368,19 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 7,
+      "ci": 8,
       "released_at": "2026-06-14T21:21:39Z",
-      "pushed_at": "2026-06-15T08:54:34Z",
-      "traffic": null,
+      "pushed_at": "2026-06-15T12:56:23Z",
+      "traffic": {
+        "views_14d": {
+          "count": 31,
+          "uniques": 8
+        },
+        "clones_14d": {
+          "count": 2978,
+          "uniques": 703
+        }
+      },
       "computed": {
         "tier": "gold",
         "checks": [
