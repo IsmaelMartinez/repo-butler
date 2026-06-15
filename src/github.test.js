@@ -446,6 +446,17 @@ describe('createClient — prCiGreen', () => {
     assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
   });
 
+  it('false (fail-closed) when the combined-status read fails, even if check-runs are green', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = url.toString();
+      if (u.includes('/check-runs')) return jsonResponse({ total_count: 1, check_runs: [{ status: 'completed', conclusion: 'success' }] });
+      if (u.endsWith('/status')) return errorResponse(500, 'status boom');
+      return jsonResponse({});
+    });
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+
   it('false on error', async () => {
     globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
     const gh = createClient('tok');

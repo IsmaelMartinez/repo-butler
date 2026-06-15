@@ -210,7 +210,10 @@ export function createClient(token) {
         const total = Number(cr?.total_count) || 0;
         if (batch.length === 0 || runs.length >= total) break;
       }
-      const st = await request(`/repos/${owner}/${repo}/commits/${ref}/status`).catch(() => null);
+      // No `.catch` here: if the combined-status read fails, let it propagate to
+      // the outer catch so the function returns false (fail-closed). Swallowing it
+      // would let a green check-runs result merge a PR whose statuses are unknown.
+      const st = await request(`/repos/${owner}/${repo}/commits/${ref}/status`);
       const statuses = Array.isArray(st?.statuses) ? st.statuses : [];
 
       // Missing → not green: never auto-merge a head with no CI signal at all.

@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, isAutoMergeAllowed, autoMergeGovernancePRs } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -895,7 +895,9 @@ describe('autoMergeGovernancePRs', () => {
   ];
 
   // Mock client: `open` maps "<repo>:<tool>" → array of open apply PRs.
-  function mkGh({ open = {}, green = true, mergeable = true, mergeConfirmed = true, merges = [] } = {}) {
+  // `detailBody` is the PR-detail body returned by request(); defaults to a string
+  // carrying the butler marker so the identity guard passes for legit PRs.
+  function mkGh({ open = {}, green = true, mergeable = true, mergeConfirmed = true, detailBody = `templated apply PR\n*${APPLY_PR_MARKER}(...)*`, merges = [] } = {}) {
     return {
       paginate: async (path, opts) => {
         const head = opts?.params?.head || '';
@@ -906,7 +908,7 @@ describe('autoMergeGovernancePRs', () => {
         // the fixture sets its own ref (used to exercise the branch-ref guard).
         return prs.map(p => ({ ...p, head: { ...(p.head || {}), ref: p.head?.ref ?? `repo-butler/apply-${tool}` } }));
       },
-      request: async () => ({ mergeable }),
+      request: async () => ({ mergeable, body: detailBody }),
       prCiGreen: async () => green,
       mergePR: async (owner, repo, number, mopts) => {
         merges.push({ repo, number, ...mopts });
@@ -1059,5 +1061,35 @@ describe('autoMergeGovernancePRs', () => {
     assert.equal(merges.length, 0, 'never merges a PR off the expected branch');
     assert.equal(r.results[0].status, 'skipped');
     assert.match(r.results[0].reason, /no open apply PR/);
+  });
+
+  it('does not merge a PR lacking the butler body marker (identity guard)', async () => {
+    const merges = [];
+    // A PR on the expected branch but whose body lacks the butler marker (e.g. a
+    // human opened it from a colliding branch name) must not be auto-merged.
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, detailBody: 'hand-written PR, not the butler', merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 0);
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /not a butler apply PR/);
+  });
+
+  it('treats a 409 from mergePR as skip (head advanced), not an error', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, merges });
+    gh.mergePR = async () => { throw new Error('GitHub API PUT /repos/owner/repo-a/pulls/7/merge: 409 head changed'); };
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.errors, 0, '409 is not an error');
+    assert.equal(r.summary.merged, 0);
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /409/);
+  });
+
+  it('surfaces a paginate failure as an error (no longer swallowed)', async () => {
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] } });
+    gh.paginate = async () => { throw new Error('GitHub API GET /pulls: 500 boom'); };
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.errors, 1);
+    assert.equal(r.results[0].status, 'error');
   });
 });
