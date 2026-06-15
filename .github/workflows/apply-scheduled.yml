@@ -1,12 +1,12 @@
 name: Governance Apply (scheduled)
 
 # Stage 4 (ADR-007): the no-human-at-dispatch apply path. Unlike apply.yml
-# (workflow_dispatch only, ADR-005 gate 1), this runs on a schedule — so it is
-# default-closed twice over: it ships dry-run by default AND only acts on finding
-# classes explicitly promoted via `apply-schedule` in roadmap.yml (empty today,
-# so a scheduled run opens nothing until a class is added and the soak graduates
-# to live in a follow-up PR). require_approval, the per-run cap, batching, and
-# repo-name validation (ADR-005 gates 2-5) all still apply.
+# (workflow_dispatch only, ADR-005 gate 1), this runs on a schedule. Graduated to
+# live 2026-06-15: the weekly cron run defaults to live (writes), acting only on
+# the finding classes promoted via `apply-schedule` in roadmap.yml; a manual
+# workflow_dispatch still defaults to dry-run. require_approval, the per-run cap,
+# batching, and repo-name validation (ADR-005 gates 2-5) all still apply, so a
+# scheduled run opens no more PRs than a dispatched one and nothing merges itself.
 
 on:
   schedule:
@@ -57,8 +57,9 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           INPUT_PHASE: apply
           INPUT_CONFIG_PATH: .github/roadmap.yml
-          # Default-closed for the soak: dry-run unless explicitly dispatched live.
-          INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+          # Stage-4 live (2026-06-15): the scheduled cron run writes; a manual
+          # workflow_dispatch stays dry-run unless explicitly set false.
+          INPUT_DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry-run || 'true') }}
           INPUT_TOOLS: ${{ github.event.inputs.tools || '' }}
           INPUT_MAX_APPLY_PER_RUN: ${{ github.event.inputs.max-apply-per-run || '5' }}
           # Marks this as the no-human scheduled path: apply.js gates each finding
@@ -73,7 +74,7 @@ jobs:
         env:
           APPLY: ${{ steps.apply.outputs.apply }}
           NUDGE: ${{ steps.apply.outputs.nudge }}
-          DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry-run || 'true') }}
         run: |
           mode="dry-run"
           [ "$DRY_RUN" = "false" ] && mode="LIVE"
