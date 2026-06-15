@@ -67,8 +67,6 @@ GitHub ID bridging mechanism shipped 2026-05-27 (PR #235). Upgraded the core rep
 Roadmap PR noise reduction shipped 2026-06-12 (PR #263). Refined the automated update workflow to skip opening pull requests when changes are limited solely to date-only updates, significantly reducing automated volume and noise during routine maintenance runs.
 
 Roadmap scheduled action and reference append optimizations shipped 2026-06-13 (PRs #265 and #266). Refined the core roadmap update mechanisms to optimize scheduled actions and reference appending logic, ensuring cleaner maintenance cycles and robust long-term planning alignment.
-
-Architectural and feature graduation shipped 2026-06-15 via PR #275, successfully transitioning the stage-4 scheduled apply feature to the live production environment in alignment with ADR-007.
 ---
 
 ## Roadmap
