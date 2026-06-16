@@ -122,3 +122,8 @@ apply-schedule:
 # Add more classes here one at a time, each as its own reviewed change.
 apply-automerge:
   dependabot-actions: true
+  # Enabled 2026-06-16: security-md, the second class. A purely additive
+  # .github/SECURITY.md doc — no CI execution, no behaviour change — with a clean
+  # merged track record (the 2026-06-07/08 security-md sweep). Lowest-risk class
+  # after dependabot-actions; promoted next in the one-at-a-time rollout.
+  security-md: true
