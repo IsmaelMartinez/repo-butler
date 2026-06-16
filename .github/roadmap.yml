@@ -127,3 +127,8 @@ apply-automerge:
   # merged track record (the 2026-06-07/08 security-md sweep). Lowest-risk class
   # after dependabot-actions; promoted next in the one-at-a-time rollout.
   security-md: true
+  # Enabled 2026-06-16: codeowners, the third class. A purely additive
+  # .github/CODEOWNERS file (`* @<owner>`, no CI execution); on a single-maintainer
+  # estate it routes review to the owner without blocking merges. Clean merged
+  # track record (the 2026-06-07/08 codeowners sweep + the yourear #47 canary).
+  codeowners: true
