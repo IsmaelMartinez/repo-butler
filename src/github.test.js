@@ -457,6 +457,18 @@ describe('createClient — prCiGreen', () => {
     assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
   });
 
+  it('false (fail-closed) when check-runs exceed the 10-page cap (>1000 runs, unverifiable)', async () => {
+    const fullPage = Array.from({ length: 100 }, () => ({ status: 'completed', conclusion: 'success' }));
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = url.toString();
+      if (u.includes('/check-runs')) return jsonResponse({ total_count: 2000, check_runs: fullPage });
+      if (u.endsWith('/status')) return jsonResponse({ state: 'success', statuses: [] });
+      return jsonResponse({});
+    });
+    const gh = createClient('tok');
+    assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+
   it('false on error', async () => {
     globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
     const gh = createClient('tok');

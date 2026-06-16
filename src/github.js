@@ -203,13 +203,18 @@ export function createClient(token) {
       // page on a repo with many checks (matrix builds), letting a not-green PR
       // auto-merge. The page cap (10 → 1000 runs) is a runaway backstop.
       const runs = [];
+      let complete = false;
       for (let page = 1; page <= 10; page++) {
         const cr = await request(`/repos/${owner}/${repo}/commits/${ref}/check-runs`, { params: { per_page: 100, page } });
         const batch = Array.isArray(cr?.check_runs) ? cr.check_runs : [];
         runs.push(...batch);
         const total = Number(cr?.total_count) || 0;
-        if (batch.length === 0 || runs.length >= total) break;
+        if (batch.length === 0 || runs.length >= total) { complete = true; break; }
       }
+      // Hit the 10-page cap without collecting every run (>1000 check-runs): the
+      // full set is unverifiable, so fail closed rather than risk merging past a
+      // hidden failing/pending run beyond the cap.
+      if (!complete) return false;
       // No `.catch` here: if the combined-status read fails, let it propagate to
       // the outer catch so the function returns false (fail-closed). Swallowing it
       // would let a green check-runs result merge a PR whose statuses are unknown.

@@ -1082,6 +1082,7 @@ describe('autoMergeGovernancePRs', () => {
     assert.equal(r.summary.errors, 0, '409 is not an error');
     assert.equal(r.summary.merged, 0);
     assert.equal(r.results[0].status, 'skipped');
+    assert.equal(r.results[0].number, 7, 'PR number recorded for auditability');
     assert.match(r.results[0].reason, /409/);
   });
 

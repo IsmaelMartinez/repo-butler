@@ -810,7 +810,20 @@ export async function autoMergeGovernancePRs(gh, owner, findings, config, option
         continue;
       }
 
-      const merge = await gh.mergePR(owner, repo, pr.number, { method: 'squash', sha: headSha });
+      let merge;
+      try {
+        merge = await gh.mergePR(owner, repo, pr.number, { method: 'squash', sha: headSha });
+      } catch (err) {
+        // A 409 is mergePR's SHA guard firing because the head advanced since CI
+        // was checked — not an error, just not-ready. Skip (recording the PR
+        // number for auditability) and let the next reconcile pass retry; re-throw
+        // anything else to the per-candidate catch below.
+        if (err.message?.includes(': 409')) {
+          results.push({ repo, tool, number: pr.number, status: 'skipped', reason: 'head advanced since CI (409)' });
+          continue;
+        }
+        throw err;
+      }
       if (merge?.merged) {
         console.log(`automerge: ${owner}/${repo}#${pr.number} (${tool}) — squash-merged ${merge.sha}`);
         results.push({ repo, tool, number: pr.number, status: 'merged', mergeSha: merge.sha });
@@ -818,15 +831,8 @@ export async function autoMergeGovernancePRs(gh, owner, findings, config, option
         results.push({ repo, tool, number: pr.number, status: 'error', error: 'merge not confirmed' });
       }
     } catch (err) {
-      // A 409 is mergePR's SHA guard firing because the head advanced since CI was
-      // checked — not an error, just not-ready. Skip and let the next reconcile
-      // pass retry, rather than failing the whole scheduled run.
-      if (err.message?.includes(': 409')) {
-        results.push({ repo, tool, status: 'skipped', reason: 'head advanced since CI (409)' });
-      } else {
-        console.error(`automerge: error on ${repo}/${tool}: ${err.message}`);
-        results.push({ repo, tool, status: 'error', error: err.message });
-      }
+      console.error(`automerge: error on ${repo}/${tool}: ${err.message}`);
+      results.push({ repo, tool, status: 'error', error: err.message });
     }
   }
 
