@@ -66,6 +66,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Run Repo Butler
+        id: butler
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           INPUT_PHASE: ${{ github.event.inputs.phase || 'observe,assess,update,governance,report' }}
@@ -82,18 +83,26 @@ jobs:
         env:
           INPUT_PHASE: ${{ github.event.inputs.phase || 'observe,assess,update,governance,report' }}
           REPORT_FORCE: ${{ github.event.inputs.force-report || github.event_name != 'workflow_dispatch' }}
+          REPORT_CACHED: ${{ steps.butler.outputs.report_cached }}
         run: |
           if [ -d reports ] && [ -f reports/index.html ]; then
             echo "has-reports=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${REPORT_CACHED}" == "true" ]]; then
+            # REPORT ran and cache-hit: the snapshot was unchanged, so no new
+            # index.html is written and the live dashboard is already current.
+            # This is a healthy skip, not a deploy failure — no redeploy needed.
+            # Distinguishes a legitimate cache-hit from missing output (#216).
+            echo "has-reports=false" >> "$GITHUB_OUTPUT"
+            echo "REPORT cache-hit — snapshot unchanged, dashboard already current; skipping redeploy."
           else
             echo "has-reports=false" >> "$GITHUB_OUTPUT"
-            # If the report phase was supposed to run, missing reports is a
-            # silent failure of the deploy. Surface it so we don't ship a
-            # stale dashboard while the workflow reports success. See #216.
+            # Report was expected, did NOT cache-hit, yet produced no index.html —
+            # a silent deploy failure. Surface it so we don't ship a stale
+            # dashboard while the workflow reports success. See #216.
             if [[ ",${INPUT_PHASE}," == *",report,"* ]] \
               || [[ ",${INPUT_PHASE}," == *",all,"* ]] \
               || [[ "${REPORT_FORCE}" == "true" ]]; then
-              echo "::error::REPORT phase was expected (phase=${INPUT_PHASE}, force=${REPORT_FORCE}) but reports/index.html was not produced. The dashboard will not be redeployed."
+              echo "::error::REPORT phase was expected (phase=${INPUT_PHASE}, force=${REPORT_FORCE}) but reports/index.html was not produced and it was not a cache-hit. The dashboard will not be redeployed."
               exit 1
             fi
           fi

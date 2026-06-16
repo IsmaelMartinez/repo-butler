@@ -381,6 +381,11 @@ async function main() {
       issues_created: context.proposeResult?.created?.length || 0,
     };
     appendFileSync(process.env.GITHUB_OUTPUT, `report=${JSON.stringify(summary)}\n`);
+    // Signal whether the REPORT phase legitimately cache-hit (snapshot unchanged,
+    // so no new index.html was written and the live dashboard is already current).
+    // The self-test "Check reports exist" guard reads this to distinguish a
+    // healthy cache-hit from a genuine missing-output failure (#216).
+    appendFileSync(process.env.GITHUB_OUTPUT, `report_cached=${context.reportResult?.cached === true}\n`);
   }
 }
 
