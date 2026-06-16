@@ -175,7 +175,70 @@ export function createClient(token) {
     });
   }
 
-  return { request, paginate, getFileContent, listDir, putFile, deleteFile };
+  // Merge a PR via the REST merge endpoint (ADR-007 stage 5). Defaults to a
+  // squash merge so a revert is a single clean commit. Pass `sha` to guard
+  // against a head that advanced since CI was checked — GitHub 409s if it moved,
+  // which is the safe outcome (the auto-merge run skips and retries next pass).
+  // Returns { merged, sha }.
+  async function mergePR(owner, repo, number, { method = 'squash', sha } = {}) {
+    const body = { merge_method: method };
+    if (sha) body.sha = sha;
+    const res = await request(`/repos/${owner}/${repo}/pulls/${number}/merge`, { method: 'PUT', body });
+    return { merged: res?.merged === true, sha: res?.sha };
+  }
+
+  // True only when the commit's CI is fully, verifiably green (ADR-007 stage 5
+  // auto-merge precondition). Conservative by construction: any check-run that is
+  // not completed-success (neutral/skipped tolerated as non-blocking), any failed
+  // or pending combined status, or NO CI signal at all → false. Reads both the
+  // check-runs API (GitHub Actions) and the combined commit status (legacy
+  // statuses / external bots). Returns false on any error.
+  async function prCiGreen(owner, repo, ref) {
+    const OK = new Set(['success', 'neutral', 'skipped']);
+    try {
+      // Fetch ALL check-runs. The endpoint returns an object
+      // `{ total_count, check_runs }` (not a top-level array), so `paginate()`
+      // can't be used — page manually until `total_count` is collected. A single
+      // `per_page: 100` call would miss a failing or pending run beyond the first
+      // page on a repo with many checks (matrix builds), letting a not-green PR
+      // auto-merge. The page cap (10 → 1000 runs) is a runaway backstop.
+      const runs = [];
+      let complete = false;
+      for (let page = 1; page <= 10; page++) {
+        const cr = await request(`/repos/${owner}/${repo}/commits/${ref}/check-runs`, { params: { per_page: 100, page } });
+        const batch = Array.isArray(cr?.check_runs) ? cr.check_runs : [];
+        runs.push(...batch);
+        const total = Number(cr?.total_count) || 0;
+        if (batch.length === 0 || runs.length >= total) { complete = true; break; }
+      }
+      // Hit the 10-page cap without collecting every run (>1000 check-runs): the
+      // full set is unverifiable, so fail closed rather than risk merging past a
+      // hidden failing/pending run beyond the cap.
+      if (!complete) return false;
+      // No `.catch` here: if the combined-status read fails, let it propagate to
+      // the outer catch so the function returns false (fail-closed). Swallowing it
+      // would let a green check-runs result merge a PR whose statuses are unknown.
+      const st = await request(`/repos/${owner}/${repo}/commits/${ref}/status`);
+      const statuses = Array.isArray(st?.statuses) ? st.statuses : [];
+
+      // Missing → not green: never auto-merge a head with no CI signal at all.
+      if (runs.length === 0 && statuses.length === 0) return false;
+
+      // Every check-run must be completed-success (neutral/skipped tolerated).
+      for (const r of runs) {
+        if (r.status !== 'completed' || !OK.has(r.conclusion)) return false;
+      }
+      // When commit statuses exist, the rolled-up state must be success
+      // (failure/error/pending → not green).
+      if (statuses.length > 0 && st.state !== 'success') return false;
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return { request, paginate, getFileContent, listDir, putFile, deleteFile, mergePR, prCiGreen };
 }
 
 // True if the repo has an ACTIVE repository ruleset carrying a `copilot_code_review`

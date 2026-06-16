@@ -98,3 +98,19 @@ apply-schedule:
   codeowners: true
   security-md: true
   dependabot-rebase: true
+
+# Per-finding-class AUTO-MERGE allow-list (ADR-007 stage 5). A deterministic
+# template class listed here as `tool: true` lets the butler squash-merge its OWN
+# green governance-apply PRs for that class on the scheduled reconcile pass — the
+# one deliberately-sanctioned autonomous merge in the project, never for
+# human-authored PRs and never global. Bounded to the template tools; settings
+# (code-review-bot), the dependabot-rebase nudge, and every policy-drift /
+# tier-uplift / agent / manual finding are never eligible. Preconditions: required
+# CI green AND the PR mergeable; merges are squash (one clean revert commit) with
+# the merge SHA recorded. Default empty (commented out) = default-closed, nothing
+# auto-merges. Enable a class deliberately, as its own reviewed change, once its
+# templated PRs have a clean human-reviewed-and-merged track record. Kill switches:
+# remove the key here, set require_approval false (halts all apply), or disable
+# apply-scheduled.yml. Example:
+# apply-automerge:
+#   dependabot-actions: true

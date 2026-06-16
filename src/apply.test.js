@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -864,5 +864,233 @@ describe('findButlerCopilotRuleset / removeCopilotReviewRuleset', () => {
     const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
     assert.equal(result.status, 'skipped');
     assert.equal(deletes.length, 0, 'never DELETEs a non-butler-named ruleset');
+  });
+});
+
+describe('isAutoMergeAllowed', () => {
+  it('true only when the tool is BOTH allow-listed AND a deterministic template tool', () => {
+    assert.equal(isAutoMergeAllowed({ 'dependabot-actions': true }, 'dependabot-actions'), true);
+    assert.equal(isAutoMergeAllowed({ 'dependabot-actions': 'true' }, 'dependabot-actions'), true, 'tolerates quoted true');
+    assert.equal(isAutoMergeAllowed({ 'code-scanning': true }, 'dependabot-actions'), false, 'not in allow-list');
+    assert.equal(isAutoMergeAllowed({ 'dependabot-actions': false }, 'dependabot-actions'), false);
+    assert.equal(isAutoMergeAllowed({}, 'dependabot-actions'), false);
+    assert.equal(isAutoMergeAllowed(undefined, 'dependabot-actions'), false);
+  });
+
+  it('excludes non-template classes even when explicitly allow-listed', () => {
+    // settings write — no file PR exists to merge
+    assert.equal(isAutoMergeAllowed({ 'code-review-bot': true }, 'code-review-bot'), false);
+    // the stale-PR nudge — not a templated PR
+    assert.equal(isAutoMergeAllowed({ 'dependabot-rebase': true }, 'dependabot-rebase'), false);
+    // an arbitrary unknown tool
+    assert.equal(isAutoMergeAllowed({ 'made-up': true }, 'made-up'), false);
+  });
+});
+
+describe('autoMergeGovernancePRs', () => {
+  const cfg = (automerge = {}) => ({ limits: { require_approval: true }, 'apply-automerge': automerge });
+  const findings = [
+    { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-a'] },
+    { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-b'] },
+  ];
+
+  // Mock client: `open` maps "<repo>:<tool>" → array of open apply PRs.
+  // `detailBody` is the PR-detail body returned by request(); defaults to a string
+  // carrying the butler marker so the identity guard passes for legit PRs.
+  function mkGh({ open = {}, green = true, mergeable = true, mergeConfirmed = true, detailBody = `templated apply PR\n*${APPLY_PR_MARKER}(...)*`, merges = [] } = {}) {
+    return {
+      paginate: async (path, opts) => {
+        const head = opts?.params?.head || '';
+        const tool = (head.match(/repo-butler\/apply-(.+)$/) || [])[1] || null;
+        const repo = (path.match(/\/repos\/[^/]+\/([^/]+)\/pulls/) || [])[1] || null;
+        const prs = open[`${repo}:${tool}`] || [];
+        // Mirror GitHub: returned PRs carry head.ref = the queried branch unless
+        // the fixture sets its own ref (used to exercise the branch-ref guard).
+        return prs.map(p => ({ ...p, head: { ...(p.head || {}), ref: p.head?.ref ?? `repo-butler/apply-${tool}` } }));
+      },
+      request: async () => ({ mergeable, body: detailBody }),
+      prCiGreen: async () => green,
+      mergePR: async (owner, repo, number, mopts) => {
+        merges.push({ repo, number, ...mopts });
+        return { merged: mergeConfirmed, sha: mergeConfirmed ? 'sha-merged' : undefined };
+      },
+    };
+  }
+
+  it('empty apply-automerge → no merges (default-closed)', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({}), { dryRun: false });
+    assert.equal(r.summary.merged, 0);
+    assert.equal(merges.length, 0);
+  });
+
+  it('merges only the allow-listed template class; leaves other apply PRs untouched', async () => {
+    const merges = [];
+    const gh = mkGh({
+      open: {
+        'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }],
+        'repo-b:code-scanning': [{ number: 9, head: { sha: 'h9' } }],
+      },
+      merges,
+    });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.merged, 1);
+    assert.equal(merges.length, 1);
+    assert.equal(merges[0].repo, 'repo-a');
+    assert.equal(merges[0].number, 7);
+    assert.equal(merges[0].method, 'squash');
+    assert.ok(!merges.some(m => m.number === 9), 'code-scanning PR is not allow-listed and must be left open');
+  });
+
+  it('records the merge SHA in the result', async () => {
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] } });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    const merged = r.results.find(x => x.status === 'merged');
+    assert.equal(merged.mergeSha, 'sha-merged');
+    assert.equal(merged.number, 7);
+  });
+
+  it('skips (does not merge) a PR whose CI is not green', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, green: false, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.merged, 0);
+    assert.equal(merges.length, 0);
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /CI not green/);
+  });
+
+  it('skips a PR GitHub reports as not mergeable', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, mergeable: false, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 0);
+    assert.match(r.results[0].reason, /not mergeable/);
+  });
+
+  it('skips when there is no open apply PR for an allow-listed class', async () => {
+    const gh = mkGh({ open: {} });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.merged, 0);
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /no open apply PR/);
+  });
+
+  it('never eligible: an agent-executor finding for a template tool', async () => {
+    const merges = [];
+    const agentFindings = [{ type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-a'], remediation: { executor: 'agent' } }];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', agentFindings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.merged, 0);
+    assert.equal(merges.length, 0);
+  });
+
+  it('never eligible: a non-template tool even if allow-listed', async () => {
+    const merges = [];
+    const nonTmpl = [{ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a'] }];
+    const gh = mkGh({ open: { 'repo-a:code-review-bot': [{ number: 7, head: { sha: 'h7' } }] }, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', nonTmpl, cfg({ 'code-review-bot': true }), { dryRun: false });
+    assert.equal(r.summary.merged, 0);
+    assert.equal(merges.length, 0);
+  });
+
+  it('refuses when require_approval is not true (system-wide kill switch)', async () => {
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] } });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, { limits: { require_approval: false }, 'apply-automerge': { 'dependabot-actions': true } }, { dryRun: false });
+    assert.equal(r.status, 'refused');
+  });
+
+  it('dry-run fail-closed: reports the would-merge set, performs no merge', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: true });
+    assert.equal(r.status, 'dry-run');
+    assert.equal(merges.length, 0);
+    assert.equal(r.summary.wouldMerge, 1);
+    assert.equal(r.results.find(x => x.status === 'would-merge').number, 7);
+  });
+
+  it('dry-run is fail-closed for a non-false value (empty string)', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: '' });
+    assert.equal(r.status, 'dry-run');
+    assert.equal(merges.length, 0);
+  });
+
+  it('caps merges per tool via apply-cap / global cap', async () => {
+    const merges = [];
+    const manyFindings = [{ type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['r1', 'r2', 'r3'] }];
+    const open = {
+      'r1:dependabot-actions': [{ number: 1, head: { sha: 's1' } }],
+      'r2:dependabot-actions': [{ number: 2, head: { sha: 's2' } }],
+      'r3:dependabot-actions': [{ number: 3, head: { sha: 's3' } }],
+    };
+    const gh = mkGh({ open, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', manyFindings, cfg({ 'dependabot-actions': true }), { dryRun: false, maxPerRun: 2 });
+    assert.equal(r.summary.merged, 2, 'global cap of 2 bounds the merge count');
+    assert.equal(merges.length, 2);
+  });
+
+  it('skips a PR whose mergeable is null (GitHub still computing)', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, mergeable: null, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 0);
+    assert.equal(r.summary.merged, 0);
+    assert.match(r.results[0].reason, /not mergeable/);
+  });
+
+  it('records an error (not a merge) when the merge API does not confirm', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, mergeConfirmed: false, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 1, 'the merge was attempted');
+    assert.equal(r.summary.merged, 0);
+    assert.equal(r.summary.errors, 1);
+    assert.match(r.results[0].error, /not confirmed/);
+  });
+
+  it('does not merge a PR whose head branch is not the butler apply branch (write-path guard)', async () => {
+    const merges = [];
+    // A PR returned by the head filter but whose actual head.ref differs (e.g. a
+    // collision or an API edge case) must not be merged.
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7', ref: 'someone-elses-branch' } }] }, merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 0, 'never merges a PR off the expected branch');
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /no open apply PR/);
+  });
+
+  it('does not merge a PR lacking the butler body marker (identity guard)', async () => {
+    const merges = [];
+    // A PR on the expected branch but whose body lacks the butler marker (e.g. a
+    // human opened it from a colliding branch name) must not be auto-merged.
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, detailBody: 'hand-written PR, not the butler', merges });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(merges.length, 0);
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /not a butler apply PR/);
+  });
+
+  it('treats a 409 from mergePR as skip (head advanced), not an error', async () => {
+    const merges = [];
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, merges });
+    gh.mergePR = async () => { throw new Error('GitHub API PUT /repos/owner/repo-a/pulls/7/merge: 409 head changed'); };
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.errors, 0, '409 is not an error');
+    assert.equal(r.summary.merged, 0);
+    assert.equal(r.results[0].status, 'skipped');
+    assert.equal(r.results[0].number, 7, 'PR number recorded for auditability');
+    assert.match(r.results[0].reason, /409/);
+  });
+
+  it('surfaces a paginate failure as an error (no longer swallowed)', async () => {
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] } });
+    gh.paginate = async () => { throw new Error('GitHub API GET /pulls: 500 boom'); };
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.errors, 1);
+    assert.equal(r.results[0].status, 'error');
   });
 });

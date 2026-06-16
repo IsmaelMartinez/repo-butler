@@ -174,6 +174,12 @@ const TOOL_PR_NOTES = {
   'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
 };
 
+// Stable marker present in every templated apply PR body. Written when the PR is
+// opened (applyToRepo) and re-checked by stage-5 auto-merge before it merges, so
+// the merge path can confirm a PR is the butler's OWN — the branch name alone is
+// forgeable by anyone with push access. Single source of truth for both sites.
+export const APPLY_PR_MARKER = 'Opened automatically by [Repo Butler]';
+
 export function generateTemplate(tool, ecosystem, owner) {
   const tmpl = TEMPLATES[tool];
   if (!tmpl) return null;
@@ -395,7 +401,7 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
       title: `chore: add ${tool} configuration`,
       head: branchName,
       base: defaultBranch,
-      body: `## Governance: add ${tool}\n\nThis repo was identified as missing ${tool} configuration by the portfolio governance scan.\n\nThis PR adds the standard template. Review and merge when ready.${TOOL_PR_NOTES[tool] ? '\n\n> ' + TOOL_PR_NOTES[tool] : ''}\n\n---\n*Opened automatically by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler)*`,
+      body: `## Governance: add ${tool}\n\nThis repo was identified as missing ${tool} configuration by the portfolio governance scan.\n\nThis PR adds the standard template. Review and merge when ready.${TOOL_PR_NOTES[tool] ? '\n\n> ' + TOOL_PR_NOTES[tool] : ''}\n\n---\n*${APPLY_PR_MARKER}(https://github.com/IsmaelMartinez/repo-butler)*`,
     },
   });
 
@@ -680,4 +686,172 @@ export async function removeCopilotReviewRuleset(gh, owner, repo) {
     console.error(`copilot-review: error removing ruleset on ${repo}: ${err.message}`);
     return { repo, status: 'error', error: err.message };
   }
+}
+
+// --- Selective auto-merge (ADR-007 stage 5) ----------------------------------
+// The ONE deliberately-sanctioned autonomous merge in the project: the butler
+// squash-merges its OWN templated governance-apply PRs — never human-authored
+// PRs, never globally. (Distinct from the maintainer's standing "never merge
+// autonomously" rule, which governs the assistant's handling of the maintainer's
+// own PRs and is untouched.) It is opt-in per class via the `apply-automerge`
+// allow-list (default empty), bounded to the deterministic template tools, and
+// fires only when required CI is green. Merge happens in a RECONCILE pass on a
+// later run, not at PR-open time: a freshly-opened apply PR has no CI result yet,
+// so this finds already-open apply PRs whose CI has since gone green and
+// squash-merges them (single clean revert commit). The merge SHA is recorded for
+// audit/rollback.
+//
+// Gate model (ADR-005 + ADR-007 stage 5): require_approval=true is the master
+// operating switch the whole apply system needs (false makes every apply action
+// refuse, auto-merge included — so false is the system-wide kill switch). The
+// auto-merge-specific kill switches are emptying the `apply-automerge` allow-list
+// and disabling the scheduled workflow. (This corrects ADR-007's stage-5 wording,
+// which framed require_approval=true as the kill switch; that is backwards and
+// inconsistent with the open path — see the ADR-005 amendment.)
+
+// A class is auto-merge eligible only when it is BOTH a deterministic template
+// tool (a static-file generator in TEMPLATES) AND opt-in via apply-automerge.
+// This excludes settings writes (code-review-bot), the nudge (dependabot-rebase),
+// and every policy-drift / tier-uplift / agent / manual finding by construction.
+// Tolerates a quoted 'true' like isScheduleAllowed. Pure function.
+export function isAutoMergeAllowed(automergeAllow, tool) {
+  const v = automergeAllow?.[tool];
+  return (v === true || v === 'true') && Boolean(TEMPLATES[tool]);
+}
+
+export async function autoMergeGovernancePRs(gh, owner, findings, config, options = {}) {
+  const { dryRun, maxPerRun = 5 } = options;
+
+  // Master operating gate / system-wide kill switch (see header). Refuse unless
+  // require_approval is true, exactly like every other apply action.
+  if (!config?.limits?.require_approval) {
+    console.error('automerge: config.limits.require_approval is not true — refusing to run');
+    return { status: 'refused', reason: 'require_approval not set' };
+  }
+
+  const automergeAllow = config?.['apply-automerge'] || {};
+
+  // Candidate (repo, tool) pairs from standards-gap findings whose tool is
+  // auto-merge eligible (template ∩ allow-list) and whose executor is template.
+  // A repo with an open apply PR is still listed nonCompliant until the PR merges
+  // (observe detects the file on the default branch, which the PR has not yet
+  // landed), so the nonCompliant lists are the correct candidate set.
+  const validated = validateFindings(findings);
+  const eligible = validated.filter(
+    f => isAutoMergeAllowed(automergeAllow, f.tool)
+      && (f.remediation?.executor ?? 'template') === 'template'
+  );
+  const candidates = [];
+  for (const f of eligible) {
+    for (const repo of f.nonCompliant) {
+      if (!REPO_NAME_PATTERN.test(repo)) {
+        console.warn(`automerge: skipping repo with invalid name: ${repo}`);
+        continue;
+      }
+      candidates.push({ repo, tool: f.tool });
+    }
+  }
+
+  // Same per-tool + global blast-radius cap as the open path (ADR-007 stage 3).
+  const applyCap = config?.['apply-cap'] || {};
+  const capped = capPerTool(candidates, applyCap, maxPerRun);
+
+  if (capped.length === 0) {
+    console.log('automerge: nothing eligible (empty apply-automerge allow-list or no candidate findings)');
+    return { status: 'completed', results: [], summary: { merged: 0, skipped: 0, errors: 0 } };
+  }
+
+  const results = [];
+  for (const { repo, tool } of capped) {
+    try {
+      const branchName = `repo-butler/apply-${tool}`;
+      // No `.catch` swallow: a listing failure (rate limit, transient 5xx) must
+      // surface as a per-candidate error, not be misread as "no open PR" — it is
+      // routed to the catch below and reported, consistent with the other passes.
+      const prs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+        params: { state: 'open', head: `${owner}:${branchName}`, per_page: 10 },
+        max: 10,
+      });
+      // Re-assert the head branch client-side, not just via the API `head:` filter:
+      // this is a merge (write) path, so confirm the PR is actually on the butler's
+      // `repo-butler/apply-<tool>` branch before merging, rather than trusting the
+      // server-side filter to have returned only matching PRs.
+      const pr = Array.isArray(prs) ? prs.find(p => p && p.number && p.head?.ref === branchName) : null;
+      if (!pr) {
+        results.push({ repo, tool, status: 'skipped', reason: 'no open apply PR' });
+        continue;
+      }
+
+      // Fetch the PR detail (for the body marker + the mergeable flag). No `.catch`
+      // swallow — a fetch failure surfaces as an error via the catch below.
+      const detail = await gh.request(`/repos/${owner}/${repo}/pulls/${pr.number}`);
+      // Identity guard: merge only the butler's OWN templated apply PR. The branch
+      // name is forgeable by anyone with push access, so also require the PR body
+      // to carry the butler's marker before this write path touches it.
+      if (typeof detail?.body !== 'string' || !detail.body.includes(APPLY_PR_MARKER)) {
+        results.push({ repo, tool, number: pr.number, status: 'skipped', reason: 'not a butler apply PR' });
+        continue;
+      }
+
+      // Preconditions: CI verifiably green AND GitHub reports the PR mergeable.
+      // `mergeable` can be null while GitHub computes it — treated as not-ready
+      // and skipped (not an error); it will be ready on a later reconcile pass.
+      const headSha = pr.head?.sha;
+      const ciGreen = headSha ? await gh.prCiGreen(owner, repo, headSha) : false;
+      const mergeable = detail.mergeable === true;
+      if (!ciGreen || !mergeable) {
+        results.push({ repo, tool, number: pr.number, status: 'skipped', reason: !ciGreen ? 'CI not green' : 'not mergeable' });
+        continue;
+      }
+
+      // Dry-run fail-closed: report the merge set, perform no write.
+      if (dryRun !== false) {
+        results.push({ repo, tool, number: pr.number, status: 'would-merge', sha: headSha });
+        continue;
+      }
+
+      let merge;
+      try {
+        merge = await gh.mergePR(owner, repo, pr.number, { method: 'squash', sha: headSha });
+      } catch (err) {
+        // A 409 is mergePR's SHA guard firing because the head advanced since CI
+        // was checked — not an error, just not-ready. Skip (recording the PR
+        // number for auditability) and let the next reconcile pass retry; re-throw
+        // anything else to the per-candidate catch below.
+        if (err.message?.includes(': 409')) {
+          results.push({ repo, tool, number: pr.number, status: 'skipped', reason: 'head advanced since CI (409)' });
+          continue;
+        }
+        throw err;
+      }
+      if (merge?.merged) {
+        console.log(`automerge: ${owner}/${repo}#${pr.number} (${tool}) — squash-merged ${merge.sha}`);
+        results.push({ repo, tool, number: pr.number, status: 'merged', mergeSha: merge.sha });
+      } else {
+        results.push({ repo, tool, number: pr.number, status: 'error', error: 'merge not confirmed' });
+      }
+    } catch (err) {
+      console.error(`automerge: error on ${repo}/${tool}: ${err.message}`);
+      results.push({ repo, tool, status: 'error', error: err.message });
+    }
+  }
+
+  if (dryRun !== false) {
+    const wouldMerge = results.filter(r => r.status === 'would-merge');
+    console.log(`automerge [DRY RUN]: would squash-merge ${wouldMerge.length} green allow-listed PR(s)`);
+    for (const r of wouldMerge) console.log(`  - ${owner}/${r.repo}#${r.number} (${r.tool})`);
+    return {
+      status: 'dry-run',
+      results,
+      // Count real errors even in dry-run: a read failure (paginate/detail/CI) is
+      // caught above as status:'error' and must surface so the workflow can fail.
+      summary: { merged: 0, skipped: results.filter(r => r.status === 'skipped').length, errors: results.filter(r => r.status === 'error').length, wouldMerge: wouldMerge.length },
+    };
+  }
+
+  const merged = results.filter(r => r.status === 'merged').length;
+  const skipped = results.filter(r => r.status === 'skipped').length;
+  const errors = results.filter(r => r.status === 'error').length;
+  console.log(`automerge: done — ${merged} merged, ${skipped} skipped, ${errors} errors`);
+  return { status: 'completed', results, summary: { merged, skipped, errors } };
 }

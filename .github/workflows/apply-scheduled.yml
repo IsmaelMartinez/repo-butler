@@ -65,6 +65,11 @@ jobs:
           # Marks this as the no-human scheduled path: apply.js gates each finding
           # class behind the apply-schedule allow-list.
           INPUT_SCHEDULED: 'true'
+          # Stage 5 (ADR-007): auto-merge fires only on the real scheduled cron,
+          # never on a manual workflow_dispatch of this workflow — so a hands-on
+          # dispatch (even with dry-run=false) opens PRs without auto-merging.
+          # A manual auto-merge reconcile is still possible via tools=automerge.
+          INPUT_AUTOMERGE: ${{ github.event_name == 'schedule' && 'true' || '' }}
         run: node src/index.js
 
       - name: Run summary
@@ -74,6 +79,7 @@ jobs:
         env:
           APPLY: ${{ steps.apply.outputs.apply }}
           NUDGE: ${{ steps.apply.outputs.nudge }}
+          AUTOMERGE: ${{ steps.apply.outputs.automerge }}
           DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry-run || 'true') }}
         run: |
           mode="dry-run"
@@ -81,9 +87,10 @@ jobs:
           {
             echo "## Scheduled Governance Apply ($mode)"
             echo ""
-            echo "Ran without a human at dispatch (ADR-007 stage 4). Finding classes act only when promoted via \`apply-schedule\` in roadmap.yml."
+            echo "Ran without a human at dispatch (ADR-007 stage 4). Finding classes act only when promoted via \`apply-schedule\` in roadmap.yml. Auto-merge (stage 5) acts only on classes in \`apply-automerge\`."
             echo ""
             echo "- Apply summary: \`${APPLY:-(none — dry-run or nothing actionable)}\`"
             echo "- Nudge summary: \`${NUDGE:-(none — dry-run or nothing actionable)}\`"
+            echo "- Auto-merge summary: \`${AUTOMERGE:-(none — empty allow-list or nothing green)}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none}"
+          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none}"
