@@ -5,7 +5,7 @@ import { runAssess } from './assess.js';
 import { runUpdate } from './update.js';
 import { runIdeate } from './ideate.js';
 import { runPropose } from './propose.js';
-import { runReport } from './report.js';
+import { runReport, reportCacheHit } from './report.js';
 import { runMonitor } from './monitor.js';
 import { runGovernance } from './governance.js';
 import { createStore } from './store.js';
@@ -381,6 +381,11 @@ async function main() {
       issues_created: context.proposeResult?.created?.length || 0,
     };
     appendFileSync(process.env.GITHUB_OUTPUT, `report=${JSON.stringify(summary)}\n`);
+    // Signal whether the REPORT phase legitimately cache-hit (snapshot unchanged,
+    // so no new index.html was written and the live dashboard is already current).
+    // The self-test "Check reports exist" guard reads this to distinguish a
+    // healthy cache-hit from a genuine missing-output failure (#216).
+    appendFileSync(process.env.GITHUB_OUTPUT, `report_cached=${reportCacheHit(context)}\n`);
   }
 }
 
