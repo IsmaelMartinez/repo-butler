@@ -42,6 +42,17 @@ export async function runReport(context) {
   return result;
 }
 
+// True only when the REPORT phase ran and cache-hit (snapshot unchanged, so no
+// new index.html was written and the live dashboard is already current). The
+// index dispatcher emits this as the `report_cached` GitHub Actions output, and
+// the self-test "Check reports exist" guard uses it to treat a healthy cache-hit
+// as success rather than a missing-output deploy failure (#216). Strict `=== true`
+// so a regenerated run, a failed/absent report, or any non-cache result is false —
+// which keeps the guard's genuine-failure detection intact. Pure function.
+export function reportCacheHit(context) {
+  return context?.reportResult?.cached === true;
+}
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
