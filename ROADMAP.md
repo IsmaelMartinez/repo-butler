@@ -69,6 +69,8 @@ Roadmap PR noise reduction shipped 2026-06-12 (PR #263). Refined the automated u
 Roadmap scheduled action and reference append optimizations shipped 2026-06-13 (PRs #265 and #266). Refined the core roadmap update mechanisms to optimize scheduled actions and reference appending logic, ensuring cleaner maintenance cycles and robust long-term planning alignment.
 
 Automated security markdown merges enabled 2026-06-16 (PR #278). Implemented ADR-007 stage 5 auto-merge capabilities for security-related markdown files, streamlining repository governance and automating routine maintenance tasks.
+
+Automated security markdown merges enabled 2026-06-16 (PR #278). Implemented ADR-007 stage 5 auto-merge capabilities for security-related markdown files, streamlining repository governance and automating routine maintenance tasks.
 ---
 
 ## Roadmap
