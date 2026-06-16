@@ -111,6 +111,14 @@ apply-schedule:
 # auto-merges. Enable a class deliberately, as its own reviewed change, once its
 # templated PRs have a clean human-reviewed-and-merged track record. Kill switches:
 # remove the key here, set require_approval false (halts all apply), or disable
-# apply-scheduled.yml. Example:
-# apply-automerge:
-#   dependabot-actions: true
+# apply-scheduled.yml.
+#
+# Enabled 2026-06-16: dependabot-actions is the first class promoted to auto-merge.
+# It is the lowest-risk deterministic template (a static .github/dependabot.yml — a
+# config file, no CI execution), it is already on the apply-schedule allow-list, and
+# its config PRs have a clean human-reviewed-and-merged track record (the 2026-05-01
+# Dependabot config audit + the stage-4 unblock PRs). The butler will squash-merge
+# its OWN green dependabot-actions apply PR once CI passes; nothing else auto-merges.
+# Add more classes here one at a time, each as its own reviewed change.
+apply-automerge:
+  dependabot-actions: true
