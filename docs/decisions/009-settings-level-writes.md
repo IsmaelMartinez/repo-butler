@@ -5,6 +5,8 @@ Status: Accepted
 
 Amends [ADR-005](005-cross-repo-write-trust-model.md) (cross-repo write trust model) and extends [ADR-007](007-agents-and-execution.md) Track A (templatable findings). Accepted 2026-06-13 after a five-persona council review (Security, Stability, Maintainability, Development, Product); the hardening from that review is folded into the Decision below. The code ships dry-run-inert and manual-dispatch only; going live additionally requires a GitHub App permission grant (see Token scope) and is the maintainer's deliberate step.
 
+Go-live (2026-06-15): the go-live gate described under Token scope has been satisfied. The maintainer granted the App `administration: write` and approved the installation, and the `copilot_code_review` ruleset is now live on all 13 portfolio repos (PR #271 detection + PR #272 auto-enable), bringing Copilot code review online ahead of the Gemini Code Assist sunset. The apply path is therefore no longer dry-run-inert — the "until then the feature is inert" / "until the grant is made" wording below is now satisfied and historical. v1 stays manual-dispatch only (`apply.yml`, `tools=code-review-bot`) and is deliberately kept off the `apply-schedule` allow-list per ADR-007, because a settings write has no PR-review moment.
+
 ## Context
 
 Every cross-repo write the butler performs today is a pull request. ADR-005's five-gate trust model is built on that assumption: gate 4 caps the number of *PRs* per run, dedup keys off an existing-PR check, and the implicit safety net under all of it is that a PR carries a reviewable diff a human can read before it merges and can revert by closing or reverting the merge. "Open a PR a human reviews" is the unit of change.
