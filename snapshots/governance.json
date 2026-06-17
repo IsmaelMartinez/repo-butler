@@ -4,13 +4,13 @@
     "category": "ci-reliability",
     "repo": "bonnie-wee-plot",
     "expected": "96%",
-    "actual": "75%",
+    "actual": "76%",
     "priority": "medium",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Align bonnie-wee-plot ci-reliability with the portfolio norm",
-      "rationale": "Expected 96%, found 75%.",
+      "rationale": "Expected 96%, found 76%.",
       "acceptanceCriteria": [
         "bonnie-wee-plot ci-reliability matches 96%"
       ]
