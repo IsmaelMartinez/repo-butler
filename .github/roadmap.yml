@@ -132,3 +132,10 @@ apply-automerge:
   # estate it routes review to the owner without blocking merges. Clean merged
   # track record (the 2026-06-07/08 codeowners sweep + the yourear #47 canary).
   codeowners: true
+  # Enabled 2026-06-16: code-scanning, the fourth class. Adds a CodeQL workflow
+  # (.github/workflows/codeql-analysis.yml) — the one class so far that adds an
+  # EXECUTING workflow rather than a static doc/config. Safe to auto-merge because
+  # the template carries an `on: pull_request` trigger, so CodeQL runs on the apply
+  # PR itself and the CI-green precondition validates it before any merge. Strongest
+  # track record of all classes (the 2026-05-01 13/13-repo code-scanning rollout).
+  code-scanning: true
