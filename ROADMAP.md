@@ -71,6 +71,8 @@ Roadmap scheduled action and reference append optimizations shipped 2026-06-13 (
 Automated security markdown merges enabled 2026-06-16 (PR #278). Implemented ADR-007 stage 5 auto-merge capabilities for security-related markdown files, streamlining repository governance and automating routine maintenance tasks.
 
 CI pipeline reliability fix shipped 2026-06-16 (PR #280). Resolved false-positive failures on cache hits to guarantee stable CI runs. Documentation updated to reflect the go-live of ADR-009 and direct users to Copilot (PR #279).
+
+Automated ADR-007 stage 5 merge capabilities for code owners shipped 2026-06-16 (PR #282), automating the merge process for security-related markdown files and streamlining repository governance.
 ---
 
 ## Roadmap
