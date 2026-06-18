@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-17
+**Last Updated:** 2026-06-18
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -75,6 +75,8 @@ CI pipeline reliability fix shipped 2026-06-16 (PR #280). Resolved false-positiv
 Automated ADR-007 stage 5 merge capabilities for code owners shipped 2026-06-16 (PR #282), automating the merge process for security-related markdown files and streamlining repository governance.
 
 Automated ADR-007 stage 5 merge capabilities for code scanning alerts shipped 2026-06-17 (PR #284), enabling auto-merge for code-scanning alerts to streamline repository governance and optimize automated security workflows.
+
+AsyncAPI event-driven interface core shipped 2026-06-18 (PR #286). Implemented Phase 9 of ADR-008, introducing the pure, GitHub-free tier-change detection core (`src/tier-change.js`) to diff computed repository health tiers against the last-emitted state and prepare single-transition event payloads.
 ---
 
 ## Roadmap
