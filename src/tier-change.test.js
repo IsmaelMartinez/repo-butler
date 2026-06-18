@@ -93,6 +93,15 @@ describe('detectTierChanges', () => {
     assert.deepEqual(r.nextState, { a: 'gold' });
   });
 
+  it('does not read prototype members for repos named like Object.prototype keys', () => {
+    // "constructor"/"toString" are valid GitHub repo names. As newcomers (no own
+    // entry in prior state) they must baseline silently, not read a function off
+    // the prototype chain and emit a bogus transition.
+    const r = detectTierChanges({ constructor: 'gold', toString: 'silver' }, { a: 'gold' });
+    assert.deepEqual(r.changes, []);
+    assert.deepEqual(r.nextState, { constructor: 'gold', toString: 'silver' });
+  });
+
   it('handles an empty portfolio against a prior state (all orphaned)', () => {
     const r = detectTierChanges({}, { a: 'gold' });
     assert.equal(r.isFirstRun, false);

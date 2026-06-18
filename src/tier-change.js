@@ -64,11 +64,14 @@ export function detectTierChanges(currentTiers, lastEmitted) {
 
   const changes = [];
   for (const [repo, newTier] of Object.entries(current)) {
-    const previousTier = lastEmitted[repo];
     // A repo with no prior recorded tier (a newcomer, or a name whose orphaned
     // entry was pruned) has no transition to report — it is baselined via
-    // nextState and only emits once a later run sees its tier move.
-    if (previousTier === undefined) continue;
+    // nextState and only emits once a later run sees its tier move. Use
+    // Object.hasOwn rather than an `=== undefined` check so a repo whose name
+    // collides with an Object.prototype member (e.g. "constructor",
+    // "toString") is not read through the prototype chain as a bogus tier.
+    if (!Object.hasOwn(lastEmitted, repo)) continue;
+    const previousTier = lastEmitted[repo];
     if (previousTier !== newTier) {
       changes.push({ repo, previousTier, newTier });
     }
