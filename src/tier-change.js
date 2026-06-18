@@ -24,7 +24,11 @@ const TIERS = new Set(['gold', 'silver', 'bronze', 'none']);
 // whose tier could not be computed must not poison the state with a non-tier
 // baseline (which would later read back as a spurious transition).
 function normalizeTiers(tiers) {
-  const out = {};
+  // Null-prototype map: repo names are external, and an underscore-bearing name
+  // like "__proto__" is a valid GitHub repo. On a plain object `out["__proto__"]
+  // = tier` is swallowed by the prototype setter (the repo silently vanishes);
+  // a prototype-free object stores it as an ordinary own key instead.
+  const out = Object.create(null);
   for (const [repo, tier] of Object.entries(tiers || {})) {
     if (TIERS.has(tier)) out[repo] = tier;
   }

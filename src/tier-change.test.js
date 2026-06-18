@@ -102,6 +102,21 @@ describe('detectTierChanges', () => {
     assert.deepEqual(r.nextState, { constructor: 'gold', toString: 'silver' });
   });
 
+  it('preserves a repo literally named __proto__ without polluting the prototype', () => {
+    // "__proto__" is a valid GitHub repo name. Build the input with an own,
+    // enumerable "__proto__" key (a literal `{ __proto__: ... }` would set the
+    // prototype, not a key).
+    const current = {};
+    Object.defineProperty(current, '__proto__', {
+      value: 'gold', enumerable: true, configurable: true, writable: true,
+    });
+    const r = detectTierChanges(current, null);
+    assert.equal(Object.hasOwn(r.nextState, '__proto__'), true);
+    assert.equal(r.nextState['__proto__'], 'gold');
+    // The global prototype must be untouched.
+    assert.equal(Object.getPrototypeOf({}), Object.prototype);
+  });
+
   it('handles an empty portfolio against a prior state (all orphaned)', () => {
     const r = detectTierChanges({}, { a: 'gold' });
     assert.equal(r.isFirstRun, false);
