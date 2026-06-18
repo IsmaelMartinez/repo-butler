@@ -38,13 +38,13 @@ function normalizeTiers(tiers) {
 /**
  * Diff current computed tiers against the last-emitted state.
  *
- * @param {Object<string,string>} currentTiers - map of repo identifier -> tier
+ * @param {Object.<string, string>} currentTiers - map of repo identifier -> tier
  *   (gold|silver|bronze|none), one entry per repo currently in the portfolio.
- * @param {Object<string,string>|null|undefined} lastEmitted - the persisted
+ * @param {Object.<string, string>|null|undefined} lastEmitted - the persisted
  *   last-emitted-tier state, or null/undefined when the state file does not yet
  *   exist (first run with emission enabled).
  * @returns {{ changes: Array<{repo: string, previousTier: string, newTier: string}>,
- *             nextState: Object<string,string>, isFirstRun: boolean }}
+ *             nextState: Object.<string, string>, isFirstRun: boolean }}
  *   - changes: transitions to emit, one per repo whose recorded tier moved.
  *     Empty on the first run and when nothing moved.
  *   - nextState: the state to persist after a successful emit — the current
@@ -66,16 +66,22 @@ export function detectTierChanges(currentTiers, lastEmitted) {
     return { changes: [], nextState, isFirstRun: true };
   }
 
+  // Normalize the prior state through the same enum filter as the current
+  // tiers: a corrupted or hand-edited state file with an out-of-enum value must
+  // not surface that value as `previousTier` — the "non-tier values are
+  // ignored" contract applies to both sides of the diff. normalizeTiers also
+  // returns a null-prototype map, so the lookups below cannot read an
+  // Object.prototype member for a repo named e.g. "constructor".
+  const prior = normalizeTiers(lastEmitted);
+
   const changes = [];
   for (const [repo, newTier] of Object.entries(current)) {
-    // A repo with no prior recorded tier (a newcomer, or a name whose orphaned
-    // entry was pruned) has no transition to report — it is baselined via
-    // nextState and only emits once a later run sees its tier move. Use
-    // Object.hasOwn rather than an `=== undefined` check so a repo whose name
-    // collides with an Object.prototype member (e.g. "constructor",
-    // "toString") is not read through the prototype chain as a bogus tier.
-    if (!Object.hasOwn(lastEmitted, repo)) continue;
-    const previousTier = lastEmitted[repo];
+    // A repo with no prior recorded tier (a newcomer, a pruned/reused name, or
+    // one whose prior value was dropped as out-of-enum) has no transition to
+    // report — it is baselined via nextState and only emits once a later run
+    // sees its tier move.
+    if (!Object.hasOwn(prior, repo)) continue;
+    const previousTier = prior[repo];
     if (previousTier !== newTier) {
       changes.push({ repo, previousTier, newTier });
     }

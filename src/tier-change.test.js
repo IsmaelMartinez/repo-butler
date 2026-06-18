@@ -117,6 +117,15 @@ describe('detectTierChanges', () => {
     assert.equal(Object.getPrototypeOf({}), Object.prototype);
   });
 
+  it('ignores an out-of-enum value in the prior state instead of emitting it', () => {
+    // A corrupted / hand-edited / older-schema state file: `a` holds a bogus
+    // tier. It must not surface as previousTier — that repo is treated as having
+    // no prior tier and baselined silently, while a valid sibling still diffs.
+    const r = detectTierChanges({ a: 'gold', b: 'gold' }, { a: 'platinum', b: 'silver' });
+    assert.deepEqual(r.changes, [{ repo: 'b', previousTier: 'silver', newTier: 'gold' }]);
+    assert.deepEqual(r.nextState, { a: 'gold', b: 'gold' });
+  });
+
   it('handles an empty portfolio against a prior state (all orphaned)', () => {
     const r = detectTierChanges({}, { a: 'gold' });
     assert.equal(r.isFirstRun, false);
