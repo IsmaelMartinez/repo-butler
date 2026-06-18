@@ -1042,14 +1042,14 @@ describe('buildPortfolioAttentionSection', () => {
       b: { vulns: { count: 0, max_severity: null }, codeScanning: null, secretScanning: null, ciPassRate: 0.5, open_bugs: 0 },
     };
     const html = buildPortfolioAttentionSection(repos, details, 'owner', {});
-    assert.ok(html.includes('Attention Required'), 'should have attention heading');
+    assert.ok(html.includes('Needs your attention'), 'should have attention heading');
     assert.ok(html.includes('a.html'), 'should link to repo a');
     assert.ok(html.includes('b.html'), 'should link to repo b');
   });
 });
 
 describe('generatePortfolioReport restructure', () => {
-  it('has tier distribution pulse instead of vanity stats', async () => {
+  it('has the status hero with tier mix instead of vanity stats', async () => {
     const { generatePortfolioReport } = await import('./report-portfolio.js');
     const owner = 'test';
     const portfolio = { repos: [
@@ -1057,7 +1057,8 @@ describe('generatePortfolioReport restructure', () => {
     ]};
     const details = { a: { commits: 20, weekly: [1,2], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
     const html = generatePortfolioReport(owner, portfolio, details, null, null, {});
-    assert.ok(html.includes('Portfolio Pulse'), 'should have pulse section');
+    assert.ok(html.includes('class="status-hero'), 'should have the status hero');
+    assert.ok(html.includes('1 Gold'), 'should show the tier mix in the hero');
     assert.ok(!html.includes('id="langChart"'), 'should not have language doughnut chart');
     assert.ok(!html.includes('id="statusChart"'), 'should not have status doughnut chart');
     assert.ok(!html.includes('id="commitChart"'), 'should not have commit totals chart');
@@ -1085,6 +1086,69 @@ describe('generatePortfolioReport restructure', () => {
     const detailsIdx = html.indexOf('<details');
     const weeklyChartIdx = html.indexOf('id="weeklyChart"');
     assert.ok(detailsIdx >= 0 && weeklyChartIdx > detailsIdx, 'weekly chart should be inside a details element');
+  });
+});
+
+describe('calm dashboard hero, delta strip, and butler voice', () => {
+  const goldPortfolio = () => ({
+    portfolio: { repos: [{ name: 'a', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' }] },
+    details: { a: { commits: 20, weekly: [1, 2], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } },
+  });
+
+  it('reads an all-gold portfolio as healthy in the butler voice with a clean vuln posture', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = goldPortfolio();
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('status-ok'), 'all-gold portfolio renders the healthy tone');
+    assert.ok(html.includes('All in good order'), 'healthy headline in the butler voice');
+    assert.ok(html.includes('no open vulnerabilities'), 'shows a clean vulnerability posture');
+    assert.ok(html.includes('<details><summary>All repos'), 'all-gold collapses the repo table');
+  });
+
+  it('shows the settling-in line when there is no prior snapshot to diff', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = goldPortfolio();
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('Since the last run'), 'has the since-the-last-run section');
+    assert.ok(html.includes('Still settling in'), 'first run with no prior shows the settling-in line');
+  });
+
+  it('surfaces an upward tier move and gold trend against a prior snapshot', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = goldPortfolio();
+    const prior = { repos: { a: { computed: { tier: 'silver' } } } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {}, null, prior);
+    assert.ok(html.includes('since-item since-up'), 'an upward tier move renders as an up item');
+    assert.ok(html.includes('since-arrow'), 'renders the tier-move arrow');
+    assert.ok(html.includes('status-trend up'), 'shows an upward gold trend in the hero');
+  });
+
+  it('reports a cleared security alert as an upward delta item', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = goldPortfolio();
+    const prior = { repos: { a: { computed: { tier: 'gold' }, vulns: { count: 1, high: 1, max_severity: 'high' } } } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {}, null, prior);
+    assert.ok(html.includes('cleared its critical/high security alerts'), 'a resolved alert shows as a delta item');
+  });
+
+  it('raises the critical banner and crit voice when a repo has high alerts', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const portfolio = { repos: [{ name: 'risky', stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' }] };
+    const details = { risky: { commits: 10, weekly: [1], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('alert-banner alert-critical'), 'critical state renders the banner');
+    assert.ok(html.includes('This rather wants your attention'), 'critical headline in the butler voice');
+    assert.ok(html.includes('status-crit'), 'hero renders in the critical tone');
+    assert.ok(html.includes('2 security alerts'), 'counts the critical/high alerts');
+  });
+
+  it('opens the repo table and reads as attention when a repo is below Gold', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const portfolio = { repos: [{ name: 'b', stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' }] };
+    const details = { b: { commits: 5, weekly: [1], license: 'None', ci: 0, communityHealth: 20, vulns: null, ciPassRate: null, open_issues: 0, open_bugs: 0, released_at: null, codeScanning: null, secretScanning: null } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('<details open><summary>All repos'), 'a below-gold portfolio opens the repo table');
+    assert.ok(html.includes('A few things for your eye'), 'below-gold but un-alerted reads as attention');
   });
 });
 

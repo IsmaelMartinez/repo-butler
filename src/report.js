@@ -308,7 +308,13 @@ export async function report(context) {
 
   // Generate portfolio report (after per-repo reports so contributor data is available).
   if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings);
+    // Previous run's portfolio snapshot, read before writePortfolioWeekly below
+    // overwrites the current-week file — drives the dashboard's "since the last
+    // run" delta (tier moves + security changes). Optional-chained so a test
+    // store without the method, or a fresh data branch, simply yields null and
+    // the dashboard renders its first-run calm state.
+    const priorPortfolio = await store?.readLatestPortfolioWeekly?.() ?? null;
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings, priorPortfolio);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 

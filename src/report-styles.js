@@ -89,6 +89,34 @@ details{margin-bottom:1.5rem}
 details summary{cursor:pointer;color:#58a6ff;font-size:1rem;font-weight:600;padding:0.5rem 0;user-select:none}
 details summary:hover{color:#79c0ff}
 details[open] summary{margin-bottom:1rem}
+/* Calm status hero — the dashboard's headline (calm & adaptive layout) */
+.status-hero{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:1.8rem 2rem;margin-bottom:1.5rem}
+.status-hero.status-crit{border-color:#f85149}
+.status-top{display:flex;align-items:center;gap:0.7rem;margin-bottom:0.6rem}
+.status-dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;background:var(--color-success);box-shadow:0 0 0 4px rgba(126,231,135,0.12)}
+.status-warn .status-dot{background:var(--color-warning);box-shadow:0 0 0 4px rgba(210,153,34,0.12)}
+.status-crit .status-dot{background:var(--color-danger);box-shadow:0 0 0 4px rgba(248,81,73,0.14)}
+.status-headline{font-size:1.55rem;font-weight:700;color:#f0f6fc;line-height:1.2}
+.status-line{color:#8b949e;font-size:0.95rem;font-style:italic;line-height:1.5;margin:0 0 1.1rem}
+.status-tiers{display:flex;flex-wrap:wrap;align-items:center;gap:0.45rem;font-size:0.9rem;color:#c9d1d9;margin-bottom:0.35rem}
+.status-meta{font-size:0.82rem;color:#8b949e}
+.status-sep{color:#30363d}
+.status-vulns-ok{color:var(--color-success)}
+.status-vulns-bad{color:var(--color-danger);font-weight:600}
+.status-trend{font-weight:600}
+.status-trend.up{color:var(--color-success)}
+.status-trend.down{color:var(--color-danger)}
+/* "Since the last run" delta strip */
+.since-block{margin-bottom:1.5rem}
+.since-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0.5rem}
+.since-item{display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;background:#161b22;border:1px solid #21262d;border-left:3px solid #30363d;border-radius:8px;padding:0.7rem 1rem;font-size:0.9rem}
+.since-item.since-up{border-left-color:var(--color-success)}
+.since-item.since-down{border-left-color:var(--color-danger)}
+.since-repo{font-weight:600}
+.since-arrow{color:#8b949e}
+.since-note{color:#8b949e}
+.since-empty{color:#8b949e;font-style:italic;background:#161b22;border:1px solid #21262d;border-radius:8px;padding:0.9rem 1.2rem;margin:0}
+@media(max-width:600px){.status-hero{padding:1.3rem 1.2rem}.status-headline{font-size:1.3rem}}
 </style>`;
 
 // Shared site-wide footer block. Rendered on every page (portfolio dashboard,

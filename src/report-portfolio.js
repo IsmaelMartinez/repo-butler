@@ -4,6 +4,7 @@ import { CSS, SITE_FOOTER, htmlPage } from './report-styles.js';
 import { computeLibyearWithTimeout } from './libyear.js';
 import { buildActionItems } from './report-repo.js';
 import { hasActiveCopilotReviewRuleset } from './github.js';
+import { detectTierChanges } from './tier-change.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
@@ -598,8 +599,8 @@ export function buildPortfolioAttentionSection(repos, details, owner, config) {
   const top10 = allItems.slice(0, 10);
 
   if (top10.length === 0) {
-    return `<h2>Attention Required</h2>
-<div class="chart-container"><p class="text-success" style="margin:0">All clear — nothing needs attention across the portfolio.</p></div>`;
+    return `<h2>Needs your attention</h2>
+<div class="chart-container"><p class="text-success" style="margin:0">All clear across the portfolio — nothing for your hand today. I'll mind the place.</p></div>`;
   }
 
   const effortColor = { 'quick win': '#7ee787', 'moderate': '#d29922', 'significant': '#f85149' };
@@ -610,7 +611,7 @@ export function buildPortfolioAttentionSection(repos, details, owner, config) {
     <td><span style="color:${effortColor[item.effort] || '#8b949e'}">${item.effort}</span></td>
   </tr>`).join('');
 
-  return `<h2>Attention Required</h2>
+  return `<h2>Needs your attention</h2>
 <div class="chart-container">
 <table><thead><tr><th>#</th><th>Repo</th><th>Action</th><th>Effort</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -694,9 +695,138 @@ export function buildDependencyInventorySection(inventory) {
 }
 
 
+// --- Status hero, delta strip, and the butler's voice ---
+
+// Reginald's voice on the dashboard. Static, author-controlled strings (never
+// external input), kept brief and public-appropriate — a light butler touch on
+// the headline and the empty states, with the household's tea-and-whisky
+// tradition surfacing only on the genuinely good days. One line per state so
+// the page reads the same every visit; the data carries the rest.
+const BUTLER_STATUS = {
+  healthy: {
+    headline: 'All in good order',
+    line: `The portfolio's in fine fettle — I'll keep watch, and perhaps pour myself a small dram.`,
+  },
+  attention: {
+    headline: 'A few things for your eye',
+    line: `Nothing alarming, sir. A nudge or two below, when the moment suits.`,
+  },
+  critical: {
+    headline: 'This rather wants your attention',
+    line: `A critical matter has surfaced. I'd see to it before the tea goes cold.`,
+  },
+};
+const SINCE_EMPTY = `Nothing's stirred since my last round. A quiet portfolio is a contented one.`;
+const SINCE_FIRST_RUN = `Still settling in — once I've a prior round to compare, I'll report what's changed.`;
+
+const TIER_RANK = { none: 0, bronze: 1, silver: 2, gold: 3 };
+
+// True when a repo (current classified object or a stored portfolio-weekly
+// summary — both carry vulns/codeScanning/secretScanning) has open critical or
+// high security findings. The portfolio's single most urgent signal.
+function repoAtRisk(r) {
+  return isHighSeverity(r.vulns) || isHighSeverity(r.codeScanning) || ((r.secretScanning?.count || 0) > 0);
+}
+
+// Percentage of a stored portfolio snapshot's repos at Gold, or null when the
+// snapshot is absent/empty. Used for the headline's week-over-week trend.
+function goldPctOf(snapshot) {
+  const repos = snapshot?.repos ? Object.values(snapshot.repos) : [];
+  if (repos.length === 0) return null;
+  const gold = repos.filter(r => r?.computed?.tier === 'gold').length;
+  return Math.round((gold / repos.length) * 100);
+}
+
+// The portfolio's overall state, which drives the headline, the status colour,
+// and which sections open themselves. Critical when anything has an open
+// critical/high alert; attention when a repo is below Gold or a high-priority
+// governance finding is open; healthy otherwise.
+function computePortfolioState(classified, atRisk, governanceFindings) {
+  if (atRisk.length > 0) return 'critical';
+  const highGov = Array.isArray(governanceFindings) && governanceFindings.some(f => f?.priority === 'high');
+  const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
+  if (!allGold || highGov) return 'attention';
+  return 'healthy';
+}
+
+// A single top-of-page banner for genuinely urgent security state.
+export function buildCriticalBanner(atRisk) {
+  if (!atRisk || atRisk.length === 0) return '';
+  const shown = atRisk.slice(0, 5).map(r => `<a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a>`).join(', ');
+  const more = atRisk.length > 5 ? ` and ${atRisk.length - 5} more` : '';
+  const verb = atRisk.length === 1 ? 'has' : 'have';
+  return `<div class="alert-banner alert-critical"><strong>Security needs you.</strong> ${shown}${more} ${verb} open critical or high alerts.</div>`;
+}
+
+// The calm headline block: a status dot, a state-aware headline in the butler's
+// voice, the tier mix, the portfolio's vulnerability posture, and a
+// week-over-week Gold trend when a prior snapshot exists.
+export function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount) {
+  const voice = BUTLER_STATUS[state] || BUTLER_STATUS.healthy;
+  const tone = state === 'critical' ? 'crit' : state === 'attention' ? 'warn' : 'ok';
+  const vulnLabel = critHighCount === 0
+    ? `<span class="status-vulns-ok">no open vulnerabilities</span>`
+    : `<span class="status-vulns-bad">${critHighCount} security alert${critHighCount !== 1 ? 's' : ''}</span>`;
+  let trendLabel = '';
+  if (priorGoldPct != null && priorGoldPct !== goldPct) {
+    const diff = goldPct - priorGoldPct;
+    const dir = diff > 0 ? 'up' : 'down';
+    const arrow = diff > 0 ? '▲' : '▼';
+    trendLabel = ` <span class="status-trend ${dir}">${arrow} ${diff > 0 ? '+' : ''}${diff}pp</span>`;
+  }
+  return `<section class="status-hero status-${tone}">
+  <div class="status-top"><span class="status-dot"></span><div class="status-headline">${voice.headline}</div></div>
+  <p class="status-line">${voice.line}</p>
+  <div class="status-tiers">${tierBadges} <span class="status-sep">·</span> ${vulnLabel}</div>
+  <div class="status-meta">${goldPct}% Gold${trendLabel} <span class="status-sep">·</span> ${repoCount} repos, ${activeCount} active</div>
+</section>`;
+}
+
+// The "since the last run" delta strip — the dashboard's story. Diffs the
+// current run against the previous portfolio-weekly snapshot: tier moves (via
+// the pure detectTierChanges core) and security posture changes. Quiet by
+// design — a calm one-liner when nothing moved, which is the common case.
+export function buildSinceLastSection(classified, priorPortfolio) {
+  const priorRepos = priorPortfolio?.repos;
+  if (!priorRepos) {
+    return `<section class="since-block"><h2>Since the last run</h2><p class="since-empty">${SINCE_FIRST_RUN}</p></section>`;
+  }
+
+  const currentTiers = {};
+  for (const r of classified) currentTiers[r.name] = r._tier;
+  const priorTiers = {};
+  for (const [name, s] of Object.entries(priorRepos)) {
+    const t = s?.computed?.tier;
+    if (t) priorTiers[name] = t;
+  }
+  const { changes } = detectTierChanges(currentTiers, priorTiers);
+
+  const items = [];
+  for (const c of changes) {
+    const up = (TIER_RANK[c.newTier] ?? 0) > (TIER_RANK[c.previousTier] ?? 0);
+    items.push(`<li class="since-item since-${up ? 'up' : 'down'}"><span class="since-repo"><a href="${escHtml(c.repo)}.html">${escHtml(c.repo)}</a></span> <span class="tier-badge tier-${c.previousTier}">${TIER_DISPLAY[c.previousTier]}</span> <span class="since-arrow">→</span> <span class="tier-badge tier-${c.newTier}">${TIER_DISPLAY[c.newTier]}</span></li>`);
+  }
+  for (const r of classified) {
+    if (!Object.hasOwn(priorRepos, r.name)) continue;
+    const before = repoAtRisk(priorRepos[r.name]);
+    const after = repoAtRisk(r);
+    if (!before && after) {
+      items.push(`<li class="since-item since-down"><span class="since-repo"><a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a></span> <span class="since-note">new critical/high security alerts</span></li>`);
+    } else if (before && !after) {
+      items.push(`<li class="since-item since-up"><span class="since-repo"><a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a></span> <span class="since-note">cleared its critical/high security alerts</span></li>`);
+    }
+  }
+
+  if (items.length === 0) {
+    return `<section class="since-block"><h2>Since the last run</h2><p class="since-empty">${SINCE_EMPTY}</p></section>`;
+  }
+  return `<section class="since-block"><h2>Since the last run</h2><ul class="since-list">${items.slice(0, 8).join('')}</ul></section>`;
+}
+
+
 // --- Portfolio report ---
 
-export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null, governanceFindings = null) {
+export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null, governanceFindings = null, priorPortfolio = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived && !r.fork)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
@@ -744,22 +874,31 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     `{label:'${r.name}',data:[${(r.weekly || []).join(',')}],backgroundColor:'${chartColors[i] || chartColors[7]}',borderRadius:1}`
   ).join(',');
 
-  // --- Portfolio Pulse ---
+  // --- Status hero + delta (calm & adaptive layout) ---
   const tierCounts = countBy(classified.map(r => r._tier));
   const goldCount = tierCounts.gold || 0;
   const goldPct = classified.length > 0 ? Math.round((goldCount / classified.length) * 100) : 0;
-  const goldColor = colorByThreshold(goldPct, PCT_HIGH_GOOD_RANGES);
   const tierBadges = ['gold', 'silver', 'bronze', 'none']
     .filter(t => tierCounts[t] > 0)
     .map(t => `<span class="tier-badge tier-${t}">${tierCounts[t]} ${TIER_DISPLAY[t]}</span>`)
     .join(' ');
 
-  const pulseSection = `<h2>Portfolio Pulse</h2>
-<div class="chart-container">
-  <div style="font-size:2.5rem;font-weight:700;color:${goldColor};margin-bottom:0.5rem">${goldPct}% Gold</div>
-  <div style="margin-bottom:0.5rem">${tierBadges}</div>
-  <div class="muted">${classified.length} repos — ${statusCounts.active || 0} active, ${(statusCounts.dormant || 0) + (statusCounts.archive || 0)} dormant/archive</div>
-</div>`;
+  // Portfolio state and the calm hero / delta / banner it drives. The big
+  // tables open themselves only when something is below Gold (allGold === false).
+  const atRisk = classified.filter(repoAtRisk);
+  let critHighCount = 0;
+  for (const r of classified) {
+    critHighCount += (r.vulns?.critical || 0) + (r.vulns?.high || 0)
+      + (r.codeScanning?.critical || 0) + (r.codeScanning?.high || 0)
+      + (r.secretScanning?.count || 0);
+  }
+  const state = computePortfolioState(classified, atRisk, governanceFindings);
+  const priorGoldPct = goldPctOf(priorPortfolio);
+  const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
+
+  const criticalBanner = buildCriticalBanner(atRisk);
+  const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount);
+  const sinceSection = buildSinceLastSection(classified, priorPortfolio);
 
   // --- Simplified health table (6 columns) ---
   const simplifiedRows = classified.map(r => {
@@ -834,12 +973,14 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     : '';
 
   const body = `<h1><a href="https://github.com/${owner}" class="repo-link">@${owner} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
-<div class="subtitle">GitHub Portfolio Health Report — ${now} — click any repo name for details — <a href="digest.html">weekly digest</a></div>
-${HERO_INTRO}
-${pulseSection}
-${ABOUT_SECTION}
+<div class="subtitle">Portfolio health · ${now} · click any repo for detail · <a href="digest.html">weekly digest</a></div>
+${criticalBanner}
+${statusHero}
+${sinceSection}
 ${buildPortfolioAttentionSection(classified, details, owner, config)}
-<h2>Portfolio Health</h2>
+${buildGovernanceSection(governanceFindings)}
+${buildCampaignSection(repos, details)}
+<details${allGold ? '' : ' open'}><summary>All repos · ${classified.length}</summary>
 <div class="chart-container">
 <table><thead><tr><th>Repo</th><th>Tier</th><th>Issues</th><th>PRs</th><th>CI%</th><th>Vulns</th><th>Next Step</th></tr></thead>
 <tbody>${simplifiedRows}</tbody></table>
@@ -850,12 +991,15 @@ ${buildPortfolioAttentionSection(classified, details, owner, config)}
 <tbody>${fullTableRows}</tbody></table>
 </div>
 </details>
-${buildCampaignSection(repos, details)}
-${buildGovernanceSection(governanceFindings)}
+</details>
 <details><summary>Commit Activity (26 weeks)</summary>
 <div class="chart-container"><div class="chart-title">Weekly Commits by Repository</div><canvas id="weeklyChart" style="max-height:360px"></canvas></div>
 </details>
-${depSection}`;
+${depSection}
+<details class="about-butler"><summary>About Repo Butler</summary>
+${HERO_INTRO}
+${ABOUT_SECTION}
+</details>`;
   const charts = `new Chart(document.getElementById('weeklyChart'),{type:'bar',data:{labels:[${weekLabels.map(l => `'${l}'`).join(',')}],datasets:[${weeklyDatasets}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:10,font:{size:10}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{maxRotation:45,font:{size:9}}},y:{stacked:true,beginAtZero:true,grid:{color:'#21262d'}}}}});`;
   return htmlPage({ title: `@${owner} — Portfolio Report`, body, charts });
 }

@@ -212,6 +212,30 @@ export function createStore(context) {
     await pruneDir(PORTFOLIO_WEEKLY_DIR, MAX_WEEKLY_SNAPSHOTS, 'prune old portfolio snapshot');
   }
 
+  // Read the single most recent portfolio-weekly snapshot (or null if none
+  // exist yet). Used by the REPORT phase to diff the current run's tiers and
+  // risk against the previous run for the dashboard's "since the last run"
+  // delta. Called before writePortfolioWeekly overwrites the current-week file,
+  // so the latest file on the branch is genuinely the previous run's state.
+  // One list + one read — kept lighter than readRepoWeeklyHistory, which pulls
+  // the whole window. Best-effort: any failure (missing dir, parse error)
+  // returns null so the dashboard simply renders its first-run calm state.
+  async function readLatestPortfolioWeekly() {
+    try {
+      const files = await listBranchDir(PORTFOLIO_WEEKLY_DIR);
+      const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+      if (jsonFiles.length === 0) return null;
+      const latest = jsonFiles[jsonFiles.length - 1];
+      const content = await readFile(`${PORTFOLIO_WEEKLY_DIR}/${latest}`);
+      if (!content) return null;
+      const parsed = JSON.parse(content);
+      parsed._week = latest.replace('.json', '');
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
   // Read weekly history for a specific repo from portfolio snapshots.
   // When repoId is provided, falls back to ID-based lookup if the name
   // isn't found — this bridges repo renames across historical snapshots.
@@ -306,7 +330,7 @@ export function createStore(context) {
 
   return {
     readSnapshot, readPreviousSnapshot, writeSnapshot,
-    readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory,
+    readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLatestPortfolioWeekly,
     readLastHash, writeHash,
     writeGovernanceFindings, readGovernanceFindings,
     readRepoCache, writeRepoCache,
