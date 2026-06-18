@@ -755,7 +755,7 @@ export function buildCriticalBanner(atRisk) {
   const shown = atRisk.slice(0, 5).map(r => `<a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a>`).join(', ');
   const more = atRisk.length > 5 ? ` and ${atRisk.length - 5} more` : '';
   const verb = atRisk.length === 1 ? 'has' : 'have';
-  return `<div class="alert-banner alert-critical"><strong>Security needs you.</strong> ${shown}${more} ${verb} open critical or high alerts.</div>`;
+  return `<div class="alert-banner alert-critical"><strong>Security needs you.</strong> ${shown}${more} ${verb} open security alerts.</div>`;
 }
 
 // The calm headline block: a status dot, a state-aware headline in the butler's
@@ -764,15 +764,19 @@ export function buildCriticalBanner(atRisk) {
 export function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount) {
   const voice = BUTLER_STATUS[state] || BUTLER_STATUS.healthy;
   const tone = state === 'critical' ? 'crit' : state === 'attention' ? 'warn' : 'ok';
+  // Severity-neutral wording: critHighCount mixes critical/high vulns and
+  // code-scanning with any-severity secret-scanning hits, so "security alerts"
+  // is the honest label rather than "vulnerabilities" or "critical/high".
   const vulnLabel = critHighCount === 0
-    ? `<span class="status-vulns-ok">no open vulnerabilities</span>`
+    ? `<span class="status-vulns-ok">no open security alerts</span>`
     : `<span class="status-vulns-bad">${critHighCount} security alert${critHighCount !== 1 ? 's' : ''}</span>`;
   let trendLabel = '';
   if (priorGoldPct != null && priorGoldPct !== goldPct) {
     const diff = goldPct - priorGoldPct;
     const dir = diff > 0 ? 'up' : 'down';
     const arrow = diff > 0 ? '▲' : '▼';
-    trendLabel = ` <span class="status-trend ${dir}">${arrow} ${diff > 0 ? '+' : ''}${diff}pp</span>`;
+    // Math.abs so a negative move reads "▼ 5pp", not the double-negative "▼ -5pp".
+    trendLabel = ` <span class="status-trend ${dir}">${arrow} ${diff > 0 ? '+' : ''}${Math.abs(diff)}pp</span>`;
   }
   return `<section class="status-hero status-${tone}">
   <div class="status-top"><span class="status-dot"></span><div class="status-headline">${voice.headline}</div></div>
@@ -802,18 +806,24 @@ export function buildSinceLastSection(classified, priorPortfolio) {
   const { changes } = detectTierChanges(currentTiers, priorTiers);
 
   const items = [];
+  const moved = new Set();
   for (const c of changes) {
+    moved.add(c.repo);
     const up = (TIER_RANK[c.newTier] ?? 0) > (TIER_RANK[c.previousTier] ?? 0);
     items.push(`<li class="since-item since-${up ? 'up' : 'down'}"><span class="since-repo"><a href="${escHtml(c.repo)}.html">${escHtml(c.repo)}</a></span> <span class="tier-badge tier-${c.previousTier}">${TIER_DISPLAY[c.previousTier]}</span> <span class="since-arrow">→</span> <span class="tier-badge tier-${c.newTier}">${TIER_DISPLAY[c.newTier]}</span></li>`);
   }
   for (const r of classified) {
+    // A repo that already moved tier is shown once, as its tier move — a
+    // critical/high security change usually causes that move, so a second
+    // security row would be redundant and could crowd out the 8-item cap.
+    if (moved.has(r.name)) continue;
     if (!Object.hasOwn(priorRepos, r.name)) continue;
     const before = repoAtRisk(priorRepos[r.name]);
     const after = repoAtRisk(r);
     if (!before && after) {
-      items.push(`<li class="since-item since-down"><span class="since-repo"><a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a></span> <span class="since-note">new critical/high security alerts</span></li>`);
+      items.push(`<li class="since-item since-down"><span class="since-repo"><a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a></span> <span class="since-note">new security alerts</span></li>`);
     } else if (before && !after) {
-      items.push(`<li class="since-item since-up"><span class="since-repo"><a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a></span> <span class="since-note">cleared its critical/high security alerts</span></li>`);
+      items.push(`<li class="since-item since-up"><span class="since-repo"><a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a></span> <span class="since-note">cleared its security alerts</span></li>`);
     }
   }
 
@@ -956,10 +966,10 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
     return `<tr>
       <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
-      <td>${r.language || '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
+      <td>${r.language ? escHtml(r.language) : '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
       <td>${r.commits || 0}</td>
       <td>${ciDisplay}</td>
-      <td>${!r.license || r.license === 'None' ? `<span style="color:${COLOR_WARNING}">none</span>` : r.license}</td>
+      <td>${!r.license || r.license === 'None' ? `<span style="color:${COLOR_WARNING}">none</span>` : escHtml(r.license)}</td>
       <td><span style="color:${communityColor}">${r.communityHealth != null ? r.communityHealth + '%' : '—'}</span></td>
       <td>${vulnDisplay}</td>
       <td>${depDisplay}</td>

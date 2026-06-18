@@ -1101,7 +1101,7 @@ describe('calm dashboard hero, delta strip, and butler voice', () => {
     const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
     assert.ok(html.includes('status-ok'), 'all-gold portfolio renders the healthy tone');
     assert.ok(html.includes('All in good order'), 'healthy headline in the butler voice');
-    assert.ok(html.includes('no open vulnerabilities'), 'shows a clean vulnerability posture');
+    assert.ok(html.includes('no open security alerts'), 'shows a clean security posture');
     assert.ok(html.includes('<details><summary>All repos'), 'all-gold collapses the repo table');
   });
 
@@ -1128,7 +1128,7 @@ describe('calm dashboard hero, delta strip, and butler voice', () => {
     const { portfolio, details } = goldPortfolio();
     const prior = { repos: { a: { computed: { tier: 'gold' }, vulns: { count: 1, high: 1, max_severity: 'high' } } } };
     const html = generatePortfolioReport('owner', portfolio, details, null, null, {}, null, prior);
-    assert.ok(html.includes('cleared its critical/high security alerts'), 'a resolved alert shows as a delta item');
+    assert.ok(html.includes('cleared its security alerts'), 'a resolved alert shows as a delta item');
   });
 
   it('raises the critical banner and crit voice when a repo has high alerts', async () => {
@@ -1149,6 +1149,27 @@ describe('calm dashboard hero, delta strip, and butler voice', () => {
     const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
     assert.ok(html.includes('<details open><summary>All repos'), 'a below-gold portfolio opens the repo table');
     assert.ok(html.includes('A few things for your eye'), 'below-gold but un-alerted reads as attention');
+  });
+
+  it('shows a repo once in the delta when it both moves tier and clears alerts', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = goldPortfolio();
+    // Prior: silver AND at-risk; current: gold AND clean → one move, not two rows.
+    const prior = { repos: { a: { computed: { tier: 'silver' }, vulns: { count: 1, high: 1, max_severity: 'high' } } } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {}, null, prior);
+    assert.ok(html.includes('since-item since-up'), 'renders the tier move');
+    assert.ok(!html.includes('cleared its security alerts'), 'does not also render a separate security row');
+  });
+
+  it('formats a downward gold trend without a double negative', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const portfolio = { repos: [{ name: 'b', stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' }] };
+    const details = { b: { commits: 5, weekly: [1], license: 'None', ci: 0, communityHealth: 20, vulns: null, ciPassRate: null, open_issues: 0, open_bugs: 0, released_at: null, codeScanning: null, secretScanning: null } };
+    const prior = { repos: { b: { computed: { tier: 'gold' } } } };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {}, null, prior);
+    assert.ok(html.includes('status-trend down'), 'renders a downward trend');
+    assert.ok(html.includes('▼ 100pp'), 'shows the magnitude without a sign');
+    assert.ok(!html.includes('-100pp'), 'no double-negative rendering');
   });
 });
 
