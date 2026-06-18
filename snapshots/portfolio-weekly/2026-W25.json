@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 21,
-      "open_bugs": 9,
-      "commits_6mo": 420,
+      "open_issues": 20,
+      "open_bugs": 8,
+      "commits_6mo": 421,
       "stars": 4785,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.95,
+      "ciPassRate": 0.9571428571428572,
       "vulns": {
         "count": 3,
         "critical": 0,
@@ -237,7 +237,7 @@
       },
       "ci": 15,
       "released_at": "2026-05-29T19:31:34Z",
-      "pushed_at": "2026-06-18T13:11:34Z",
+      "pushed_at": "2026-06-18T17:38:01Z",
       "traffic": {
         "views_14d": {
           "count": 8755,
@@ -318,7 +318,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9891304347826086,
+      "ciPassRate": 0.989247311827957,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-18T13:22:58Z",
+      "pushed_at": "2026-06-18T18:57:15Z",
       "traffic": {
         "views_14d": {
           "count": 30,
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9523809523809523,
+      "ciPassRate": 0.9529411764705882,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-18T13:00:26Z",
+      "pushed_at": "2026-06-18T18:43:31Z",
       "traffic": {
         "views_14d": {
           "count": 18,
@@ -1344,7 +1344,7 @@
       "id": 1223288066,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 259,
+      "commits_6mo": 261,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -1370,7 +1370,7 @@
       },
       "ci": 8,
       "released_at": "2026-06-14T21:21:39Z",
-      "pushed_at": "2026-06-18T11:39:24Z",
+      "pushed_at": "2026-06-18T20:49:47Z",
       "traffic": {
         "views_14d": {
           "count": 41,
