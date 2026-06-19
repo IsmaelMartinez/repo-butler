@@ -5,18 +5,18 @@
       "id": 36797125,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 41,
+      "commits_6mo": 42,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9578947368421052,
+      "ciPassRate": 0.968421052631579,
       "vulns": {
-        "count": 2,
+        "count": 0,
         "critical": 0,
-        "high": 1,
-        "medium": 1,
+        "high": 0,
+        "medium": 0,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": null
       },
       "codeScanning": {
         "count": 0,
@@ -31,19 +31,19 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-19T12:43:39Z",
+      "pushed_at": "2026-06-19T12:45:53Z",
       "traffic": {
         "views_14d": {
           "count": 6,
           "uniques": 1
         },
         "clones_14d": {
-          "count": 161,
-          "uniques": 69
+          "count": 162,
+          "uniques": 70
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -77,7 +77,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -101,7 +101,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "sound3fy": {
@@ -209,20 +209,20 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 21,
-      "open_bugs": 9,
-      "commits_6mo": 428,
+      "open_issues": 22,
+      "open_bugs": 10,
+      "commits_6mo": 429,
       "stars": 4788,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9777777777777777,
+      "ciPassRate": 0.9565217391304348,
       "vulns": {
-        "count": 3,
+        "count": 1,
         "critical": 0,
-        "high": 1,
-        "medium": 2,
+        "high": 0,
+        "medium": 1,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -237,15 +237,15 @@
       },
       "ci": 15,
       "released_at": "2026-05-29T19:31:34Z",
-      "pushed_at": "2026-06-19T12:43:58Z",
+      "pushed_at": "2026-06-19T12:46:46Z",
       "traffic": {
         "views_14d": {
-          "count": 8755,
-          "uniques": 4217
+          "count": 9033,
+          "uniques": 4285
         },
         "clones_14d": {
-          "count": 6879,
-          "uniques": 699
+          "count": 6903,
+          "uniques": 703
         }
       },
       "computed": {
@@ -263,7 +263,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -283,7 +283,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -307,7 +307,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": "Fewer than 10 open bugs"
       }
     },
     "ismaelmartinez.me.uk": {
@@ -318,7 +318,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9893617021276596,
+      "ciPassRate": 0.9894736842105263,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -340,15 +340,15 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-19T08:05:53Z",
+      "pushed_at": "2026-06-19T13:21:40Z",
       "traffic": {
         "views_14d": {
-          "count": 30,
+          "count": 31,
           "uniques": 13
         },
         "clones_14d": {
-          "count": 2100,
-          "uniques": 517
+          "count": 2025,
+          "uniques": 518
         }
       },
       "computed": {
@@ -623,18 +623,18 @@
       "id": 1006952856,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 176,
+      "commits_6mo": 177,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
       "ciPassRate": 0.96875,
       "vulns": {
-        "count": 4,
+        "count": 0,
         "critical": 0,
-        "high": 2,
-        "medium": 2,
+        "high": 0,
+        "medium": 0,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": null
       },
       "codeScanning": {
         "count": 0,
@@ -649,7 +649,7 @@
       },
       "ci": 6,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-19T12:43:53Z",
+      "pushed_at": "2026-06-19T12:47:27Z",
       "traffic": {
         "views_14d": {
           "count": 3,
@@ -661,7 +661,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -695,7 +695,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -719,7 +719,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "ai-model-advisor": {
@@ -862,8 +862,8 @@
           "uniques": 6
         },
         "clones_14d": {
-          "count": 774,
-          "uniques": 125
+          "count": 777,
+          "uniques": 129
         }
       },
       "computed": {
@@ -958,15 +958,15 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-19T12:22:46Z",
+      "pushed_at": "2026-06-19T13:04:08Z",
       "traffic": {
         "views_14d": {
-          "count": 18,
+          "count": 24,
           "uniques": 2
         },
         "clones_14d": {
-          "count": 6885,
-          "uniques": 1811
+          "count": 7699,
+          "uniques": 1934
         }
       },
       "computed": {
@@ -1171,8 +1171,8 @@
           "uniques": 2
         },
         "clones_14d": {
-          "count": 167,
-          "uniques": 63
+          "count": 169,
+          "uniques": 64
         }
       },
       "computed": {
@@ -1370,7 +1370,7 @@
       },
       "ci": 8,
       "released_at": "2026-06-14T21:21:39Z",
-      "pushed_at": "2026-06-19T12:32:18Z",
+      "pushed_at": "2026-06-19T12:59:09Z",
       "traffic": {
         "views_14d": {
           "count": 40,
