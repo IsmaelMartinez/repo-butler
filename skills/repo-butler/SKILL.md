@@ -63,7 +63,7 @@ echo "$PRIOR"
 
 `PRIOR` has the shape `{"lastDate":"YYYY-MM-DD","lastScene":"<id>","repoTiers":{"<repo>":"gold|silver|bronze|none"}}`. Compare `PRIOR.repoTiers` against the current per-repo tiers from `query_portfolio`:
 
-- A repo whose tier improved → "returned to Gold" / "reached Silver, sir". A repo that slipped → "slipped to Bronze, sir". Name at most two; prefer improvements. This becomes the "since your last briefing" opener in panel 1.
+- A repo whose tier improved → "returned to Gold" / "reached Silver, sir". A repo that slipped → "slipped to Bronze, sir". Name at most two; prefer improvements. This becomes the "since your last briefing" opener line in the scene.
 - If `PRIOR` is empty (first run) or `lastDate` is today already, omit the delta line.
 
 After choosing the scene and rendering, write the new state (fill `repoTiers` from the current `query_portfolio` result, one `"repo":"tier"` pair per line, comma-separated):
