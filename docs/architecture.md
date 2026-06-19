@@ -1,86 +1,250 @@
-# Architecture
+# How Repo Butler Works
 
-This document maps the moving parts of Repo Butler: the seven-phase core pipeline, the four scheduled workflows that run it, two on-demand workflows for cross-repo operations, the data branch that persists everything, and the AI-agent surface (MCP + A2A) that consumes it.
+This is the architecture doc — the full picture of how the pieces tie together,
+read top to bottom in three layers. First, in plain terms, what the butler does.
+Then the seven-phase flow that does it. Then "the magic" — the handful of design
+choices that make it cheap, safe, and agent-consumable — followed by a deep dive
+into the data branch, the safety boundary, and how to extend it.
 
-## The seven-phase pipeline
+## What it does
 
+Repo Butler is a roadmap planner that runs itself. On a schedule it looks at a
+whole portfolio of GitHub repositories, scores each one's health, drafts roadmap
+updates, finds governance gaps, brainstorms improvements (with an AI council
+voting on them), files the good ones as issues, and publishes HTML dashboards to
+GitHub Pages. It has zero npm dependencies, runs for free on GitHub Actions and a
+free-tier LLM, and exposes everything it knows to other AI agents through an MCP
+server. It is also self-dogfooding: this repository uses the butler as its own
+planner.
+
+The whole system fits in one picture. Schedules trigger the pipeline; the
+pipeline reads and writes a single orphan branch that acts as its database; the
+report deploys to Pages; and external agents read the same data through MCP. Every
+write to GitHub passes through one safety boundary.
+
+```mermaid
+flowchart LR
+    subgraph S["Schedules and triggers"]
+        D["Daily ×4<br/>+ push"]
+        W["Weekly"]
+        M["Monitor 6h"]
+        A["Apply<br/>(manual)"]
+    end
+    P["Seven-phase pipeline<br/>OBSERVE → … → REPORT<br/>+ agent council"]
+    DB[("repo-butler-data<br/>orphan branch")]
+    SF{{"safety.js<br/>trust boundary"}}
+    GH["GitHub writes<br/>issues · roadmap PRs · remediation PRs"]
+    PG["GitHub Pages<br/>dashboards + agent-card"]
+    MCP["MCP server"]
+    AG["AI agents"]
+
+    D --> P
+    W --> P
+    M --> P
+    A --> DB
+    P <--> DB
+    P --> SF --> GH
+    DB --> PG
+    DB --> MCP --> AG
+    PG -. "discovery (agent-card)" .-> AG
+
+    classDef store fill:#eef,stroke:#557;
+    classDef gate fill:#fee,stroke:#a55;
+    class DB store;
+    class SF gate;
 ```
-OBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT   (+ MONITOR)
+
+## The seven-phase flow
+
+The core is a linear pipeline of seven phases, plus a parallel `MONITOR` phase
+that runs on its own cadence.
+
+```mermaid
+flowchart LR
+    O["OBSERVE"] --> AS["ASSESS"] --> U["UPDATE"] --> G["GOVERNANCE"] --> I["IDEATE"] --> PR["PROPOSE"] --> RE["REPORT"]
+    MON["MONITOR<br/>(parallel)"]
+
+    classDef llm fill:#fef3c7,stroke:#b8860b;
+    classDef det fill:#e0f2e9,stroke:#2e7d52;
+    class AS,U,I,MON llm;
+    class O,G,PR,RE det;
 ```
 
-`src/index.js` is a thin dispatcher: it parses the requested phase(s) from `--phase=` or `INPUT_PHASE`, builds a shared `context` object, validates the LLM provider, then loops over the selected phases calling each module's `runX(context)` wrapper. Each phase reads from and writes to `context` so downstream phases see upstream state.
+The green phases are pure deterministic JavaScript with no LLM calls; the amber
+ones call a model. `OBSERVE` gathers project state from the GitHub API — issues,
+PRs, releases, labels, workflows, security alerts, roadmap content — and
+classifies every portfolio repo by activity level. `ASSESS` diffs the current
+snapshot against the previous run, computes weekly trends (growing, shrinking, or
+stable), and can summarise the change with Gemini Flash. `UPDATE` generates a
+fresh roadmap document and opens a PR for it. `GOVERNANCE` runs deterministic
+detectors across the portfolio — standards gaps, policy drift, tier-uplift
+opportunities, and stale Dependabot PRs — and persists the findings. `IDEATE`
+generates improvement ideas with the deep model, feeding off those fresh
+governance findings, then convenes the agent council to deliberate. `PROPOSE`
+runs the approved ideas through the safety layer and files them as GitHub issues,
+capped and labelled for human review. `REPORT` builds the HTML dashboards and the
+A2A AgentCard and hands them to the Pages deploy. `MONITOR` is separate: it
+detects events that happen between scheduled runs and feeds them to the council
+for triage.
 
-OBSERVE gathers project state via the GitHub API and classifies portfolio repos by activity. ASSESS diffs snapshots and computes weekly trends. UPDATE generates an updated roadmap document and opens a PR. GOVERNANCE runs deterministic detectors over the portfolio (no LLM cost) and persists findings. IDEATE generates improvement ideas using an LLM, feeding off the fresh governance findings, then runs the agent council for multi-perspective deliberation. PROPOSE safety-filters the approved ideas and opens GitHub issues. REPORT generates HTML dashboards and the A2A AgentCard for GitHub Pages. MONITOR is a parallel phase that detects events between scheduled runs.
+`src/index.js` is a deliberately thin dispatcher. It reads the requested phases
+from `INPUT_PHASE` or a `--phase=` argument, builds one shared `context` object,
+validates the LLM provider, then loops the selected phases calling each module's
+`runX(context)` wrapper. Phases communicate only through `context`, so a
+downstream phase sees whatever upstream phases attached to it (the snapshot, the
+portfolio classification, the ideas, and so on). Two design choices in the
+dispatcher are worth calling out. Each phase runs the right model for its job —
+`IDEATE` and `MONITOR` get the deep provider (Claude) for harder reasoning, while
+`ASSESS` and `UPDATE` use the default provider (Gemini Flash). And `runPhases`
+isolates failures per phase: an exception in one phase logs loudly and sets a
+non-zero exit code but does not skip the phases after it, so a flaky upstream
+step can never silently swallow `REPORT` and turn the Pages deploy into a no-op.
+
+## The magic
+
+Four design choices do most of the heavy lifting. None of them is exotic on its
+own; together they are why the butler is cheap to run, safe to point at untrusted
+repositories, and usable by other agents.
+
+### Cost choreography: free daily, expensive weekly
+
+The expensive work is LLM inference. The trick is that the most valuable signal —
+governance findings — costs nothing to compute, because detection is pure
+deterministic JavaScript. So the daily pipeline runs governance four times a day
+and `governance.json` always reflects the current portfolio. The costly LLM work
+(the `IDEATE` prompt plus five-persona council deliberation) fires only once a
+week.
+
+```mermaid
+flowchart TB
+    subgraph Daily["Daily ×4 — cheap, mostly deterministic"]
+        d1["OBSERVE"] --> d2["ASSESS"] --> d3["UPDATE"] --> d4["GOVERNANCE<br/>pure JS · no LLM"] --> d5["REPORT"]
+    end
+    subgraph Weekly["Weekly (Mon) — expensive, LLM"]
+        w1["OBSERVE"] --> w2["IDEATE<br/>(Claude)"] --> w3["COUNCIL<br/>5 personas"] --> w4["PROPOSE"]
+    end
+    d4 -. "governance.json<br/>(kept fresh 4×/day)" .-> w2
+
+    classDef det fill:#e0f2e9,stroke:#2e7d52;
+    classDef llm fill:#fef3c7,stroke:#b8860b;
+    class d1,d4,d5 det;
+    class w2,w3 llm;
+```
+
+The bridge between the two cadences is an idempotency guard. When the weekly run
+executes, `runIdeate` calls `runGovernance`, which checks whether findings are
+already present (in `context` or written to the data branch that morning) and
+skips re-detection if so — the council just reads the fresh findings the daily
+pipeline already produced. On top of that, `REPORT` is cached: its cache key is a
+SHA-256 of the snapshot summary, so an unchanged portfolio skips regeneration
+entirely, taking a quiet-day run from roughly fifteen minutes down to seconds.
+
+### The data branch is the database
+
+There is no database and no server. All persistent state lives on a single orphan
+branch, `repo-butler-data`, written through the Git Data API (blobs → trees →
+commits → ref update). The same workflow run that writes the branch also deploys
+the reports to Pages, and the MCP server reads the branch back with `git show` —
+so when an agent queries the butler, there are no live GitHub API calls at all.
+
+```mermaid
+flowchart LR
+    subgraph Pipeline["Pipeline phases"]
+        wr["OBSERVE / ASSESS /<br/>GOVERNANCE / REPORT"]
+    end
+    wr -- "Git Data API<br/>blobs → trees → commits → ref" --> DB[("repo-butler-data<br/>snapshots/ + reports/")]
+    DB -- "git show" --> MCP["MCP server"]
+    DB -- "deploy" --> PG["Pages dashboards"]
+    MCP --> AG["AI agents"]
+
+    classDef store fill:#eef,stroke:#557;
+    class DB store;
+```
+
+Cache invalidation is part of the contract. The report cache key is the snapshot
+summary hash, so adding a field to the summary forces regeneration on the next
+run. Per-repo enrichment (`repo-cache.json`) is keyed on `pushed_at` plus
+`open_issues_count`, so a new commit or issue busts it. The Dependabot audit
+deliberately bypasses that cache, because a PR ages without `pushed_at` changing.
+
+### One trust boundary for everything untrusted
+
+Repository metadata and LLM output are both untrusted input. `src/safety.js` is
+the single place either is allowed to cross into an LLM prompt or into anything
+published to GitHub. Every phase that writes routes through it — and that includes
+composed strings, so `PROPOSE` validates the final assembled issue body, not just
+the model's `body` field.
+
+```mermaid
+flowchart LR
+    repo["Repo metadata"]
+    llm["LLM output"]
+    SF{{"safety.js"}}
+    prompts["LLM prompts"]
+    writes["GitHub issues / PRs / Pages"]
+
+    repo --> SF
+    llm --> SF
+    SF -- "wrapPrompt + sanitizeForPrompt<br/>(BEGIN/END data delimiters)" --> prompts
+    SF -- "URL allowlist · @mention block ·<br/>secret/key detect · XSS · length caps" --> writes
+
+    classDef gate fill:#fee,stroke:#a55;
+    class SF gate;
+```
+
+On the way in, `sanitizeForPrompt` strips injection patterns and `wrapPrompt`
+fences external data between explicit "BEGIN/END REPOSITORY DATA" markers with a
+defence preamble, so a malicious README cannot smuggle instructions into a prompt.
+On the way out, the validators enforce a context-aware URL allowlist, block
+`@mentions`, detect API keys and private keys and tokens, prevent XSS, cap
+lengths, and sanitise LLM-suggested issue labels. Identifiers that get
+interpolated into cross-repo writes are gated by `REPO_NAME_PATTERN` and
+`validateGitHubUsername`, and `redactErrorForLog` keeps adversary-supplied
+substrings out of the CI logs.
+
+### A council, not a single opinion
+
+Before any idea becomes an issue, five personas deliberate on it — Product,
+Development, Stability, Maintainability, and Security. The council (`src/council.js`)
+reviews ideated proposals and triages monitor events, bucketing each into
+approved, watchlisted, or dismissed. The multi-perspective gate is what keeps the
+issue stream low-noise: an idea that only Product likes but Stability and Security
+flag does not get filed. The same machinery runs over events the `MONITOR` phase
+detects between daily runs, so a new CI failure or a freshly opened PR gets a
+considered verdict rather than an immediate alert.
 
 ## Workflow choreography
 
-Four scheduled workflows and two on-demand workflows interleave to keep the portfolio observed, governed, and remediated.
+Four scheduled workflows and two on-demand ones interleave to keep the portfolio
+observed, governed, and remediated.
 
-```
-                          REPO BUTLER PIPELINES
-                          =====================
+| Workflow | Trigger | Runs | Produces |
+|----------|---------|------|----------|
+| `self-test.yml` (daily) | cron 07/11/16/20 UTC + push | observe → assess → update → governance → report, then auto-onboard | snapshot, trends, roadmap PR, `governance.json`, dashboards |
+| `weekly-ideate.yml` | cron Mon 06:00 UTC | observe → ideate → council (reuses fresh findings) | approved/watchlisted/dismissed → issues |
+| `monitor.yml` | cron every 6h | monitor → council triage | `monitor-events.json` (read via MCP) |
+| `apply.yml` | manual dispatch only | read `governance.json` → open remediation PRs | up to 5 PRs/run on target repos |
 
-  ┌─────────────────────────────────────────────────────────────────┐
-  │                    DAILY PIPELINE  (self-test.yml)              │
-  │                    cron: 07,11,16,20 UTC + push                 │
-  │                                                                 │
-  │  OBSERVE → ASSESS → UPDATE → GOVERNANCE → REPORT → (Pages)      │
-  │     │        │        │          │           │                  │
-  │     ▼        ▼        ▼          ▼           ▼                  │
-  │  snapshot  trends  roadmap   findings    HTML +                 │
-  │  (data br) diff    PR        (data br)   agent-card             │
-  │                                                                 │
-  │  Then: AUTO-ONBOARD → opens CLAUDE.md PRs on missing repos      │
-  └─────────────────────────────────────────────────────────────────┘
-                                  │
-                                  │  governance.json (4×/day)
-                                  ▼
-  ┌─────────────────────────────────────────────────────────────────┐
-  │                  WEEKLY IDEATE  (weekly-ideate.yml)             │
-  │                  cron: Mon 06:00 UTC                            │
-  │                                                                 │
-  │  OBSERVE → IDEATE ─→ runGovernance (idempotent — uses fresh    │
-  │              │         findings from the daily run)             │
-  │              ▼                                                  │
-  │           COUNCIL  (Product / Dev / Stability /                │
-  │              │      Maintainability / Security)                 │
-  │              ▼                                                  │
-  │          approved / watchlisted / dismissed → PROPOSE           │
-  │              │                                                  │
-  │              ▼                                                  │
-  │          GitHub issues (capped at max_issues_per_run)           │
-  └─────────────────────────────────────────────────────────────────┘
+The daily/weekly split is the cost choreography from above made concrete: cheap
+deterministic governance every few hours, expensive LLM ideation once a week
+reading the findings the daily runs already produced. The `apply` workflow is
+deliberately dispatch-only and never on cron — it is the one workflow that opens
+PRs on other people's repositories, so it stays manual, dry-run by default, capped
+at five PRs per run, and gated per finding-class behind an allow-list. The
+supporting workflows are routine: `ci.yml` runs the tests plus a secret-leak grep
+on every push and PR, `codeql.yml` is the standard CodeQL scan, `dependabot-auto-merge.yml`
+merges green non-major dependency bumps, and `onboard.yml` opens onboarding PRs
+(adding the consumer-guide section to `CLAUDE.md`) on any repo that lacks the
+marker, both on dispatch and via the GitHub App installation webhook.
 
-  ┌─────────────────────────────────────────────────────────────────┐
-  │                    MONITOR  (monitor.yml)                       │
-  │                    cron: every 6h                               │
-  │                                                                 │
-  │  Detect events between daily runs (PRs, issues, CI failures)    │
-  │     │                                                           │
-  │     ▼                                                           │
-  │  COUNCIL triage → monitor-events.json (data br) → MCP tool      │
-  └─────────────────────────────────────────────────────────────────┘
+Note that `apply` lives in the dispatcher's `PHASE_RUNNERS` map but is
+intentionally absent from the `PHASES` list, so it never runs as part of `all` —
+it can only be invoked explicitly.
 
-  ┌─────────────────────────────────────────────────────────────────┐
-  │              GOVERNANCE APPLY  (apply.yml)                      │
-  │              workflow_dispatch only — never on cron             │
-  │                                                                 │
-  │  read governance.json → filter actionable (TEMPLATES) →         │
-  │     batch (3/run, max 5 PRs) → open PRs on target repos         │
-  │                                                                 │
-  │  Templates: code-scanning (CodeQL), dependabot                  │
-  │  Branches:  repo-butler/apply-{tool} on each target             │
-  │  Labels:    governance-apply (added via separate API call)      │
-  └─────────────────────────────────────────────────────────────────┘
-```
+## Deep dive: the data branch
 
-The split between the daily and weekly cadence matters for cost. Governance detection is pure deterministic JS — no LLM calls — so the daily pipeline runs it 4×/day and `governance.json` always reflects the current portfolio state. The expensive LLM work (IDEATE prompt + five-persona council deliberation) only fires once a week. When the weekly run executes, `runIdeate` calls `runGovernance` which is idempotent: if findings are already present in context (or written to the data branch the same morning), detection is skipped and the council reads the fresh findings the daily pipeline produced.
-
-The supporting workflows are simpler. `ci.yml` runs on push and PR — `npm test` plus a secret-leak grep. `codeql.yml` is the standard GitHub CodeQL workflow. `dependabot-auto-merge.yml` watches Dependabot PRs and auto-merges non-major bumps once CI is green. `onboard.yml` opens onboarding PRs (adding the `repo-butler` consumer guide section to `CLAUDE.md`) on any repo that lacks it; it runs on workflow dispatch and via the GitHub App installation webhook.
-
-## Data flow
-
-All persistent state lives on the `repo-butler-data` orphan branch, written via the Git Data API (blobs → trees → commits → ref updates). Reports deploy to GitHub Pages from the same workflow run.
+Everything the butler remembers is laid out under two top-level directories on the
+`repo-butler-data` branch.
 
 ```
 repo-butler-data branch:
@@ -88,10 +252,10 @@ repo-butler-data branch:
     latest.json               ← OBSERVE writes (current snapshot)
     weekly/YYYY-Www.json      ← ASSESS appends (12-week rolling cap)
     portfolio-weekly/…json    ← OBSERVE writes (per-week portfolio shape)
-    governance.json           ← GOVERNANCE writes (4×/day, can be empty array)
+    governance.json           ← GOVERNANCE writes (4×/day, may be an empty array)
     monitor-cursor.json       ← MONITOR writes (last-seen event marker + counts)
     repo-cache.json           ← OBSERVE/REPORT cache (per-repo enrichment)
-    hash.txt                  ← REPORT cache key (snapshot summary SHA-256, plain hex)
+    hash.txt                  ← REPORT cache key (snapshot summary SHA-256)
   reports/                    ← REPORT writes, deployed to GitHub Pages
     index.html                ← portfolio dashboard
     {repo}.html               ← per-repo dashboards
@@ -99,33 +263,55 @@ repo-butler-data branch:
       agent-card.json         ← A2A AgentCard for capability discovery
 ```
 
-Cache invalidation matters. The report cache key is a SHA-256 of the snapshot summary — adding a new field to the summary triggers regeneration on the next run. Per-repo enrichment (`repo-cache.json`) is keyed on `pushed_at` + `open_issues_count`, so commits or new issues bust the cache. The Dependabot audit deliberately bypasses this cache because PR age advances without changing `pushed_at`.
+`src/store.js` owns all of this. It creates the orphan branch on first run, writes
+through the Git Data API, and prunes the weekly snapshots to a twelve-week rolling
+window. Reads go through the same custom GitHub client every other module uses.
 
-## AI-agent surface
+## Deep dive: the agent surface
 
-Two interfaces let external AI agents work with the butler.
+Two interfaces let external AI agents work with the butler, and only one is live.
 
-```
-┌──────────────────────────────────────────────────────────┐
-│ MCP server (src/mcp.js) — JSON-RPC over stdio            │
-│   tools: get_health_tier, get_campaign_status,           │
-│          query_portfolio, get_snapshot_diff,             │
-│          get_governance_findings, trigger_refresh,       │
-│          get_monitor_events, get_watchlist,              │
-│          get_council_personas                            │
-│   reads from: repo-butler-data branch via `git show`     │
-│                                                          │
-│ A2A AgentCard — discovery only, no live transport        │
-│   ismaelmartinez.github.io/repo-butler/.well-known/…     │
-└──────────────────────────────────────────────────────────┘
-```
+The MCP server (`src/mcp.js`) is a zero-dependency JSON-RPC server over stdio. It
+exposes about a dozen tools, all reading the data branch via `git show` so a query
+costs no GitHub API budget: health tier and checklist for a repo, portfolio
+queries by tier or language, snapshot diffs and weekly trends, governance findings
+plus open governance PRs and stale Dependabot PRs, monitor events, the council
+personas and watchlist, and campaign status. Exactly one tool mutates state —
+`trigger_refresh`, which dispatches the workflow through the `gh` CLI. The
+readline listener only starts when the file is run directly, so importing it for
+tests does not open a server.
 
-The MCP server is zero-dependency, runs over stdio, and reads the data branch via `git show` — no live GitHub API calls when agents query. `trigger_refresh` is the one tool that mutates state, dispatching the workflow via the `gh` CLI. The A2A AgentCard is discovery-only: agents read it to learn what the butler can do, but the live programmatic interface is the MCP server.
+The A2A AgentCard, served at
+`ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`, is
+discovery-only. Agents read it to learn what the butler can do, but the live
+programmatic interface is the MCP server.
 
-## Module boundaries
+## Deep dive: module boundaries and extending it
 
-`src/index.js` only handles cross-cutting concerns: provider wiring, the auto-onboard pass at the end of the daily run, and the `GITHUB_OUTPUT` summary. Each phase module owns its core function plus a `runX` wrapper that handles surrounding orchestration — snapshot persistence, triage-bot ingestion, governance detection, council deliberation. Adding a new phase means writing the module, exporting `runX`, and registering it in `PHASE_RUNNERS` and `PHASES` in `index.js`.
+`src/index.js` handles only cross-cutting concerns: provider wiring, the
+auto-onboard pass at the end of the daily run, and the `GITHUB_OUTPUT` summary.
+Each phase module owns its core function plus a `runX` wrapper that handles the
+orchestration around it — snapshot persistence, governance detection, council
+deliberation, storing results back on `context` for downstream phases. Adding a
+phase means writing the module, exporting its `runX`, and registering it in both
+`PHASE_RUNNERS` and `PHASES` in `index.js`.
 
-`src/safety.js` is the only file allowed to interpolate untrusted data into LLM prompts or GitHub-bound output. All other modules MUST route external data through it. New API fetchers go in `observe.js` following the existing try/catch + return-null pattern; new templates for `Governance Apply` go in the `TEMPLATES` map in `apply.js`; new MCP tools go in `mcp.js` alongside their data-branch read.
+A few rules keep the boundaries clean. `src/safety.js` is the only file allowed to
+interpolate untrusted data into prompts or GitHub-bound output; everything else
+routes through it. New GitHub API fetchers go in `observe.js` following the
+existing try/catch-and-return-null pattern. New remediation templates for
+Governance Apply go in the `TEMPLATES` map in `apply.js`. New MCP tools go in
+`mcp.js` next to their data-branch read. And no module constructs its own `fetch`
+calls — the custom client in `src/github.js` (`createClient(token)`) is used
+everywhere, because it handles rate limiting with exponential backoff on 429/403
+and provides `request`, `paginate`, `getFileContent`, and `listDir`.
 
-The custom GitHub client in `src/github.js` (`createClient(token)`) is used by every module that talks to GitHub — never construct your own `fetch` calls. It handles rate limiting with exponential backoff on 429/403 and provides `request()`, `paginate()`, `getFileContent()`, and `listDir()`.
+## Further reading
+
+- `SECURITY.md` — the trust model: GitHub App token scope, untrusted-data
+  boundaries, the data-branch treatment, and the cross-repo write gates.
+- `docs/decisions/` — the ADRs behind the bigger choices (governance phase split,
+  cross-repo write trust model, MCP and slash commands, agents and execution,
+  event emission, settings-level writes).
+- `docs/consumer-guide.md` — the repo-owner's guide to reading a per-repo
+  dashboard.
