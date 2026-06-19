@@ -16,6 +16,7 @@ const DARK_VARS = `
 --link:#c2b1d0;--link-hover:#d6c9e1;--heather:#c2b1d0;--moss:#8fa67f;--whisky:#d6a155;--stone:#9c9286;--loch:#7fa6ba;
 --color-success:#8fa67f;--color-warning:#d6a155;--color-danger:#dd7060;--accent-line:#c2b1d0;
 --tier-gold-bg:#d2a95c;--tier-gold-ink:#241803;--tier-silver-bg:#c2bdb0;--tier-silver-ink:#22201a;--tier-bronze-bg:#c08a5c;--tier-bronze-ink:#1d1207;--tier-none-bg:#463f34;--tier-none-ink:#cfc6b6;
+--tier-gold-text:#d2a95c;--tier-silver-text:#c2bdb0;--tier-bronze-text:#c08a5c;--tier-none-text:#9c9286;
 --hm1:#2f3a29;--hm2:#42512f;--hm3:#5a6f3f;--hm4:#8fa67f;
 --page-wash:rgba(33,28,24,0.90);
 --hills:url("assets/hills-dark.svg");
@@ -32,6 +33,7 @@ export const CSS = `<style>
 --link:#6f6486;--link-hover:#564c6c;--heather:#6f6486;--moss:#566a4c;--whisky:#9a7536;--stone:#8b8579;--loch:#4c6f7d;
 --color-success:#566a4c;--color-warning:#9a7536;--color-danger:#9e463c;--accent-line:#6f6486;
 --tier-gold-bg:#c39a4a;--tier-gold-ink:#332408;--tier-silver-bg:#b6b1a4;--tier-silver-ink:#2c2a23;--tier-bronze-bg:#b07a4e;--tier-bronze-ink:#2e1c0d;--tier-none-bg:#ded6c4;--tier-none-ink:#7b7262;
+--tier-gold-text:#9c7a2e;--tier-silver-text:#7d7a72;--tier-bronze-text:#9a6a3e;--tier-none-text:#8b8579;
 --hm1:#d3d9c4;--hm2:#b0bf95;--hm3:#869c6c;--hm4:#566a4c;
 --page-wash:rgba(244,242,234,0.90);
 --hills:url("assets/hills-light.svg");

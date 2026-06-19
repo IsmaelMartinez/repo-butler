@@ -1373,6 +1373,9 @@ describe('dashboard inspiration polish', () => {
     for (const link of FOOTER_LINKS) {
       assert.ok(html.includes(link), `light report footer should link to ${link}`);
     }
+    // Routed through htmlPage, so light cards get the theme toggle + persistence too.
+    assert.ok(html.includes('class="theme-toggle"'), 'light report should carry the theme toggle');
+    assert.ok(html.includes("localStorage.getItem('rb-theme')"), 'light report should restore the persisted theme');
   });
 
   it('weekly digest renders the site footer with all documentation links', async () => {
@@ -2156,7 +2159,7 @@ describe('buildStatCard', () => {
     });
     // Value, colour and label are all overridden by the unavailable branch.
     assert.match(html, /<h3>CI Pass Rate<\/h3>/);
-    assert.match(html, /style="color:#6e7681">—</);
+    assert.match(html, /style="color:var\(--muted\)">—</);
     assert.match(html, /<div class="stat-label">unavailable<\/div>/);
     assert.ok(!html.includes('95%'), 'value should not appear when unavailable');
     assert.ok(!html.includes('from workflow runs'), 'label should not appear when unavailable');

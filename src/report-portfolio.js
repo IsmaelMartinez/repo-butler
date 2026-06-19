@@ -746,7 +746,10 @@ function goldPctOf(snapshot) {
 function computePortfolioState(classified, atRisk, governanceFindings) {
   if (atRisk.length > 0) return 'critical';
   const highGov = Array.isArray(governanceFindings) && governanceFindings.some(f => f?.priority === 'high');
-  const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
+  // An empty portfolio (everything archived/forked/excluded) is "all clear",
+  // not "attention" — `every` on an empty list is already true, so don't force
+  // it false on length 0.
+  const allGold = classified.every(r => r._tier === 'gold');
   if (!allGold || highGov) return 'attention';
   return 'healthy';
 }
@@ -798,9 +801,12 @@ export function buildSinceLastSection(classified, priorPortfolio) {
     return `<section class="since-block"><h2>Since the last run</h2><p class="since-empty">${SINCE_FIRST_RUN}</p></section>`;
   }
 
-  const currentTiers = {};
+  // Null-prototype maps: repo names are external, so a name like "__proto__"
+  // would mutate a plain object's prototype rather than store a key. Matches the
+  // hardening in detectTierChanges (which normalises again internally).
+  const currentTiers = Object.create(null);
   for (const r of classified) currentTiers[r.name] = r._tier;
-  const priorTiers = {};
+  const priorTiers = Object.create(null);
   for (const [name, s] of Object.entries(priorRepos)) {
     const t = s?.computed?.tier;
     if (t) priorTiers[name] = t;

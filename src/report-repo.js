@@ -1,9 +1,9 @@
 // Per-repo report generation: full dashboard and lightweight reports.
 
 import { paginateIssues } from './github.js';
-import { CSS, SITE_FOOTER, htmlPage } from './report-styles.js';
+import { htmlPage } from './report-styles.js';
 import {
-  TIER_DISPLAY, TIER_COLORS, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
+  TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, jsStr, fmt, countBy, isBlocked,
   daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
   colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
@@ -410,7 +410,7 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
   const input = snapshotToTierInput(snapshot);
   const repoName = snapshot.repository?.split('/')[1] || '';
   const { tier, checks } = computeHealthTier(input, { releaseExempt: isReleaseExempt(repoName, config) });
-  const color = TIER_COLORS[tier] || TIER_COLORS.none;
+  const color = `var(--tier-${tier}-text)`;
   const display = TIER_DISPLAY[tier] || 'Unranked';
 
   const next = nextTier(tier);
@@ -455,7 +455,7 @@ ${nextTierHtml}
 // with the neutral grey and the label is forced to 'unavailable'.
 export function buildStatCard({ title, value, color, label, available = true }) {
   const displayValue = available ? value : '—';
-  const displayColor = available ? color : TIER_COLORS.none;
+  const displayColor = available ? color : 'var(--muted)';
   const displayLabel = available ? label : 'unavailable';
   return `<div class="card"><h3>${title}</h3>
 <div class="stat" style="color:${displayColor}">${displayValue}</div>
@@ -826,18 +826,10 @@ export function generateLightRepoReport(owner, repo, details) {
   const ci = details?.ci || 0;
   const license = details?.license || 'None';
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${owner}/${repo.name}</title>
-${CSS}
-</head>
-<body>
-<h1>${repo.name}</h1>
+  const body = `<h1>${escHtml(repo.name)}</h1>
 <div class="subtitle">${escHtml(repo.description || 'No description')} — ${now} — <a href="index.html">portfolio view</a></div>
 <div class="grid">
-  <div class="card"><h3>Language</h3><div class="stat stat-sm">${repo.language || '—'}</div></div>
+  <div class="card"><h3>Language</h3><div class="stat stat-sm">${repo.language ? escHtml(repo.language) : '—'}</div></div>
   <div class="card"><h3>Stars</h3><div class="stat">${repo.stars}</div><div class="stat-label">${repo.forks} forks</div></div>
   <div class="card"><h3>Open Issues</h3><div class="stat">${repo.open_issues || 0}</div></div>
   <div class="card"><h3>Commits (6mo)</h3><div class="stat">${commits}</div></div>
@@ -848,7 +840,8 @@ ${CSS}
   This repo has fewer than 10 commits in the last 6 months.<br>
   Full charts are generated for repos with more activity.
 </div>
-<p style="text-align:center;margin-top:2rem"><a href="https://github.com/${owner}/${repo.name}">View on GitHub</a></p>
-${SITE_FOOTER}
-</body></html>`;
+<p style="text-align:center;margin-top:2rem"><a href="https://github.com/${owner}/${escHtml(repo.name)}">View on GitHub</a></p>`;
+  // Route through htmlPage so light cards get the same theme toggle, persisted
+  // theme restore, and color-scheme meta as the full reports.
+  return htmlPage({ title: `${owner}/${repo.name}`, body });
 }
