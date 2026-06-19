@@ -3,16 +3,38 @@
     "type": "policy-drift",
     "category": "ci-reliability",
     "repo": "bonnie-wee-plot",
-    "expected": "97%",
+    "expected": "98%",
     "actual": "76%",
     "priority": "medium",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Align bonnie-wee-plot ci-reliability with the portfolio norm",
-      "rationale": "Expected 97%, found 76%.",
+      "rationale": "Expected 98%, found 76%.",
       "acceptanceCriteria": [
-        "bonnie-wee-plot ci-reliability matches 97%"
+        "bonnie-wee-plot ci-reliability matches 98%"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "ai-model-advisor",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Zero critical/high security findings",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift ai-model-advisor from silver to gold",
+      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+      "acceptanceCriteria": [
+        "Check \"Zero critical/high security findings\" passes"
       ]
     }
   }
