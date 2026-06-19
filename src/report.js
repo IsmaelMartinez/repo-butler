@@ -13,7 +13,7 @@ import { computeSnapshotHash } from './store.js';
 import { computeTrends } from './assess.js';
 import { readFile as fsReadFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, cp } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot, isExcludedRepo } from './report-shared.js';
@@ -85,6 +85,18 @@ export async function report(context) {
   const { snapshot, portfolio } = context;
 
   await mkdir(outDir, { recursive: true });
+
+  // Copy the committed dashboard assets (hero photo, tweed texture, glen-hills
+  // SVGs) into the published output so the GitHub Pages site is self-contained
+  // — no hotlinking, no external image hosting. `reports/` is gitignored and
+  // uploaded wholesale as the Pages artifact, so the assets must be written
+  // into it at generation time. Best-effort: a missing source dir must not
+  // fail the REPORT phase.
+  try {
+    await cp('assets/dashboard', join(outDir, 'assets'), { recursive: true });
+  } catch (err) {
+    console.log(`Dashboard assets not copied: ${err.message}`);
+  }
 
   const gh = createClient(token);
 

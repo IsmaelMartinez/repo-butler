@@ -1,6 +1,6 @@
 // Portfolio-level report generation: portfolio dashboard, digest, and dependency inventory.
 
-import { CSS, SITE_FOOTER, htmlPage } from './report-styles.js';
+import { CSS, SITE_FOOTER, htmlPage, THEME_INIT, THEME_TOGGLE, THEME_TOGGLE_JS } from './report-styles.js';
 import { computeLibyearWithTimeout } from './libyear.js';
 import { buildActionItems } from './report-repo.js';
 import { hasActiveCopilotReviewRuleset } from './github.js';
@@ -369,13 +369,15 @@ export function generateSparklineSVG(weeklyData) {
   const WIDTH = 80;
   const HEIGHT = 20;
   const PADDING = 2;
-  const STROKE_COLOR = '#388bfd';
+  // currentColor so the stroke follows the themed `.spark { color: var(--accent-line) }`
+  // rule — SVG presentation attributes can't reference CSS custom properties directly.
+  const STROKE_COLOR = 'currentColor';
   const STROKE_WIDTH = 1.5;
   const MUTED_OPACITY = 0.4;
 
   if (!weeklyData || !Array.isArray(weeklyData) || weeklyData.length === 0) return '';
 
-  const svgOpen = `<svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">`;
+  const svgOpen = `<svg class="spark" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">`;
   const svgClose = '</svg>';
 
   if (weeklyData.length === 1) {
@@ -427,7 +429,7 @@ export function buildCampaignSection(repos, details) {
 <div class="campaign-header"><h3>${escHtml(campaign.name)}</h3><span class="campaign-ratio">${count}/${total}</span></div>
 <div class="campaign-desc">${escHtml(campaign.description)}</div>
 <div class="campaign-bar"><div class="campaign-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
-<div class="campaign-pct">${pct}% complete${campaign.applicable && pool.length < eligible.length ? ` <span style="color:#6e7681">(${eligible.length - pool.length} repos excluded — data unavailable)</span>` : ''}</div>
+<div class="campaign-pct">${pct}% complete${campaign.applicable && pool.length < eligible.length ? ` <span style="color:var(--faint)">(${eligible.length - pool.length} repos excluded — data unavailable)</span>` : ''}</div>
 ${nonCompliantList}
 </div>`;
   }).join('\n');
@@ -464,7 +466,7 @@ const DRIFT_LABELS = {
 const PRIORITY_COLOR = {
   high: COLOR_DANGER,
   medium: COLOR_WARNING,
-  low: '#8b949e',
+  low: 'var(--muted)',
 };
 
 function repoLinks(names) {
@@ -510,7 +512,7 @@ export function buildGovernanceSection(findings) {
         const pct = Math.round(g.adoptionRate * 100);
         return `<tr>
   <td><strong>${escHtml(label)}</strong>${scopeLabel}</td>
-  <td><span style="color:${PRIORITY_COLOR[g.priority] || '#8b949e'}">${escHtml(g.priority)}</span></td>
+  <td><span style="color:${PRIORITY_COLOR[g.priority] || 'var(--muted)'}">${escHtml(g.priority)}</span></td>
   <td>${pct}% adopted</td>
   <td>${g.nonCompliant.length} need this: ${repoLinks(g.nonCompliant)}</td>
 </tr>`;
@@ -562,7 +564,7 @@ export function buildGovernanceSection(findings) {
         return `<tr>
   <td><a href="${escHtml(u.repo)}.html">${escHtml(u.repo)}</a></td>
   <td>${escHtml(TIER_DISPLAY[u.currentTier] || u.currentTier)} → ${escHtml(TIER_DISPLAY[u.targetTier] || u.targetTier)}</td>
-  <td><span style="color:${PRIORITY_COLOR[u.priority] || '#8b949e'}">${escHtml(u.priority)}</span></td>
+  <td><span style="color:${PRIORITY_COLOR[u.priority] || 'var(--muted)'}">${escHtml(u.priority)}</span></td>
   <td>${checks}</td>
 </tr>`;
       })
@@ -603,12 +605,12 @@ export function buildPortfolioAttentionSection(repos, details, owner, config) {
 <div class="chart-container"><p class="text-success" style="margin:0">All clear across the portfolio — nothing for your hand today. I'll mind the place.</p></div>`;
   }
 
-  const effortColor = { 'quick win': '#7ee787', 'moderate': '#d29922', 'significant': '#f85149' };
+  const effortColor = { 'quick win': 'var(--color-success)', 'moderate': 'var(--color-warning)', 'significant': 'var(--color-danger)' };
   const rows = top10.map((item, i) => `<tr>
     <td class="muted" style="font-weight:600">${i + 1}</td>
     <td><a href="${escHtml(item.repo)}.html">${escHtml(item.repo)}</a></td>
     <td>${item.text}</td>
-    <td><span style="color:${effortColor[item.effort] || '#8b949e'}">${item.effort}</span></td>
+    <td><span style="color:${effortColor[item.effort] || 'var(--muted)'}">${item.effort}</span></td>
   </tr>`).join('');
 
   return `<h2>Needs your attention</h2>
@@ -628,14 +630,14 @@ export function buildDependencyInventorySection(inventory) {
 <div class="grid">
   <div class="card"><h3>Total Unique Dependencies</h3><div class="stat">${fmt(inventory.totalUnique)}</div><div class="stat-label">across ${inventory.reposWithSBOM} repos with SBOM</div></div>
   <div class="card"><h3>Shared Dependencies</h3><div class="stat">${inventory.sharedDepsTotal}</div><div class="stat-label">used in 2+ repos</div></div>
-  <div class="card"><h3>License Notes</h3><div class="stat" style="color:${inventory.licenseFlags.some(f => f.level === 'high') ? '#f85149' : inventory.licenseFlags.length > 0 ? '#8b949e' : '#7ee787'}">${inventory.licenseFlags.filter(f => f.level === 'high').length || (inventory.licenseFlags.length > 0 ? inventory.licenseFlags.length + ' low-risk' : 0)}</div><div class="stat-label">${inventory.licenseFlags.some(f => f.level === 'high') ? 'high-concern copyleft deps' : 'copyleft deps (low risk for non-commercial use)'}</div></div>
+  <div class="card"><h3>License Notes</h3><div class="stat" style="color:${inventory.licenseFlags.some(f => f.level === 'high') ? 'var(--color-danger)' : inventory.licenseFlags.length > 0 ? 'var(--muted)' : 'var(--color-success)'}">${inventory.licenseFlags.filter(f => f.level === 'high').length || (inventory.licenseFlags.length > 0 ? inventory.licenseFlags.length + ' low-risk' : 0)}</div><div class="stat-label">${inventory.licenseFlags.some(f => f.level === 'high') ? 'high-concern copyleft deps' : 'copyleft deps (low risk for non-commercial use)'}</div></div>
 </div>`;
 
   if (inventory.commonDeps.length > 0) {
     const rows = inventory.commonDeps.map(d => {
       const licenseDisplay = d.licenses.length > 0 ? d.licenses.join(', ') : 'unknown';
       const hasCopyleft = d.licenses.some(l => isCopyleft(l));
-      const licenseColor = hasCopyleft ? '#d29922' : '#8b949e';
+      const licenseColor = hasCopyleft ? 'var(--color-warning)' : 'var(--muted)';
       return `<tr><td>${escHtml(d.name)}</td><td>${d.repoCount}</td><td><span style="color:${licenseColor}">${escHtml(licenseDisplay)}</span></td></tr>`;
     }).join('');
     html += `<div class="chart-container">
@@ -667,7 +669,7 @@ export function buildDependencyInventorySection(inventory) {
 <tbody>${depRows}</tbody></table>
 </div>`;
       }).join('');
-      html += `<h3 style="margin-top:1.5rem;color:#e6edf3">License Concerns</h3>${licenseCards}`;
+      html += `<h3 style="margin-top:1.5rem;color:var(--ink)">License Concerns</h3>${licenseCards}`;
     }
 
     // Show low-concern copyleft as a collapsed summary
@@ -875,9 +877,9 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     .slice(0, 8);
 
   const chartColors = [
-    'rgba(56,139,253,0.8)', 'rgba(126,231,135,0.8)', 'rgba(163,113,247,0.8)',
-    'rgba(210,153,34,0.8)', 'rgba(248,81,73,0.8)', 'rgba(31,111,235,0.6)',
-    'rgba(255,166,87,0.8)', 'rgba(139,148,158,0.6)',
+    'rgba(108,92,125,0.8)', 'rgba(91,107,81,0.8)', 'rgba(140,118,160,0.8)',
+    'rgba(154,101,38,0.8)', 'rgba(162,63,51,0.8)', 'rgba(74,109,128,0.6)',
+    'rgba(176,120,60,0.8)', 'rgba(137,127,112,0.6)',
   ];
 
   const weeklyDatasets = topRepos.map((r, i) =>
@@ -917,7 +919,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
     const ciDisplay = ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span>` : '—';
     const vulnDisplay = r.vulns == null
-      ? '<span style="color:#6e7681">n/a</span>'
+      ? '<span style="color:var(--faint)">n/a</span>'
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
         : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
@@ -936,7 +938,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td>
       <td><span style="color:${issuesColor}">${openIssues}</span></td>
-      <td>${openPRs == null ? '<span style="color:#6e7681">—</span>' : `<span style="color:${prsColor}">${openPRs}</span>`}</td>
+      <td>${openPRs == null ? '<span style="color:var(--faint)">—</span>' : `<span style="color:${prsColor}">${openPRs}</span>`}</td>
       <td>${ciDisplay}</td>
       <td>${vulnDisplay}</td>
       <td>${nextStep}</td></tr>`;
@@ -952,9 +954,9 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
     const ciDisplay = ciCount === 0
       ? `<span style="color:${COLOR_DANGER}">none</span>`
-      : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:#6e7681;font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
+      : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
     const vulnDisplay = r.vulns == null
-      ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:#6e7681;cursor:help">n/a</span>'
+      ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>'
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
         : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
@@ -1010,7 +1012,7 @@ ${depSection}
 ${HERO_INTRO}
 ${ABOUT_SECTION}
 </details>`;
-  const charts = `new Chart(document.getElementById('weeklyChart'),{type:'bar',data:{labels:[${weekLabels.map(l => `'${l}'`).join(',')}],datasets:[${weeklyDatasets}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:10,font:{size:10}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{maxRotation:45,font:{size:9}}},y:{stacked:true,beginAtZero:true,grid:{color:'#21262d'}}}}});`;
+  const charts = `new Chart(document.getElementById('weeklyChart'),{type:'bar',data:{labels:[${weekLabels.map(l => `'${l}'`).join(',')}],datasets:[${weeklyDatasets}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:10,font:{size:10}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{maxRotation:45,font:{size:9}}},y:{stacked:true,beginAtZero:true,grid:{}}}}});`;
   return htmlPage({ title: `@${owner} — Portfolio Report`, body, charts });
 }
 
@@ -1164,29 +1166,33 @@ export function generateDigestReport(owner, repos, repoDetails) {
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>@${owner} — Weekly Digest</title>
+${THEME_INIT}
 ${CSS}
 <style>
-.digest-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1.5rem;margin-bottom:1.5rem;border-left:4px solid #30363d}
-.digest-card.card-summary{border-left-color:#58a6ff}
-.digest-card.card-activity{border-left-color:#7ee787}
-.digest-card.card-alert{border-left-color:#f85149}
-.digest-card.card-issues{border-left-color:#d29922}
-.digest-card.card-dormant{border-left-color:#8b949e}
-.digest-card h3{font-size:1rem;color:#f0f6fc;margin-bottom:0.8rem}
-.digest-card p{color:#c9d1d9;font-size:0.9rem;line-height:1.6}
+.digest-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.5rem;margin-bottom:1.5rem;border-left:4px solid var(--sep)}
+.digest-card.card-summary{border-left-color:var(--link)}
+.digest-card.card-activity{border-left-color:var(--color-success)}
+.digest-card.card-alert{border-left-color:var(--color-danger)}
+.digest-card.card-issues{border-left-color:var(--color-warning)}
+.digest-card.card-dormant{border-left-color:var(--muted)}
+.digest-card h3{font-size:1rem;color:var(--ink-strong);margin-bottom:0.8rem}
+.digest-card p{color:var(--text);font-size:0.9rem;line-height:1.6}
 .digest-nav{display:flex;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
-.digest-nav a{color:#58a6ff;font-size:0.85rem}
-.text-alert{color:#f85149}
-.text-warning{color:#d29922}
+.digest-nav a{color:var(--link);font-size:0.85rem}
+.text-alert{color:var(--color-danger)}
+.text-warning{color:var(--color-warning)}
 </style>
 </head>
 <body>
+${THEME_TOGGLE}
 <h1>Weekly Digest</h1>
 <div class="subtitle">@${owner} portfolio recap — ${now}</div>
 <div class="digest-nav"><a href="index.html">Portfolio Dashboard</a></div>
 ${cards.join('\n')}
 ${SITE_FOOTER}
+${THEME_TOGGLE_JS}
 </body></html>`;
 }
 
