@@ -66,7 +66,7 @@ echo "$PRIOR"
 - A repo whose tier improved → "returned to Gold" / "reached Silver, sir". A repo that slipped → "slipped to Bronze, sir". Name at most two; prefer improvements. This becomes the "since your last briefing" opener line in the scene.
 - If `PRIOR` is empty (first run) or `lastDate` is today already, omit the delta line.
 
-After choosing the scene and rendering, write the new state (fill `repoTiers` from the current `query_portfolio` result, one `"repo":"tier"` pair per line, comma-separated):
+After choosing the scene and rendering, write the new state. Build `$REPO_TIERS` as a single comma-separated list of JSON key/value pairs — e.g. `"repo-a":"gold","repo-b":"silver"` — with no trailing comma and no newlines, so the file stays valid JSON:
 
 ```bash
 TODAY=$(date +%Y-%m-%d)
@@ -115,11 +115,11 @@ Choose exactly ONE scene per run by ranking the day's signals top-down and takin
 
 | Priority | Scene id      | Backdrop label                  | Trigger                                              | Co-star        | Eyes |
 |----------|---------------|---------------------------------|-----------------------------------------------------|----------------|------|
-| 1        | `storm`       | the garden, in a storm          | fresh critical vuln or detected secret leak (breach) | gardener       | > <  |
-| 2        | `garden-pests`| the garden, beset by pests      | vulns critical+high > 0, or code-scanning crit+high  | gardener       | > <  |
+| 1        | `storm`       | the garden, in a storm          | a *fresh* breach — a new critical/high or secret alert in `get_monitor_events` | gardener       | > <  |
+| 2        | `garden-pests`| the garden, beset by pests      | `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, or `secretScanning.count > 0` | gardener       | > <  |
 | 3        | `kitchen`     | the kitchen, something's catching | CI failure streak ≥3, or portfolio CI pass < 70%   | cook           | > <  |
 | 4        | `belowstairs` | below stairs                    | governance standards gaps or policy drift present    | under-butler   | o o  |
-| 5        | `post-room`   | the post room, parcels stacked  | open PRs high or stale Dependabot PRs (worse on Mon) | postmaster     | o o  |
+| 5        | `post-room`   | the post room, parcels stacked  | a repo with `open_prs ≥ 5`, or a stale Dependabot PR (worse on Mon) | postmaster     | o o  |
 | 6        | `morning-room`| the morning room                | a sub-Gold repo exists but none of the above         | none           | B B  |
 | 7        | `fireside`    | by the fire, the study          | all clear (all Gold, zero acute concerns)            | none           | ^ ^  |
 | 7        | `garden-clear`| the garden, after rain          | all clear — alternate calm scene                     | none           | ^ ^  |
@@ -166,13 +166,13 @@ STAMP="$HOME/.cache/repo-butler/burns-stamp"
 mkdir -p "$(dirname "$STAMP")"
 NOW=$(date +%s); LAST=0; [ -f "$STAMP" ] && LAST=$(cat "$STAMP")
 if [ $((NOW - LAST)) -ge $((14*24*3600)) ]; then
-  MOURNING_OK=1; echo "$NOW" > "$STAMP"
+  MOURNING_OK=1
 else
   MOURNING_OK=0
 fi
 ```
 
-When `MOURNING_OK=1` and a true breach is present, render the `storm` scene in the mourning frame and you may include a single Burns half-line ("the best laid schemes, sir…"). Otherwise the breach falls back to the `garden-pests` scene in the standard frame.
+When `MOURNING_OK=1` and a true breach is present, render the `storm` scene in the mourning frame, then write the current timestamp to the stamp (`date +%s > "$STAMP"`) so the fortnight clock starts only when the frame is actually used, and you may include a single Burns half-line ("the best laid schemes, sir…"). When `MOURNING_OK=0`, or no breach is present, leave the stamp untouched and let the breach fall back to the `garden-pests` scene in the standard frame.
 
 ## Briefing mode — data and composition
 
@@ -180,11 +180,12 @@ Title: `THE DAILY BUTLER BRIEFING`. Run when `MODE=briefing`.
 
 Fetch the data:
 
-1. Call MCP tool `query_portfolio` (no arguments) for all portfolio repos with current tier and health data (each repo carries `computed.tier` ∈ `gold|silver|bronze|none`). This drives the stat strip, the scene trigger, and the continuity delta.
-2. Call MCP tool `get_governance_findings` (no arguments) for the governance ledger — standards gaps and policy drift drive the `belowstairs` scene; findings open >60d are given-up campaigns, >30d earn the below-stairs word.
-3. Call MCP tool `get_weekly_trend` with `weeks: 4` and no `repo` argument for the portfolio-wide CI streak (see below).
-4. Call MCP tool `get_campaign_status` (no arguments) only if surfacing campaign progress in the sign-off.
-5. Run the local-state bash block below to capture working-tree state across `REPO_BUTLER_PROJECTS_DIRS`, used for a single working-state observation when the scene is calm.
+1. Call MCP tool `query_portfolio` (no arguments) for all portfolio repos with current tier and health data. Each repo carries a top-level `tier` ∈ `gold|silver|bronze|none` plus `vulns`/`codeScanning` (each with `critical`/`high`/`count`), `secretScanning.count`, `ciPassRate` (0–1), `open_prs`, and `license`. This drives the stat strip, the scene trigger, and the continuity delta.
+2. Call MCP tool `get_monitor_events` (no arguments) for events detected since the last monitor run. A new critical/high security alert or secret-scanning alert here is what makes a breach *fresh*: the `storm` scene fires only on a fresh breach, so a standing (already-known) vuln with no matching monitor event routes to `garden-pests` instead of re-triggering `storm` every morning.
+3. Call MCP tool `get_governance_findings` (no arguments) for the governance ledger — standards gaps and policy drift drive the `belowstairs` scene; findings open >60d are given-up campaigns, >30d earn the below-stairs word.
+4. Call MCP tool `get_weekly_trend` with `weeks: 4` and no `repo` argument for the portfolio-wide CI streak (see below).
+5. Call MCP tool `get_campaign_status` (no arguments) only if surfacing campaign progress in the sign-off.
+6. Run the local-state bash block below to capture working-tree state across `REPO_BUTLER_PROJECTS_DIRS`, used for a single working-state observation when the scene is calm.
 
 If any MCP call fails or returns empty, render a single frame with the no-data line and stop. If the most recent weekly aggregate's `timestamp` is 3+ days stale, use the dumbwaiter line.
 
@@ -211,7 +212,7 @@ The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series �
 
 Compose the scene:
 
-- Pick the scene from the table above using the data: top concern by severity wins. Concerns come from `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `ciPassRate < 0.7`, missing `license`, plus governance standards gaps and policy drift.
+- Pick the scene from the table above using the data: top concern by severity wins. Concerns come from a fresh breach in `get_monitor_events`, `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `secretScanning.count > 0`, `ciPassRate < 0.7`, `open_prs ≥ 5`, missing `license`, plus governance standards gaps and policy drift.
 - Render Reginald with the scene's eye mood and the co-star (if any). Reginald speaks one or two in-character lines that name the real signal (repo names, counts) — e.g. the gardener "has found three pests in value-punter, sir." Add the Doric weather word only on `garden-pests`/`storm` (dreich) or the calm scenes (braw).
 - Open with the continuity delta if present ("since your last briefing, sir, …"), then the relevant streak or saga line. On Mondays with open PRs > 0, append "the postmaster is tardy again, sir." On 25 January prepend "A guid Burns Night to ye, sir."; on 31 December "Hogmanay greetings, sir."
 - On a calm scene, fold in one working-state observation if the local block returned anything ("a forgotten parcel in the hallway, sir" for a stash older than the last commit; otherwise "the study is in impeccable order, sir").
@@ -319,4 +320,4 @@ Whisky (6) for celebratory days (multiple PRs merged); tea (7) for routine ones.
 
 ## Output
 
-Output ONLY the comic, wrapped in a single fenced code block so the art aligns, with no preamble, no explanation, and nothing after it. Sign off as "-- Reginald" at the bottom-right of the frame.
+Output ONLY the comic, wrapped in a single fenced code block so the art aligns, with no preamble, no explanation, and nothing after it. Sign off as "-- Reginald" on the final line, right-aligned just beneath the frame's lower border, exactly as shown in the frame template above.
