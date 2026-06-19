@@ -18,34 +18,12 @@
   },
   {
     "type": "tier-uplift",
-    "repo": "yourear",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift yourear from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
     "repo": "teams-for-linux",
     "currentTier": "silver",
     "targetTier": "gold",
     "failingChecks": [
       {
-        "name": "Zero critical/high security findings",
+        "name": "Fewer than 10 open bugs",
         "required_for": "gold"
       }
     ],
@@ -54,31 +32,9 @@
       "executor": "agent",
       "targetFiles": [],
       "intent": "Uplift teams-for-linux from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+      "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
       "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "betis-escocia",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift betis-escocia from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
+        "Check \"Fewer than 10 open bugs\" passes"
       ]
     }
   }
