@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "type": "policy-drift",
+    "category": "ci-reliability",
+    "repo": "bonnie-wee-plot",
+    "expected": "97%",
+    "actual": "76%",
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Align bonnie-wee-plot ci-reliability with the portfolio norm",
+      "rationale": "Expected 97%, found 76%.",
+      "acceptanceCriteria": [
+        "bonnie-wee-plot ci-reliability matches 97%"
+      ]
+    }
+  }
+]
