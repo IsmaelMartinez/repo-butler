@@ -19,8 +19,8 @@ planner.
 
 The whole system fits in one picture. Schedules trigger the pipeline; the
 pipeline reads and writes a single orphan branch that acts as its database; the
-report deploys to Pages; and external agents read the same data through MCP. Every
-write to GitHub passes through one safety boundary.
+report deploys to Pages; and external agents read the same data through MCP. A
+single safety boundary sits in front of what gets published to GitHub.
 
 ```mermaid
 flowchart LR
@@ -41,7 +41,8 @@ flowchart LR
     D --> P
     W --> P
     M --> P
-    A --> DB
+    DB -. "findings" .-> A
+    A --> GH
     P <--> DB
     P --> SF --> GH
     DB --> PG
@@ -79,7 +80,7 @@ stable), and can summarise the change with Gemini Flash. `UPDATE` generates a
 fresh roadmap document and opens a PR for it. `GOVERNANCE` runs deterministic
 detectors across the portfolio — standards gaps, policy drift, tier-uplift
 opportunities, and stale Dependabot PRs — and persists the findings. `IDEATE`
-generates improvement ideas with the deep model, feeding off those fresh
+generates improvement ideas with the deep model, feeding off freshly-detected
 governance findings, then convenes the agent council to deliberate. `PROPOSE`
 runs the approved ideas through the safety layer and files them as GitHub issues,
 capped and labelled for human review. `REPORT` builds the HTML dashboards and the
@@ -108,22 +109,23 @@ repositories, and usable by other agents.
 
 ### Cost choreography: free daily, expensive weekly
 
-The expensive work is LLM inference. The trick is that the most valuable signal —
-governance findings — costs nothing to compute, because detection is pure
-deterministic JavaScript. So the daily pipeline runs governance four times a day
-and `governance.json` always reflects the current portfolio. The costly LLM work
-(the `IDEATE` prompt plus five-persona council deliberation) fires only once a
-week.
+The expensive work is LLM inference. The valuable governance signal, though,
+costs nothing — detection is pure deterministic JavaScript. So the daily pipeline
+runs governance four times a day and `governance.json` always reflects the
+current portfolio, while the costly LLM work (the `IDEATE` prompt plus the
+five-persona council) fires once a week, as a dry run for deliberation only.
 
 ```mermaid
 flowchart TB
-    subgraph Daily["Daily ×4 — cheap, mostly deterministic"]
-        d1["OBSERVE"] --> d2["ASSESS"] --> d3["UPDATE"] --> d4["GOVERNANCE<br/>pure JS · no LLM"] --> d5["REPORT"]
+    subgraph Daily["Daily ×4 — no LLM beyond ASSESS / UPDATE summaries"]
+        d1["OBSERVE"] --> d2["ASSESS"] --> d3["UPDATE"] --> d4["GOVERNANCE<br/>deterministic · no LLM"] --> d5["REPORT"]
     end
-    subgraph Weekly["Weekly (Mon) — expensive, LLM"]
-        w1["OBSERVE"] --> w2["IDEATE<br/>(Claude)"] --> w3["COUNCIL<br/>5 personas"] --> w4["PROPOSE"]
+    subgraph Weekly["Weekly (Mon, dry-run) — the expensive LLM run"]
+        w1["OBSERVE"] --> w2["IDEATE<br/>(Claude)"] --> w3["COUNCIL<br/>5 personas · deliberation only"]
     end
-    d4 -. "governance.json<br/>(kept fresh 4×/day)" .-> w2
+    note["GOVERNANCE detection is pure JS, so IDEATE<br/>re-runs it fresh — cheap to repeat, no handoff needed"]
+    d4 -.-> note
+    w2 -.-> note
 
     classDef det fill:#e0f2e9,stroke:#2e7d52;
     classDef llm fill:#fef3c7,stroke:#b8860b;
@@ -131,28 +133,33 @@ flowchart TB
     class w2,w3 llm;
 ```
 
-The bridge between the two cadences is an idempotency guard. When the weekly run
-executes, `runIdeate` calls `runGovernance`, which checks whether findings are
-already present (in `context` or written to the data branch that morning) and
-skips re-detection if so — the council just reads the fresh findings the daily
-pipeline already produced. On top of that, `REPORT` is cached: its cache key is a
-SHA-256 of the snapshot summary, so an unchanged portfolio skips regeneration
-entirely, taking a quiet-day run from roughly fifteen minutes down to seconds.
+Because detection is cheap, the weekly `IDEATE` re-runs it from scratch rather
+than depending on a handoff from the daily run. `runGovernance` carries only an
+in-process idempotency guard — it skips re-detection when findings are already on
+`context` (for example during an `--phase=all` run where the governance phase ran
+before ideate), not by reading the daily `governance.json` back off the branch.
+The persisted `governance.json` is consumed by the dashboard, the MCP tools, and
+the apply workflow, not by weekly ideation. On top of that, `REPORT` is cached:
+its key is a SHA-256 over the snapshot summary plus a daily date-bucket and a hash
+of the report source files, so a changed metric, a new day, or a CSS tweak each
+force regeneration while an otherwise-identical run skips it — taking a quiet day
+from roughly fifteen minutes down to seconds.
 
 ### The data branch is the database
 
 There is no database and no server. All persistent state lives on a single orphan
-branch, `repo-butler-data`, written through the Git Data API (blobs → trees →
-commits → ref update). The same workflow run that writes the branch also deploys
-the reports to Pages, and the MCP server reads the branch back with `git show` —
-so when an agent queries the butler, there are no live GitHub API calls at all.
+branch, `repo-butler-data`. The Git Data API (blobs → trees → commits → ref) is
+used once, to create that branch on the first run; after that the pipeline reads
+and writes its files through the Contents API. The same workflow run that writes
+the branch also deploys the reports to Pages, and the MCP server reads the branch
+back with `git show` — so most agent queries hit no live GitHub API at all.
 
 ```mermaid
 flowchart LR
     subgraph Pipeline["Pipeline phases"]
         wr["OBSERVE / ASSESS /<br/>GOVERNANCE / REPORT"]
     end
-    wr -- "Git Data API<br/>blobs → trees → commits → ref" --> DB[("repo-butler-data<br/>snapshots/ + reports/")]
+    wr -- "Contents API<br/>(Git Data API only creates the branch)" --> DB[("repo-butler-data<br/>snapshots/ + reports/")]
     DB -- "git show" --> MCP["MCP server"]
     DB -- "deploy" --> PG["Pages dashboards"]
     MCP --> AG["AI agents"]
@@ -161,11 +168,13 @@ flowchart LR
     class DB store;
 ```
 
-Cache invalidation is part of the contract. The report cache key is the snapshot
-summary hash, so adding a field to the summary forces regeneration on the next
-run. Per-repo enrichment (`repo-cache.json`) is keyed on `pushed_at` plus
-`open_issues_count`, so a new commit or issue busts it. The Dependabot audit
-deliberately bypasses that cache, because a PR ages without `pushed_at` changing.
+Cache invalidation is part of the contract. The report cache key combines the
+snapshot summary, a daily date-bucket, and a hash of the report source files, so
+adding a field to the summary, rolling over to a new day, or changing the
+presentation all force regeneration. Per-repo enrichment (`repo-cache.json`) is
+keyed on `pushed_at` plus `open_issues_count`, so a new commit or issue busts it.
+The Dependabot audit deliberately bypasses that cache, because a PR ages without
+`pushed_at` changing.
 
 ### One trust boundary for everything untrusted
 
@@ -221,25 +230,27 @@ observed, governed, and remediated.
 | Workflow | Trigger | Runs | Produces |
 |----------|---------|------|----------|
 | `self-test.yml` (daily) | cron 07/11/16/20 UTC + push | observe → assess → update → governance → report, then auto-onboard | snapshot, trends, roadmap PR, `governance.json`, dashboards |
-| `weekly-ideate.yml` | cron Mon 06:00 UTC | observe → ideate → council (reuses fresh findings) | approved/watchlisted/dismissed → issues |
+| `weekly-ideate.yml` | cron Mon 06:00 UTC | observe → ideate (dry-run; council deliberates inside ideate) | council verdicts + watchlist (no issues filed here) |
 | `monitor.yml` | cron every 6h | monitor → council triage | `monitor-events.json` (read via MCP) |
 | `apply.yml` | manual dispatch only | read `governance.json` → open remediation PRs | up to 5 PRs/run on target repos |
 
 The daily/weekly split is the cost choreography from above made concrete: cheap
-deterministic governance every few hours, expensive LLM ideation once a week
-reading the findings the daily runs already produced. The `apply` workflow is
-deliberately dispatch-only and never on cron — it is the one workflow that opens
-PRs on other people's repositories, so it stays manual, dry-run by default, capped
-at five PRs per run, and gated per finding-class behind an allow-list. The
-supporting workflows are routine: `ci.yml` runs the tests plus a secret-leak grep
-on every push and PR, `codeql.yml` is the standard CodeQL scan, `dependabot-auto-merge.yml`
-merges green non-major dependency bumps, and `onboard.yml` opens onboarding PRs
-(adding the consumer-guide section to `CLAUDE.md`) on any repo that lacks the
-marker, both on dispatch and via the GitHub App installation webhook.
+deterministic governance every few hours, the expensive LLM ideation and council
+once a week — and because that weekly run is dry-run by default, it deliberates
+without filing issues (`PROPOSE` files issues only on a non-dry-run run). The
+`apply` workflow is deliberately dispatch-only and never on cron — it is the one
+workflow that opens PRs on other people's repositories, so it stays manual,
+dry-run by default, capped at five PRs per run, and gated per finding-class behind
+an allow-list. The supporting workflows are routine: `ci.yml` runs the tests plus
+a secret-leak grep on every push and PR, `codeql.yml` is the standard CodeQL scan,
+`dependabot-auto-merge.yml` merges green non-major dependency bumps, and
+`onboard.yml` opens onboarding PRs (adding the consumer-guide section to
+`CLAUDE.md`) on any repo that lacks the marker, both on dispatch and via the
+GitHub App installation webhook.
 
 Note that `apply` lives in the dispatcher's `PHASE_RUNNERS` map but is
-intentionally absent from the `PHASES` list, so it never runs as part of `all` —
-it can only be invoked explicitly.
+intentionally absent from the `PHASES` list, so it never runs as part of
+`--phase=all` — it can only be invoked explicitly.
 
 ## Deep dive: the data branch
 
@@ -255,7 +266,7 @@ repo-butler-data branch:
     governance.json           ← GOVERNANCE writes (4×/day, may be an empty array)
     monitor-cursor.json       ← MONITOR writes (last-seen event marker + counts)
     repo-cache.json           ← OBSERVE/REPORT cache (per-repo enrichment)
-    hash.txt                  ← REPORT cache key (snapshot summary SHA-256)
+    hash.txt                  ← REPORT cache key (snapshot + date + template hash)
   reports/                    ← REPORT writes, deployed to GitHub Pages
     index.html                ← portfolio dashboard
     {repo}.html               ← per-repo dashboards
@@ -263,23 +274,25 @@ repo-butler-data branch:
       agent-card.json         ← A2A AgentCard for capability discovery
 ```
 
-`src/store.js` owns all of this. It creates the orphan branch on first run, writes
-through the Git Data API, and prunes the weekly snapshots to a twelve-week rolling
-window. Reads go through the same custom GitHub client every other module uses.
+`src/store.js` owns all of this. It creates the orphan branch on first run (the
+one place it uses the Git Data API), then reads and writes the files above through
+the Contents API helpers (`putFile`/`deleteFile`) on `repo-butler-data`, and
+prunes the weekly snapshots to a twelve-week rolling window. Everything goes
+through the same custom GitHub client every other module uses.
 
 ## Deep dive: the agent surface
 
 Two interfaces let external AI agents work with the butler, and only one is live.
 
 The MCP server (`src/mcp.js`) is a zero-dependency JSON-RPC server over stdio. It
-exposes about a dozen tools, all reading the data branch via `git show` so a query
-costs no GitHub API budget: health tier and checklist for a repo, portfolio
-queries by tier or language, snapshot diffs and weekly trends, governance findings
-plus open governance PRs and stale Dependabot PRs, monitor events, the council
-personas and watchlist, and campaign status. Exactly one tool mutates state —
-`trigger_refresh`, which dispatches the workflow through the `gh` CLI. The
-readline listener only starts when the file is run directly, so importing it for
-tests does not open a server.
+exposes about a dozen tools. Most read the data branch via `git show`, so those
+queries cost no GitHub API budget — health tier and checklist, portfolio queries
+by tier or language, snapshot diffs and weekly trends, governance findings,
+monitor events, the council personas and watchlist, and campaign status. A few
+reach the live GitHub API through the `gh` CLI instead: `get_open_governance_prs`
+and `list_stale_dependabot_prs` list PRs per repo, and `trigger_refresh`
+dispatches the workflow. The readline listener only starts when the file is run
+directly, so importing it for tests does not open a server.
 
 The A2A AgentCard, served at
 `ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`, is
@@ -293,8 +306,9 @@ auto-onboard pass at the end of the daily run, and the `GITHUB_OUTPUT` summary.
 Each phase module owns its core function plus a `runX` wrapper that handles the
 orchestration around it — snapshot persistence, governance detection, council
 deliberation, storing results back on `context` for downstream phases. Adding a
-phase means writing the module, exporting its `runX`, and registering it in both
-`PHASE_RUNNERS` and `PHASES` in `index.js`.
+phase means writing the module, exporting its `runX`, and registering it in
+`PHASE_RUNNERS` — and in `PHASES` too if it should run under `--phase=all`
+(`apply` is deliberately kept out of `PHASES` so it stays dispatch-only).
 
 A few rules keep the boundaries clean. `src/safety.js` is the only file allowed to
 interpolate untrusted data into prompts or GitHub-bound output; everything else
@@ -304,7 +318,8 @@ Governance Apply go in the `TEMPLATES` map in `apply.js`. New MCP tools go in
 `mcp.js` next to their data-branch read. And no module constructs its own `fetch`
 calls — the custom client in `src/github.js` (`createClient(token)`) is used
 everywhere, because it handles rate limiting with exponential backoff on 429/403
-and provides `request`, `paginate`, `getFileContent`, and `listDir`.
+and provides `request`, `paginate`, `getFileContent`, `listDir`, `putFile`, and
+`deleteFile`.
 
 ## Further reading
 
