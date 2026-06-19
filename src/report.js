@@ -13,7 +13,7 @@ import { computeSnapshotHash } from './store.js';
 import { computeTrends } from './assess.js';
 import { readFile as fsReadFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, cp } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot, isExcludedRepo } from './report-shared.js';
@@ -85,6 +85,18 @@ export async function report(context) {
   const { snapshot, portfolio } = context;
 
   await mkdir(outDir, { recursive: true });
+
+  // Copy the committed dashboard assets (hero photo, tweed texture, glen-hills
+  // SVGs) into the published output so the GitHub Pages site is self-contained
+  // — no hotlinking, no external image hosting. `reports/` is gitignored and
+  // uploaded wholesale as the Pages artifact, so the assets must be written
+  // into it at generation time. Best-effort: a missing source dir must not
+  // fail the REPORT phase.
+  try {
+    await cp('assets/dashboard', join(outDir, 'assets'), { recursive: true });
+  } catch (err) {
+    console.log(`Dashboard assets not copied: ${err.message}`);
+  }
 
   const gh = createClient(token);
 
@@ -308,7 +320,13 @@ export async function report(context) {
 
   // Generate portfolio report (after per-repo reports so contributor data is available).
   if (portfolio && repoDetails) {
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings);
+    // Previous run's portfolio snapshot, read before writePortfolioWeekly below
+    // overwrites the current-week file — drives the dashboard's "since the last
+    // run" delta (tier moves + security changes). Optional-chained so a test
+    // store without the method, or a fresh data branch, simply yields null and
+    // the dashboard renders its first-run calm state.
+    const priorPortfolio = await store?.readLatestPortfolioWeekly?.() ?? null;
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings, priorPortfolio);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 

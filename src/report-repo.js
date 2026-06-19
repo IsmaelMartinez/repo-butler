@@ -1,9 +1,9 @@
 // Per-repo report generation: full dashboard and lightweight reports.
 
 import { paginateIssues } from './github.js';
-import { CSS, SITE_FOOTER, htmlPage } from './report-styles.js';
+import { htmlPage } from './report-styles.js';
 import {
-  TIER_DISPLAY, TIER_COLORS, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
+  TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, jsStr, fmt, countBy, isBlocked,
   daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
   colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
@@ -16,7 +16,7 @@ const CYCLE_TIME_HOURS_RANGES = [
   { lt: Infinity, color: COLOR_DANGER },
 ];
 const CONTRIBUTOR_RATIO_RANGES = [
-  { lt: 1, color: '#8b949e' },
+  { lt: 1, color: 'var(--muted)' },
   { lt: 5, color: COLOR_WARNING },
   { lt: Infinity, color: COLOR_SUCCESS },
 ];
@@ -36,17 +36,17 @@ const TIME_TO_CLOSE_DAYS_RANGES = [
   { lte: Infinity, color: COLOR_DANGER },
 ];
 const PR_AGE_RANGES = [
-  { lt: 14, color: '#8b949e' },
+  { lt: 14, color: 'var(--muted)' },
   { lt: 30, color: COLOR_WARNING },
   { lt: Infinity, color: COLOR_DANGER },
 ];
 const STALE_DAYS_RANGES = [
-  { lt: 14, color: '#8b949e' },
+  { lt: 14, color: 'var(--muted)' },
   { lt: 30, color: COLOR_WARNING },
   { lt: Infinity, color: COLOR_DANGER },
 ];
 const BLOCKED_AGE_RANGES = [
-  { lt: 30, color: '#8b949e' },
+  { lt: 30, color: 'var(--muted)' },
   { lt: 90, color: COLOR_WARNING },
   { lt: Infinity, color: COLOR_DANGER },
 ];
@@ -199,7 +199,7 @@ export function computeContributorStats(prAuthors, stargazers) {
 function buildContributorCard(prAuthors, stargazers) {
   const stats = computeContributorStats(prAuthors, stargazers);
   const authorList = stats.firstTimers.length > 0
-    ? stats.firstTimers.map(a => `<span class="badge badge-active" style="font-size:0.75rem;margin:2px">${escHtml(a.author)} <span style="background:#7ee787;color:#161b22;border-radius:4px;padding:0 4px;font-size:0.65rem;margin-left:2px">new</span></span>`).join(' ')
+    ? stats.firstTimers.map(a => `<span class="badge badge-active" style="font-size:0.75rem;margin:2px">${escHtml(a.author)} <span style="background:var(--color-success);color:var(--surface);border-radius:4px;padding:0 4px;font-size:0.65rem;margin-left:2px">new</span></span>`).join(' ')
     : '<span class="muted">none in this period</span>';
   const ratioColor = colorByThreshold(stats.ratio, CONTRIBUTOR_RATIO_RANGES);
   return `<h2>Contributors</h2>
@@ -368,14 +368,14 @@ function buildActionabilitySection(snapshot, openPRs) {
   const items = buildActionItems(snapshot, openPRs);
   if (items.length === 0) return '';
 
-  const effortColor = { 'quick win': '#7ee787', 'moderate': '#d29922', 'significant': '#f85149' };
-  const impactColor = { 'high': '#f85149', 'medium': '#d29922', 'low': '#8b949e' };
+  const effortColor = { 'quick win': 'var(--color-success)', 'moderate': 'var(--color-warning)', 'significant': 'var(--color-danger)' };
+  const impactColor = { 'high': 'var(--color-danger)', 'medium': 'var(--color-warning)', 'low': 'var(--muted)' };
 
   const rows = items.map((item, i) => `<tr>
     <td class="muted" style="font-weight:600">${i + 1}</td>
     <td>${item.text}</td>
-    <td><span style="color:${effortColor[item.effort] || '#8b949e'}">${item.effort}</span></td>
-    <td><span style="color:${impactColor[item.impact] || '#8b949e'}">${item.impact} impact</span></td>
+    <td><span style="color:${effortColor[item.effort] || 'var(--muted)'}">${item.effort}</span></td>
+    <td><span style="color:${impactColor[item.impact] || 'var(--muted)'}">${item.impact} impact</span></td>
   </tr>`).join('');
 
   return `<h2>What To Do Next <span class="muted" style="font-size:0.8rem">(${items.length} action${items.length !== 1 ? 's' : ''})</span></h2>
@@ -410,7 +410,7 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
   const input = snapshotToTierInput(snapshot);
   const repoName = snapshot.repository?.split('/')[1] || '';
   const { tier, checks } = computeHealthTier(input, { releaseExempt: isReleaseExempt(repoName, config) });
-  const color = TIER_COLORS[tier] || TIER_COLORS.none;
+  const color = `var(--tier-${tier}-text)`;
   const display = TIER_DISPLAY[tier] || 'Unranked';
 
   const next = nextTier(tier);
@@ -420,7 +420,7 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
 
   const checkRows = checks.map(c => {
     const icon = c.passed ? '\u2713' : '\u2717';
-    const iconColor = c.passed ? '#7ee787' : '#f85149';
+    const iconColor = c.passed ? 'var(--color-success)' : 'var(--color-danger)';
     const tierLabel = c.required_for === 'gold' ? 'Gold' : c.required_for === 'silver' ? 'Silver' : 'Bronze';
     const detail = healthData[c.name] || '';
     const detailHtml = detail ? `<span class="muted">${escHtml(detail)}</span>` : '';
@@ -432,7 +432,7 @@ function buildHealthTierSection(snapshot, config, healthData = {}) {
   }).join('');
 
   const nextTierHtml = next && failedForNext.length > 0
-    ? `<div style="margin-top:1rem;padding:1rem;background:#0d1117;border-radius:6px;border:1px solid #21262d">
+    ? `<div style="margin-top:1rem;padding:1rem;background:var(--bg);border-radius:6px;border:1px solid var(--border)">
 <div class="muted" style="font-size:0.85rem;margin-bottom:0.5rem">To reach <span class="tier-badge tier-${next}">${TIER_DISPLAY[next]}</span>:</div>
 ${failedForNext.map(c => `<div class="text-danger" style="font-size:0.85rem;margin-left:0.5rem">\u2717 ${c.name}</div>`).join('')}
 </div>`
@@ -455,7 +455,7 @@ ${nextTierHtml}
 // with the neutral grey and the label is forced to 'unavailable'.
 export function buildStatCard({ title, value, color, label, available = true }) {
   const displayValue = available ? value : '—';
-  const displayColor = available ? color : TIER_COLORS.none;
+  const displayColor = available ? color : 'var(--muted)';
   const displayLabel = available ? label : 'unavailable';
   return `<div class="card"><h3>${title}</h3>
 <div class="stat" style="color:${displayColor}">${displayValue}</div>
@@ -470,7 +470,7 @@ export function buildHealthSection(snapshot, depSummary = null, libyear = null) 
   const ttc = snapshot.summary?.time_to_close_median;
 
   const check = v => v ? '\u2713' : '\u2717';
-  const checkColor = v => v ? '#7ee787' : '#f85149';
+  const checkColor = v => v ? 'var(--color-success)' : 'var(--color-danger)';
 
   const communityHtml = cp ? `<div class="card"><h3>Community Profile</h3>
 <div class="stat">${cp.health_percentage}%</div>
@@ -478,13 +478,13 @@ export function buildHealthSection(snapshot, depSummary = null, libyear = null) 
 ${['readme', 'license', 'contributing', 'code_of_conduct', 'issue_template', 'pull_request_template'].map(f =>
     `<span style="color:${checkColor(cp.files?.[f])}">${check(cp.files?.[f])}</span> ${f.replace(/_/g, ' ')}`
   ).join('<br>')}
-</div></div>` : `<div class="card"><h3>Community Profile</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+</div></div>` : `<div class="card"><h3>Community Profile</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const vulnHtml = da ? `<div class="card"><h3>Dependabot Alerts</h3>
-<div class="stat" style="color:${da.count === 0 ? '#7ee787' : da.critical > 0 || da.high > 0 ? '#f85149' : '#d29922'}">${da.count}</div>
+<div class="stat" style="color:${da.count === 0 ? 'var(--color-success)' : da.critical > 0 || da.high > 0 ? 'var(--color-danger)' : 'var(--color-warning)'}">${da.count}</div>
 <div class="stat-label" style="margin-top:0.5rem;line-height:1.8">
 ${da.critical ? `<span class="text-danger">${da.critical} critical</span><br>` : ''}${da.high ? `<span class="text-danger">${da.high} high</span><br>` : ''}${da.medium ? `<span class="text-warning">${da.medium} medium</span><br>` : ''}${da.low ? `<span class="text-success">${da.low} low</span>` : ''}${da.count === 0 ? 'No open alerts' : ''}
-</div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+</div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
 
   const cs = snapshot.code_scanning_alerts;
   const codeScanHtml = buildStatCard({
@@ -556,7 +556,7 @@ function buildPRTriageSection(openPRs, repoFullName) {
     const stale = pr.age_days >= 30;
     const ageColor = colorByThreshold(pr.age_days, PR_AGE_RANGES);
     const authorDisplay = pr.bot ? `<span class="muted">${escHtml(pr.author)}</span>` : escHtml(pr.author);
-    const labels = pr.labels.map(l => `<span style="background:#21262d;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem">${escHtml(l)}</span>`).join(' ');
+    const labels = pr.labels.map(l => `<span style="background:var(--border);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem">${escHtml(l)}</span>`).join(' ');
     const draftBadge = pr.draft ? '<span class="muted" style="font-size:0.7rem"> draft</span>' : '';
 
     return `<tr>
@@ -642,7 +642,7 @@ function buildStalenessSection(snapshot) {
     const classified = blockedIssues.map(i => ({ ...i, reason: classifyBlocker(i.title, i.labels) }));
     const blockedRows = classified.map(i => {
       const color = colorByThreshold(i.age_days, BLOCKED_AGE_RANGES);
-      const reasonColor = i.reason === 'upstream' ? '#d29922' : i.reason === 'dependency' ? '#388bfd' : '#8b949e';
+      const reasonColor = i.reason === 'upstream' ? 'var(--color-warning)' : i.reason === 'dependency' ? 'var(--link)' : 'var(--muted)';
       return `<tr>
         <td><a href="https://github.com/${snapshot.repository}/issues/${i.number}">#${i.number}</a></td>
         <td>${escHtml(i.title.length > 55 ? i.title.slice(0, 53) + '…' : i.title)}</td>
@@ -668,10 +668,10 @@ function buildStalenessSection(snapshot) {
 // --- Dependency cards ---
 
 export function buildRepoDependencyCard(sbom, repoSummary) {
-  if (!sbom) return `<div class="card"><h3>Dependencies (SBOM)</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+  if (!sbom) return `<div class="card"><h3>Dependencies (SBOM)</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
   const count = sbom.count;
   const flags = repoSummary?.licenseFlags || [];
-  const flagColor = flags.length > 0 ? '#f85149' : '#7ee787';
+  const flagColor = flags.length > 0 ? 'var(--color-danger)' : 'var(--color-success)';
   const flagLabel = flags.length > 0
     ? `${flags.length} copyleft: ${flags.slice(0, 3).map(f => f.name).join(', ')}${flags.length > 3 ? '...' : ''}`
     : 'no copyleft concerns';
@@ -681,7 +681,7 @@ export function buildRepoDependencyCard(sbom, repoSummary) {
 }
 
 export function buildLibyearCard(libyear) {
-  if (!libyear) return `<div class="card"><h3>Dep Freshness (Libyear)</h3><div class="stat" style="color:#6e7681">\u2014</div><div class="stat-label">unavailable</div></div>`;
+  if (!libyear) return `<div class="card"><h3>Dep Freshness (Libyear)</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
   const total = libyear.total_libyear;
   const color = getLibyearColor(total);
   const oldestLabel = libyear.oldest
@@ -699,12 +699,12 @@ function buildCalendarHeatmap(weeklyCommits) {
   if (!weeklyCommits || weeklyCommits.length === 0) return '';
   const max = Math.max(...weeklyCommits);
   function cellColor(count) {
-    if (count === 0) return '#161b22';
+    if (count === 0) return 'var(--surface-2)';
     const ratio = count / max;
-    if (ratio <= 0.25) return '#0e4429';
-    if (ratio <= 0.5) return '#006d32';
-    if (ratio <= 0.75) return '#26a641';
-    return '#39d353';
+    if (ratio <= 0.25) return 'var(--hm1)';
+    if (ratio <= 0.5) return 'var(--hm2)';
+    if (ratio <= 0.75) return 'var(--hm3)';
+    return 'var(--hm4)';
   }
   const cells = weeklyCommits.map((count, i) =>
     `<div class="heatmap-cell" style="background:${cellColor(count)}" title="Week ${i + 1}: ${count} commits"></div>`
@@ -747,7 +747,7 @@ export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthor
   // Build trends chart section if we have 2+ weeks of data.
   const hasTrends = trends && trends.weeks && trends.weeks.length >= 2;
   const trendsHtml = hasTrends ? `
-<h2>Trends <span style="font-size:0.8rem;color:${trends.direction === 'growing' ? '#f85149' : trends.direction === 'shrinking' ? '#7ee787' : '#8b949e'}">(issues ${trends.direction})</span></h2>
+<h2>Trends <span style="font-size:0.8rem;color:${trends.direction === 'growing' ? 'var(--color-danger)' : trends.direction === 'shrinking' ? 'var(--color-success)' : 'var(--muted)'}">(issues ${trends.direction})</span></h2>
 <div class="chart-container"><div class="chart-title">Weekly Trends — Open Issues</div><canvas id="trendsChart"></canvas></div>` : '';
 
   // Assessment narrative from the ASSESS phase (LLM-generated, sanitised before render).
@@ -757,10 +757,10 @@ export function generateRepoReport(snapshot, prActivity, issueActivity, prAuthor
     : '';
 
   const hasMergedPrData = hasTrends && trends.weeks.some(w => w.merged_prs > 0);
-  const mergedPrDataset = hasMergedPrData ? `,{label:'Merged PRs',data:[${trends.weeks.map(w => w.merged_prs).join(',')}],borderColor:'#388bfd',backgroundColor:'rgba(56,139,253,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y1'}` : '';
+  const mergedPrDataset = hasMergedPrData ? `,{label:'Merged PRs',data:[${trends.weeks.map(w => w.merged_prs).join(',')}],borderColor:__C.line,backgroundColor:__C.line+'1a',fill:true,tension:0.3,pointRadius:4,yAxisID:'y1'}` : '';
   const mergedPrScale = hasMergedPrData ? `,y1:{type:'linear',position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'Merged PRs'}}` : '';
   const trendsJs = hasTrends ? `
-new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${trends.weeks.map(w => `'${w.week}'`).join(',')}],datasets:[{label:'Open Issues',data:[${trends.weeks.map(w => w.open_issues).join(',')}],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,0.1)',fill:true,tension:0.3,pointRadius:4,yAxisID:'y'}${mergedPrDataset}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{type:'linear',position:'left',beginAtZero:true,grid:{color:'#21262d'},title:{display:true,text:'Open Issues'}}${mergedPrScale},x:{grid:{display:false}}}}});` : '';
+new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${trends.weeks.map(w => `'${w.week}'`).join(',')}],datasets:[{label:'Open Issues',data:[${trends.weeks.map(w => w.open_issues).join(',')}],borderColor:__C.danger,backgroundColor:__C.danger+'1a',fill:true,tension:0.3,pointRadius:4,yAxisID:'y'}${mergedPrDataset}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{type:'linear',position:'left',beginAtZero:true,grid:{},title:{display:true,text:'Open Issues'}}${mergedPrScale},x:{grid:{display:false}}}}});` : '';
 
   // Build healthData annotations for the tier table
   const cp = snapshot.community_profile;
@@ -813,9 +813,9 @@ ${buildCalendarHeatmap(weeklyCommits)}
 <details><summary>Community</summary>
 ${buildContributorCard(prAuthors, snapshot.meta?.stars || 0)}
 </details>`;
-  const charts = `new Chart(document.getElementById('prChart'),{type:'bar',data:{labels:[${prMonths}],datasets:[{label:'Merged PRs',data:[${prCounts}],backgroundColor:'rgba(56,139,253,0.7)',borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#21262d'}},x:{grid:{display:false}}}}});
-new Chart(document.getElementById('issueChart'),{type:'line',data:{labels:[${issueMonths}],datasets:[{label:'Opened',data:[${issueOpened}],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,0.1)',fill:true,tension:0.3,pointRadius:4},{label:'Closed',data:[${issueClosed}],borderColor:'#7ee787',backgroundColor:'rgba(126,231,135,0.1)',fill:true,tension:0.3,pointRadius:4}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,grid:{color:'#21262d'}},x:{grid:{display:false}}}}});
-new Chart(document.getElementById('releaseChart'),{type:'bar',data:{labels:[${relData.map(r => jsStr(r.tag)).join(',')}],datasets:[{label:'Days',data:[${relDays.join(',')}],backgroundColor:'rgba(126,231,135,0.7)',borderRadius:3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#21262d'},title:{display:true,text:'Days'}},x:{ticks:{maxRotation:45},grid:{display:false}}}}});${trendsJs}`;
+  const charts = `new Chart(document.getElementById('prChart'),{type:'bar',data:{labels:[${prMonths}],datasets:[{label:'Merged PRs',data:[${prCounts}],backgroundColor:__C.heather+'b3',borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{}},x:{grid:{display:false}}}}});
+new Chart(document.getElementById('issueChart'),{type:'line',data:{labels:[${issueMonths}],datasets:[{label:'Opened',data:[${issueOpened}],borderColor:__C.danger,backgroundColor:__C.danger+'1a',fill:true,tension:0.3,pointRadius:4},{label:'Closed',data:[${issueClosed}],borderColor:__C.success,backgroundColor:__C.success+'1a',fill:true,tension:0.3,pointRadius:4}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,grid:{}},x:{grid:{display:false}}}}});
+new Chart(document.getElementById('releaseChart'),{type:'bar',data:{labels:[${relData.map(r => jsStr(r.tag)).join(',')}],datasets:[{label:'Days',data:[${relDays.join(',')}],backgroundColor:__C.success+'b3',borderRadius:3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{},title:{display:true,text:'Days'}},x:{ticks:{maxRotation:45},grid:{display:false}}}}});${trendsJs}`;
   return htmlPage({ title: `${snapshot.repository} — Health Report`, body, charts });
 }
 
@@ -826,18 +826,10 @@ export function generateLightRepoReport(owner, repo, details) {
   const ci = details?.ci || 0;
   const license = details?.license || 'None';
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${owner}/${repo.name}</title>
-${CSS}
-</head>
-<body>
-<h1>${repo.name}</h1>
+  const body = `<h1>${escHtml(repo.name)}</h1>
 <div class="subtitle">${escHtml(repo.description || 'No description')} — ${now} — <a href="index.html">portfolio view</a></div>
 <div class="grid">
-  <div class="card"><h3>Language</h3><div class="stat stat-sm">${repo.language || '—'}</div></div>
+  <div class="card"><h3>Language</h3><div class="stat stat-sm">${repo.language ? escHtml(repo.language) : '—'}</div></div>
   <div class="card"><h3>Stars</h3><div class="stat">${repo.stars}</div><div class="stat-label">${repo.forks} forks</div></div>
   <div class="card"><h3>Open Issues</h3><div class="stat">${repo.open_issues || 0}</div></div>
   <div class="card"><h3>Commits (6mo)</h3><div class="stat">${commits}</div></div>
@@ -848,7 +840,8 @@ ${CSS}
   This repo has fewer than 10 commits in the last 6 months.<br>
   Full charts are generated for repos with more activity.
 </div>
-<p style="text-align:center;margin-top:2rem"><a href="https://github.com/${owner}/${repo.name}">View on GitHub</a></p>
-${SITE_FOOTER}
-</body></html>`;
+<p style="text-align:center;margin-top:2rem"><a href="https://github.com/${owner}/${escHtml(repo.name)}">View on GitHub</a></p>`;
+  // Route through htmlPage so light cards get the same theme toggle, persisted
+  // theme restore, and color-scheme meta as the full reports.
+  return htmlPage({ title: `${owner}/${repo.name}`, body });
 }
