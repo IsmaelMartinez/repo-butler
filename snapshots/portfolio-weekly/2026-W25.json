@@ -108,7 +108,7 @@
       "id": 36797154,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 33,
+      "commits_6mo": 34,
       "stars": 5,
       "license": "MIT",
       "communityHealth": 100,
@@ -134,7 +134,7 @@
       },
       "ci": 7,
       "released_at": "2025-12-20T09:59:52Z",
-      "pushed_at": "2026-06-16T19:55:09Z",
+      "pushed_at": "2026-06-20T13:45:05Z",
       "traffic": {
         "views_14d": {
           "count": 4,
@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 16,
-      "open_bugs": 5,
+      "open_issues": 17,
+      "open_bugs": 6,
       "commits_6mo": 430,
       "stars": 4789,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9622641509433962,
+      "ciPassRate": 0.9629629629629629,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-20T11:09:51Z",
+      "pushed_at": "2026-06-20T14:28:10Z",
       "traffic": {
         "views_14d": {
           "count": 31,
@@ -932,11 +932,11 @@
       "id": 1185787142,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 351,
+      "commits_6mo": 352,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9761904761904762,
+      "ciPassRate": 0.9523809523809523,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-20T09:02:59Z",
+      "pushed_at": "2026-06-20T12:30:11Z",
       "traffic": {
         "views_14d": {
           "count": 27,
@@ -1167,12 +1167,12 @@
       "pushed_at": "2026-06-20T09:00:33Z",
       "traffic": {
         "views_14d": {
-          "count": 2,
+          "count": 5,
           "uniques": 2
         },
         "clones_14d": {
-          "count": 169,
-          "uniques": 64
+          "count": 173,
+          "uniques": 67
         }
       },
       "computed": {
@@ -1373,12 +1373,12 @@
       "pushed_at": "2026-06-20T09:09:19Z",
       "traffic": {
         "views_14d": {
-          "count": 40,
-          "uniques": 11
+          "count": 50,
+          "uniques": 12
         },
         "clones_14d": {
-          "count": 3405,
-          "uniques": 773
+          "count": 3847,
+          "uniques": 854
         }
       },
       "computed": {
