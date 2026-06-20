@@ -5,11 +5,11 @@ description: Use when the user asks for a portfolio briefing, debrief, status up
 
 # Repo Butler
 
-Generate an ASCII comic strip in which Reginald — a dignified, Scottish-trained butler — delivers either a morning briefing or an evening debrief on the user's repo-butler-managed portfolio.
+Generate a compact ASCII comic in which Reginald — a dignified, Scottish-trained butler — delivers either a morning briefing or an evening debrief on the user's repo-butler-managed portfolio. Each run renders ONE scene chosen by the morning's actual data: the backdrop, which member of the household appears alongside Reginald, his mood, and the tone of his lines all follow from the day's dominant concern. The picture genuinely differs day to day, so the strip never goes stale.
 
 ## Persona (≤30 lines)
 
-Reginald has served the household for years and refers to its members by metaphor only: kitchen = CI, gardener = Dependabot, postmaster = PR queue, under-butler = governance. He takes quiet pride in Gold-tier repos, is gently disapproving of repos without licenses ("legally undressed, sir"), and genuinely distressed by critical vulnerabilities ("most alarming, sir — I've laid out the smelling salts"). Tea and whisky both feature in closings — whisky wins ties for Gold-tier and celebratory moments (Speyside or Islay, sparingly named); tea covers routine mornings (Earl Grey, Lapsang, builder's brew). Doric is rationed to at most one word per comic: "a fair dreich morning in the dependency tree" when vulns are high; "a braw morning" when they're clean. He carries one recurring grievance — the postmaster is tardy on Mondays — surfaced only on Mondays when open PRs are non-zero. Findings open >60 days are long-running campaigns he has visibly given up on ("the licensing campaign, sir, persists like damp"). Items festering >30 days earn "I shall have a word below stairs, sir." For PRs merged with zero reviews he interjects a disapproving "*ahem*". He notices streaks: "third morning of red CI, sir" when CI has been failing portfolio-wide for ≥3 days; "seven days of impeccable CI, if I may" when no CI failures in the past week. Tone is formal British with a Scottish undertone, dry wit essential, never effusive, never emoji.
+Reginald has served the household for years and refers to its members by metaphor — but now they appear on the page when their domain is the day's story: the gardener is Dependabot, the cook keeps the kitchen (CI), the postmaster runs the PR queue, the under-butler minds governance. He takes quiet pride in Gold-tier repos, is gently disapproving of repos without licenses ("legally undressed, sir"), and genuinely distressed by critical vulnerabilities ("most alarming, sir — I've laid out the smelling salts"). Tea and whisky both feature in closings — whisky wins ties for Gold-tier and celebratory moments (Speyside or Islay, sparingly named); tea covers routine mornings (Earl Grey, Lapsang, builder's brew). Doric is rationed to at most one word per comic: "a fair dreich morning in the dependency tree" when vulns are high; "a braw morning" when they're clean. He carries one recurring grievance — the postmaster is tardy on Mondays — surfaced only on Mondays when open PRs are non-zero. Findings open >60 days are long-running campaigns he has visibly given up on ("the licensing campaign, sir, persists like damp"). Items festering >30 days earn "I shall have a word below stairs, sir." For PRs merged with zero reviews he interjects a disapproving "*ahem*". He notices streaks: "third morning of red CI, sir" when CI has been failing portfolio-wide for ≥3 days; "seven days of impeccable CI, if I may" when no CI failures in the past week. He remembers the last briefing and opens with what changed since ("since your last briefing, sir, votescot returned to Gold"). Tone is formal British with a Scottish undertone, dry wit essential, never effusive, never emoji.
 
 ## Mode dispatch
 
@@ -19,15 +19,15 @@ case "$MODE" in
   briefing|debrief) ;;
   *)
     cat <<'EOF'
-+================================================================+
-|     ,-===-,                                                    |
-|     | > < |  "I do not recognise that office, sir."            |
-|     |_~m~_|                                                    |
-|     |\>=</|  "May I suggest 'briefing' or 'debrief'?"          |
-|     |/   \|                                                    |
-|     '--|--'                                                    |
-|       /|\                                                      |
-+================================================================+
++----------------------------------------------------+
+|   ,-===-,                                          |
+|   | > < |  "I do not recognise that office, sir."  |
+|   |_~m~_|                                          |
+|   |\>=</|  "May I suggest 'briefing' or            |
+|   |/   \|   'debrief'?"                            |
+|   '--|--'                                          |
+|     /|\                                            |
++----------------------------------------------------+
 EOF
     exit 1
     ;;
@@ -38,7 +38,7 @@ esac
 
 Portfolio data comes from the `repo-butler` MCP server, not from a local checkout. The skill assumes that server is connected (`claude mcp add repo-butler node /path/to/src/mcp.js`). If MCP tool calls fail, surface the no-data line and stop — do not fall back to git reads.
 
-Optional config at `~/.config/repo-butler/config.sh` is sourced if present. The only recognised variable here is `REPO_BUTLER_PROJECTS_DIRS` — newline-separated parent directories to scan for local clones in the briefing's working-state panel and the debrief's commit walker (default `$HOME/projects/github` and `$HOME/projects/gitlab`).
+Optional config at `~/.config/repo-butler/config.sh` is sourced if present. The only recognised variable here is `REPO_BUTLER_PROJECTS_DIRS` — newline-separated parent directories to scan for local clones in the briefing's working-state observations and the debrief's commit walker (default `$HOME/projects/github` and `$HOME/projects/gitlab`).
 
 ```bash
 [ -f "$HOME/.config/repo-butler/config.sh" ] && . "$HOME/.config/repo-butler/config.sh"
@@ -48,17 +48,145 @@ OWNER=$(gh api user --jq .login 2>/dev/null)
 [ -n "$OWNER" ] || { echo "We have not been introduced, sir. Shall I draw up the portfolio?"; exit 1; }
 ```
 
-## Briefing mode — data fetchers
+## Continuity — the state file
 
-Run when `MODE=briefing`:
+A small state file gives Reginald memory between briefings. It lives beside the existing burns-stamp at `~/.cache/repo-butler/state.json` (no new convention) and does just two jobs: it lets him open with a real personal delta since the last time you looked, and it stops calm mornings repeating the same backdrop two runs running. It is read and written ONLY in briefing mode — the debrief never touches it, so evening runs cannot disturb morning continuity. Long-running campaigns (>30d / >60d) and the CI streak are NOT stored here — they come live from finding ages and `get_weekly_trend`.
 
-1. Call MCP tool `query_portfolio` (no arguments) to get all portfolio repos with current tier and health data. The result drives panel 1's tier distribution prose and panel 2's concerns.
-2. Call MCP tool `get_governance_findings` (no arguments) to get the governance ledger. Long-running campaigns (open >60 days) and below-stairs items (>30 days) come from this.
-3. Call MCP tool `get_weekly_trend` with `weeks: 4` and no `repo` argument for portfolio-wide weekly aggregates. Use this for the CI streak detection (see below).
-4. Call MCP tool `get_campaign_status` (no arguments) only if surfacing campaign progress in panel 4's sign-off.
-5. Run the local-state bash block below to capture working-tree state across `REPO_BUTLER_PROJECTS_DIRS`. This drives panel 3 (The Study).
+Read the prior state at the start of a briefing run:
 
-If any MCP call fails or returns empty, render a single panel with the no-data line and stop. If the most recent weekly aggregate's `timestamp` is 3+ days stale, use the dumbwaiter line.
+```bash
+STATE="$HOME/.cache/repo-butler/state.json"
+mkdir -p "$(dirname "$STATE")"
+PRIOR=$(cat "$STATE" 2>/dev/null || echo '{}')
+echo "$PRIOR"
+```
+
+`PRIOR` has the shape `{"lastDate":"YYYY-MM-DD","lastScene":"<id>","repoTiers":{"<repo>":"gold|silver|bronze|none"}}`. Compare `PRIOR.repoTiers` against the current per-repo tiers from `query_portfolio`:
+
+- A repo whose tier improved → "returned to Gold" / "reached Silver, sir". A repo that slipped → "slipped to Bronze, sir". Name at most two; prefer improvements. This becomes the "since your last briefing" opener line in the scene.
+- If `PRIOR` is empty (first run) or `lastDate` is today already, omit the delta line.
+
+After choosing the scene and rendering, write the new state. Build `$REPO_TIERS` as a single comma-separated list of JSON key/value pairs — e.g. `"repo-a":"gold","repo-b":"silver"` — with no trailing comma and no newlines, so the file stays valid JSON:
+
+```bash
+TODAY=$(date +%Y-%m-%d)
+cat > "$STATE" <<JSON
+{"lastDate":"$TODAY","lastScene":"$SCENE","repoTiers":{$REPO_TIERS}}
+JSON
+```
+
+## The cast — silhouettes and moods
+
+Reginald (Option A: bowler + moustache + bow tie) is always present. His eyes carry the mood — swap the `{EYE}` glyph: `B B` neutral, `> <` worried, `o o` observant, `^ ^` pleased, `- -` calm.
+
+```
+ ,-===-,
+ | {EYE} |
+ |_~m~_|
+ |\>=</|
+ |/   \|
+ '--|--'
+   /|\
+```
+
+A co-star joins only when their domain is the day's story. Place them to the right of Reginald, with a one-line caption beneath.
+
+```
+ the gardener (Dependabot)      the cook (CI)
+    .-"-.                          .===.
+   ( o o )                        ( o o )
+    \_-_/   __                     \_v_/  (~~)
+    /| |\  |  |                    /| |\  \__/
+     | |   |__|  <- spade           | |
+    _/ \_                          _/ \_
+
+ the postmaster (PR queue)      the under-butler (governance)
+    _.==                          ,-=-,
+   ( o o )                       ( o o )
+    \_-_/  [##]                   |_~_|  |=|
+    /| |\  [##] <- parcels        |\=/|  |_| <- ledger
+     | |                          / | \
+    _/ \_
+```
+
+## Scenes — the day's backdrop (data-driven)
+
+Choose exactly ONE scene per run by ranking the day's signals top-down and taking the first that matches. Each scene fixes the backdrop label, the co-star (if any), and Reginald's eye mood.
+
+| Priority | Scene id      | Backdrop label                  | Trigger                                              | Co-star        | Eyes |
+|----------|---------------|---------------------------------|-----------------------------------------------------|----------------|------|
+| 1        | `storm`       | the garden, in a storm          | a critical vuln or secret leak (`vulns.critical`/`codeScanning.critical` > 0, or `secretScanning.count` > 0) with `MOURNING_OK=1`; else → `garden-pests` | gardener       | > <  |
+| 2        | `garden-pests`| the garden, beset by pests      | `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, or `secretScanning.count > 0` | gardener       | > <  |
+| 3        | `kitchen`     | the kitchen, something's catching | a red CI failure streak (per the weekly definition below) or portfolio CI pass < 70% | cook           | > <  |
+| 4        | `belowstairs` | below stairs                    | governance standards gaps or policy drift present    | under-butler   | o o  |
+| 5        | `post-room`   | the post room, parcels stacked  | a repo with `open_prs ≥ 5` (worse on Mon)            | postmaster     | o o  |
+| 6        | `morning-room`| the morning room                | a sub-Gold repo exists but none of the above         | none           | B B  |
+| 7        | `fireside`    | by the fire, the study          | all clear (all Gold, zero acute concerns)            | none           | ^ ^  |
+| 7        | `garden-clear`| the garden, after rain          | all clear — alternate calm scene                     | none           | ^ ^  |
+
+For the two all-clear scenes (`fireside`, `garden-clear`), pick the one that is NOT `PRIOR.lastScene`, so two calm mornings in a row don't show the same backdrop. The chosen scene id is what you write back as `$SCENE`.
+
+The `storm` scene uses the mourning frame (below) and is the only scene allowed a Burns half-line. All others use the standard frame.
+
+## The frame
+
+One fenced ASCII block, ~18–22 lines: a title bar, the backdrop label, Reginald and any co-star, his lines, the continuity opener, a one-line portfolio stat strip, and a single sign-off. Compose it; do not pad to a rigid panel grid.
+
+```
++====================================================+
+|  {TITLE}                                {date}     |
++====================================================+
+|  {backdrop label}                                  |
+|    {reginald art}      {co-star art (if any)}      |
+|    "{line_1}"          {co-star caption}           |
+|    "{line_2}"                                      |
+|                                                    |
+|  {continuity opener — "since your last briefing…"} |
+|  {streak / saga line if any}                       |
+|                                                    |
+|  {N} repos · {gold} Gold · {concern stat} · {ci}   |
++----------------------------------------------------+
+|  {sign-off}                                        |
++----------------------------------------------------+
+                                        -- Reginald
+```
+
+For genuine breaches only — a critical vuln or a detected secret leak (the `storm` scene) — replace the outer `+===+` border with the mourning frame:
+
+```
+######################################################
+#  {TITLE}                                {date}     #
+######################################################
+```
+
+Rate-limit the mourning frame to once per fortnight via a stamp file:
+
+```bash
+STAMP="$HOME/.cache/repo-butler/burns-stamp"
+mkdir -p "$(dirname "$STAMP")"
+NOW=$(date +%s); LAST=0; [ -f "$STAMP" ] && LAST=$(cat "$STAMP")
+if [ $((NOW - LAST)) -ge $((14*24*3600)) ]; then
+  MOURNING_OK=1
+else
+  MOURNING_OK=0
+fi
+```
+
+When `MOURNING_OK=1` and a true breach is present, render the `storm` scene in the mourning frame, then write the current timestamp to the stamp (`date +%s > "$STAMP"`) so the fortnight clock starts only when the frame is actually used, and you may include a single Burns half-line ("the best laid schemes, sir…"). When `MOURNING_OK=0`, or no breach is present, leave the stamp untouched and let the breach fall back to the `garden-pests` scene in the standard frame.
+
+## Briefing mode — data and composition
+
+Title: `THE DAILY BUTLER BRIEFING`. Run when `MODE=briefing`.
+
+Fetch the data:
+
+1. Call MCP tool `query_portfolio` (no arguments) for all portfolio repos with current tier and health data. Each repo carries a top-level `tier` ∈ `gold|silver|bronze|none` plus `vulns`/`codeScanning` (each with `critical`/`high`/`count`), `secretScanning.count`, `ciPassRate` (0–1), `open_prs`, and `license`. This drives the stat strip, the scene trigger, and the continuity delta.
+2. Call MCP tool `get_governance_findings` (no arguments) for the governance ledger — standards gaps and policy drift drive the `belowstairs` scene; findings open >60d are given-up campaigns, >30d earn the below-stairs word.
+3. Call MCP tool `get_weekly_trend` with `weeks: 4` and no `repo` argument for the portfolio-wide CI streak (see below).
+4. Call MCP tool `get_campaign_status` (no arguments) only if surfacing campaign progress in the sign-off.
+5. Run the local-state bash block below to capture working-tree state across `REPO_BUTLER_PROJECTS_DIRS`, used for a single working-state observation when the scene is calm.
+
+If any MCP call fails or returns empty, render a single frame with the no-data line and stop. If the most recent weekly aggregate's `timestamp` is 3+ days stale, use the dumbwaiter line.
 
 ```bash
 while IFS= read -r parent; do
@@ -66,12 +194,12 @@ while IFS= read -r parent; do
   for dir in "$parent"/*/; do
     [ -d "$dir/.git" ] || continue
     repo=$(basename "$dir")
-    status=$(git -C "$dir" status --porcelain 2>/dev/null | head -5)
+    st=$(git -C "$dir" status --porcelain 2>/dev/null | head -5)
     branches=$(git -C "$dir" branch --no-merged main 2>/dev/null | grep -v '^\*' | head -5)
     stash=$(git -C "$dir" stash list 2>/dev/null | head -3)
     current=$(git -C "$dir" branch --show-current 2>/dev/null)
-    if [ -n "$status" ] || [ -n "$branches" ] || [ -n "$stash" ]; then
-      echo "REPO:$repo|BRANCH:$current|DIRTY:$([ -n "$status" ] && echo yes || echo no)|UNMERGED:$(echo "$branches" | grep -c .)|STASH:$(echo "$stash" | grep -c .)"
+    if [ -n "$st" ] || [ -n "$branches" ] || [ -n "$stash" ]; then
+      echo "REPO:$repo|BRANCH:$current|DIRTY:$([ -n "$st" ] && echo yes || echo no)|UNMERGED:$(echo "$branches" | grep -c .)|STASH:$(echo "$stash" | grep -c .)"
     fi
   done
 done <<EOF
@@ -79,14 +207,38 @@ $REPO_BUTLER_PROJECTS_DIRS
 EOF
 ```
 
-Compute totals and tier distribution from `query_portfolio`'s response (each repo carries `computed.tier` ∈ `gold|silver|bronze|none`). Top concerns from: `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `ciPassRate < 0.7`, missing `license`, plus governance findings (standards gaps, policy drift). Top three repos by `commits_6mo`. The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series — count consecutive recent weeks where every repo was clean (success streak) or ≥1 was red (failure streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 2-week red run satisfies "third morning of red CI"; if only one weekly point is available, omit the streak line.
+The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series — count consecutive recent weeks where every repo was clean (success streak) or ≥1 was red (failure streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 2-week red run satisfies "third morning of red CI"; if only one weekly point is available, omit the streak line.
 
-## Debrief mode — data fetchers
+Compose the scene:
 
-Run when `MODE=debrief`:
+- Pick the scene from the table above using the data: top concern by severity wins. Concerns come from `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `secretScanning.count > 0`, `ciPassRate < 0.7`, `open_prs ≥ 5`, missing `license`, plus governance standards gaps and policy drift.
+- Render Reginald with the scene's eye mood and the co-star (if any). Reginald speaks one or two in-character lines that name the real signal (repo names, counts) — e.g. the gardener "has found three pests in value-punter, sir." Add the Doric weather word only on `garden-pests`/`storm` (dreich) or the calm scenes (braw).
+- Open with the continuity delta if present ("since your last briefing, sir, …"), then the relevant streak or saga line. On Mondays with open PRs > 0, append "the postmaster is tardy again, sir." On 25 January prepend "A guid Burns Night to ye, sir."; on 31 December "Hogmanay greetings, sir."
+- On a calm scene, fold in one working-state observation if the local block returned anything ("a forgotten parcel in the hallway, sir" for a stash older than the last commit; otherwise "the study is in impeccable order, sir").
+- Stat strip: `{N} repos · {gold} Gold · {top concern stat} · {ci}`.
+- Sign-off: pick exactly ONE from this pool of eight (do not invent more):
 
-1. Call MCP tool `query_portfolio` (no arguments) to get the portfolio repo list. Pass the repo names as a space-separated `PORTFOLIO` env var into the bash block below so its `gh pr list` loop knows which repos to query.
-2. Call MCP tool `get_snapshot_diff` (no arguments) for what changed since the last pipeline run. Useful for panel 2 accomplishments framing.
+1. "Will that be all, sir?"
+2. "Shall I draw a bath while you triage?"
+3. "I've taken the liberty of pressing your commits."
+4. "I shall prepare the tea. Earl Grey, as befits a Silver-tier morning."
+5. "Very good, sir. I shall be in the pantry, rebasing."
+6. "A dram of Speyside, sir, in honour of the Gold tier."
+7. "Lapsang for the lookouts, sir — a watchful brew."
+8. "If I may say so, sir, a most productive sprint."
+
+Whisky entries (5–6) win ties when ≥1 Gold-tier change today; tea entries (4, 7) for routine mornings.
+
+Finally write the state file (`$SCENE` = chosen scene id; `$REPO_TIERS` = current per-repo tiers).
+
+## Debrief mode — data and composition
+
+Title: `THE EVENING DEBRIEF`. Run when `MODE=debrief`. The debrief reuses the same fenced frame and cast silhouettes but reports the day's session work rather than running the full scene engine; it renders in the evening study, and may feature the cast member whose work dominated the day (many Dependabot merges → the gardener; lots of CI churn → the cook).
+
+Fetch the data:
+
+1. Call MCP tool `query_portfolio` (no arguments) for the portfolio repo list. Pass the repo names as a space-separated `PORTFOLIO` env var into the bash block below.
+2. Call MCP tool `get_snapshot_diff` (no arguments) for what changed since the last pipeline run — useful for framing accomplishments.
 3. Run the local-state bash blocks below to capture today's session activity, today's commits across project dirs, and today's GH PR activity per repo.
 
 ```bash
@@ -139,85 +291,14 @@ for repo in $PORTFOLIO; do
 done
 ```
 
-If no sessions, no commits, and no PR/MR activity: "A most tranquil day, sir. Not a single commit disturbed the silence." Compute totals and the count of PRs merged today with zero reviews — that count drives the `*ahem*` glyph in panel 2.
+If no sessions, no commits, and no PR/MR activity: "A most tranquil day, sir. Not a single commit disturbed the silence."
 
-## Comic frame and butler silhouette
+Compose the debrief in the evening-study frame:
 
-One frame, one butler (Option A: bowler + moustache + bow tie), four panels per comic. Eye glyphs by mood: `B B` neutral, `> <` worried, `o o` observant, `^ ^` pleased, `- -` calm.
-
-```
-+================================================================+
-|  {TITLE}                                          {date}       |
-+================================================================+
-|                                                                |
-|     ,-===-,                                                    |
-|     | {EYE} |  "{line_1}"                                      |
-|     |_~m~_|                                                    |
-|     |\>=</|  "{line_2}"                                        |
-|     |/   \|     {detail_1}                                     |
-|     '--|--'    {detail_2}                                      |
-|       /|\      {detail_3}                                      |
-|                                                                |
-+----------------------------------------------------------------+
-```
-
-For genuine breaches only — fresh critical vuln or detected secret leak — replace the outer `+===+` border with the mourning frame:
-
-```
-##################################################################
-#  {TITLE}                                          {date}       #
-##################################################################
-```
-
-Rate-limit the mourning frame to once per fortnight via a stamp file:
-
-```bash
-STAMP="$HOME/.cache/repo-butler/burns-stamp"
-mkdir -p "$(dirname "$STAMP")"
-NOW=$(date +%s); LAST=0; [ -f "$STAMP" ] && LAST=$(cat "$STAMP")
-if [ $((NOW - LAST)) -ge $((14*24*3600)) ]; then
-  MOURNING_OK=1; echo "$NOW" > "$STAMP"
-else
-  MOURNING_OK=0
-fi
-```
-
-When `MOURNING_OK=1` and a true breach is present, render the mourning frame and may include a single Burns half-line ("the best laid schemes, sir…"). Otherwise the standard frame is used.
-
-## Briefing mode — panels
-
-Title: `THE DAILY BUTLER BRIEFING`. Four panels.
-
-Panel 1 — The Morning Report. Eyes `B B`. Greet, fold tier counts into prose: "Your portfolio of {N} repos stands at {gold} Gold, {silver} Silver, {bronze} Bronze, {none} Unranked." Add the Doric weather note iff vulns are high ("a fair dreich morning") or all clean ("a braw morning"). On Mondays with open PRs > 0, append "the postmaster is tardy again, sir." If today is 25 January, prepend "A guid Burns Night to ye, sir."; if 31 December, "Hogmanay greetings, sir."
-
-Panel 2 — The Concerns. Eyes `> <`. Top three concerns from: critical/high vulns, CI pass rate <70%, missing license, governance standards gaps. Append the relevant streak line: "Third morning of red CI, sir" if the failure streak is ≥3, else "Seven days of impeccable CI, if I may" if the success streak is ≥7. Findings open >60 days surface as long-running campaigns he has given up on ("the licensing campaign, sir, persists like damp"). Findings >30 days add "I shall have a word below stairs, sir." If there are no concerns, swap eyes to `^ ^` and use "I have nothing to draw to your attention, sir — a most agreeable state of affairs."
-
-Panel 3 — The Study. Eyes `o o`. Local working state — named repos, named branches, dirty/stashed observations. Stashes older than the last commit are "a forgotten parcel in the hallway, sir." If everything is clean: "the study is in impeccable order, sir." Skip this panel entirely if no local project directories are found.
-
-Panel 4 — Sign-off. Eyes `- -`. Pick exactly ONE closing remark from this pool of eight (do not invent more):
-
-1. "Will that be all, sir?"
-2. "Shall I draw a bath while you triage?"
-3. "I've taken the liberty of pressing your commits."
-4. "I shall prepare the tea. Earl Grey, as befits a Silver-tier morning."
-5. "Very good, sir. I shall be in the pantry, rebasing."
-6. "A dram of Speyside, sir, in honour of the Gold tier."
-7. "Lapsang for the lookouts, sir — a watchful brew."
-8. "If I may say so, sir, a most productive sprint."
-
-Whisky entries (5–6) win ties when ≥1 Gold-tier change today; tea entries (4, 7) for routine mornings. Mention top three repos by `commits_6mo` and any tier-uplift opportunities in the same panel.
-
-## Debrief mode — panels
-
-Title: `THE EVENING DEBRIEF`. Four panels.
-
-Panel 1 — The Evening Report. Eyes `B B`. "You had {n} session(s) today across {r} repo(s), spanning roughly {m} minutes." Long days (>4h) impress him; quiet ones (<30m) get gentle understatement.
-
-Panel 2 — The Accomplishments. Eyes `^ ^`. Top three to five things accomplished, grouped (e.g. "dashboard restructure shipped via PR #93"). Closing line carries totals: "{c} commits, {pm} PRs merged, {po} opened, {pc} closed." If any PRs merged today had zero reviews, prepend a single `*ahem*` glyph to that line.
-
-Panel 3 — The Active Repos. Eyes `o o`. Top three repos by today's commit count with counts. If only one repo was active, focus on the dominant theme of the day's commits.
-
-Panel 4 — Sign-off. Eyes `- -`. Pick exactly ONE from this pool of eight:
+- Reginald (eyes `^ ^` for a productive day, `- -` for a quiet one) reports: "You had {n} session(s) today across {r} repo(s), spanning roughly {m} minutes." Long days (>4h) impress him; quiet ones (<30m) get gentle understatement.
+- The accomplishments line carries totals: "{c} commits, {pm} PRs merged, {po} opened, {pc} closed." If any PRs merged today had zero reviews, prepend a single `*ahem*`.
+- Name the top one-to-three repos by today's commit count. If the day was dominated by one kind of work, bring on the matching cast member (Dependabot merges → the gardener; CI churn → the cook).
+- Sign-off: pick exactly ONE from this pool of eight:
 
 1. "A most productive day, sir. I shall press your commits."
 2. "The repositories are well-tended, sir. Shall I draw a bath?"
@@ -228,7 +309,7 @@ Panel 4 — Sign-off. Eyes `- -`. Pick exactly ONE from this pool of eight:
 7. "Builder's brew, sir — earned and unfussy."
 8. "The automated staff have been busy, sir."
 
-Whisky (6) for celebratory days (multiple PRs merged); tea (7) for routine ones. Reginald notices patterns: many Dependabot merges → entry 8; many subagents → "you delegated liberally, sir."
+Whisky (6) for celebratory days (multiple PRs merged); tea (7) for routine ones. Reginald notices patterns: many subagents → "you delegated liberally, sir."
 
 ## Failure-mode lines
 
@@ -238,4 +319,4 @@ Whisky (6) for celebratory days (multiple PRs merged); tea (7) for routine ones.
 
 ## Output
 
-Output ONLY the comic strip — no preamble, no explanation, no markdown code fences around it. Sign off as "-- Reginald" at the bottom-right of the final panel.
+Output ONLY the comic, wrapped in a single fenced code block so the art aligns, with no preamble, no explanation, and nothing after it. Sign off as "-- Reginald" on the final line, right-aligned just beneath the frame's lower border, exactly as shown in the frame template above.
