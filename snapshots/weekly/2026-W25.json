@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-20T20:28:36.190Z",
+  "timestamp": "2026-06-21T08:31:16.838Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-06-20T18:25:12Z",
+    "pushed_at": "2026-06-21T07:54:33Z",
     "archived": false
   },
   "issues": {
@@ -80,6 +80,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 293,
+        "title": "fix(mcp): unwrap the v1 weekly envelope in all portfolio consumers",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-06-21T07:54:31Z"
+      },
       {
         "number": 292,
         "title": "chore: update roadmap (repo-butler)",
@@ -1385,13 +1392,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-06T08:01:01Z"
-      },
-      {
-        "number": 88,
-        "title": "fix: use node20 in action.yml for maximum runner compatibility",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-05T10:23:58Z"
       }
     ]
   },
@@ -1573,10 +1573,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9523809523809523,
-    "total_runs": 84,
-    "passed": 80,
-    "failed": 4
+    "pass_rate": 0.9651162790697675,
+    "total_runs": 86,
+    "passed": 83,
+    "failed": 3
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1601,7 +1601,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9523809523809523,
+    "ci_pass_rate": 0.9651162790697675,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
