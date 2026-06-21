@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-20
+**Last Updated:** 2026-06-21
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -81,6 +81,8 @@ AsyncAPI event-driven interface core shipped 2026-06-18 (PR #286). Implemented P
 Calm & adaptive portfolio dashboard (round two) shipped 2026-06-19 (PR #288). Reframed the main front page around a state-driven status hero, a week-over-week Gold trend, and a "Since the last run" delta strip highlighting tier and security posture changes, while big reference tables collapse gracefully for repos meeting the Gold standard.
 
 Scene-of-the-day comic briefing skill shipped 2026-06-20 (PR #291). Enhanced the core briefing functionality and user experience by introducing a daily comic feature to the repo-butler briefing output.
+
+MCP weekly portfolio unwrapping fix shipped 2026-06-21 (PR #293). Resolved data-unwrapping anomalies within the Model Context Protocol (MCP) and portfolio consumers by ensuring the v1 weekly envelope is correctly unwrapped across all downstream consumers.
 ---
 
 ## Roadmap
