@@ -46,6 +46,11 @@ describe('MCP server', async () => {
       assert.deepEqual(Object.keys(flat), ['a', 'b']);
     });
 
+    it('does not unwrap a legacy flat map containing a repo named "repos"', () => {
+      const flat = unwrapWeeklyRepos({ repos: { id: 1 }, b: { id: 2 } });
+      assert.deepEqual(Object.keys(flat), ['repos', 'b']);
+    });
+
     it('returns an empty object for null/undefined', () => {
       assert.deepEqual(unwrapWeeklyRepos(null), {});
       assert.deepEqual(unwrapWeeklyRepos(undefined), {});

@@ -77,7 +77,10 @@ function listPortfolioWeeklyFiles() {
 // Supports both v1 envelope ({ schema_version, repos }) and legacy flat format.
 function unwrapWeeklyRepos(parsed) {
   if (!parsed) return {};
-  if (parsed.repos && typeof parsed.repos === 'object') return parsed.repos;
+  // v1 envelope: { schema_version, repos: {...} }. Require schema_version so a
+  // legacy flat map that happens to contain a repo literally named "repos" is
+  // not mistaken for the envelope.
+  if (parsed.schema_version && parsed.repos && typeof parsed.repos === 'object') return parsed.repos;
   // Legacy flat shape — keys are repo names directly.
   return parsed;
 }
@@ -246,7 +249,8 @@ function toolGetHealthTier(repoName) {
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
   const allRepos = unwrapWeeklyRepos(weekly.data);
-  const repoData = allRepos[repoName];
+  const hasRepo = Object.prototype.hasOwnProperty.call(allRepos, repoName);
+  const repoData = hasRepo ? allRepos[repoName] : undefined;
   if (!repoData) {
     const available = Object.keys(allRepos).join(', ');
     return { error: `Repo '${repoName}' not found. Available: ${available}` };
