@@ -30,8 +30,32 @@ describe('MCP server', async () => {
   TOOLS = mod.TOOLS;
   RESOURCES = mod.RESOURCES;
   callTool = mod.callTool;
+  const unwrapWeeklyRepos = mod.unwrapWeeklyRepos;
 
   beforeEach(() => captureResponses());
+
+  describe('unwrapWeeklyRepos', () => {
+    it('unwraps the v1 envelope to a flat repo map', () => {
+      const flat = unwrapWeeklyRepos({ schema_version: 'v1', repos: { a: { id: 1 }, b: { id: 2 } } });
+      assert.deepEqual(Object.keys(flat), ['a', 'b']);
+      assert.equal(flat.a.id, 1);
+    });
+
+    it('passes a legacy flat map through unchanged', () => {
+      const flat = unwrapWeeklyRepos({ a: { id: 1 }, b: { id: 2 } });
+      assert.deepEqual(Object.keys(flat), ['a', 'b']);
+    });
+
+    it('does not unwrap a legacy flat map containing a repo named "repos"', () => {
+      const flat = unwrapWeeklyRepos({ repos: { id: 1 }, b: { id: 2 } });
+      assert.deepEqual(Object.keys(flat), ['repos', 'b']);
+    });
+
+    it('returns an empty object for null/undefined', () => {
+      assert.deepEqual(unwrapWeeklyRepos(null), {});
+      assert.deepEqual(unwrapWeeklyRepos(undefined), {});
+    });
+  });
 
   describe('protocol', () => {
     it('responds to initialize with server info and capabilities', () => {
@@ -225,6 +249,10 @@ describe('MCP server', async () => {
       const data = JSON.parse(r.result.content[0].text);
       if (data.repos) {
         assert.ok(Array.isArray(data.repos));
+        // The v1 envelope keys must not leak through as pseudo-repos.
+        const names = data.repos.map(r => r.name);
+        assert.ok(!names.includes('schema_version'), 'schema_version leaked as a repo');
+        assert.ok(!names.includes('repos'), 'repos envelope key leaked as a repo');
       }
     });
 

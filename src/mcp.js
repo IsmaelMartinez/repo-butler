@@ -77,7 +77,10 @@ function listPortfolioWeeklyFiles() {
 // Supports both v1 envelope ({ schema_version, repos }) and legacy flat format.
 function unwrapWeeklyRepos(parsed) {
   if (!parsed) return {};
-  if (parsed.repos && typeof parsed.repos === 'object') return parsed.repos;
+  // v1 envelope: { schema_version, repos: {...} }. Require schema_version so a
+  // legacy flat map that happens to contain a repo literally named "repos" is
+  // not mistaken for the envelope.
+  if (parsed.schema_version && parsed.repos && typeof parsed.repos === 'object') return parsed.repos;
   // Legacy flat shape — keys are repo names directly.
   return parsed;
 }
@@ -245,9 +248,11 @@ function toolGetHealthTier(repoName) {
   const weekly = loadPortfolioWeekly();
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
-  const repoData = weekly.data[repoName];
+  const allRepos = unwrapWeeklyRepos(weekly.data);
+  const hasRepo = Object.prototype.hasOwnProperty.call(allRepos, repoName);
+  const repoData = hasRepo ? allRepos[repoName] : undefined;
   if (!repoData) {
-    const available = Object.keys(weekly.data).join(', ');
+    const available = Object.keys(allRepos).join(', ');
     return { error: `Repo '${repoName}' not found. Available: ${available}` };
   }
 
@@ -274,7 +279,7 @@ function toolQueryPortfolio(filters) {
   const weekly = loadPortfolioWeekly();
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
-  let repos = Object.entries(weekly.data).map(([name, data]) => {
+  let repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
     const { tier } = computeHealthTier(data);
     return { name, tier, ...data };
   });
@@ -641,7 +646,7 @@ function computePortfolioHealth() {
   const weekly = loadPortfolioWeekly();
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
-  const repos = Object.entries(weekly.data).map(([name, data]) => {
+  const repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
     const { tier, checks } = computeHealthTier(data);
     return { name, tier, checks };
   });
@@ -657,7 +662,7 @@ function computeCampaigns() {
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
   // Filter out exclusion patterns (shadow, test-repo) to match dashboard logic.
-  const details = weekly.data;
+  const details = unwrapWeeklyRepos(weekly.data);
   const repos = Object.keys(details)
     .filter(name => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)))
     .map(name => ({ name }));
@@ -765,4 +770,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, computePortfolioHealth, computeCampaigns, callTool, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, callTool, TOOLS, RESOURCES };
