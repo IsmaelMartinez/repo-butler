@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  validateIssueTitle, validateIssueBody,
+  validateIssueTitle, validateIssueBody, validateCrossRefs,
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, detectEcosystem,
   sanitizeContributorName, validateGitHubUsername,
@@ -124,6 +124,86 @@ describe('validateIssueBody', () => {
     const result = validateIssueBody('Check HTTPS://evil-site.com/payload for more.');
     assert.equal(result.valid, false);
     assert.ok(result.errors.some(e => e.includes('disallowed host')));
+  });
+
+  // Cross-ref neutralisation (ADR-011 / G3) is opt-in for cross-repo-destined
+  // bodies. The default host path must keep accepting bare #N issue references,
+  // which the IDEATE prompt encourages and the roadmap (validated via
+  // validateIssueBody in update.js) is full of.
+  it('still accepts bare #N issue references on the default (host) path', () => {
+    assert.equal(validateIssueBody('Follows up on #42 and #100 in this repo.').valid, true);
+    assert.equal(validateIssueBody('See IsmaelMartinez/repo-butler#42 upstream.').valid, true);
+  });
+
+  it('rejects a cross-reference autolink when crossRepo is set', () => {
+    const qualified = validateIssueBody('Mirrors IsmaelMartinez/foo#1 in the other repo.', { crossRepo: true });
+    assert.equal(qualified.valid, false);
+    assert.ok(qualified.errors.some(e => e.includes('cross-repository reference')));
+
+    const bare = validateIssueBody('Follows up on #42.', { crossRepo: true });
+    assert.equal(bare.valid, false);
+    assert.ok(bare.errors.some(e => e.includes('bare issue reference')));
+  });
+
+  it('accepts a bare allowlisted GitHub issue URL on the cross-repo path (the G9 back-link form survives)', () => {
+    const body = 'Tracked in https://github.com/IsmaelMartinez/repo-butler/issues/123 for the maintainer.';
+    assert.equal(validateIssueBody(body, { crossRepo: true }).valid, true);
+  });
+
+  it('does not relax the other gates for cross-repo bodies', () => {
+    // keys, @mentions of real users, and disallowed URL hosts must still fail
+    // identically whether the destination is host or target.
+    assert.equal(validateIssueBody('Use ghp_abcdefghijklmnopqrstuvwxyz1234567890.', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueBody('Hey @IsmaelMartinez review this.', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueBody('See https://evil-site.com/x', { crossRepo: true }).valid, false);
+  });
+});
+
+describe('validateCrossRefs', () => {
+  it('flags an owner/repo#N qualified cross-reference', () => {
+    const r = validateCrossRefs('Mirrors octo/widget#7 over there.');
+    assert.equal(r.valid, false);
+    assert.ok(r.errors.some(e => e.includes('cross-repository reference')));
+  });
+
+  it('flags a bare #N issue reference', () => {
+    const r = validateCrossRefs('Closes #15 once merged.');
+    assert.equal(r.valid, false);
+    assert.ok(r.errors.some(e => e.includes('bare issue reference')));
+  });
+
+  it('passes clean prose and bare GitHub URLs', () => {
+    assert.equal(validateCrossRefs('Add a CONTRIBUTING quickstart; 11 of 14 active repos have one.').valid, true);
+    assert.equal(validateCrossRefs('See https://github.com/IsmaelMartinez/repo-butler/issues/5').valid, true);
+  });
+
+  it('flags the GH-NNN issue shorthand (GitHub autolinks it like #NNN)', () => {
+    assert.equal(validateCrossRefs('Resolves GH-123 in the queue.').valid, false);
+    assert.equal(validateCrossRefs('resolves gh-7 too').valid, false);
+  });
+
+  it('does not over-match a #<digits> fragment inside a GitHub URL', () => {
+    // The token owner/repo#N must not be captured from inside a URL path/
+    // fragment — validateUrls already gates the host, and a link is not an
+    // autolink. (Regression guard for the under-anchored qualified pattern.)
+    assert.equal(validateCrossRefs('See https://github.com/o/r/issues#5 for context.').valid, true);
+  });
+
+  it('does not flag a markdown heading or non-numeric anchor', () => {
+    assert.equal(validateCrossRefs('# Rationale\n\nText with a #section anchor.').valid, true);
+  });
+
+  it('does not flag a markdown link to a numeric anchor', () => {
+    assert.equal(validateCrossRefs('See [section 1](#1) or [footnote 2](#2) for details.').valid, true);
+  });
+
+  it('does not over-match a qualified token with a trailing alphanumeric (owner/repo#123a)', () => {
+    assert.equal(validateCrossRefs('A hash like config/cache#123abc is not a cross-reference.').valid, true);
+  });
+
+  it('treats empty or non-string input as valid (nothing to flag)', () => {
+    assert.equal(validateCrossRefs('').valid, true);
+    assert.equal(validateCrossRefs(null).valid, true);
   });
 });
 
