@@ -112,6 +112,12 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     'PROPOSED_STATE: <what should change>',
     'AFFECTED_FILES: <comma-separated list of likely affected files/directories, or "unknown">',
     'SCOPE: <one-sentence scope boundary>',
+    // TARGET_REPO is anchored ABOVE BODY (governance mode only) because BODY is
+    // the terminal greedy field in parseIdeas — any FIELD: line emitted after
+    // BODY is swallowed into the body and never parsed. Keeping it adjacent to
+    // the other structured fields is what makes the model emit it where the
+    // parser can capture it.
+    ...(hasGovernance ? ['TARGET_REPO: <short name of the one portfolio repo this proposal targets, taken from the findings above; omit this line entirely for a proposal about this repo>'] : []),
     'BODY: <full GitHub issue body in markdown incorporating all the above sections>',
     '---END---',
     '',
@@ -130,6 +136,8 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     outroLines.push('- Prioritise standards propagation and policy drift correction proposals over generic improvements.');
     outroLines.push('- Each idea should reference specific repos and cross-repo statistics (e.g. "configured in 14/19 repos").');
     outroLines.push('- Rationale must explain why this is a portfolio-level concern, not a per-repo issue.');
+    outroLines.push('- Include the TARGET_REPO line (in the format block, above BODY) only when the proposal concerns one specific portfolio repo named in the findings; omit it for proposals about this repo. Use the short repo name only (e.g. "my-repo").');
+    outroLines.push('- For any idea that has a TARGET_REPO, set AFFECTED_FILES to "unknown" and do NOT cite this repo\'s issue numbers (e.g. #42) in RATIONALE or BODY — it will be filed in the target repo, which does not share this repo\'s issue numbering. Cite the cross-repo statistic instead.');
   }
 
   return wrapPrompt({
@@ -176,6 +184,7 @@ const IDEA_FIELDS = {
   PROPOSED_STATE: 'proposedState',
   AFFECTED_FILES: 'affectedFiles',
   SCOPE: 'scope',
+  TARGET_REPO: 'targetRepo',
   BODY: 'body',
 };
 
@@ -224,6 +233,19 @@ export function parseIdeas(raw) {
       ? affectedFilesRaw.split(',').map(f => f.trim()).filter(Boolean)
       : [];
 
+    // TARGET_REPO marks a proposal destined for another portfolio repo
+    // (ADR-010 / ADR-011). It is parsed and surfaced here for the dormant soak;
+    // the deterministic routing gate (REPO_NAME_PATTERN char validation +
+    // finding-anchoring + propose-targets membership, a HARD DROP on a malformed
+    // name) lands in later goals (G4/G5). Here we only normalise the no-value
+    // tokens an LLM commonly emits when it means "no target" — empty, "unknown",
+    // "none", "n/a", and the literal "null"/"undefined" — to null (a host-backlog
+    // proposal), mirroring how AFFECTED_FILES treats "unknown".
+    const targetRepoRaw = fields.targetRepo || '';
+    const targetRepo = targetRepoRaw && !['unknown', 'none', 'n/a', 'null', 'undefined'].includes(targetRepoRaw.toLowerCase())
+      ? targetRepoRaw
+      : null;
+
     ideas.push({
       title,
       priority: fields.priority || 'medium',
@@ -233,6 +255,7 @@ export function parseIdeas(raw) {
       proposedState: fields.proposedState ?? null,
       affectedFiles,
       scope: fields.scope ?? null,
+      targetRepo,
       body: bodyStart === -1 ? '' : content.slice(bodyStart).trim(),
     });
   }

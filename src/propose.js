@@ -205,7 +205,7 @@ export async function propose(context) {
     return { created: [], dropped: ideas.length, require_approval: true };
   }
 
-  const gh = createClient(token);
+  const gh = context.gh || createClient(token);
   const maxIssues = config.limits?.max_issues_per_run || 3;
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
@@ -258,8 +258,13 @@ export async function propose(context) {
     }
 
     if (dryRun) {
-      console.log(`DRY RUN — would create issue: "${idea.title}" [${labels.join(', ')}]`);
-      created.push({ title: idea.title, labels, url: null });
+      // Surface the parsed targetRepo (ADR-010 / ADR-011) so the dormant soak
+      // can audit intended cross-repo destinations from the dry-run logs and the
+      // returned result. Routing is unchanged in this goal — every issue still
+      // files to the host repo below; targetRepo is recorded, not yet acted on.
+      const target = idea.targetRepo ? ` [target: ${idea.targetRepo}]` : '';
+      console.log(`DRY RUN — would create issue${target}: "${idea.title}" [${labels.join(', ')}]`);
+      created.push({ title: idea.title, labels, targetRepo: idea.targetRepo ?? null, url: null });
       continue;
     }
 
@@ -269,7 +274,7 @@ export async function propose(context) {
     });
 
     console.log(`Created issue #${issue.number}: ${issue.title} — ${issue.html_url}`);
-    created.push({ title: idea.title, number: issue.number, labels, url: issue.html_url });
+    created.push({ title: idea.title, number: issue.number, labels, targetRepo: idea.targetRepo ?? null, url: issue.html_url });
   }
 
   if (toPropose.length < safeIdeas.length) {

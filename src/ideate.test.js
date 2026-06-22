@@ -166,6 +166,89 @@ BODY: Better error handling needed.
     assert.deepEqual(ideas[0].affectedFiles, []);
   });
 
+  it('parses TARGET_REPO into targetRepo and still parses TITLE and BODY', () => {
+    const raw = `---IDEA---
+TITLE: Add a repository description
+PRIORITY: medium
+LABELS: governance
+RATIONALE: 12 of 14 active repos set a description; this one does not.
+AFFECTED_FILES: unknown
+TARGET_REPO: my-other-repo
+BODY: ## Rationale
+
+12 of 14 active repos set a description.
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas.length, 1);
+    assert.equal(ideas[0].title, 'Add a repository description');
+    assert.equal(ideas[0].targetRepo, 'my-other-repo');
+    assert.ok(ideas[0].body.includes('12 of 14 active repos set a description'));
+  });
+
+  it('defaults targetRepo to null when TARGET_REPO is absent', () => {
+    const raw = `---IDEA---
+TITLE: A host-repo idea
+PRIORITY: low
+LABELS: chore
+BODY: No target repo here.
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas[0].targetRepo, null);
+  });
+
+  it('normalizes no-value TARGET_REPO tokens (unknown/none/null/undefined) to null', () => {
+    const raw = `---IDEA---
+TITLE: Idea one
+TARGET_REPO: unknown
+BODY: body one
+---END---
+---IDEA---
+TITLE: Idea two
+TARGET_REPO: none
+BODY: body two
+---END---
+---IDEA---
+TITLE: Idea three
+TARGET_REPO: null
+BODY: body three
+---END---
+---IDEA---
+TITLE: Idea four
+TARGET_REPO: undefined
+BODY: body four
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas.length, 4);
+    assert.ok(ideas.every(i => i.targetRepo === null));
+  });
+
+  it('normalizes a no-value TARGET_REPO regardless of case, surrounding whitespace, or an empty value', () => {
+    const raw = `---IDEA---
+TITLE: Idea one
+TARGET_REPO: N/A
+BODY: body one
+---END---
+---IDEA---
+TITLE: Idea two
+TARGET_REPO:    none
+BODY: body two
+---END---
+---IDEA---
+TITLE: Idea three
+TARGET_REPO:
+BODY: body three
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas.length, 3);
+    assert.equal(ideas[0].targetRepo, null);
+    assert.equal(ideas[1].targetRepo, null);
+    assert.equal(ideas[2].targetRepo, null);
+  });
+
   it('returns empty array for empty input', () => {
     assert.deepEqual(parseIdeas(''), []);
     assert.deepEqual(parseIdeas('no ideas here'), []);
@@ -359,6 +442,23 @@ describe('buildIdeatePrompt', () => {
     assert.ok(prompt.includes('Uplift: e is silver'));
     assert.ok(prompt.includes('portfolio governance advisor'));
     assert.ok(prompt.includes('portfolio-level concern'));
+  });
+
+  it('includes the TARGET_REPO instruction only in governance mode', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: ['a', 'b'], nonCompliant: ['c'], adoptionRate: 0.67, priority: 'medium' },
+    ];
+    const governancePrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(governancePrompt.includes('TARGET_REPO'));
+    assert.ok(governancePrompt.includes('set AFFECTED_FILES to "unknown"'));
+    // TARGET_REPO must be anchored ABOVE BODY in the format block: BODY is the
+    // terminal greedy field in parseIdeas, so a TARGET_REPO line emitted after
+    // it would be swallowed into the body and never parsed. Guards that the
+    // model is told to emit it where the parser can capture it.
+    assert.ok(governancePrompt.indexOf('TARGET_REPO:') < governancePrompt.indexOf('BODY:'));
+
+    const hostPrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null);
+    assert.ok(!hostPrompt.includes('TARGET_REPO'));
   });
 
   it('preserves existing behaviour when no governance findings', () => {
