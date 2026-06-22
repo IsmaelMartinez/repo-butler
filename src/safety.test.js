@@ -743,6 +743,15 @@ describe('resolveCrossRepoDestination', () => {
     assert.equal(r.reason, 'rationale-not-portfolio-statistic');
   });
 
+  it('requires cross-portfolio context for a bare median/percentile rank word', () => {
+    // A rank word alone is a per-repo claim wearing statistic vocabulary.
+    for (const r of ['Improve the median response time here.', 'Percentile improvements would help this page.']) {
+      assert.equal(resolveCrossRepoDestination(idea({ rationale: r }), baseOpts).reason, 'rationale-not-portfolio-statistic', `expected host for: ${r}`);
+    }
+    // …but a rank stated against the portfolio admits.
+    assert.equal(resolveCrossRepoDestination(idea({ rationale: 'below the median across the portfolio' }), baseOpts).destination, 'cross-repo');
+  });
+
   it('falls back to host when the rationale makes a per-repo code claim, even with a statistic present', () => {
     for (const r of [
       '13/14 repos pass CI, but this function is buggy and needs a rewrite',
@@ -772,9 +781,25 @@ describe('resolveCrossRepoDestination', () => {
     }
   });
 
-  it('DROPS a non-string but truthy targetRepo (e.g. a number)', () => {
-    const r = resolveCrossRepoDestination(idea({ targetRepo: 42 }), baseOpts);
-    assert.deepEqual(r, { destination: 'drop', reason: 'invalid-target-name' });
+  it('DROPS any non-string targetRepo, whether truthy (42) or falsy (0, false)', () => {
+    // The "malformed = hard drop" contract must not be weakened by JS falsiness:
+    // 0/false are non-strings, not "no target".
+    for (const bad of [42, 0, false, true]) {
+      assert.deepEqual(resolveCrossRepoDestination(idea({ targetRepo: bad }), baseOpts),
+        { destination: 'drop', reason: 'invalid-target-name' }, `expected drop for ${JSON.stringify(bad)}`);
+    }
+  });
+
+  it('treats an empty-string target as no-target, not malformed', () => {
+    assert.deepEqual(resolveCrossRepoDestination(idea({ targetRepo: '' }), baseOpts), { destination: 'host', reason: 'no-target' });
+  });
+
+  it('fails closed (never throws) on null findings or a non-iterable eligibleRepoNames', () => {
+    assert.equal(resolveCrossRepoDestination(idea(), { ...baseOpts, findings: null }).reason, 'no-finding-anchor');
+    assert.equal(resolveCrossRepoDestination(idea(), { ...baseOpts, findings: 'nope' }).reason, 'no-finding-anchor');
+    assert.equal(resolveCrossRepoDestination(idea(), { ...baseOpts, eligibleRepoNames: null }).reason, 'ineligible-target');
+    assert.equal(resolveCrossRepoDestination(idea(), { ...baseOpts, eligibleRepoNames: {} }).reason, 'ineligible-target');
+    assert.equal(resolveCrossRepoDestination(idea(), { ...baseOpts, eligibleRepoNames: 123 }).reason, 'ineligible-target');
   });
 
   it('anchors on the first matching statistic-bearing finding (precedence)', () => {

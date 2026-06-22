@@ -415,19 +415,30 @@ export function validateGitHubUsername(username) {
 
 // A cross-repo nudge's rationale must rest on a QUANTITATIVE cross-portfolio
 // comparison the butler computes — an adoption fraction ("14/19"), an "N of M"
-// count, a percentage, or an explicit median/percentile rank — the one
-// justification the per-repo triage bot structurally cannot produce (ADR-002 as
-// refined by ADR-011). Bare topic vocabulary ("portfolio", "adopt", "drift",
-// "repos") is deliberately NOT sufficient: it carries no number, so admitting on
-// it alone would let an arbitrary off-topic nudge ("adopt a dark-mode toggle")
-// pass the only content gate. The 1–3 digit cap keeps the fraction pattern to
-// plausible repo counts and rejects dates/versions like "2024/06".
-const PORTFOLIO_STATISTIC_PATTERNS = [
+// count, a percentage, or a median/percentile rank stated against the portfolio
+// — the one justification the per-repo triage bot structurally cannot produce
+// (ADR-002 as refined by ADR-011). Bare topic vocabulary ("portfolio", "adopt",
+// "drift", "repos") is deliberately NOT sufficient: it carries no number, so
+// admitting on it alone would let an arbitrary off-topic nudge ("adopt a
+// dark-mode toggle") pass the only content gate. The 1–3 digit cap keeps the
+// fraction pattern to plausible repo counts and rejects dates/versions like
+// "2024/06".
+const PORTFOLIO_QUANTITY_PATTERNS = [
   /\b\d{1,3}\s*\/\s*\d{1,3}\b/,                          // adoption fraction "14/19"
   /\b\d{1,3}\s+(?:of|out\s+of)\s+(?:the\s+)?\d{1,3}\b/i, // "11 of 14", "11 out of the 14"
   /\b\d{1,3}(?:\.\d+)?\s*%/,                             // percentage "78%"
-  /\b(?:median|percentile)\b/i,                          // an explicit cross-portfolio rank
 ];
+// A median/percentile RANK admits only alongside explicit cross-portfolio
+// context, so a bare "median quality" or "percentile improvements" — a per-repo
+// claim wearing a rank word — does not pass.
+const PORTFOLIO_RANK_PATTERN = /\b(?:median|percentile)\b/i;
+const PORTFOLIO_CONTEXT_PATTERN = /\b(?:portfolio|repos|repositories|across)\b/i;
+
+function citesPortfolioStatistic(text) {
+  if (typeof text !== 'string') return false;
+  if (PORTFOLIO_QUANTITY_PATTERNS.some(p => p.test(text))) return true;
+  return PORTFOLIO_RANK_PATTERN.test(text) && PORTFOLIO_CONTEXT_PATTERN.test(text);
+}
 
 // Only finding classes whose justification IS a cross-portfolio statistic may
 // anchor a cross-repo admit. dependabot-stale names a repo too, but its
@@ -462,30 +473,39 @@ function findingNamesRepo(finding, repo) {
 export function resolveCrossRepoDestination(idea, { findings = [], eligibleRepoNames = [], owner = null } = {}) {
   const targetRepo = idea?.targetRepo;
 
-  // No target → an ordinary host-backlog idea. The overwhelmingly common path.
-  if (!targetRepo) return { destination: 'host', reason: 'no-target' };
+  // No target → an ordinary host-backlog idea (the overwhelmingly common path).
+  // Only a genuinely absent target — null, undefined, or an empty string —
+  // counts as "no target"; any other non-string value is malformed and is
+  // dropped by Gate 1 below, not silently treated as absent.
+  if (targetRepo == null || targetRepo === '') return { destination: 'host', reason: 'no-target' };
 
   // Gate 1 — character validation. A name with anything outside the strict
-  // pattern is injection-shaped (slashes, spaces, shell metacharacters), so the
-  // idea is dropped outright rather than falling back to the host.
+  // pattern (or any non-string value) is injection-shaped, so the idea is
+  // dropped outright rather than falling back to the host.
   if (typeof targetRepo !== 'string' || !REPO_NAME_PATTERN.test(targetRepo)) {
     return { destination: 'drop', reason: 'invalid-target-name' };
   }
 
   // Gate 2 — finding anchor. The load-bearing check: cross only when a
   // deterministic, statistic-bearing governance finding already names this repo.
-  // Everything below is defence-in-depth layered on top of this.
-  const anchor = findings.find(f => STATISTIC_BEARING_FINDING_TYPES.has(f?.type) && findingNamesRepo(f, targetRepo));
+  // Everything below is defence-in-depth layered on top of this. Fail-closed: a
+  // non-array `findings` is treated as no findings, never allowed to throw.
+  const safeFindings = Array.isArray(findings) ? findings : [];
+  const anchor = safeFindings.find(f => STATISTIC_BEARING_FINDING_TYPES.has(f?.type) && findingNamesRepo(f, targetRepo));
   if (!anchor) return { destination: 'host', reason: 'no-finding-anchor' };
 
   // Gate 3 — eligibility (defence-in-depth). Findings are already built from
   // eligibleRepos, so this only bites a future finding type that might name an
-  // archived/fork/excluded repo. Fail-closed: an empty/absent list admits none.
-  const eligible = eligibleRepoNames instanceof Set ? eligibleRepoNames : new Set(eligibleRepoNames);
+  // archived/fork/excluded repo. Fail-closed: a Set is used as-is, an array is
+  // wrapped, and anything else (null, a non-iterable) becomes an empty set —
+  // so the gate never throws and admits nothing on malformed input.
+  const eligible = eligibleRepoNames instanceof Set
+    ? eligibleRepoNames
+    : new Set(Array.isArray(eligibleRepoNames) ? eligibleRepoNames : []);
   if (!eligible.has(targetRepo)) return { destination: 'host', reason: 'ineligible-target' };
 
   // Gate 4 — the rationale must cite a cross-repo statistic …
-  if (!matchesAny(idea?.rationale, PORTFOLIO_STATISTIC_PATTERNS)) {
+  if (!citesPortfolioStatistic(idea?.rationale)) {
     return { destination: 'host', reason: 'rationale-not-portfolio-statistic' };
   }
   // … and must make no per-repo code/content claim.
