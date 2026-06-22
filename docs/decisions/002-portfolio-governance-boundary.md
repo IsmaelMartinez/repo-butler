@@ -4,6 +4,8 @@ Date: 2026-03-25
 Status: Accepted
 Supersedes: Partially updates ADR-001 (refines the IDEATE/PROPOSE boundary)
 
+Refined: 2026-06-22 — [ADR-011](011-portfolio-informed-generic-proposals.md) sharpens the butler/triage-bot boundary drawn below from the SUBJECT of a proposal to its SOURCE OF JUSTIFICATION: a generic-subject proposal is the butler's when its rationale rests on a cross-repo statistic the butler computes across the portfolio (an adoption fraction, a median/percentile rank, a drift magnitude) and is ceded to the triage bot when it rests on a claim that required reading the target repo's code, tests, or issue contents. This does not change ADR-002's substance — the cross-repo view is still the butler's distinguishing lane (see Context below) — but it lets a small generic improvement justified by a portfolio statistic be the butler's, rather than excluding it merely because its subject looks per-repo. A future reader should apply the source-of-justification test, not a pure subject test.
+
 ## Context
 
 ADR-001 established that repo-butler owns "batch idea generation and issue creation" via the IDEATE/PROPOSE phases, while the triage bot owns per-issue intelligence. In practice, this boundary has proven unclear. The IDEATE prompt asks an LLM to generate improvement ideas for a single repo — the same kind of suggestions (fix this bug, add this feature, refactor this module) that the triage bot produces with far richer context thanks to its vector store, webhook pipeline, and synthesis engine.
