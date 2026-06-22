@@ -87,9 +87,10 @@ const CROSS_REPO_OK_CONFIDENCE = new Set(['high']);
 const CROSS_REPO_OK_PRIORITY = new Set(['critical', 'high', 'medium']);
 
 export function clearsCrossRepoCouncilBar(idea) {
-  if (!idea?.targetRepo) return true;
-  const confidence = String(idea.council_confidence || '').toLowerCase();
-  const priority = String(idea.council_priority || '').toLowerCase();
+  if (!idea) return false;            // fail closed on a nullish idea (this is a safety gate)
+  if (!idea.targetRepo) return true;  // host idea — nothing to hold back
+  const confidence = String(idea.council_confidence || '').trim().toLowerCase();
+  const priority = String(idea.council_priority || '').trim().toLowerCase();
   return CROSS_REPO_OK_CONFIDENCE.has(confidence) && CROSS_REPO_OK_PRIORITY.has(priority);
 }
 
@@ -317,7 +318,12 @@ function formatItemForPrompt(item) {
   // Cross-repo intent: a proposal that names another portfolio repo. Surfacing
   // it lets the grounding rules below hold it to a stricter bar. The boundary
   // itself stays in propose()/safety.js — this is only a visibility signal.
-  if (item.targetRepo) lines.push(`Target repo: ${sanitizeForPrompt(String(item.targetRepo))}`);
+  // Drop the line if sanitisation strips the value to empty, mirroring the
+  // label/author handling, so an injection-shaped target leaves no stray marker.
+  if (item.targetRepo) {
+    const safeTarget = sanitizeForPrompt(String(item.targetRepo));
+    if (safeTarget) lines.push(`Target repo: ${safeTarget}`);
+  }
   if (item.labels?.length) {
     // Drop empty entries left behind when sanitizeForPrompt strips an
     // injection-shaped label entirely, otherwise we get "Labels: , bug".
