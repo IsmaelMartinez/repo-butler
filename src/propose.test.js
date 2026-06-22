@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jaccardSimilarity, buildIssueBody, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination } from './propose.js';
+import { jaccardSimilarity, buildIssueBody, findDuplicates, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination } from './propose.js';
 import { validateIdeas, validateIssueBody } from './safety.js';
 
 // A minimal in-memory GitHub client stub. propose() takes context.gh when
@@ -190,6 +190,88 @@ describe('isGovernanceDeclined', () => {
   it('handles string labels', () => {
     assert.equal(isGovernanceDeclined(['governance-declined']), true);
     assert.equal(isGovernanceDeclined(['bug']), false);
+  });
+});
+
+describe('findDuplicates closed look-back (G7)', () => {
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+  // Returns a gh stub whose closed-issue page is `closed` and open page is `open`.
+  const ghWith = ({ open = [], closed = [] }) => ({
+    paginate: async (path, opts) => (opts?.params?.state === 'closed' ? closed : open),
+  });
+
+  it('still detects open duplicates (state: open)', async () => {
+    const gh = ghWith({ open: [{ number: 3, title: 'Add a security policy' }] });
+    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+    assert.equal(matches.length, 1);
+    assert.equal(matches[0].state, 'open');
+  });
+
+  it('checks only open issues by default — no closed look-back unless requested', async () => {
+    let closedQueried = false;
+    const gh = { paginate: async (path, opts) => {
+      if (opts?.params?.state === 'closed') { closedQueried = true; return [{ number: 7, title: 'X', closed_at: daysAgo(1), labels: [] }]; }
+      return [];
+    } };
+    const matches = await findDuplicates(gh, 'o', 'r', 'X'); // includeClosedDays defaults to 0
+    assert.equal(matches.length, 0);
+    assert.equal(closedQueried, false);
+  });
+
+  it('matches a recently closed issue within the cooldown window', async () => {
+    const gh = ghWith({ closed: [{ number: 7, title: 'Add a security policy', closed_at: daysAgo(10), labels: [] }] });
+    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+    assert.equal(matches.length, 1);
+    assert.equal(matches[0].state, 'closed');
+    assert.equal(matches[0].declined, false);
+  });
+
+  it('ignores an ordinary closed issue older than the cooldown', async () => {
+    const gh = ghWith({ closed: [{ number: 7, title: 'Add a security policy', closed_at: daysAgo(60), labels: [] }] });
+    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+    assert.equal(matches.length, 0);
+  });
+
+  it('matches a governance-declined closed issue regardless of age (permanent)', async () => {
+    const gh = ghWith({ closed: [{ number: 7, title: 'Add a security policy', closed_at: daysAgo(365), labels: [{ name: 'governance-declined' }] }] });
+    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+    assert.equal(matches.length, 1);
+    assert.equal(matches[0].declined, true);
+  });
+
+  it('only governance-declined earns permanence — a stale wontfix-labelled close still ages out', async () => {
+    const gh = ghWith({ closed: [{ number: 7, title: 'Add a security policy', closed_at: daysAgo(365), labels: [{ name: 'wontfix' }] }] });
+    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+    assert.equal(matches.length, 0, 'wontfix is not the governance-declined marker, so the cooldown applies');
+  });
+
+  it('ages out an ordinary closed issue with a missing or unparseable closed_at (no false match)', async () => {
+    for (const closed_at of [undefined, null, 'not-a-date']) {
+      const gh = ghWith({ closed: [{ number: 7, title: 'Add a security policy', closed_at, labels: [] }] });
+      const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+      assert.equal(matches.length, 0, `expected no match for closed_at=${JSON.stringify(closed_at)}`);
+    }
+  });
+
+  it('returns open matches even if the closed scan errors (swallow-and-continue)', async () => {
+    const gh = { paginate: async (path, opts) => {
+      if (opts?.params?.state === 'closed') throw new Error('API error');
+      return [{ number: 3, title: 'Add a security policy' }];
+    } };
+    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+    assert.equal(matches.length, 1);
+    assert.equal(matches[0].state, 'open');
+  });
+
+  it('merges open and closed matches and sorts by similarity', async () => {
+    const gh = ghWith({
+      open: [{ number: 1, title: 'Add a security policy document' }],   // partial overlap
+      closed: [{ number: 2, title: 'Add a security policy', closed_at: daysAgo(5), labels: [] }], // exact
+    });
+    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+    assert.equal(matches.length, 2);
+    assert.equal(matches[0].similarity >= matches[1].similarity, true, 'sorted most-similar first');
+    assert.equal(matches[0].number, 2); // exact closed match outranks the partial open one
   });
 });
 
@@ -565,6 +647,28 @@ describe('propose — per-target volume cap (G6)', () => {
     } }));
     assert.equal(result.created.filter(c => c.crossRepo).length, 1);
     assert.equal(result.skippedCapped.length, 1);
+  });
+
+  it('does not re-file a cross-repo nudge that was previously governance-declined (closed long ago)', async () => {
+    const old = new Date(Date.now() - 200 * 86400000).toISOString();
+    const gh = {
+      calls: [],
+      request: async (path, opts) => { gh.calls.push({ path, method: opts?.method }); return {}; },
+      paginate: async (path, opts) => {
+        // A long-closed, governance-declined issue on the target whose title
+        // matches the first idea — must permanently suppress re-filing (G7).
+        if (path.includes('/issues') && opts?.params?.state === 'closed') {
+          return [{ number: 8, title: 'Adopt the portfolio licence', closed_at: old, labels: [{ name: 'governance-declined' }] }];
+        }
+        return [];
+      },
+    };
+    const result = await propose(base({
+      gh, dryRun: false,
+      ideas: [{ title: 'Adopt the portfolio licence', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' }],
+    }));
+    assert.equal(result.created.length, 0);
+    assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues'), 'declined nudge not re-filed');
   });
 
   it('a duplicate-skipped idea does not consume the target quota', async () => {
