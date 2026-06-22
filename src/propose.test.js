@@ -554,6 +554,19 @@ describe('propose — per-target volume cap (G6)', () => {
     assert.equal(posts.length, 1, 'cap 1: only one POST to the target despite two eligible ideas');
   });
 
+  it('fails safe to the default cap when max_issues_per_target is non-numeric (does not silently disable)', async () => {
+    const gh = stubGh();
+    // A YAML typo like `max_issues_per_target: two` must NOT disable the cap —
+    // it falls back to the default of 1, so only one of the two ideas files.
+    const result = await propose(base({ gh, config: {
+      limits: { require_approval: false, max_issues_per_target: 'two' },
+      'propose-targets': { 'teams-for-linux': true },
+      'propose-classes': { 'policy-drift': true },
+    } }));
+    assert.equal(result.created.filter(c => c.crossRepo).length, 1);
+    assert.equal(result.skippedCapped.length, 1);
+  });
+
   it('a duplicate-skipped idea does not consume the target quota', async () => {
     // The first idea matches an existing issue (a dup) and is skipped WITHOUT
     // consuming teams-for-linux's quota, so the second idea still files.

@@ -263,8 +263,11 @@ export async function propose(context) {
   const maxIssues = config.limits?.max_issues_per_run || 3;
   // `??` (not `||`) so an explicit 0 is honoured as "file no cross-repo issues
   // this run" — a deliberate kill switch — rather than coerced back to a default;
-  // absent → 1.
-  const maxPerTarget = config.limits?.max_issues_per_target ?? 1;
+  // absent → 1. Coerced defensively: a non-numeric or negative value (a YAML
+  // typo like `two`) must fall back to the safe default, never become a string
+  // that makes `count >= maxPerTarget` always false and silently DISABLE the cap.
+  const rawMaxPerTarget = Number(config.limits?.max_issues_per_target ?? 1);
+  const maxPerTarget = Number.isFinite(rawMaxPerTarget) && rawMaxPerTarget >= 0 ? rawMaxPerTarget : 1;
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
 
