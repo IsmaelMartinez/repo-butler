@@ -74,7 +74,7 @@ export function validateIssueTitle(title) {
   return { valid: errors.length === 0, errors };
 }
 
-export function validateIssueBody(body) {
+export function validateIssueBody(body, { crossRepo = false } = {}) {
   const errors = [];
 
   if (!body || typeof body !== 'string') {
@@ -96,6 +96,49 @@ export function validateIssueBody(body) {
     if (pattern.test(body)) {
       errors.push(`Body contains blocked pattern: ${pattern.source.slice(0, 30)}`);
     }
+  }
+
+  // Cross-repo destinations get one extra deterministic gate: reject GitHub
+  // cross-reference autolinks (owner/repo#N and bare #N). They notify another
+  // repository's participants without an @mention — bypassing validateMentions
+  // — or autolink to the wrong issue once the body is filed in the target repo.
+  // Host bodies legitimately cite this repo's own issues as #N (the IDEATE
+  // prompt encourages it, and the roadmap is full of them), so this is opt-in
+  // via crossRepo and never applied to the default host path. See ADR-011.
+  if (crossRepo) {
+    errors.push(...validateCrossRefs(body).errors);
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+// GitHub renders `owner/repo#N` and a bare `#N` as cross-reference autolinks
+// that notify the referenced repo's participants (no '@' required) or point at
+// the wrong issue once a body is filed in another repo. validateMentions only
+// catches the @handle form, so this closes that gap for cross-repo-destined
+// bodies (ADR-011's cross-reference neutralisation tightening). Errors name the
+// pattern, never the matched token, so nothing adversary-supplied is echoed.
+const QUALIFIED_CROSSREF = /\b[A-Za-z0-9][\w.-]*\/[A-Za-z0-9][\w.-]*#\d+/;
+const BARE_ISSUE_REF = /(?<![\w/])#\d+\b/;
+const GH_SHORTHAND = /\bGH-\d+\b/i; // GitHub autolinks GH-123 like #123 (case-insensitive)
+const URL_TOKEN = /https?:\/\/[^\s)>\]"']+/gi;
+
+export function validateCrossRefs(body) {
+  const errors = [];
+  if (typeof body !== 'string' || body.length === 0) return { valid: true, errors };
+
+  // Strip URLs first. A GitHub link may legitimately contain an `owner/repo`
+  // path or a `#<digits>` fragment that otherwise looks like a cross-reference
+  // token; validateUrls already gates which hosts are allowed, so a link is not
+  // a cross-reference autolink. (A `#N` inside a code span is still flagged —
+  // the conservative direction for a gate whose only effect is to drop a body.)
+  const text = body.replace(URL_TOKEN, ' ');
+
+  if (QUALIFIED_CROSSREF.test(text)) {
+    errors.push('Body contains cross-repository reference: an owner/repo#N token would notify another repository');
+  }
+  if (BARE_ISSUE_REF.test(text) || GH_SHORTHAND.test(text)) {
+    errors.push('Body contains bare issue reference: a #N or GH-N token autolinks to the target repository, not this one');
   }
 
   return { valid: errors.length === 0, errors };
