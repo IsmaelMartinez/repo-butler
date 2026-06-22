@@ -8,6 +8,12 @@ const DEFAULTS = {
   context: '',
   limits: {
     max_issues_per_run: 3,
+    // Per-cross-repo-target ceiling (ADR-011 two-axis cap). Bounds how many
+    // issues a single run may file into any ONE other portfolio repo, so a
+    // finding naming many repos cannot fan a burst onto one tracker. Applies to
+    // cross-repo targets only — the host backlog stays bounded by
+    // max_issues_per_run — so it never changes host behaviour. Kept low.
+    max_issues_per_target: 1,
     require_approval: true,
     labels: {
       proposal: 'roadmap-proposal',

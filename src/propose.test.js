@@ -461,3 +461,114 @@ describe('propose — cross-repo routing wired into the write path (G5)', () => 
     assert.equal(result.failures[0].crossRepo, true);
   });
 });
+
+describe('propose — per-target volume cap (G6)', () => {
+  const base = (over) => ({
+    owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true,
+    governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }],
+    portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+    config: {
+      limits: { require_approval: false },
+      'propose-targets': { 'teams-for-linux': true },
+      'propose-classes': { 'policy-drift': true },
+    },
+    ideas: [
+      { title: 'Adopt the portfolio licence', priority: 'high', labels: [], body: 'b1.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
+      { title: 'Pin GitHub Actions by SHA', priority: 'medium', labels: [], body: 'b2.', rationale: '12/14 repos pin their actions.', targetRepo: 'teams-for-linux' },
+    ],
+    ...over,
+  });
+
+  it('caps cross-repo issues per target at the default of 1', async () => {
+    const gh = stubGh();
+    const result = await propose(base({ gh }));
+    assert.equal(result.created.filter(c => c.crossRepo).length, 1, 'only one issue filed to the target');
+    assert.equal(result.skippedCapped.length, 1);
+    assert.equal(result.skippedCapped[0].repo, 'teams-for-linux');
+  });
+
+  it('honours a higher max_issues_per_target', async () => {
+    const gh = stubGh();
+    const result = await propose(base({ gh, config: {
+      limits: { require_approval: false, max_issues_per_target: 2 },
+      'propose-targets': { 'teams-for-linux': true },
+      'propose-classes': { 'policy-drift': true },
+    } }));
+    assert.equal(result.created.filter(c => c.crossRepo).length, 2);
+    assert.equal(result.skippedCapped.length, 0);
+  });
+
+  it('does not apply the per-target cap to the host (host stays bounded only by per-run)', async () => {
+    const gh = stubGh();
+    // Three host ideas; default max_issues_per_target is 1 but the host is exempt,
+    // so all three still file (bounded only by max_issues_per_run = 3).
+    const result = await propose(base({
+      gh,
+      ideas: [
+        { title: 'Host one', priority: 'high', labels: [], body: 'b1.', targetRepo: null },
+        { title: 'Host two', priority: 'medium', labels: [], body: 'b2.', targetRepo: null },
+        { title: 'Host three', priority: 'low', labels: [], body: 'b3.', targetRepo: null },
+      ],
+    }));
+    assert.equal(result.created.length, 3);
+    assert.equal(result.skippedCapped.length, 0);
+  });
+
+  it('gives each distinct cross-repo target its own independent quota', async () => {
+    const gh = stubGh();
+    const result = await propose({
+      owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true,
+      governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }, { type: 'policy-drift', repo: 'bonnie-wee-plot' }],
+      portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }, { name: 'bonnie-wee-plot', archived: false, fork: false }] },
+      config: {
+        limits: { require_approval: false },
+        'propose-targets': { 'teams-for-linux': true, 'bonnie-wee-plot': true },
+        'propose-classes': { 'policy-drift': true },
+      },
+      ideas: [
+        { title: 'Licence for A', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
+        { title: 'Licence for B', priority: 'medium', labels: [], body: 'b.', rationale: '12/14 repos declare a licence.', targetRepo: 'bonnie-wee-plot' },
+      ],
+    });
+    const cross = result.created.filter(c => c.crossRepo);
+    assert.equal(cross.length, 2, 'one per target — the cap is per-target, not global');
+    assert.deepEqual(cross.map(c => c.routedRepo).sort(), ['bonnie-wee-plot', 'teams-for-linux']);
+    assert.equal(result.skippedCapped.length, 0);
+  });
+
+  it('treats max_issues_per_target: 0 as a kill switch — no cross-repo issue files', async () => {
+    const gh = stubGh();
+    const result = await propose(base({ gh, config: {
+      limits: { require_approval: false, max_issues_per_target: 0 },
+      'propose-targets': { 'teams-for-linux': true },
+      'propose-classes': { 'policy-drift': true },
+    } }));
+    assert.equal(result.created.filter(c => c.crossRepo).length, 0);
+    assert.equal(result.skippedCapped.length, 2); // both base() ideas target teams-for-linux
+  });
+
+  it('caps the live (non-dry-run) write path at the target as well', async () => {
+    const gh = stubGh();
+    await propose(base({ gh, dryRun: false }));
+    const posts = gh.calls.filter(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues');
+    assert.equal(posts.length, 1, 'cap 1: only one POST to the target despite two eligible ideas');
+  });
+
+  it('a duplicate-skipped idea does not consume the target quota', async () => {
+    // The first idea matches an existing issue (a dup) and is skipped WITHOUT
+    // consuming teams-for-linux's quota, so the second idea still files.
+    const gh = {
+      calls: [],
+      request: async (path, opts) => { gh.calls.push({ path, method: opts?.method }); return {}; },
+      paginate: async (path) => {
+        gh.calls.push({ path });
+        if (path.includes('/issues')) return [{ number: 9, title: 'Adopt the portfolio licence' }];
+        return [];
+      },
+    };
+    const result = await propose(base({ gh }));
+    const cross = result.created.filter(c => c.crossRepo);
+    assert.equal(cross.length, 1);
+    assert.equal(cross[0].title, 'Pin GitHub Actions by SHA', 'the second idea fills the quota the dup did not consume');
+  });
+});

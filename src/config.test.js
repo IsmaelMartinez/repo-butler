@@ -171,6 +171,11 @@ apply-schedule:
     assert.deepEqual(config['propose-classes'], {});
   });
 
+  it('defaults max_issues_per_target to 1 (per-target cap kept low)', async () => {
+    const config = await loadConfig('/nonexistent/path/roadmap.yml');
+    assert.equal(config.limits.max_issues_per_target, 1);
+  });
+
   it('parses propose-targets / propose-classes blocks as key-presence allow-lists', async () => {
     const yaml = `repository: owner/repo
 
