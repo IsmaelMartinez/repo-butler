@@ -235,12 +235,14 @@ export function parseIdeas(raw) {
 
     // TARGET_REPO marks a proposal destined for another portfolio repo
     // (ADR-010 / ADR-011). It is parsed and surfaced here for the dormant soak;
-    // the deterministic routing gate (REPO_NAME_PATTERN + finding-anchoring +
-    // propose-targets membership) lands in later goals (G4/G5). An empty,
-    // "unknown", "none", or "n/a" value normalises to null — i.e. a host-backlog
-    // proposal — mirroring how AFFECTED_FILES treats "unknown".
+    // the deterministic routing gate (REPO_NAME_PATTERN char validation +
+    // finding-anchoring + propose-targets membership, a HARD DROP on a malformed
+    // name) lands in later goals (G4/G5). Here we only normalise the no-value
+    // tokens an LLM commonly emits when it means "no target" — empty, "unknown",
+    // "none", "n/a", and the literal "null"/"undefined" — to null (a host-backlog
+    // proposal), mirroring how AFFECTED_FILES treats "unknown".
     const targetRepoRaw = fields.targetRepo || '';
-    const targetRepo = targetRepoRaw && !['unknown', 'none', 'n/a'].includes(targetRepoRaw.toLowerCase())
+    const targetRepo = targetRepoRaw && !['unknown', 'none', 'n/a', 'null', 'undefined'].includes(targetRepoRaw.toLowerCase())
       ? targetRepoRaw
       : null;
 

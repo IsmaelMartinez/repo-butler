@@ -198,7 +198,7 @@ BODY: No target repo here.
     assert.equal(ideas[0].targetRepo, null);
   });
 
-  it('normalizes a TARGET_REPO of "unknown" or "none" to null', () => {
+  it('normalizes no-value TARGET_REPO tokens (unknown/none/null/undefined) to null', () => {
     const raw = `---IDEA---
 TITLE: Idea one
 TARGET_REPO: unknown
@@ -208,15 +208,24 @@ BODY: body one
 TITLE: Idea two
 TARGET_REPO: none
 BODY: body two
+---END---
+---IDEA---
+TITLE: Idea three
+TARGET_REPO: null
+BODY: body three
+---END---
+---IDEA---
+TITLE: Idea four
+TARGET_REPO: undefined
+BODY: body four
 ---END---`;
 
     const ideas = parseIdeas(raw);
-    assert.equal(ideas.length, 2);
-    assert.equal(ideas[0].targetRepo, null);
-    assert.equal(ideas[1].targetRepo, null);
+    assert.equal(ideas.length, 4);
+    assert.ok(ideas.every(i => i.targetRepo === null));
   });
 
-  it('normalizes a TARGET_REPO no-value token regardless of case or surrounding whitespace', () => {
+  it('normalizes a no-value TARGET_REPO regardless of case, surrounding whitespace, or an empty value', () => {
     const raw = `---IDEA---
 TITLE: Idea one
 TARGET_REPO: N/A
@@ -226,12 +235,18 @@ BODY: body one
 TITLE: Idea two
 TARGET_REPO:    none
 BODY: body two
+---END---
+---IDEA---
+TITLE: Idea three
+TARGET_REPO:
+BODY: body three
 ---END---`;
 
     const ideas = parseIdeas(raw);
-    assert.equal(ideas.length, 2);
+    assert.equal(ideas.length, 3);
     assert.equal(ideas[0].targetRepo, null);
     assert.equal(ideas[1].targetRepo, null);
+    assert.equal(ideas[2].targetRepo, null);
   });
 
   it('returns empty array for empty input', () => {
