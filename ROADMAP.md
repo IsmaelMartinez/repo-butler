@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-21
+**Last Updated:** 2026-06-22
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -82,7 +82,7 @@ Calm & adaptive portfolio dashboard (round two) shipped 2026-06-19 (PR #288). Re
 
 Scene-of-the-day comic briefing skill shipped 2026-06-20 (PR #291). Enhanced the core briefing functionality and user experience by introducing a daily comic feature to the repo-butler briefing output.
 
-MCP weekly portfolio unwrapping fix shipped 2026-06-21 (PR #293). Resolved data-unwrapping anomalies within the Model Context Protocol (MCP) and portfolio consumers by ensuring the v1 weekly envelope is correctly unwrapped across all downstream consumers.
+Cross-repo generic proposal foundations shipped 2026-06-22. Laid the groundwork for portfolio-level management by documenting ADR-010 (cross-repo destinations) and ADR-011 (portfolio-informed generic proposals) to govern cross-repo proposal mechanics, supported by a dormant implementation of the target repository field to prepare for active feature rollouts.
 ---
 
 ## Roadmap
@@ -148,6 +148,12 @@ Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS,
 ~~**UPDATE prompt rebuild + section-edit mode**~~ — SHIPPED 2026-05-26. The full-document reproduction approach (PRs #179, #187, #188) proved fundamentally unsuitable: three models (Gemini 2.5 Flash, Claude Sonnet 4, Gemini 3.5 Flash) all consistently deleted or rewrote paragraphs despite explicit verbatim instructions, and four safety guards (length 80%, strikethrough count, PR-reference count, validateRoadmap) correctly caught every bad edit but meant no PR was ever created. PR #231 replaced it with section-edit mode: the LLM receives the roadmap as read-only context and emits a JSON array of `{"action": "append", "section": "...", "text": "..."}` ops; the code applies them deterministically and updates the date without LLM involvement. The LLM can only add content, never delete or rewrite. Run time dropped from ~40s to ~6s, and the first two generated PRs (#232, #233) merged cleanly. Gemini bumped from 2.5 to 3.5 Flash in PR #230. The legacy guards remain defined but inactive, with `validateRoadmap` as the active defence-in-depth.
 
 **Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.
+
+### Cross-repo PROPOSE destinations — PROPOSED (ADR-010, ADR-011)
+
+IDEATE already ideates portfolio-wide (`buildIdeatePrompt` switches to a governance-advisor persona when findings exist), but PROPOSE files every resulting issue into the host repo's own tracker (`src/propose.js:177`, `:266`), so cross-repo proposals never reach the repos they concern. [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) proposes a `targetRepo` destination on PROPOSE for governance-class proposals — reusing the existing per-`(owner, repo)` dedup and `validateIssueBody` checks — gated by an adaptation of the ADR-005 five-gate model (default-empty `propose-targets` allow-list, dry-run fail-closed, `require_approval`, per-repo cap, `REPO_NAME_PATTERN` validation). [ADR-011](docs/decisions/011-portfolio-informed-generic-proposals.md) proposes extending that to a new portfolio-informed-generic class: small generic improvements (e.g. description-gap, topics-gap) justified by a cross-repo statistic, with the butler/triage-bot boundary sharpened to the source of justification (a portfolio statistic the butler computes) rather than the subject, enforced by a deterministic finding-anchoring gate plus two tightenings (a two-axis cap and cross-reference autolink neutralisation). Both stay inside the ADR-002 lane (per-repo code ideas remain ceded to the triage bot), ship default-closed, and graduate per-class only after a clean month-long IDEATE soak.
+
+The phased plan (G1–G11 across six default-closed phases) builds these in dependency order: G1 (this set of ADRs), then the dormant `targetRepo` field, deterministic safety and admissibility gates, routing behind empty allow-lists, the council quality filter and issue format, the soak-then-graduate write phase, and the optional net-new deterministic classes. Status: design-only — implementation deferred to per-goal PRs; no cross-repo write graduates live until the soak is clean.
 
 ### ~~Code Health Sprint — multi-agent simplification review~~ SHIPPED
 
