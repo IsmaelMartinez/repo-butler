@@ -99,8 +99,8 @@ export function validateIssueBody(body, { crossRepo = false } = {}) {
   }
 
   // Cross-repo destinations get one extra deterministic gate: reject GitHub
-  // cross-reference autolinks (owner/repo#N and bare #N). They notify another
-  // repository's participants without an @mention — bypassing validateMentions
+  // cross-reference autolinks (owner/repo#N, bare #N, and the GH-N shorthand).
+  // They notify another repository's participants without an @mention — bypassing validateMentions
   // — or autolink to the wrong issue once the body is filed in the target repo.
   // Host bodies legitimately cite this repo's own issues as #N (the IDEATE
   // prompt encourages it, and the roadmap is full of them), so this is opt-in
@@ -112,14 +112,15 @@ export function validateIssueBody(body, { crossRepo = false } = {}) {
   return { valid: errors.length === 0, errors };
 }
 
-// GitHub renders `owner/repo#N` and a bare `#N` as cross-reference autolinks
-// that notify the referenced repo's participants (no '@' required) or point at
-// the wrong issue once a body is filed in another repo. validateMentions only
+// GitHub renders `owner/repo#N`, a bare `#N`, and the `GH-N` shorthand as
+// cross-reference autolinks that notify the referenced repo's participants (no
+// '@' required) or point at the wrong issue once a body is filed in another
+// repo. validateMentions only
 // catches the @handle form, so this closes that gap for cross-repo-destined
 // bodies (ADR-011's cross-reference neutralisation tightening). Errors name the
 // pattern, never the matched token, so nothing adversary-supplied is echoed.
-const QUALIFIED_CROSSREF = /\b[A-Za-z0-9][\w.-]*\/[A-Za-z0-9][\w.-]*#\d+/;
-const BARE_ISSUE_REF = /(?<![\w/])#\d+\b/;
+const QUALIFIED_CROSSREF = /\b[A-Za-z0-9][\w.-]*\/[A-Za-z0-9][\w.-]*#\d+\b/;
+const BARE_ISSUE_REF = /(?<![\w/])(?<!\]\()#\d+\b/;
 const GH_SHORTHAND = /\bGH-\d+\b/i; // GitHub autolinks GH-123 like #123 (case-insensitive)
 const URL_TOKEN = /https?:\/\/[^\s)>\]"']+/gi;
 

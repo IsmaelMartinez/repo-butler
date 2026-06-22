@@ -193,6 +193,14 @@ describe('validateCrossRefs', () => {
     assert.equal(validateCrossRefs('# Rationale\n\nText with a #section anchor.').valid, true);
   });
 
+  it('does not flag a markdown link to a numeric anchor', () => {
+    assert.equal(validateCrossRefs('See [section 1](#1) or [footnote 2](#2) for details.').valid, true);
+  });
+
+  it('does not over-match a qualified token with a trailing alphanumeric (owner/repo#123a)', () => {
+    assert.equal(validateCrossRefs('A hash like config/cache#123abc is not a cross-reference.').valid, true);
+  });
+
   it('treats empty or non-string input as valid (nothing to flag)', () => {
     assert.equal(validateCrossRefs('').valid, true);
     assert.equal(validateCrossRefs(null).valid, true);
