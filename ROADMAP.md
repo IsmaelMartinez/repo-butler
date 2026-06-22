@@ -147,6 +147,10 @@ Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS,
 
 **Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.
 
+### Cross-repo PROPOSE destinations — PROPOSED (ADR-010)
+
+IDEATE already ideates portfolio-wide (`buildIdeatePrompt` switches to a governance-advisor persona when findings exist), but PROPOSE files every resulting issue into the host repo's own tracker (`src/propose.js:177`), so cross-repo governance proposals never reach the repos they concern. [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) proposes adding a `targetRepo` destination to PROPOSE for governance-class proposals only — reusing the existing per-`(owner, repo)` dedup and `validateIssueBody` checks — gated by an adaptation of the ADR-005 five-gate model (a default-empty `propose-targets` allow-list, dry-run fail-closed, `require_approval`, per-repo cap, `REPO_NAME_PATTERN` validation). It is the second graduation axis for PROPOSE alongside the scheduling note above (when it runs vs. where it writes), stays inside the ADR-002 governance lane (generic per-repo ideas remain ceded to the triage bot), and is gated on the same month-long IDEATE soak before going live. Status: design-only, deferred — no implementation until the soak is clean and the open questions in ADR-010 (onboarding precondition, host-side tracking issue, exact config surface) are settled.
+
 ### ~~Code Health Sprint — multi-agent simplification review~~ SHIPPED
 
 Shipped 2026-04-28 across PRs #127–#146 (twenty PRs in total, plus the precursor #126 release-tier draft-filter fix). Originated from a four-team subagent review of the whole codebase (~12.5k LOC, 22 source files) that surfaced two correctness bugs and roughly twenty mechanical dedupe opportunities.
