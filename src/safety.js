@@ -387,6 +387,115 @@ export function validateGitHubUsername(username) {
     && username.length <= 39;
 }
 
+// --- Cross-repo routing gate (ADR-011, building on ADR-010) ---
+//
+// The single deterministic enforcement that survives an LLM slip. An ideated
+// proposal may be routed to ANOTHER portfolio repo only when every gate below
+// passes. The agent council can never be this boundary: it is an LLM inside the
+// trust boundary and its deliberation never even sees `targetRepo` (ADR-011);
+// council confidence/grounding is defence-in-depth (G8), not the gate.
+//
+// This function is pure — the caller supplies the governance findings and the
+// set of eligible repo short-names — so safety.js stays free of any dependency
+// on governance.js (which already imports detectEcosystem/REPO_NAME_PATTERN from
+// here). Wiring it into the PROPOSE write path is a later goal (G5); here it is
+// the standalone, fully-tested decision.
+//
+// Returns exactly one of:
+//   { destination: 'host',       reason }                                 — file
+//       on the host backlog: either no target (the common case) or a soft gate
+//       failed, so the idea falls back to the safe default rather than crossing.
+//   { destination: 'cross-repo', reason: 'admitted', owner, repo, anchorType }
+//   { destination: 'drop',       reason: 'invalid-target-name' }          — a
+//       malformed target name is injection-shaped, so the whole idea is dropped
+//       and never filed even on the host (the G2 contract note in ideate.js).
+//
+// `reason` is a stable machine code for the dry-run soak log; it names the gate
+// that fired and never echoes the (adversary-influenceable) target or rationale.
+
+// A cross-repo nudge's rationale must rest on a QUANTITATIVE cross-portfolio
+// comparison the butler computes — an adoption fraction ("14/19"), an "N of M"
+// count, a percentage, or an explicit median/percentile rank — the one
+// justification the per-repo triage bot structurally cannot produce (ADR-002 as
+// refined by ADR-011). Bare topic vocabulary ("portfolio", "adopt", "drift",
+// "repos") is deliberately NOT sufficient: it carries no number, so admitting on
+// it alone would let an arbitrary off-topic nudge ("adopt a dark-mode toggle")
+// pass the only content gate. The 1–3 digit cap keeps the fraction pattern to
+// plausible repo counts and rejects dates/versions like "2024/06".
+const PORTFOLIO_STATISTIC_PATTERNS = [
+  /\b\d{1,3}\s*\/\s*\d{1,3}\b/,                          // adoption fraction "14/19"
+  /\b\d{1,3}\s+(?:of|out\s+of)\s+(?:the\s+)?\d{1,3}\b/i, // "11 of 14", "11 out of the 14"
+  /\b\d{1,3}(?:\.\d+)?\s*%/,                             // percentage "78%"
+  /\b(?:median|percentile)\b/i,                          // an explicit cross-portfolio rank
+];
+
+// Only finding classes whose justification IS a cross-portfolio statistic may
+// anchor a cross-repo admit. dependabot-stale names a repo too, but its
+// justification is a temporal per-repo fact (a PR open N days), not a portfolio
+// comparison (ADR-011), so it is deliberately excluded as a valid anchor.
+const STATISTIC_BEARING_FINDING_TYPES = new Set(['standards-gap', 'policy-drift', 'tier-uplift']);
+
+// Per-repo CODE or CONTENT claims stay ceded to the triage bot (ADR-002): the
+// butler may assert only what its cross-portfolio numbers support, never a fact
+// that needed reading the target's code, tests, or issue contents.
+const PER_REPO_CODE_PATTERNS = [
+  /\b(?:bugs?|buggy|refactors?|refactored|refactoring|flaky|rewrites?|rewriting|broken|crash(?:es|ed|ing)?|regressions?|deadlocks?|race\s+conditions?|memory\s+leaks?|null\s+pointers?|stack\s+traces?|typos?|misspell(?:ed|ing)?|segfaults?)\b/i,
+  /\bthis\s+(?:function|method|class|module|file|line|test|loop|variable|code|query|endpoint|component|handler|snippet)\b/i,
+  /\bfix(?:es|ing)?\s+the\s+(?:bug|test|crash|error|failure)\b/i,
+];
+
+function matchesAny(text, patterns) {
+  return typeof text === 'string' && patterns.some(p => p.test(text));
+}
+
+// Does any governance finding name this repo? standards-gap findings list their
+// repos in `nonCompliant`; policy-drift and tier-uplift carry a single `repo`.
+// `compliant` is deliberately ignored — a compliant repo is never a nudge
+// target. The caller restricts which finding TYPES may anchor an admit (see
+// STATISTIC_BEARING_FINDING_TYPES), so this helper only answers "named?".
+function findingNamesRepo(finding, repo) {
+  if (!finding || typeof repo !== 'string') return false;
+  if (finding.repo === repo) return true;
+  return Array.isArray(finding.nonCompliant) && finding.nonCompliant.includes(repo);
+}
+
+export function resolveCrossRepoDestination(idea, { findings = [], eligibleRepoNames = [], owner = null } = {}) {
+  const targetRepo = idea?.targetRepo;
+
+  // No target → an ordinary host-backlog idea. The overwhelmingly common path.
+  if (!targetRepo) return { destination: 'host', reason: 'no-target' };
+
+  // Gate 1 — character validation. A name with anything outside the strict
+  // pattern is injection-shaped (slashes, spaces, shell metacharacters), so the
+  // idea is dropped outright rather than falling back to the host.
+  if (typeof targetRepo !== 'string' || !REPO_NAME_PATTERN.test(targetRepo)) {
+    return { destination: 'drop', reason: 'invalid-target-name' };
+  }
+
+  // Gate 2 — finding anchor. The load-bearing check: cross only when a
+  // deterministic, statistic-bearing governance finding already names this repo.
+  // Everything below is defence-in-depth layered on top of this.
+  const anchor = findings.find(f => STATISTIC_BEARING_FINDING_TYPES.has(f?.type) && findingNamesRepo(f, targetRepo));
+  if (!anchor) return { destination: 'host', reason: 'no-finding-anchor' };
+
+  // Gate 3 — eligibility (defence-in-depth). Findings are already built from
+  // eligibleRepos, so this only bites a future finding type that might name an
+  // archived/fork/excluded repo. Fail-closed: an empty/absent list admits none.
+  const eligible = eligibleRepoNames instanceof Set ? eligibleRepoNames : new Set(eligibleRepoNames);
+  if (!eligible.has(targetRepo)) return { destination: 'host', reason: 'ineligible-target' };
+
+  // Gate 4 — the rationale must cite a cross-repo statistic …
+  if (!matchesAny(idea?.rationale, PORTFOLIO_STATISTIC_PATTERNS)) {
+    return { destination: 'host', reason: 'rationale-not-portfolio-statistic' };
+  }
+  // … and must make no per-repo code/content claim.
+  if (matchesAny(idea?.rationale, PER_REPO_CODE_PATTERNS)) {
+    return { destination: 'host', reason: 'rationale-code-claim' };
+  }
+
+  return { destination: 'cross-repo', reason: 'admitted', owner, repo: targetRepo, anchorType: anchor.type };
+}
+
 // Sanitise LLM-suggested issue label names before they reach the GitHub API.
 // Labels are not validated by validateIssueBody (they're not body text), so
 // this is their dedicated gate: strings only, control characters stripped,

@@ -6,6 +6,7 @@ import {
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, detectEcosystem,
   sanitizeContributorName, validateGitHubUsername,
+  resolveCrossRepoDestination,
   sanitizeLabels, redactErrorForLog,
   wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
 } from './safety.js';
@@ -591,6 +592,213 @@ describe('validateGitHubUsername', () => {
   it('rejects usernames over 39 characters', () => {
     assert.equal(validateGitHubUsername('a'.repeat(39)), true);
     assert.equal(validateGitHubUsername('a'.repeat(40)), false);
+  });
+});
+
+describe('resolveCrossRepoDestination', () => {
+  // A drifting repo named by a real governance finding, eligible, with a
+  // rationale that cites a cross-repo statistic and makes no code claim — the
+  // baseline admissible idea. Individual tests override one field at a time.
+  const driftFinding = { type: 'policy-drift', category: 'license', repo: 'teams-for-linux', expected: 'MIT', actual: 'None' };
+  const gapFinding = { type: 'standards-gap', tool: 'dependabot', nonCompliant: ['bonnie-wee-plot', 'leapp'], compliant: ['repo-butler'] };
+  const upliftFinding = { type: 'tier-uplift', repo: 'seagate-photos', currentTier: 'silver', targetTier: 'gold', failingChecks: [] };
+
+  const baseOpts = {
+    findings: [driftFinding, gapFinding, upliftFinding],
+    eligibleRepoNames: ['teams-for-linux', 'bonnie-wee-plot', 'leapp', 'seagate-photos'],
+    owner: 'IsmaelMartinez',
+  };
+
+  const idea = (over = {}) => ({
+    title: 'Adopt the portfolio licence',
+    targetRepo: 'teams-for-linux',
+    rationale: '13 of 14 active repos declare a licence; this one does not.',
+    ...over,
+  });
+
+  it('routes to host when there is no target repo (the common case)', () => {
+    const r = resolveCrossRepoDestination(idea({ targetRepo: null }), baseOpts);
+    assert.deepEqual(r, { destination: 'host', reason: 'no-target' });
+  });
+
+  it('routes to host for a missing idea or missing targetRepo field', () => {
+    assert.equal(resolveCrossRepoDestination(undefined, baseOpts).reason, 'no-target');
+    assert.equal(resolveCrossRepoDestination({}, baseOpts).reason, 'no-target');
+  });
+
+  it('admits a finding-anchored, eligible, statistic-justified idea', () => {
+    const r = resolveCrossRepoDestination(idea(), baseOpts);
+    assert.deepEqual(r, {
+      destination: 'cross-repo',
+      reason: 'admitted',
+      owner: 'IsmaelMartinez',
+      repo: 'teams-for-linux',
+      anchorType: 'policy-drift',
+    });
+  });
+
+  it('anchors on a standards-gap nonCompliant list, not just a single repo field', () => {
+    const r = resolveCrossRepoDestination(
+      idea({ targetRepo: 'bonnie-wee-plot', rationale: 'Dependabot configured in 12/14 repos; missing here.' }),
+      baseOpts,
+    );
+    assert.equal(r.destination, 'cross-repo');
+    assert.equal(r.anchorType, 'standards-gap');
+  });
+
+  it('anchors on a tier-uplift finding', () => {
+    const r = resolveCrossRepoDestination(
+      idea({ targetRepo: 'seagate-photos', rationale: '12 of 14 repos reached Gold; this one is Silver.' }),
+      baseOpts,
+    );
+    assert.equal(r.destination, 'cross-repo');
+    assert.equal(r.anchorType, 'tier-uplift');
+  });
+
+  it('DROPS (never files) an injection-shaped target name', () => {
+    for (const bad of ['owner/repo', 'repo;rm -rf /', 'repo with space', 'repo`whoami`', 'a\nb', 'repo$(x)']) {
+      const r = resolveCrossRepoDestination(idea({ targetRepo: bad }), baseOpts);
+      assert.deepEqual(r, { destination: 'drop', reason: 'invalid-target-name' }, `expected drop for ${JSON.stringify(bad)}`);
+    }
+  });
+
+  it('accepts dot/dash/underscore in a well-formed name (REPO_NAME_PATTERN)', () => {
+    const finding = { type: 'policy-drift', repo: 'my_repo.js-thing' };
+    const r = resolveCrossRepoDestination(
+      idea({ targetRepo: 'my_repo.js-thing', rationale: '13/14 repos do X.' }),
+      { ...baseOpts, findings: [finding], eligibleRepoNames: ['my_repo.js-thing'] },
+    );
+    assert.equal(r.destination, 'cross-repo');
+  });
+
+  it('falls back to host when no finding names the target', () => {
+    const r = resolveCrossRepoDestination(idea({ targetRepo: 'unmentioned-repo' }), baseOpts);
+    // unmentioned-repo is a valid name but no finding (and no eligibility) — anchor fires first.
+    assert.deepEqual(r, { destination: 'host', reason: 'no-finding-anchor' });
+  });
+
+  it('does not anchor on a compliant repo', () => {
+    // repo-butler is in gapFinding.compliant, never nonCompliant.
+    const r = resolveCrossRepoDestination(
+      idea({ targetRepo: 'repo-butler', rationale: '12/14 repos do X.' }),
+      { ...baseOpts, eligibleRepoNames: [...baseOpts.eligibleRepoNames, 'repo-butler'] },
+    );
+    assert.equal(r.reason, 'no-finding-anchor');
+  });
+
+  it('falls back to host when the target is anchored but not eligible (defence-in-depth)', () => {
+    const r = resolveCrossRepoDestination(idea(), { ...baseOpts, eligibleRepoNames: [] });
+    assert.deepEqual(r, { destination: 'host', reason: 'ineligible-target' });
+  });
+
+  it('accepts eligibleRepoNames as a Set', () => {
+    const r = resolveCrossRepoDestination(idea(), { ...baseOpts, eligibleRepoNames: new Set(['teams-for-linux']) });
+    assert.equal(r.destination, 'cross-repo');
+  });
+
+  it('falls back to host when the rationale cites no cross-repo statistic', () => {
+    const r = resolveCrossRepoDestination(idea({ rationale: 'This would be a nice improvement to have.' }), baseOpts);
+    assert.deepEqual(r, { destination: 'host', reason: 'rationale-not-portfolio-statistic' });
+  });
+
+  it('falls back to host on a null/empty rationale (fail-closed)', () => {
+    assert.equal(resolveCrossRepoDestination(idea({ rationale: null }), baseOpts).reason, 'rationale-not-portfolio-statistic');
+    assert.equal(resolveCrossRepoDestination(idea({ rationale: '' }), baseOpts).reason, 'rationale-not-portfolio-statistic');
+  });
+
+  it('accepts varied cross-repo-statistic phrasings (one quantitative token each)', () => {
+    for (const r of [
+      'configured in 14/19 repos',                                 // fraction
+      '11 of 14 active repositories declare a licence',            // N of M
+      'adopted by 78% of the portfolio',                          // percentage
+      'this repo sits below the portfolio median for CI reliability', // median rank
+      'in the bottom 10th percentile across the portfolio',        // percentile rank
+    ]) {
+      const out = resolveCrossRepoDestination(idea({ rationale: r }), baseOpts);
+      assert.equal(out.destination, 'cross-repo', `expected admit for rationale: ${r}`);
+    }
+  });
+
+  it('rejects bare topic vocabulary with no number (the statistic gate must require a quantity)', () => {
+    // These each contain a portfolio/adoption/drift word but no fraction,
+    // percentage, or rank — exactly the off-topic-nudge class the gate must NOT
+    // admit on a lone keyword. (Anchor + eligibility hold; only the statistic
+    // gate decides.)
+    for (const r of [
+      'This repo should adopt a dark-mode toggle.',
+      'Modernise the look across our repos.',
+      'Match the portfolio brand colours.',
+      'Bring this in line with the team norm.',
+      'A drift from the portfolio baseline would be nice to fix.',
+    ]) {
+      const out = resolveCrossRepoDestination(idea({ rationale: r }), baseOpts);
+      assert.deepEqual(out, { destination: 'host', reason: 'rationale-not-portfolio-statistic' }, `expected host fallback for: ${r}`);
+    }
+  });
+
+  it('does not treat a date/version slash pair as an adoption fraction', () => {
+    // "2024/06" has a 4-digit numerator, outside the 1–3 digit repo-count cap,
+    // so it must not satisfy the fraction pattern.
+    const r = resolveCrossRepoDestination(idea({ rationale: 'Migrated to the 2024/06 baseline release.' }), baseOpts);
+    assert.equal(r.reason, 'rationale-not-portfolio-statistic');
+  });
+
+  it('falls back to host when the rationale makes a per-repo code claim, even with a statistic present', () => {
+    for (const r of [
+      '13/14 repos pass CI, but this function is buggy and needs a rewrite',
+      '12 of 14 repos are green; this test is flaky here',
+      'adopted by 80% of repos; refactor the module to match',
+      '78% of repos are clean; fix the bug in the parser',
+    ]) {
+      const out = resolveCrossRepoDestination(idea({ rationale: r }), baseOpts);
+      assert.deepEqual(out, { destination: 'host', reason: 'rationale-code-claim' }, `expected code-claim host fallback for: ${r}`);
+    }
+  });
+
+  it('does not anchor on stale-Dependabot (a temporal per-repo fact, not a portfolio statistic)', () => {
+    // dependabot-stale names a repo but is excluded from STATISTIC_BEARING_FINDING_TYPES,
+    // so it never anchors a cross-repo admit — even when the rationale carries a
+    // (here fabricated, off-topic) quantitative token. The anchor gate fires first.
+    const staleFinding = { type: 'dependabot-stale', repo: 'leapp', stalePRs: [{ age: 40 }] };
+    for (const rationale of [
+      'A Dependabot PR has been open for 40 days here.',
+      '13/14 repos are clean; bump the dependency here too.',
+    ]) {
+      const r = resolveCrossRepoDestination(
+        idea({ targetRepo: 'leapp', rationale }),
+        { ...baseOpts, findings: [staleFinding] },
+      );
+      assert.deepEqual(r, { destination: 'host', reason: 'no-finding-anchor' }, `expected no-finding-anchor for: ${rationale}`);
+    }
+  });
+
+  it('DROPS a non-string but truthy targetRepo (e.g. a number)', () => {
+    const r = resolveCrossRepoDestination(idea({ targetRepo: 42 }), baseOpts);
+    assert.deepEqual(r, { destination: 'drop', reason: 'invalid-target-name' });
+  });
+
+  it('anchors on the first matching statistic-bearing finding (precedence)', () => {
+    const driftX = { type: 'policy-drift', repo: 'dup-repo' };
+    const upliftX = { type: 'tier-uplift', repo: 'dup-repo', failingChecks: [] };
+    const r = resolveCrossRepoDestination(
+      idea({ targetRepo: 'dup-repo', rationale: '12/14 repos do X.' }),
+      { ...baseOpts, findings: [driftX, upliftX], eligibleRepoNames: ['dup-repo'] },
+    );
+    assert.equal(r.destination, 'cross-repo');
+    assert.equal(r.anchorType, 'policy-drift');
+  });
+
+  it('tolerates malformed entries in the findings array without throwing', () => {
+    const findings = [null, undefined, 'not-an-object', { noType: true }, driftFinding];
+    const r = resolveCrossRepoDestination(idea(), { ...baseOpts, findings });
+    assert.equal(r.destination, 'cross-repo'); // the one valid finding still anchors
+    assert.equal(resolveCrossRepoDestination(idea(), { ...baseOpts, findings: [null, undefined] }).reason, 'no-finding-anchor');
+  });
+
+  it('owner defaults to null when the caller omits it', () => {
+    const r = resolveCrossRepoDestination(idea(), { findings: baseOpts.findings, eligibleRepoNames: baseOpts.eligibleRepoNames });
+    assert.equal(r.destination, 'cross-repo');
+    assert.equal(r.owner, null);
   });
 });
 
