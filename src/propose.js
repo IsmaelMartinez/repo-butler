@@ -35,13 +35,29 @@ export function jaccardSimilarity(a, b) {
 }
 
 /**
- * Fetch open issues and find any with titles similar to the proposed title.
- * Returns an array of { number, title, similarity } for matches above threshold.
+ * Find issues with titles similar to the proposed title — open ones always, and
+ * (when `includeClosedDays > 0`) recently closed ones too, so a nudge that was
+ * already closed is not re-filed every run (G7).
+ *
+ * Closed-issue policy mirrors findDuplicatePRs but adds a permanence rule: an
+ * ordinary close suppresses re-filing only within the `includeClosedDays`
+ * cooldown (the concern may recur), whereas a governance-declined close
+ * suppresses permanently — the maintainer has said no. Uses the issues list
+ * endpoint (5000/hr), never the rate-limited search API. The closed scan is
+ * capped at the 100 most-recently-updated closed items the issues endpoint
+ * returns — which includes PRs, filtered out afterwards — so on a repo with many
+ * closed PRs the effective closed-issue window is smaller, and a
+ * governance-declined issue older than that window can fall out of view.
+ *
+ * Returns { number, title, similarity, state, declined? } for matches above
+ * threshold, most similar first.
  */
-export async function findDuplicates(gh, owner, repo, title, threshold = 0.6) {
-  let realIssues;
+export async function findDuplicates(gh, owner, repo, title, { threshold = 0.6, includeClosedDays = 0 } = {}) {
+  const matches = [];
+
+  let openIssues;
   try {
-    realIssues = await paginateIssues(gh, owner, repo, {
+    openIssues = await paginateIssues(gh, owner, repo, {
       params: { state: 'open' },
       max: 500,
     });
@@ -51,11 +67,34 @@ export async function findDuplicates(gh, owner, repo, title, threshold = 0.6) {
     return [];
   }
 
-  const matches = [];
-  for (const issue of realIssues) {
+  for (const issue of openIssues) {
     const similarity = jaccardSimilarity(title, issue.title);
     if (similarity > threshold) {
-      matches.push({ number: issue.number, title: issue.title, similarity });
+      matches.push({ number: issue.number, title: issue.title, similarity, state: 'open' });
+    }
+  }
+
+  if (includeClosedDays > 0) {
+    let closedIssues;
+    try {
+      closedIssues = await paginateIssues(gh, owner, repo, {
+        params: { state: 'closed', sort: 'updated', direction: 'desc', per_page: 100 },
+        max: 100,
+      });
+    } catch {
+      closedIssues = [];
+    }
+
+    const cutoff = Date.now() - includeClosedDays * 86400000;
+    for (const issue of closedIssues) {
+      const declined = isGovernanceDeclined(issue.labels || []);
+      // A declined close never ages out; an ordinary close counts only within
+      // the cooldown window.
+      if (!declined && (!issue.closed_at || new Date(issue.closed_at).getTime() < cutoff)) continue;
+      const similarity = jaccardSimilarity(title, issue.title);
+      if (similarity > threshold) {
+        matches.push({ number: issue.number, title: issue.title, similarity, state: 'closed', declined });
+      }
     }
   }
 
@@ -339,13 +378,16 @@ export async function propose(context) {
       continue;
     }
 
-    // Duplicate detection: skip if a similar open issue already exists on the
-    // destination repo.
-    const duplicates = await findDuplicates(gh, owner, destRepo, idea.title);
+    // Duplicate detection: skip if a similar open issue exists, or a recently
+    // closed one (30-day cooldown) — or a governance-declined one at any age —
+    // already exists on the destination repo (G7), so a closed/declined nudge is
+    // not re-filed every run.
+    const duplicates = await findDuplicates(gh, owner, destRepo, idea.title, { includeClosedDays: 30 });
     if (duplicates.length > 0) {
       const best = duplicates[0];
-      console.log(`Skipping '${idea.title}' — similar to existing #${best.number}: '${best.title}' (similarity: ${best.similarity.toFixed(2)})`);
-      skippedDuplicates.push({ title: idea.title, duplicate: best });
+      const reason = best.declined ? 'governance-declined' : (best.state === 'closed' ? 'recently closed' : 'similar open');
+      console.log(`Skipping '${idea.title}' — ${reason} #${best.number}: '${best.title}' (similarity: ${best.similarity.toFixed(2)})`);
+      skippedDuplicates.push({ title: idea.title, duplicate: best, reason });
       continue;
     }
 
