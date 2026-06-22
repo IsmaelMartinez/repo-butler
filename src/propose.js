@@ -168,8 +168,9 @@ export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6
 }
 
 // Key-presence membership for the propose-targets / propose-classes maps,
-// matching the apply-schedule idiom (`name: true`). A bare presence with any
-// non-true value does not enable — opting in must be explicit.
+// matching the apply-schedule idiom (`name: true`). Enabled only by boolean
+// true or the string 'true' (the latter tolerates a quoted YAML value); any
+// other value — or absence — does not enable, so opting in stays explicit.
 function isProposeEnabled(map, key) {
   const v = map?.[key];
   return v === true || v === 'true';
@@ -182,11 +183,13 @@ function isProposeEnabled(map, key) {
  * finding anchor + eligibility + statistic rationale); the propose-targets and
  * propose-classes maps are the operator allow-list layered on top. An idea
  * crosses ONLY when the gate admits it AND its target is on propose-targets AND
- * its anchoring class is enabled in propose-classes. Everything else — no target,
- * a gate fallback, a malformed target name (which can therefore never be used as
- * a write destination), or a target/class the operator has not opted in — files
- * on the host, exactly as today. With both maps empty (the default) nothing
- * crosses, so this is byte-identical to filing every issue on the host.
+ * its anchoring class is enabled in propose-classes. A malformed (injection-
+ * shaped) target name is dropped outright — filed nowhere, not even on the host
+ * (the G4 hard-drop contract), so it is never interpolated into a write path.
+ * Everything else — no target, a gate host-fallback, or a target/class the
+ * operator has not opted in — files on the host, exactly as today. With both
+ * maps empty (the default) nothing crosses, so this is byte-identical to filing
+ * every issue on the host.
  *
  * Returns one of:
  *   { action: 'drop',  reason }                                  — a malformed,
@@ -295,6 +298,7 @@ export async function propose(context) {
   const toPropose = sorted.slice(0, maxIssues);
   const created = [];
   const skippedDuplicates = [];
+  const failures = [];
 
   for (const idea of toPropose) {
     // Resolve the destination FIRST, before any repo-specific API call, so a
@@ -361,22 +365,32 @@ export async function propose(context) {
     // Labels are ensured on the destination repo only now that the gates have
     // passed (ADR-011: a cross-repo label is created on the target only after
     // admission). For the host this was already done up front, so it is a no-op.
-    await ensureLabelsOn(destRepo);
+    // Wrapped with the write below so a cross-repo target that has issues
+    // disabled or is unwritable by the token fails this idea, not the whole run.
+    try {
+      await ensureLabelsOn(destRepo);
 
-    const issue = await gh.request(`/repos/${owner}/${destRepo}/issues`, {
-      method: 'POST',
-      body: { title: idea.title, body, labels },
-    });
+      const issue = await gh.request(`/repos/${owner}/${destRepo}/issues`, {
+        method: 'POST',
+        body: { title: idea.title, body, labels },
+      });
 
-    console.log(`Created issue #${issue.number}: ${issue.title} — ${issue.html_url}`);
-    created.push({ title: idea.title, number: issue.number, labels, targetRepo: idea.targetRepo ?? null, routedRepo: destRepo, crossRepo: dest.crossRepo, routeReason: dest.reason, url: issue.html_url });
+      console.log(`Created issue #${issue.number}: ${issue.title} — ${issue.html_url}`);
+      created.push({ title: idea.title, number: issue.number, labels, targetRepo: idea.targetRepo ?? null, routedRepo: destRepo, crossRepo: dest.crossRepo, routeReason: dest.reason, url: issue.html_url });
+    } catch (error) {
+      // A single failed write (e.g. a cross-repo target with issues disabled or
+      // missing write scope) must not abort the run and block later proposals —
+      // mirroring the defensive try/catch on findDuplicates/findDuplicatePRs/ensureLabel.
+      console.error(`Failed to create issue for '${idea.title}' on ${destRepo}: ${redactErrorForLog(error.message)}`);
+      failures.push({ title: idea.title, repo: destRepo, crossRepo: dest.crossRepo });
+    }
   }
 
   if (toPropose.length < safeIdeas.length) {
     console.log(`Capped at ${maxIssues} issues. ${safeIdeas.length - maxIssues} ideas dropped.`);
   }
 
-  return { created, dropped: ideas.length - created.length, skippedDuplicates };
+  return { created, dropped: ideas.length - created.length, skippedDuplicates, failures };
 }
 
 async function ensureLabel(gh, owner, repo, name, description, color) {

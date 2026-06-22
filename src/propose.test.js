@@ -355,7 +355,7 @@ describe('resolveProposalDestination (G5 routing composition)', () => {
       { action: 'drop', reason: 'invalid-target-name' });
   });
 
-  it('requires an explicit true in the maps, not an arbitrary truthy value', () => {
+  it('enables on boolean true or the quoted string "true", but not other truthy values', () => {
     assert.equal(resolveProposalDestination(idea(), { ...base, proposeTargets: { 'teams-for-linux': 1 } }).crossRepo, false);
     assert.equal(resolveProposalDestination(idea(), { ...base, proposeTargets: { 'teams-for-linux': 'true' } }).crossRepo, true);
   });
@@ -443,5 +443,21 @@ describe('propose — cross-repo routing wired into the write path (G5)', () => 
     // Every API call is against the host repo; the issue is POSTed to the host.
     assert.ok(gh.calls.every(c => c.path.includes('/repos/octo/repo-butler/')), 'all calls target the host repo');
     assert.ok(gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/repo-butler/issues'), 'issue filed on host');
+  });
+
+  it('a failed write (e.g. target with issues disabled) is isolated, not fatal to the run', async () => {
+    const gh = {
+      calls: [],
+      request: async (path, opts) => {
+        if (opts?.method === 'POST' && path.endsWith('/issues')) throw new Error('Issues are disabled for this repo');
+        return {};
+      },
+      paginate: async () => [],
+    };
+    const result = await propose(ctx({ gh, dryRun: false }));
+    assert.equal(result.created.length, 0);
+    assert.equal(result.failures.length, 1);
+    assert.equal(result.failures[0].repo, 'teams-for-linux');
+    assert.equal(result.failures[0].crossRepo, true);
   });
 });
