@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jaccardSimilarity, buildIssueBody, findDuplicatePRs, isGovernanceDeclined, propose } from './propose.js';
+import { jaccardSimilarity, buildIssueBody, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination } from './propose.js';
 import { validateIdeas, validateIssueBody } from './safety.js';
 
 // A minimal in-memory GitHub client stub. propose() takes context.gh when
@@ -309,5 +309,139 @@ describe('propose — dry-run targetRepo surfacing (G2)', () => {
 
     assert.equal(result.created.length, 1);
     assert.equal(result.created[0].targetRepo, null);
+  });
+});
+
+describe('resolveProposalDestination (G5 routing composition)', () => {
+  const base = {
+    findings: [{ type: 'policy-drift', repo: 'teams-for-linux' }],
+    eligibleRepoNames: ['teams-for-linux'],
+    owner: 'octo',
+    hostRepo: 'repo-butler',
+    proposeTargets: { 'teams-for-linux': true },
+    proposeClasses: { 'policy-drift': true },
+  };
+  const idea = (over = {}) => ({ title: 'x', targetRepo: 'teams-for-linux', rationale: '13/14 repos do X.', ...over });
+
+  it('routes cross-repo only when the gate admits AND target+class are opted in', () => {
+    assert.deepEqual(resolveProposalDestination(idea(), base),
+      { action: 'file', repo: 'teams-for-linux', crossRepo: true, anchorType: 'policy-drift', reason: 'cross-repo' });
+  });
+
+  it('falls back to host when the target is not on propose-targets', () => {
+    assert.deepEqual(resolveProposalDestination(idea(), { ...base, proposeTargets: {} }),
+      { action: 'file', repo: 'repo-butler', crossRepo: false, reason: 'not-allowlisted' });
+  });
+
+  it('falls back to host when the class is not enabled in propose-classes', () => {
+    assert.deepEqual(resolveProposalDestination(idea(), { ...base, proposeClasses: {} }),
+      { action: 'file', repo: 'repo-butler', crossRepo: false, reason: 'not-allowlisted' });
+  });
+
+  it('with both maps empty, every idea files on the host (byte-identical to today)', () => {
+    const d = resolveProposalDestination(idea(), { ...base, proposeTargets: {}, proposeClasses: {} });
+    assert.equal(d.action, 'file');
+    assert.equal(d.crossRepo, false);
+    assert.equal(d.repo, 'repo-butler');
+  });
+
+  it('files a no-target idea on the host', () => {
+    assert.deepEqual(resolveProposalDestination(idea({ targetRepo: null }), base),
+      { action: 'file', repo: 'repo-butler', crossRepo: false, reason: 'no-target' });
+  });
+
+  it('DROPS a malformed target name outright — filed nowhere, not even the host', () => {
+    assert.deepEqual(resolveProposalDestination(idea({ targetRepo: 'evil/../repo' }), base),
+      { action: 'drop', reason: 'invalid-target-name' });
+  });
+
+  it('requires an explicit true in the maps, not an arbitrary truthy value', () => {
+    assert.equal(resolveProposalDestination(idea(), { ...base, proposeTargets: { 'teams-for-linux': 1 } }).crossRepo, false);
+    assert.equal(resolveProposalDestination(idea(), { ...base, proposeTargets: { 'teams-for-linux': 'true' } }).crossRepo, true);
+  });
+});
+
+describe('propose — cross-repo routing wired into the write path (G5)', () => {
+  const ctx = (over) => ({
+    owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true,
+    governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }],
+    portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+    config: {
+      limits: { require_approval: false },
+      'propose-targets': { 'teams-for-linux': true },
+      'propose-classes': { 'policy-drift': true },
+    },
+    ideas: [{
+      title: 'Adopt the portfolio licence', priority: 'medium', labels: [],
+      body: 'A nudge.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux',
+    }],
+    ...over,
+  });
+
+  it('records a cross-repo destination in the dry-run soak record', async () => {
+    const gh = stubGh();
+    const result = await propose(ctx({ gh }));
+    assert.equal(result.created.length, 1);
+    assert.equal(result.created[0].crossRepo, true);
+    assert.equal(result.created[0].routedRepo, 'teams-for-linux');
+    assert.equal(result.created[0].targetRepo, 'teams-for-linux');
+  });
+
+  it('files to the TARGET repo API path (and labels it) when not dry-run', async () => {
+    const gh = stubGh();
+    await propose(ctx({ gh, dryRun: false }));
+    assert.ok(gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues'), 'issue POSTed to target repo');
+    assert.ok(gh.calls.some(c => c.path.includes('/repos/octo/teams-for-linux/labels')), 'labels ensured on target repo');
+  });
+
+  it('with empty maps, an anchored targeted idea still files on the HOST and never touches the target (byte-identical)', async () => {
+    const gh = stubGh();
+    const result = await propose(ctx({ gh, dryRun: false, config: { limits: { require_approval: false } } }));
+    assert.ok(!gh.calls.some(c => c.path.includes('/teams-for-linux/')), 'no cross-repo API call');
+    assert.ok(gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/repo-butler/issues'), 'filed on host');
+    assert.equal(result.created[0].crossRepo, false);
+  });
+
+  it('fails closed to host when governance findings / portfolio are absent from context', async () => {
+    const gh = stubGh();
+    const result = await propose(ctx({ gh, governanceFindings: undefined, portfolio: undefined }));
+    assert.equal(result.created[0].crossRepo, false);
+    assert.equal(result.created[0].routedRepo, 'repo-butler');
+  });
+
+  it('drops a malformed-target idea outright — no created entry and no issue POST anywhere', async () => {
+    const gh = stubGh();
+    const result = await propose(ctx({
+      gh, dryRun: false,
+      ideas: [{ title: 'x', priority: 'low', labels: [], body: 'b.', rationale: '13/14 repos.', targetRepo: 'evil/../repo' }],
+    }));
+    assert.equal(result.created.length, 0);
+    assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path.endsWith('/issues')), 'no issue POST anywhere');
+  });
+
+  it('applies the cross-reference autolink gate (G3) to a cross-repo body via crossRepo:true', async () => {
+    const gh = stubGh();
+    // A bare #N autolink in a cross-repo-destined body would mis-link in the
+    // target repo; validateIssueBody({crossRepo:true}) must reject it, so the
+    // idea is skipped and no issue is filed on the target.
+    // The #N lives in the rationale (which buildIssueBody composes into the body
+    // in structured mode); the statistic '13/14' still admits the idea at the gate.
+    const result = await propose(ctx({
+      gh, dryRun: false,
+      ideas: [{ title: 'Adopt licence', priority: 'medium', labels: [], body: 'A nudge.', rationale: '13/14 repos declare a licence; see #42 for context.', targetRepo: 'teams-for-linux' }],
+    }));
+    assert.equal(result.created.length, 0);
+    assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues'), 'cross-repo body with #N rejected, not filed');
+  });
+
+  it('with empty maps, the exact host call sequence is unchanged and no other repo is touched', async () => {
+    const gh = stubGh();
+    await propose(ctx({
+      gh, dryRun: false, config: { limits: { require_approval: false } },
+      ideas: [{ title: 'Host idea', priority: 'medium', labels: [], body: 'A plain host idea.', targetRepo: null }],
+    }));
+    // Every API call is against the host repo; the issue is POSTed to the host.
+    assert.ok(gh.calls.every(c => c.path.includes('/repos/octo/repo-butler/')), 'all calls target the host repo');
+    assert.ok(gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/repo-butler/issues'), 'issue filed on host');
   });
 });

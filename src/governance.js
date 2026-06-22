@@ -85,8 +85,11 @@ function median(sorted) {
 
 /**
  * Filter repos to governance-eligible ones (not archived, not fork, not test/shadow).
+ * Exported so the cross-repo PROPOSE routing gate can honour the same eligibility
+ * filter on a proposal's target (ADR-011 defence-in-depth) without duplicating the
+ * archived/fork/exclusion predicate.
  */
-function eligibleRepos(repos) {
+export function eligibleRepos(repos) {
   return repos.filter(r =>
     !r.archived && !r.fork && !REPO_EXCLUSION_PATTERNS.some(p => r.name.includes(p))
   );

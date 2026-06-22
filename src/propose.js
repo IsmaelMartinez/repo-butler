@@ -2,7 +2,8 @@
 // Respects max_issues_per_run and require_approval settings.
 
 import { createClient, paginateIssues } from './github.js';
-import { validateIdeas, validateIssueBody, sanitizeLabels, redactErrorForLog } from './safety.js';
+import { validateIdeas, validateIssueBody, sanitizeLabels, redactErrorForLog, resolveCrossRepoDestination } from './safety.js';
+import { eligibleRepos } from './governance.js';
 
 // Common words stripped from titles before comparison to reduce false positives.
 const STOP_WORDS = new Set([
@@ -166,6 +167,56 @@ export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6
   return matches.sort((a, b) => b.similarity - a.similarity);
 }
 
+// Key-presence membership for the propose-targets / propose-classes maps,
+// matching the apply-schedule idiom (`name: true`). A bare presence with any
+// non-true value does not enable — opting in must be explicit.
+function isProposeEnabled(map, key) {
+  const v = map?.[key];
+  return v === true || v === 'true';
+}
+
+/**
+ * Decide where an idea's issue is filed: the host backlog (the default and the
+ * fallback) or a cross-repo target. The deterministic safety boundary is
+ * resolveCrossRepoDestination (safety.js: REPO_NAME_PATTERN + statistic-bearing
+ * finding anchor + eligibility + statistic rationale); the propose-targets and
+ * propose-classes maps are the operator allow-list layered on top. An idea
+ * crosses ONLY when the gate admits it AND its target is on propose-targets AND
+ * its anchoring class is enabled in propose-classes. Everything else — no target,
+ * a gate fallback, a malformed target name (which can therefore never be used as
+ * a write destination), or a target/class the operator has not opted in — files
+ * on the host, exactly as today. With both maps empty (the default) nothing
+ * crosses, so this is byte-identical to filing every issue on the host.
+ *
+ * Returns one of:
+ *   { action: 'drop',  reason }                                  — a malformed,
+ *       injection-shaped target name: the idea is filed NOWHERE, not even on the
+ *       host (the G4 hard-drop contract; ADR-011). Distinct from a host fallback.
+ *   { action: 'file',  repo, crossRepo, anchorType?, reason }    — file on the
+ *       host (crossRepo:false) or the cross-repo target (crossRepo:true).
+ * `reason` is a stable code for the dry-run soak log, never an echoed adversary
+ * substring. The owner is always the host owner (never config/LLM-supplied), so
+ * only `repo` varies.
+ */
+export function resolveProposalDestination(idea, { findings = [], eligibleRepoNames = [], owner = null, hostRepo, proposeTargets = {}, proposeClasses = {} }) {
+  const gate = resolveCrossRepoDestination(idea, { findings, eligibleRepoNames, owner });
+  // A malformed target name is injection-shaped: the gate drops it and the idea
+  // is not filed anywhere. Honoured here rather than collapsed into a host filing
+  // so the documented hard-drop contract holds end-to-end.
+  if (gate.destination === 'drop') {
+    return { action: 'drop', reason: gate.reason };
+  }
+  if (gate.destination === 'cross-repo'
+      && isProposeEnabled(proposeTargets, gate.repo)
+      && isProposeEnabled(proposeClasses, gate.anchorType)) {
+    return { action: 'file', repo: gate.repo, crossRepo: true, anchorType: gate.anchorType, reason: 'cross-repo' };
+  }
+  // The gate said host, or admitted cross-repo but the operator has not opted
+  // this target+class in: file on the host backlog.
+  const reason = gate.destination === 'cross-repo' ? 'not-allowlisted' : gate.reason;
+  return { action: 'file', repo: hostRepo, crossRepo: false, reason };
+}
+
 // Thin orchestration wrapper used by the index dispatcher.
 export async function runPropose(context) {
   const result = await propose(context);
@@ -210,8 +261,30 @@ export async function propose(context) {
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
 
-  await ensureLabel(gh, owner, repo, proposalLabel, 'Issue proposed by repo-butler', '7057ff');
-  await ensureLabel(gh, owner, repo, agentLabel, 'Created by an automated agent', 'c5def5');
+  // Cross-repo routing inputs (ADR-011, G5). The governance findings anchor the
+  // gate; the portfolio's eligible repo names are the defence-in-depth
+  // eligibility set; the two maps are the operator allow-list. All absent (e.g.
+  // PROPOSE run without the upstream phases) → fail-closed to host.
+  const findings = Array.isArray(context.governanceFindings) ? context.governanceFindings : [];
+  const eligibleRepoNames = context.portfolio?.repos ? eligibleRepos(context.portfolio.repos).map(r => r.name) : [];
+  const proposeTargets = config['propose-targets'] || {};
+  const proposeClasses = config['propose-classes'] || {};
+
+  // Ensure the proposal/agent labels exist on a repo before filing there.
+  // Idempotent and memoised per repo: the host is done up front (unchanged from
+  // before), and a cross-repo target is labelled lazily the first time an issue
+  // actually routes to it (so an empty allow-list touches no other repo).
+  const labelSpecs = [
+    [proposalLabel, 'Issue proposed by repo-butler', '7057ff'],
+    [agentLabel, 'Created by an automated agent', 'c5def5'],
+  ];
+  const labelledRepos = new Set();
+  const ensureLabelsOn = async (r) => {
+    if (labelledRepos.has(r)) return;
+    for (const [name, desc, color] of labelSpecs) await ensureLabel(gh, owner, r, name, desc, color);
+    labelledRepos.add(r);
+  };
+  await ensureLabelsOn(repo);
 
   // Sort by priority: high > medium > low.
   const priorityOrder = { high: 0, medium: 1, low: 2 };
@@ -224,8 +297,22 @@ export async function propose(context) {
   const skippedDuplicates = [];
 
   for (const idea of toPropose) {
-    // Duplicate detection: skip if a similar open issue already exists.
-    const duplicates = await findDuplicates(gh, owner, repo, idea.title);
+    // Resolve the destination FIRST, before any repo-specific API call, so a
+    // cross-repo target name is validated and allow-listed before we touch it
+    // (ADR-011). With empty maps this is always the host repo.
+    const dest = resolveProposalDestination(idea, { findings, eligibleRepoNames, owner, hostRepo: repo, proposeTargets, proposeClasses });
+
+    // A malformed (injection-shaped) target name is dropped outright: filed
+    // nowhere, not even on the host, and never interpolated into an API path.
+    if (dest.action === 'drop') {
+      console.log(`Skipping '${idea.title}' — malformed target name, idea dropped (${dest.reason}).`);
+      continue;
+    }
+    const destRepo = dest.repo;
+
+    // Duplicate detection: skip if a similar open issue already exists on the
+    // destination repo.
+    const duplicates = await findDuplicates(gh, owner, destRepo, idea.title);
     if (duplicates.length > 0) {
       const best = duplicates[0];
       console.log(`Skipping '${idea.title}' — similar to existing #${best.number}: '${best.title}' (similarity: ${best.similarity.toFixed(2)})`);
@@ -234,7 +321,7 @@ export async function propose(context) {
     }
 
     // PR duplicate detection: skip if a similar open or recently declined PR exists.
-    const prDuplicates = await findDuplicatePRs(gh, owner, repo, idea.title, { includeClosedDays: 90 });
+    const prDuplicates = await findDuplicatePRs(gh, owner, destRepo, idea.title, { includeClosedDays: 90 });
     if (prDuplicates.length > 0) {
       const best = prDuplicates[0];
       const reason = best.declined ? 'governance-declined' : `similar ${best.state} PR`;
@@ -250,7 +337,9 @@ export async function propose(context) {
     // the structured LLM fields (rationale, currentState, proposedState,
     // scope, affectedFiles). Validate the final string that actually reaches
     // GitHub so those fields pass the same gate (URLs, @mentions, keys, length).
-    const bodyCheck = validateIssueBody(body);
+    // Cross-repo destinations get the extra cross-reference autolink gate (G3) so
+    // an owner/repo#N or bare #N can't notify or mis-link in the target repo.
+    const bodyCheck = validateIssueBody(body, { crossRepo: dest.crossRepo });
     if (!bodyCheck.valid) {
       console.warn(`SAFETY: composed body for '${idea.title}' failed validation, skipping idea:`);
       for (const err of bodyCheck.errors) console.warn(`  - ${redactErrorForLog(err)}`);
@@ -258,23 +347,29 @@ export async function propose(context) {
     }
 
     if (dryRun) {
-      // Surface the parsed targetRepo (ADR-010 / ADR-011) so the dormant soak
-      // can audit intended cross-repo destinations from the dry-run logs and the
-      // returned result. Routing is unchanged in this goal — every issue still
-      // files to the host repo below; targetRepo is recorded, not yet acted on.
-      const target = idea.targetRepo ? ` [target: ${idea.targetRepo}]` : '';
-      console.log(`DRY RUN — would create issue${target}: "${idea.title}" [${labels.join(', ')}]`);
-      created.push({ title: idea.title, labels, targetRepo: idea.targetRepo ?? null, url: null });
+      // Record the resolved destination for the dormant cross-repo soak: whether
+      // it would cross, where to, and (for a targeted idea that does not cross)
+      // why it fell back to the host.
+      const tag = dest.crossRepo
+        ? ` [cross-repo → ${destRepo}]`
+        : (idea.targetRepo ? ` [target: ${idea.targetRepo} → host (${dest.reason})]` : '');
+      console.log(`DRY RUN — would create issue${tag}: "${idea.title}" [${labels.join(', ')}]`);
+      created.push({ title: idea.title, labels, targetRepo: idea.targetRepo ?? null, routedRepo: destRepo, crossRepo: dest.crossRepo, routeReason: dest.reason, url: null });
       continue;
     }
 
-    const issue = await gh.request(`/repos/${owner}/${repo}/issues`, {
+    // Labels are ensured on the destination repo only now that the gates have
+    // passed (ADR-011: a cross-repo label is created on the target only after
+    // admission). For the host this was already done up front, so it is a no-op.
+    await ensureLabelsOn(destRepo);
+
+    const issue = await gh.request(`/repos/${owner}/${destRepo}/issues`, {
       method: 'POST',
       body: { title: idea.title, body, labels },
     });
 
     console.log(`Created issue #${issue.number}: ${issue.title} — ${issue.html_url}`);
-    created.push({ title: idea.title, number: issue.number, labels, targetRepo: idea.targetRepo ?? null, url: issue.html_url });
+    created.push({ title: idea.title, number: issue.number, labels, targetRepo: idea.targetRepo ?? null, routedRepo: destRepo, crossRepo: dest.crossRepo, routeReason: dest.reason, url: issue.html_url });
   }
 
   if (toPropose.length < safeIdeas.length) {

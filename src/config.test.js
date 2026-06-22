@@ -165,6 +165,30 @@ apply-schedule:
     assert.deepEqual(config['apply-schedule'], {});
   });
 
+  it('defaults propose-targets and propose-classes to empty objects (cross-repo PROPOSE default-closed)', async () => {
+    const config = await loadConfig('/nonexistent/path/roadmap.yml');
+    assert.deepEqual(config['propose-targets'], {});
+    assert.deepEqual(config['propose-classes'], {});
+  });
+
+  it('parses propose-targets / propose-classes blocks as key-presence allow-lists', async () => {
+    const yaml = `repository: owner/repo
+
+propose-targets:
+  teams-for-linux: true
+
+propose-classes:
+  policy-drift: true
+  tier-uplift: true
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config['propose-targets']['teams-for-linux'], true);
+      assert.equal(config['propose-classes']['policy-drift'], true);
+      assert.equal(config['propose-classes']['tier-uplift'], true);
+    });
+  });
+
   it('parses nested observe block from YAML', async () => {
     const yaml = `repository: owner/repo
 

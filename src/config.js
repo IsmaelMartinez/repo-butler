@@ -41,6 +41,21 @@ const DEFAULTS = {
   // Kill switches: empty this, set require_approval false, or disable the
   // scheduled workflow.
   'apply-automerge': {},
+  // Cross-repo PROPOSE allow-list (ADR-010 / ADR-011). Key-presence map of target
+  // repo short-names that may receive cross-repo issues: `repo-name: true` opts a
+  // repo in. Empty by default (default-closed), so no proposal is ever routed to
+  // another repo until a target is explicitly added. The repo OWNER always comes
+  // from context (never config/LLM); only the short-name varies, and it is
+  // validated against REPO_NAME_PATTERN by the routing gate before any
+  // repo-specific API call.
+  'propose-targets': {},
+  // Per-finding-class promotion control for cross-repo PROPOSE (ADR-011). Key-
+  // presence map of governance finding classes (standards-gap, policy-drift,
+  // tier-uplift) that may graduate to cross-repo routing: `class-name: true`. A
+  // class crosses only when BOTH its target is on propose-targets AND its class
+  // is enabled here, so each graduates independently and reversibly in its own
+  // reviewed config change. Empty by default (default-closed).
+  'propose-classes': {},
   release_exempt: '',
 };
 
