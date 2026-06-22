@@ -261,6 +261,13 @@ export async function propose(context) {
 
   const gh = context.gh || createClient(token);
   const maxIssues = config.limits?.max_issues_per_run || 3;
+  // `??` (not `||`) so an explicit 0 is honoured as "file no cross-repo issues
+  // this run" — a deliberate kill switch — rather than coerced back to a default;
+  // absent → 1. Coerced defensively: a non-numeric or negative value (a YAML
+  // typo like `two`) must fall back to the safe default, never become a string
+  // that makes `count >= maxPerTarget` always false and silently DISABLE the cap.
+  const rawMaxPerTarget = Number(config.limits?.max_issues_per_target ?? 1);
+  const maxPerTarget = Number.isFinite(rawMaxPerTarget) && rawMaxPerTarget >= 0 ? rawMaxPerTarget : 1;
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
 
@@ -299,6 +306,15 @@ export async function propose(context) {
   const created = [];
   const skippedDuplicates = [];
   const failures = [];
+  // Per-target volume cap (ADR-011 two-axis cap): the per-run slice above is the
+  // portfolio-wide ceiling; this Map bounds issues filed into any single
+  // cross-repo target. The host is never counted here — it stays bounded only by
+  // the per-run cap, so host behaviour is unchanged. The slice is applied BEFORE
+  // this cap (rather than iterating all candidates) to keep empty-map behaviour
+  // byte-identical; the only cost is that a target-heavy top-N can under-fill the
+  // per-run budget — the safe direction (fewer issues, never more).
+  const perTargetCreated = new Map();
+  const skippedCapped = [];
 
   for (const idea of toPropose) {
     // Resolve the destination FIRST, before any repo-specific API call, so a
@@ -313,6 +329,15 @@ export async function propose(context) {
       continue;
     }
     const destRepo = dest.repo;
+
+    // Per-target cap (ADR-011 two-axis cap): cross-repo targets only — the host
+    // is bounded by the per-run cap, so this never alters host behaviour. Checked
+    // before any repo-specific API call so a capped target costs no requests.
+    if (dest.crossRepo && (perTargetCreated.get(destRepo) || 0) >= maxPerTarget) {
+      console.log(`Skipping '${idea.title}' — per-target cap (${maxPerTarget}) reached for ${destRepo}.`);
+      skippedCapped.push({ title: idea.title, repo: destRepo });
+      continue;
+    }
 
     // Duplicate detection: skip if a similar open issue already exists on the
     // destination repo.
@@ -359,6 +384,7 @@ export async function propose(context) {
         : (idea.targetRepo ? ` [target: ${idea.targetRepo} → host (${dest.reason})]` : '');
       console.log(`DRY RUN — would create issue${tag}: "${idea.title}" [${labels.join(', ')}]`);
       created.push({ title: idea.title, labels, targetRepo: idea.targetRepo ?? null, routedRepo: destRepo, crossRepo: dest.crossRepo, routeReason: dest.reason, url: null });
+      if (dest.crossRepo) perTargetCreated.set(destRepo, (perTargetCreated.get(destRepo) || 0) + 1);
       continue;
     }
 
@@ -377,6 +403,7 @@ export async function propose(context) {
 
       console.log(`Created issue #${issue.number}: ${issue.title} — ${issue.html_url}`);
       created.push({ title: idea.title, number: issue.number, labels, targetRepo: idea.targetRepo ?? null, routedRepo: destRepo, crossRepo: dest.crossRepo, routeReason: dest.reason, url: issue.html_url });
+      if (dest.crossRepo) perTargetCreated.set(destRepo, (perTargetCreated.get(destRepo) || 0) + 1);
     } catch (error) {
       // A single failed write (e.g. a cross-repo target with issues disabled or
       // missing write scope) must not abort the run and block later proposals —
@@ -390,7 +417,7 @@ export async function propose(context) {
     console.log(`Capped at ${maxIssues} issues. ${safeIdeas.length - maxIssues} ideas dropped.`);
   }
 
-  return { created, dropped: ideas.length - created.length, skippedDuplicates, failures };
+  return { created, dropped: ideas.length - created.length, skippedDuplicates, skippedCapped, failures };
 }
 
 async function ensureLabel(gh, owner, repo, name, description, color) {
