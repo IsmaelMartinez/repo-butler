@@ -1,7 +1,21 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jaccardSimilarity, buildIssueBody, findDuplicatePRs, isGovernanceDeclined } from './propose.js';
+import { jaccardSimilarity, buildIssueBody, findDuplicatePRs, isGovernanceDeclined, propose } from './propose.js';
 import { validateIdeas, validateIssueBody } from './safety.js';
+
+// A minimal in-memory GitHub client stub. propose() takes context.gh when
+// provided (falling back to createClient(token) in production), so tests can
+// exercise the per-idea loop without touching the network. request() returns
+// {} so ensureLabel finds the label already present; paginate() returns [] so
+// no duplicate issue/PR is detected.
+function stubGh() {
+  const calls = [];
+  return {
+    calls,
+    request: async (path, opts) => { calls.push({ path, method: opts?.method }); return {}; },
+    paginate: async (path) => { calls.push({ path, method: 'GET' }); return []; },
+  };
+}
 
 describe('jaccardSimilarity', () => {
   it('returns 1.0 for identical strings', () => {
@@ -245,5 +259,55 @@ describe('findDuplicatePRs', () => {
     };
     const matches = await findDuplicatePRs(mockGh, 'owner', 'repo', 'Some title');
     assert.deepEqual(matches, []);
+  });
+});
+
+describe('propose — dry-run targetRepo surfacing (G2)', () => {
+  const baseContext = (overrides) => ({
+    owner: 'octo',
+    repo: 'repo-butler',
+    token: 'unused',
+    config: { limits: { require_approval: false } },
+    dryRun: true,
+    ...overrides,
+  });
+
+  it('surfaces a parsed targetRepo in the dry-run created record without changing routing', async () => {
+    const gh = stubGh();
+    const result = await propose(baseContext({
+      gh,
+      ideas: [{
+        title: 'Add a repository description',
+        priority: 'medium',
+        labels: ['governance'],
+        body: '12 of 14 active repos set a description; this one does not.',
+        targetRepo: 'other-repo',
+      }],
+    }));
+
+    assert.equal(result.created.length, 1);
+    assert.equal(result.created[0].targetRepo, 'other-repo');
+    assert.equal(result.created[0].url, null); // dry-run: nothing is actually created
+    // Routing is unchanged in G2: no issue POST fires, and nothing is addressed
+    // to the target repo's API path — every write still targets the host.
+    assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path.endsWith('/issues')));
+    assert.ok(!gh.calls.some(c => c.path.includes('/other-repo/')));
+  });
+
+  it('records targetRepo as null for a host-only idea in the dry-run record', async () => {
+    const gh = stubGh();
+    const result = await propose(baseContext({
+      gh,
+      ideas: [{
+        title: 'A host-only idea',
+        priority: 'low',
+        labels: [],
+        body: 'No target repo here.',
+        targetRepo: null,
+      }],
+    }));
+
+    assert.equal(result.created.length, 1);
+    assert.equal(result.created[0].targetRepo, null);
   });
 });

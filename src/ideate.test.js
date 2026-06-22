@@ -216,6 +216,24 @@ BODY: body two
     assert.equal(ideas[1].targetRepo, null);
   });
 
+  it('normalizes a TARGET_REPO no-value token regardless of case or surrounding whitespace', () => {
+    const raw = `---IDEA---
+TITLE: Idea one
+TARGET_REPO: N/A
+BODY: body one
+---END---
+---IDEA---
+TITLE: Idea two
+TARGET_REPO:    none
+BODY: body two
+---END---`;
+
+    const ideas = parseIdeas(raw);
+    assert.equal(ideas.length, 2);
+    assert.equal(ideas[0].targetRepo, null);
+    assert.equal(ideas[1].targetRepo, null);
+  });
+
   it('returns empty array for empty input', () => {
     assert.deepEqual(parseIdeas(''), []);
     assert.deepEqual(parseIdeas('no ideas here'), []);
@@ -418,6 +436,11 @@ describe('buildIdeatePrompt', () => {
     const governancePrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
     assert.ok(governancePrompt.includes('TARGET_REPO'));
     assert.ok(governancePrompt.includes('set AFFECTED_FILES to "unknown"'));
+    // TARGET_REPO must be anchored ABOVE BODY in the format block: BODY is the
+    // terminal greedy field in parseIdeas, so a TARGET_REPO line emitted after
+    // it would be swallowed into the body and never parsed. Guards that the
+    // model is told to emit it where the parser can capture it.
+    assert.ok(governancePrompt.indexOf('TARGET_REPO:') < governancePrompt.indexOf('BODY:'));
 
     const hostPrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null);
     assert.ok(!hostPrompt.includes('TARGET_REPO'));

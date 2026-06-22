@@ -205,7 +205,7 @@ export async function propose(context) {
     return { created: [], dropped: ideas.length, require_approval: true };
   }
 
-  const gh = createClient(token);
+  const gh = context.gh || createClient(token);
   const maxIssues = config.limits?.max_issues_per_run || 3;
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
@@ -274,7 +274,7 @@ export async function propose(context) {
     });
 
     console.log(`Created issue #${issue.number}: ${issue.title} — ${issue.html_url}`);
-    created.push({ title: idea.title, number: issue.number, labels, url: issue.html_url });
+    created.push({ title: idea.title, number: issue.number, labels, targetRepo: idea.targetRepo ?? null, url: issue.html_url });
   }
 
   if (toPropose.length < safeIdeas.length) {
