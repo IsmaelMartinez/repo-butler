@@ -245,6 +245,14 @@ describe('findDuplicates closed look-back (G7)', () => {
     assert.equal(matches.length, 0, 'wontfix is not the governance-declined marker, so the cooldown applies');
   });
 
+  it('ages out an ordinary closed issue with a missing or unparseable closed_at (no false match)', async () => {
+    for (const closed_at of [undefined, null, 'not-a-date']) {
+      const gh = ghWith({ closed: [{ number: 7, title: 'Add a security policy', closed_at, labels: [] }] });
+      const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
+      assert.equal(matches.length, 0, `expected no match for closed_at=${JSON.stringify(closed_at)}`);
+    }
+  });
+
   it('returns open matches even if the closed scan errors (swallow-and-continue)', async () => {
     const gh = { paginate: async (path, opts) => {
       if (opts?.params?.state === 'closed') throw new Error('API error');

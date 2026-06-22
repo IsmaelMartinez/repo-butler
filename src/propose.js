@@ -49,8 +49,8 @@ export function jaccardSimilarity(a, b) {
  * closed PRs the effective closed-issue window is smaller, and a
  * governance-declined issue older than that window can fall out of view.
  *
- * Returns { number, title, similarity, state, declined? } for matches above
- * threshold, most similar first.
+ * Returns an array of { number, title, similarity, state, declined? } for
+ * matches above threshold, most similar first.
  */
 export async function findDuplicates(gh, owner, repo, title, { threshold = 0.6, includeClosedDays = 0 } = {}) {
   const matches = [];
@@ -89,8 +89,11 @@ export async function findDuplicates(gh, owner, repo, title, { threshold = 0.6, 
     for (const issue of closedIssues) {
       const declined = isGovernanceDeclined(issue.labels || []);
       // A declined close never ages out; an ordinary close counts only within
-      // the cooldown window.
-      if (!declined && (!issue.closed_at || new Date(issue.closed_at).getTime() < cutoff)) continue;
+      // the cooldown window. A missing or unparseable closed_at (getTime() ->
+      // NaN, where NaN < cutoff is false) is aged out, never silently treated as
+      // a recent close that would wrongly suppress a proposal.
+      const closedTime = issue.closed_at ? new Date(issue.closed_at).getTime() : NaN;
+      if (!declined && (Number.isNaN(closedTime) || closedTime < cutoff)) continue;
       const similarity = jaccardSimilarity(title, issue.title);
       if (similarity > threshold) {
         matches.push({ number: issue.number, title: issue.title, similarity, state: 'closed', declined });
