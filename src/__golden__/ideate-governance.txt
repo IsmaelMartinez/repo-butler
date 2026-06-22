@@ -61,3 +61,5 @@ Guidelines:
 - Prioritise standards propagation and policy drift correction proposals over generic improvements.
 - Each idea should reference specific repos and cross-repo statistics (e.g. "configured in 14/19 repos").
 - Rationale must explain why this is a portfolio-level concern, not a per-repo issue.
+- When a proposal concerns one specific portfolio repo named in the governance findings above, add a line "TARGET_REPO: <repo-name>" using the short repo name only (e.g. "my-repo"). Omit TARGET_REPO entirely for proposals about this repo.
+- For any idea that has a TARGET_REPO, set AFFECTED_FILES to "unknown" and do NOT cite this repo's issue numbers (e.g. #42) in RATIONALE or BODY — it will be filed in the target repo, which does not share this repo's issue numbering. Cite the cross-repo statistic instead.

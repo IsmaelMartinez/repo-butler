@@ -130,6 +130,8 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     outroLines.push('- Prioritise standards propagation and policy drift correction proposals over generic improvements.');
     outroLines.push('- Each idea should reference specific repos and cross-repo statistics (e.g. "configured in 14/19 repos").');
     outroLines.push('- Rationale must explain why this is a portfolio-level concern, not a per-repo issue.');
+    outroLines.push('- When a proposal concerns one specific portfolio repo named in the governance findings above, add a line "TARGET_REPO: <repo-name>" using the short repo name only (e.g. "my-repo"). Omit TARGET_REPO entirely for proposals about this repo.');
+    outroLines.push('- For any idea that has a TARGET_REPO, set AFFECTED_FILES to "unknown" and do NOT cite this repo\'s issue numbers (e.g. #42) in RATIONALE or BODY — it will be filed in the target repo, which does not share this repo\'s issue numbering. Cite the cross-repo statistic instead.');
   }
 
   return wrapPrompt({
@@ -176,6 +178,7 @@ const IDEA_FIELDS = {
   PROPOSED_STATE: 'proposedState',
   AFFECTED_FILES: 'affectedFiles',
   SCOPE: 'scope',
+  TARGET_REPO: 'targetRepo',
   BODY: 'body',
 };
 
@@ -224,6 +227,17 @@ export function parseIdeas(raw) {
       ? affectedFilesRaw.split(',').map(f => f.trim()).filter(Boolean)
       : [];
 
+    // TARGET_REPO marks a proposal destined for another portfolio repo
+    // (ADR-010 / ADR-011). It is parsed and surfaced here for the dormant soak;
+    // the deterministic routing gate (REPO_NAME_PATTERN + finding-anchoring +
+    // propose-targets membership) lands in later goals (G4/G5). An empty,
+    // "unknown", "none", or "n/a" value normalises to null — i.e. a host-backlog
+    // proposal — mirroring how AFFECTED_FILES treats "unknown".
+    const targetRepoRaw = (fields.targetRepo || '').trim();
+    const targetRepo = targetRepoRaw && !['unknown', 'none', 'n/a'].includes(targetRepoRaw.toLowerCase())
+      ? targetRepoRaw
+      : null;
+
     ideas.push({
       title,
       priority: fields.priority || 'medium',
@@ -233,6 +247,7 @@ export function parseIdeas(raw) {
       proposedState: fields.proposedState ?? null,
       affectedFiles,
       scope: fields.scope ?? null,
+      targetRepo,
       body: bodyStart === -1 ? '' : content.slice(bodyStart).trim(),
     });
   }
