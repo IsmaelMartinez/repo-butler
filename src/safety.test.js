@@ -1042,3 +1042,32 @@ describe('findingNamesRepo (exported for G9 anchor re-find)', () => {
     assert.equal(findingNamesRepo({ repo: 'x' }, null), false);
   });
 });
+
+describe('validateIssueTitle cross-repo mode (G9)', () => {
+  it('accepts a clean cross-repo title', () => {
+    assert.equal(validateIssueTitle('Adopt dependabot auto-merge to match the portfolio', { crossRepo: true }).valid, true);
+  });
+
+  it('rejects a bare #N, GH-N, or owner/repo#N cross-reference', () => {
+    assert.equal(validateIssueTitle('Adopt this, see #42', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Track GH-7', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Mirror owner/repo#3', { crossRepo: true }).valid, false);
+  });
+
+  it('rejects an @mention and a disallowed URL', () => {
+    assert.equal(validateIssueTitle('Ping @maintainer to adopt', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Adopt per https://evil.com', { crossRepo: true }).valid, false);
+  });
+
+  it('rejects a per-repo code/content claim', () => {
+    assert.equal(validateIssueTitle('Fix the buggy auth handler', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Refactor this module', { crossRepo: true }).valid, false);
+  });
+
+  it('host mode (the default) is unchanged — a #N or @mention title stays valid', () => {
+    // validateIdeas validates host titles in default mode; host issues legitimately
+    // cite their own #N, so the cross-repo checks must not fire there.
+    assert.equal(validateIssueTitle('Track #42 follow-up').valid, true);
+    assert.equal(validateIssueTitle('Refactor this module').valid, true);
+  });
+});

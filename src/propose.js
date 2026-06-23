@@ -2,7 +2,7 @@
 // Respects max_issues_per_run and require_approval settings.
 
 import { createClient, paginateIssues } from './github.js';
-import { validateIdeas, validateIssueBody, sanitizeLabels, redactErrorForLog, resolveCrossRepoDestination, findingNamesRepo } from './safety.js';
+import { validateIdeas, validateIssueTitle, validateIssueBody, sanitizeLabels, redactErrorForLog, resolveCrossRepoDestination, findingNamesRepo } from './safety.js';
 import { eligibleRepos } from './governance.js';
 import { hasOnboardingMarker } from './onboard.js';
 
@@ -163,8 +163,11 @@ const TRACKING_ISSUE_TITLE = 'Portfolio nudges — cross-repo proposal tracker';
  * GitHub cross-reference autolink (#N or owner/repo#N); the host-side tracking
  * back-link is a BARE allowlisted URL, the only form that survives
  * validateIssueBody({ crossRepo: true }) (G3).
+ *
+ * Takes only the finding and the tracking URL — never the idea — so the no-leak
+ * guarantee is structural: the function cannot reach the LLM's fields at all.
  */
-export function buildCrossRepoIssueBody(idea, finding, { trackingUrl = null } = {}) {
+export function buildCrossRepoIssueBody(finding, { trackingUrl = null } = {}) {
   const lines = [];
   const type = finding?.type;
 
@@ -537,6 +540,21 @@ export async function propose(context) {
       continue;
     }
 
+    // The cross-repo body is deterministic, but the issue TITLE is still the
+    // LLM's and reaches a foreign repo unseen by the body validators. Hold it to
+    // the same content gates (G9): a cross-reference autolink, @mention, disallowed
+    // URL, or per-repo code claim in the title would assert beyond what the
+    // deterministic body grounds. Gate it before resolving the umbrella so a
+    // rejected idea costs no write; skip rather than publish a questionable title.
+    if (dest.crossRepo) {
+      const titleCheck = validateIssueTitle(idea.title, { crossRepo: true });
+      if (!titleCheck.valid) {
+        console.warn(`SAFETY: cross-repo title for '${idea.title}' failed validation, skipping idea:`);
+        for (const err of titleCheck.errors) console.warn(`  - ${redactErrorForLog(err)}`);
+        continue;
+      }
+    }
+
     // Host issues keep the LLM-composed body; cross-repo issues get a DETERMINISTIC
     // body built from the anchoring finding (G9), so the published text asserts
     // only the portfolio statistic the butler computed and the LLM's host-oriented
@@ -554,7 +572,7 @@ export async function propose(context) {
         trackingResolved = true;
       }
       labels = [proposalLabel, agentLabel, nudgeLabel, ...sanitizeLabels(idea.labels)];
-      body = buildCrossRepoIssueBody(idea, anchorFinding, { trackingUrl });
+      body = buildCrossRepoIssueBody(anchorFinding, { trackingUrl });
     } else {
       labels = [proposalLabel, agentLabel, ...sanitizeLabels(idea.labels)];
       body = buildIssueBody(idea);

@@ -49,7 +49,7 @@ const BLOCKED_PATTERNS = [
   /javascript:/i,                      // JS protocol
 ];
 
-export function validateIssueTitle(title) {
+export function validateIssueTitle(title, { crossRepo = false } = {}) {
   const errors = [];
 
   if (!title || typeof title !== 'string') {
@@ -68,6 +68,20 @@ export function validateIssueTitle(title) {
   for (const pattern of BLOCKED_PATTERNS) {
     if (pattern.test(title)) {
       errors.push(`Title contains blocked pattern: ${pattern.source.slice(0, 30)}`);
+    }
+  }
+
+  // A cross-repo issue title reaches ANOTHER repo and is the highest-visibility
+  // field there, yet the per-idea body validators never see it. Hold it to the
+  // same content gates as a cross-repo body (ADR-011, G9): no cross-reference
+  // autolink, no @mention, no disallowed URL, and no per-repo code/content claim —
+  // the title must assert nothing beyond what the deterministic body grounds.
+  if (crossRepo) {
+    errors.push(...validateCrossRefs(title).errors);
+    errors.push(...validateMentions(title));
+    errors.push(...validateUrls(title));
+    if (matchesAny(title, PER_REPO_CODE_PATTERNS)) {
+      errors.push('Title makes a per-repo code/content claim — a cross-repo nudge may assert only portfolio statistics');
     }
   }
 
