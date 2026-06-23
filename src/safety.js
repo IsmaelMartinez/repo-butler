@@ -77,9 +77,19 @@ export function validateIssueTitle(title, { crossRepo = false } = {}) {
   // autolink, no @mention, no disallowed URL, and no per-repo code/content claim —
   // the title must assert nothing beyond what the deterministic body grounds.
   if (crossRepo) {
-    errors.push(...validateCrossRefs(title).errors);
-    errors.push(...validateMentions(title));
-    errors.push(...validateUrls(title));
+    // The shared validators phrase their errors as "Body contains …", which is
+    // misleading in title context (these surface in propose()'s skip log), so run
+    // them as predicates and push title-specific messages. The matched token is
+    // redacted from logs anyway, so no detail is lost.
+    if (!validateCrossRefs(title).valid) {
+      errors.push('Title contains a cross-reference autolink (#N, owner/repo#N, or GH-N) that would link into the target repo');
+    }
+    if (validateMentions(title).length > 0) {
+      errors.push('Title contains an @mention — a cross-repo nudge must not ping users in another repo');
+    }
+    if (validateUrls(title).length > 0) {
+      errors.push('Title contains a disallowed URL host');
+    }
     if (matchesAny(title, PER_REPO_CODE_PATTERNS)) {
       errors.push('Title makes a per-repo code/content claim — a cross-repo nudge may assert only portfolio statistics');
     }
