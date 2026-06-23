@@ -9,7 +9,24 @@ import { createClient } from './github.js';
 import { validateGitHubUsername, REPO_NAME_PATTERN } from './safety.js';
 
 const BRANCH_NAME = 'repo-butler/onboard';
-const MARKER = 'repo-butler';
+export const MARKER = 'repo-butler';
+
+/**
+ * Does a repo carry the repo-butler onboarding marker in its CLAUDE.md? The
+ * marker is both a consent signal and a blast-radius fence (ADR-011): a
+ * cross-repo PROPOSE issue (G9) is filed into a target only once it has been
+ * onboarded. Fail-closed — a missing CLAUDE.md (getFileContent returns null), a
+ * file without the marker, or any API error all return false, so an unreachable
+ * or un-onboarded repo never receives a nudge.
+ */
+export async function hasOnboardingMarker(gh, owner, repo) {
+  try {
+    const content = await gh.getFileContent(owner, repo, 'CLAUDE.md');
+    return typeof content === 'string' && content.includes(MARKER);
+  } catch {
+    return false;
+  }
+}
 
 const CONSUMER_GUIDE_SECTION = `## Repo Butler
 

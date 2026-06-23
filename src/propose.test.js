@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jaccardSimilarity, buildIssueBody, findDuplicates, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination } from './propose.js';
+import { jaccardSimilarity, buildIssueBody, buildCrossRepoIssueBody, ensureTrackingIssue, findDuplicates, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination } from './propose.js';
 import { validateIdeas, validateIssueBody } from './safety.js';
 
 // A minimal in-memory GitHub client stub. propose() takes context.gh when
@@ -12,8 +12,12 @@ function stubGh() {
   const calls = [];
   return {
     calls,
-    request: async (path, opts) => { calls.push({ path, method: opts?.method }); return {}; },
+    request: async (path, opts) => { calls.push({ path, method: opts?.method, body: opts?.body }); return {}; },
     paginate: async (path) => { calls.push({ path, method: 'GET' }); return []; },
+    // Targets appear onboarded by default so the G9 onboarding precondition does
+    // not downgrade cross-repo routing; tests that need a non-onboarded target
+    // override gh.getFileContent to return null.
+    getFileContent: async () => '# CLAUDE.md\n\nManaged by repo-butler.',
   };
 }
 
@@ -501,19 +505,23 @@ describe('propose — cross-repo routing wired into the write path (G5)', () => 
     assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path.endsWith('/issues')), 'no issue POST anywhere');
   });
 
-  it('applies the cross-reference autolink gate (G3) to a cross-repo body via crossRepo:true', async () => {
+  it('builds a DETERMINISTIC cross-repo body that suppresses the LLM rationale (G9), so a #N in the rationale never reaches the target', async () => {
     const gh = stubGh();
-    // A bare #N autolink in a cross-repo-destined body would mis-link in the
-    // target repo; validateIssueBody({crossRepo:true}) must reject it, so the
-    // idea is skipped and no issue is filed on the target.
-    // The #N lives in the rationale (which buildIssueBody composes into the body
-    // in structured mode); the statistic '13/14' still admits the idea at the gate.
+    // Pre-G9 the LLM rationale was composed into the cross-repo body, so a #N in
+    // it had to be caught by validateIssueBody({crossRepo:true}). G9 builds the
+    // body from the anchoring finding alone, so the rationale — and its #42 —
+    // never reaches the target at all: the stronger guarantee. The issue files,
+    // and the posted body carries neither the rationale prose nor the #N.
     const result = await propose(ctx({
       gh, dryRun: false,
       ideas: [{ title: 'Adopt licence', priority: 'medium', labels: [], body: 'A nudge.', rationale: '13/14 repos declare a licence; see #42 for context.', targetRepo: 'teams-for-linux' }],
     }));
-    assert.equal(result.created.length, 0);
-    assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues'), 'cross-repo body with #N rejected, not filed');
+    assert.equal(result.created.length, 1);
+    assert.equal(result.created[0].crossRepo, true);
+    const post = gh.calls.find(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues');
+    assert.ok(post, 'cross-repo issue filed on the target');
+    assert.ok(!post.body.body.includes('#42'), 'rationale cross-reference not in the deterministic body');
+    assert.ok(!post.body.body.includes('see #42'), 'rationale prose not in the deterministic body');
   });
 
   it('with empty maps, the exact host call sequence is unchanged and no other repo is touched', async () => {
@@ -535,6 +543,7 @@ describe('propose — cross-repo routing wired into the write path (G5)', () => 
         return {};
       },
       paginate: async () => [],
+      getFileContent: async () => '# CLAUDE.md\n\nManaged by repo-butler.',
     };
     const result = await propose(ctx({ gh, dryRun: false }));
     assert.equal(result.created.length, 0);
@@ -599,6 +608,7 @@ describe('propose — per-target volume cap (G6)', () => {
   it('gives each distinct cross-repo target its own independent quota', async () => {
     const gh = stubGh();
     const result = await propose({
+      gh,
       owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true,
       governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }, { type: 'policy-drift', repo: 'bonnie-wee-plot' }],
       portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }, { name: 'bonnie-wee-plot', archived: false, fork: false }] },
@@ -662,6 +672,7 @@ describe('propose — per-target volume cap (G6)', () => {
         }
         return [];
       },
+      getFileContent: async () => '# CLAUDE.md\n\nManaged by repo-butler.',
     };
     const result = await propose(base({
       gh, dryRun: false,
@@ -682,10 +693,306 @@ describe('propose — per-target volume cap (G6)', () => {
         if (path.includes('/issues')) return [{ number: 9, title: 'Adopt the portfolio licence' }];
         return [];
       },
+      getFileContent: async () => '# CLAUDE.md\n\nManaged by repo-butler.',
     };
     const result = await propose(base({ gh }));
     const cross = result.created.filter(c => c.crossRepo);
     assert.equal(cross.length, 1);
     assert.equal(cross[0].title, 'Pin GitHub Actions by SHA', 'the second idea fills the quota the dup did not consume');
+  });
+});
+
+describe('buildCrossRepoIssueBody (G9 deterministic body)', () => {
+  it('composes a standards-gap body from the finding statistic alone', () => {
+    const finding = { type: 'standards-gap', tool: 'dependabot-auto-merge', compliant: ['a', 'b', 'c'], nonCompliant: ['target'], adoptionRate: 0.75 };
+    const body = buildCrossRepoIssueBody(finding, { trackingUrl: 'https://github.com/IsmaelMartinez/repo-butler/issues/5' });
+    assert.ok(body.includes('3 of 4'), 'adoption fraction from the finding');
+    assert.ok(body.includes('75% adoption'));
+    assert.ok(body.includes('dependabot-auto-merge'));
+    assert.ok(body.includes('https://github.com/IsmaelMartinez/repo-butler/issues/5'), 'bare-URL back-link present');
+  });
+
+  it('composes a policy-drift body with the expected/actual comparison', () => {
+    const body = buildCrossRepoIssueBody({ type: 'policy-drift', category: 'ci-reliability', expected: '95%', actual: '70%' }, {});
+    assert.ok(body.includes('ci-reliability'));
+    assert.ok(body.includes('70%') && body.includes('95%'));
+  });
+
+  it('composes a tier-uplift body listing the named failing checks', () => {
+    const body = buildCrossRepoIssueBody({ type: 'tier-uplift', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Code scanning' }, { name: 'Secret scanning' }] }, {});
+    assert.ok(body.includes('silver') && body.includes('gold'));
+    assert.ok(body.includes('Code scanning') && body.includes('Secret scanning'));
+    assert.ok(body.includes('2 check'));
+  });
+
+  it('omits the back-link line when no tracking URL is supplied (dry-run)', () => {
+    const body = buildCrossRepoIssueBody({ type: 'policy-drift', category: 'license', expected: 'MIT', actual: 'None' }, { trackingUrl: null });
+    assert.ok(!body.includes('Tracked in the repo-butler portfolio backlog'));
+  });
+
+  it('never carries a cross-reference autolink — passes validateIssueBody({crossRepo:true})', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 't', compliant: ['a'], nonCompliant: ['b'], adoptionRate: 0.5 },
+      { type: 'policy-drift', category: 'license', expected: 'MIT', actual: 'GPL-3.0' },
+      { type: 'tier-uplift', currentTier: 'bronze', targetTier: 'silver', failingChecks: [{ name: 'CI' }] },
+    ];
+    for (const finding of findings) {
+      const body = buildCrossRepoIssueBody(finding, { trackingUrl: 'https://github.com/IsmaelMartinez/repo-butler/issues/5' });
+      assert.ok(validateIssueBody(body, { crossRepo: true }).valid, `clean cross-repo body for ${finding.type}`);
+    }
+  });
+
+  it('falls back to a safe portfolio-grounded line for an unknown anchor type', () => {
+    const body = buildCrossRepoIssueBody({ type: 'dependabot-stale' }, {});
+    assert.ok(body.includes('portfolio-wide governance comparison'));
+    assert.ok(validateIssueBody(body, { crossRepo: true }).valid);
+  });
+});
+
+describe('ensureTrackingIssue (G9 host umbrella)', () => {
+  const hostGh = (issues, posts) => ({
+    paginate: async () => issues,
+    request: async (path, opts) => { posts.push({ path, body: opts?.body }); return { html_url: 'https://github.com/octo/repo-butler/issues/99' }; },
+  });
+
+  it('returns null in dry-run and performs no write', async () => {
+    const posts = [];
+    const url = await ensureTrackingIssue(hostGh([], posts), 'octo', 'repo-butler', ['l'], { dryRun: true });
+    assert.equal(url, null);
+    assert.equal(posts.length, 0);
+  });
+
+  it('reuses an existing umbrella issue matched by its stable title', async () => {
+    const posts = [];
+    const existing = [{ number: 7, title: 'Portfolio nudges — cross-repo proposal tracker', html_url: 'https://github.com/octo/repo-butler/issues/7' }];
+    const url = await ensureTrackingIssue(hostGh(existing, posts), 'octo', 'repo-butler', ['l'], { dryRun: false });
+    assert.equal(url, 'https://github.com/octo/repo-butler/issues/7');
+    assert.equal(posts.length, 0, 'no new umbrella created when one already exists');
+  });
+
+  it('creates the umbrella when none exists and returns its URL', async () => {
+    const posts = [];
+    const url = await ensureTrackingIssue(hostGh([], posts), 'octo', 'repo-butler', ['l'], { dryRun: false });
+    assert.equal(url, 'https://github.com/octo/repo-butler/issues/99');
+    assert.equal(posts.length, 1);
+    assert.ok(posts[0].body.title.includes('Portfolio nudges'));
+  });
+
+  it('returns null on any API error rather than blocking the nudge', async () => {
+    const gh = { paginate: async () => { throw new Error('boom'); }, request: async () => ({}) };
+    assert.equal(await ensureTrackingIssue(gh, 'octo', 'repo-butler', ['l'], { dryRun: false }), null);
+  });
+});
+
+describe('propose — onboarding precondition (G9)', () => {
+  const ctx = (over) => ({
+    owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true,
+    governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
+    portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+    config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+    ideas: [{ title: 'Adopt the portfolio licence', priority: 'medium', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' }],
+    ...over,
+  });
+
+  it('routes to the target when it carries the onboarding marker', async () => {
+    const result = await propose(ctx({ gh: stubGh() }));
+    assert.equal(result.created[0].crossRepo, true);
+    assert.equal(result.created[0].routedRepo, 'teams-for-linux');
+  });
+
+  it('falls back to the host when the target is NOT onboarded (no marker)', async () => {
+    const gh = stubGh();
+    gh.getFileContent = async () => '# CLAUDE.md\n\nno marker here';
+    const result = await propose(ctx({ gh }));
+    assert.equal(result.created[0].crossRepo, false);
+    assert.equal(result.created[0].routedRepo, 'repo-butler');
+    assert.equal(result.created[0].routeReason, 'target-not-onboarded');
+  });
+
+  it('falls back to the host when CLAUDE.md is missing (getFileContent null)', async () => {
+    const gh = stubGh();
+    gh.getFileContent = async () => null;
+    const result = await propose(ctx({ gh }));
+    assert.equal(result.created[0].crossRepo, false);
+  });
+
+  it('fails closed to the host when the onboarding read throws', async () => {
+    const gh = stubGh();
+    gh.getFileContent = async () => { throw new Error('403'); };
+    const result = await propose(ctx({ gh }));
+    assert.equal(result.created[0].crossRepo, false);
+    assert.equal(result.created[0].routedRepo, 'repo-butler');
+  });
+
+  it('performs NO onboarding read when the allow-lists are empty (byte-identical)', async () => {
+    let reads = 0;
+    const gh = stubGh();
+    gh.getFileContent = async () => { reads++; return '# CLAUDE.md\n\nrepo-butler'; };
+    // Empty maps → the targeted idea never routes cross-repo, so the onboarding
+    // precondition (a read) must not fire at all.
+    await propose(ctx({ gh, config: { limits: { require_approval: false } } }));
+    assert.equal(reads, 0, 'no onboarding read when nothing routes cross-repo');
+  });
+
+  it('checks each distinct target only once per run (cached)', async () => {
+    let reads = 0;
+    const gh = stubGh();
+    gh.getFileContent = async () => { reads++; return '# CLAUDE.md\n\nrepo-butler'; };
+    await propose(ctx({
+      gh,
+      config: { limits: { require_approval: false, max_issues_per_target: 5 }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+      ideas: [
+        { title: 'Adopt the portfolio licence', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
+        { title: 'Pin GitHub Actions by SHA', priority: 'medium', labels: [], body: 'b.', rationale: '12/14 repos pin actions.', targetRepo: 'teams-for-linux' },
+      ],
+    }));
+    assert.equal(reads, 1, 'onboarding read cached per target across ideas');
+  });
+});
+
+describe('propose — portfolio-nudge label & host tracking issue (G9)', () => {
+  const ctx = (over) => ({
+    owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: false,
+    governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
+    portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+    config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+    ideas: [{ title: 'Adopt the portfolio licence', priority: 'medium', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' }],
+    ...over,
+  });
+
+  it('adds the portfolio-nudge label to a cross-repo issue and ensures it on the target', async () => {
+    const gh = stubGh();
+    const result = await propose(ctx({ gh }));
+    assert.ok(result.created[0].labels.includes('portfolio-nudge'), 'soak record carries the nudge label');
+    assert.ok(gh.calls.some(c => c.path === '/repos/octo/teams-for-linux/labels/portfolio-nudge'), 'nudge label ensured on the target');
+    const post = gh.calls.find(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues');
+    assert.ok(post.body.labels.includes('portfolio-nudge'), 'filed issue carries the nudge label');
+  });
+
+  it('never adds the portfolio-nudge label to a host issue', async () => {
+    const gh = stubGh();
+    // Empty maps → the targeted idea falls back to the host backlog.
+    const result = await propose(ctx({ gh, config: { limits: { require_approval: false } } }));
+    assert.equal(result.created[0].crossRepo, false);
+    assert.ok(!result.created[0].labels.includes('portfolio-nudge'));
+    assert.ok(!gh.calls.some(c => c.path.includes('portfolio-nudge')), 'nudge label never touched on the host');
+  });
+
+  it('files a single host-side umbrella tracking issue when a cross-repo issue is filed', async () => {
+    const gh = stubGh();
+    await propose(ctx({ gh }));
+    const umbrella = gh.calls.find(c => c.method === 'POST' && c.path === '/repos/octo/repo-butler/issues' && c.body?.title?.includes('Portfolio nudges'));
+    assert.ok(umbrella, 'host-side umbrella tracking issue created');
+  });
+
+  it('reuses an existing umbrella and back-links the cross-repo body to it via a bare URL', async () => {
+    const gh = stubGh();
+    gh.paginate = async (path, opts) => {
+      gh.calls.push({ path, method: 'GET' });
+      if (path === '/repos/octo/repo-butler/issues' && opts?.params?.state === 'open') {
+        return [{ number: 7, title: 'Portfolio nudges — cross-repo proposal tracker', html_url: 'https://github.com/octo/repo-butler/issues/7' }];
+      }
+      return [];
+    };
+    await propose(ctx({ gh }));
+    assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/repo-butler/issues' && c.body?.title?.includes('Portfolio nudges')), 'existing umbrella reused, not recreated');
+    const post = gh.calls.find(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues');
+    assert.ok(post.body.body.includes('https://github.com/octo/repo-butler/issues/7'), 'bare-URL back-link to the reused umbrella');
+  });
+
+  it('creates no tracking issue in dry-run (no writes at all)', async () => {
+    const gh = stubGh();
+    await propose(ctx({ gh, dryRun: true }));
+    assert.ok(!gh.calls.some(c => c.method === 'POST'), 'dry-run performs no writes, including the tracker');
+  });
+});
+
+describe('propose — cross-repo title gate & anchor coverage (G9 review hardening)', () => {
+  const base = (over) => ({
+    owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: false,
+    config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true } },
+    ...over,
+  });
+
+  it('drives a standards-gap anchor (matched via nonCompliant) through the live path and posts the statistic in the body', async () => {
+    const gh = stubGh();
+    const result = await propose(base({
+      gh,
+      governanceFindings: [{ type: 'standards-gap', tool: 'dependabot-auto-merge', compliant: ['a', 'b', 'c'], nonCompliant: ['teams-for-linux'], adoptionRate: 0.75 }],
+      portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'standards-gap': true } },
+      ideas: [{ title: 'Adopt dependabot auto-merge', priority: 'high', labels: [], body: 'b.', rationale: '3 of 4 repos adopt this.', targetRepo: 'teams-for-linux' }],
+    }));
+    assert.equal(result.created[0].crossRepo, true);
+    const post = gh.calls.find(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues');
+    assert.ok(post.body.body.includes('3 of 4'), 'live standards-gap body carries the adoption fraction');
+    assert.ok(post.body.body.includes('75% adoption') && post.body.body.includes('dependabot-auto-merge'));
+  });
+
+  it('drives a tier-uplift anchor through the live path and posts the tiers and named checks', async () => {
+    const gh = stubGh();
+    const result = await propose(base({
+      gh,
+      governanceFindings: [{ type: 'tier-uplift', repo: 'teams-for-linux', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Code scanning' }] }],
+      portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'tier-uplift': true } },
+      ideas: [{ title: 'Reach the gold tier', priority: 'high', labels: [], body: 'b.', rationale: '12 of 14 repos are gold.', targetRepo: 'teams-for-linux' }],
+    }));
+    assert.equal(result.created[0].crossRepo, true);
+    const post = gh.calls.find(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues');
+    assert.ok(post.body.body.includes('silver') && post.body.body.includes('gold') && post.body.body.includes('Code scanning'));
+  });
+
+  it('skips a cross-repo idea whose TITLE carries a #N / @mention / per-repo-code claim (gate, not just the body)', async () => {
+    const gh = stubGh();
+    const result = await propose(base({
+      gh,
+      governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
+      portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+      // Rationale is clean (admits at the gate), but the title makes a per-repo code
+      // claim AND a bare #N cross-ref — both must be caught by the cross-repo title gate.
+      ideas: [{ title: 'Fix the flaky test #42', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' }],
+    }));
+    assert.equal(result.created.length, 0, 'idea with a tainted cross-repo title is skipped');
+    assert.ok(!gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/teams-for-linux/issues'), 'no issue filed on the target');
+  });
+
+  it('a mixed host+cross-repo run labels only the target with portfolio-nudge, never the host', async () => {
+    const gh = stubGh();
+    const result = await propose(base({
+      gh,
+      governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
+      portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+      config: { limits: { require_approval: false, max_issues_per_target: 5 }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+      ideas: [
+        { title: 'A plain host idea', priority: 'high', labels: [], body: 'host.', targetRepo: null },
+        { title: 'Align the portfolio licence', priority: 'medium', labels: [], body: 'x.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
+      ],
+    }));
+    const host = result.created.find(c => !c.crossRepo);
+    const cross = result.created.find(c => c.crossRepo);
+    assert.ok(host && cross, 'both a host and a cross-repo issue filed in one run');
+    assert.ok(!host.labels.includes('portfolio-nudge'), 'host issue not nudge-labelled');
+    assert.ok(cross.labels.includes('portfolio-nudge'), 'cross-repo issue nudge-labelled');
+    assert.ok(!gh.calls.some(c => c.path.includes('/repos/octo/repo-butler/') && c.path.includes('portfolio-nudge')), 'nudge label never ensured on the host repo');
+  });
+
+  it('a non-onboarded target downgrades every idea to the host and the per-target cap never fires', async () => {
+    const gh = stubGh();
+    gh.getFileContent = async () => '# CLAUDE.md\n\nno marker'; // target not onboarded
+    const result = await propose(base({
+      gh, dryRun: true,
+      governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
+      portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } }, // default max_issues_per_target: 1
+      ideas: [
+        { title: 'Licence one', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
+        { title: 'Pin actions by SHA', priority: 'medium', labels: [], body: 'b.', rationale: '12/14 repos pin actions.', targetRepo: 'teams-for-linux' },
+      ],
+    }));
+    assert.equal(result.created.length, 2, 'both ideas file on the host (downgraded), not capped');
+    assert.ok(result.created.every(c => !c.crossRepo && c.routedRepo === 'repo-butler'));
+    assert.equal(result.skippedCapped.length, 0, 'the cross-repo per-target cap never fires for downgraded ideas');
   });
 });

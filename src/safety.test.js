@@ -6,7 +6,7 @@ import {
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, detectEcosystem,
   sanitizeContributorName, validateGitHubUsername,
-  resolveCrossRepoDestination,
+  resolveCrossRepoDestination, findingNamesRepo,
   sanitizeLabels, redactErrorForLog,
   wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
 } from './safety.js';
@@ -1022,5 +1022,52 @@ describe('wrapPrompt', () => {
     assert.ok(out.includes(PROMPT_DEFENCE));
     assert.ok(out.includes(DATA_BOUNDARY_START));
     assert.ok(out.includes(DATA_BOUNDARY_END));
+  });
+});
+
+describe('findingNamesRepo (exported for G9 anchor re-find)', () => {
+  it('matches a single-repo finding on its repo field', () => {
+    assert.equal(findingNamesRepo({ type: 'policy-drift', repo: 'teams-for-linux' }, 'teams-for-linux'), true);
+    assert.equal(findingNamesRepo({ type: 'policy-drift', repo: 'teams-for-linux' }, 'other'), false);
+  });
+
+  it('matches a standards-gap finding via its nonCompliant list, never its compliant list', () => {
+    const f = { type: 'standards-gap', nonCompliant: ['a', 'target'], compliant: ['b'] };
+    assert.equal(findingNamesRepo(f, 'target'), true);
+    assert.equal(findingNamesRepo(f, 'b'), false, 'a compliant repo is never a nudge target');
+  });
+
+  it('is false for a nullish finding or non-string repo', () => {
+    assert.equal(findingNamesRepo(null, 'x'), false);
+    assert.equal(findingNamesRepo({ repo: 'x' }, null), false);
+  });
+});
+
+describe('validateIssueTitle cross-repo mode (G9)', () => {
+  it('accepts a clean cross-repo title', () => {
+    assert.equal(validateIssueTitle('Adopt dependabot auto-merge to match the portfolio', { crossRepo: true }).valid, true);
+  });
+
+  it('rejects a bare #N, GH-N, or owner/repo#N cross-reference', () => {
+    assert.equal(validateIssueTitle('Adopt this, see #42', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Track GH-7', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Mirror owner/repo#3', { crossRepo: true }).valid, false);
+  });
+
+  it('rejects an @mention and a disallowed URL', () => {
+    assert.equal(validateIssueTitle('Ping @maintainer to adopt', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Adopt per https://evil.com', { crossRepo: true }).valid, false);
+  });
+
+  it('rejects a per-repo code/content claim', () => {
+    assert.equal(validateIssueTitle('Fix the buggy auth handler', { crossRepo: true }).valid, false);
+    assert.equal(validateIssueTitle('Refactor this module', { crossRepo: true }).valid, false);
+  });
+
+  it('host mode (the default) is unchanged — a #N or @mention title stays valid', () => {
+    // validateIdeas validates host titles in default mode; host issues legitimately
+    // cite their own #N, so the cross-repo checks must not fire there.
+    assert.equal(validateIssueTitle('Track #42 follow-up').valid, true);
+    assert.equal(validateIssueTitle('Refactor this module').valid, true);
   });
 });

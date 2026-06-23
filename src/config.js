@@ -18,6 +18,11 @@ const DEFAULTS = {
     labels: {
       proposal: 'roadmap-proposal',
       agent: 'agent-generated',
+      // Cross-repo PROPOSE only (ADR-011, G9): a distinct label on issues filed
+      // into ANOTHER portfolio repo, so a target maintainer can see at a glance
+      // that the issue is bot-authored from cross-repo norms. Never applied to
+      // host issues; created on the target only after the routing gates pass.
+      portfolioNudge: 'portfolio-nudge',
     },
   },
   observe: {

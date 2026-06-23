@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 // We can't easily test the full onboard flow (requires GitHub API), but we
 // can verify the module exports and the content generation logic.
-import { onboard } from './onboard.js';
+import { onboard, hasOnboardingMarker, MARKER } from './onboard.js';
 
 describe('onboard', () => {
   it('exports an onboard function', () => {
@@ -42,5 +42,25 @@ describe('onboard', () => {
     } finally {
       console.warn = origWarn;
     }
+  });
+});
+
+describe('hasOnboardingMarker (G9 cross-repo precondition)', () => {
+  const gh = (impl) => ({ getFileContent: impl });
+
+  it('returns true when CLAUDE.md contains the repo-butler marker', async () => {
+    assert.equal(await hasOnboardingMarker(gh(async () => `# CLAUDE.md\n\n${MARKER} consumer guide`), 'o', 'r'), true);
+  });
+
+  it('returns false when CLAUDE.md exists but lacks the marker', async () => {
+    assert.equal(await hasOnboardingMarker(gh(async () => '# CLAUDE.md\n\nnothing here'), 'o', 'r'), false);
+  });
+
+  it('returns false when CLAUDE.md is missing (getFileContent returns null)', async () => {
+    assert.equal(await hasOnboardingMarker(gh(async () => null), 'o', 'r'), false);
+  });
+
+  it('fails closed (false) when the read throws', async () => {
+    assert.equal(await hasOnboardingMarker(gh(async () => { throw new Error('403'); }), 'o', 'r'), false);
   });
 });

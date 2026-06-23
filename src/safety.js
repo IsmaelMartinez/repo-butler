@@ -49,7 +49,7 @@ const BLOCKED_PATTERNS = [
   /javascript:/i,                      // JS protocol
 ];
 
-export function validateIssueTitle(title) {
+export function validateIssueTitle(title, { crossRepo = false } = {}) {
   const errors = [];
 
   if (!title || typeof title !== 'string') {
@@ -68,6 +68,30 @@ export function validateIssueTitle(title) {
   for (const pattern of BLOCKED_PATTERNS) {
     if (pattern.test(title)) {
       errors.push(`Title contains blocked pattern: ${pattern.source.slice(0, 30)}`);
+    }
+  }
+
+  // A cross-repo issue title reaches ANOTHER repo and is the highest-visibility
+  // field there, yet the per-idea body validators never see it. Hold it to the
+  // same content gates as a cross-repo body (ADR-011, G9): no cross-reference
+  // autolink, no @mention, no disallowed URL, and no per-repo code/content claim —
+  // the title must assert nothing beyond what the deterministic body grounds.
+  if (crossRepo) {
+    // The shared validators phrase their errors as "Body contains …", which is
+    // misleading in title context (these surface in propose()'s skip log), so run
+    // them as predicates and push title-specific messages. The matched token is
+    // redacted from logs anyway, so no detail is lost.
+    if (!validateCrossRefs(title).valid) {
+      errors.push('Title contains a cross-reference autolink (#N, owner/repo#N, or GH-N) that would link into the target repo');
+    }
+    if (validateMentions(title).length > 0) {
+      errors.push('Title contains an @mention — a cross-repo nudge must not ping users in another repo');
+    }
+    if (validateUrls(title).length > 0) {
+      errors.push('Title contains a disallowed URL host');
+    }
+    if (matchesAny(title, PER_REPO_CODE_PATTERNS)) {
+      errors.push('Title makes a per-repo code/content claim — a cross-repo nudge may assert only portfolio statistics');
     }
   }
 
@@ -464,7 +488,7 @@ function matchesAny(text, patterns) {
 // `compliant` is deliberately ignored — a compliant repo is never a nudge
 // target. The caller restricts which finding TYPES may anchor an admit (see
 // STATISTIC_BEARING_FINDING_TYPES), so this helper only answers "named?".
-function findingNamesRepo(finding, repo) {
+export function findingNamesRepo(finding, repo) {
   if (!finding || typeof repo !== 'string') return false;
   if (finding.repo === repo) return true;
   return Array.isArray(finding.nonCompliant) && finding.nonCompliant.includes(repo);
