@@ -1,8 +1,18 @@
 name: Repo Butler Weekly Ideate
 
-# Runs the expensive deep-provider IDEATE phase (council deliberation) on
-# a weekly cadence. Dry-run until the council output has been trusted for
-# long enough to graduate onto PROPOSE.
+# Runs the expensive deep-provider IDEATE phase (council deliberation) plus a
+# DRY-RUN PROPOSE pass on a weekly cadence. PROPOSE writes nothing while
+# INPUT_DRY_RUN is 'true' (the default): the `require_approval && !dryRun`
+# short-circuit is bypassed when dryRun is already true, so execution reaches
+# the soak log only — "DRY RUN — would create issue …" lines recording each
+# idea's resolved destination, and (ADR-011) which cross-repo nudges would
+# route to another repo versus fall back to the host backlog. This is the
+# month-long dry-run soak that gates graduating any cross-repo class live (G10).
+# The cross-repo allow-lists (propose-targets / propose-classes in roadmap.yml)
+# stay empty for now, so every targeted idea falls back to the host and the log
+# surfaces the candidate flow with zero writes. A live cross-repo write
+# additionally requires BOTH maps populated AND require_approval:false AND
+# INPUT_DRY_RUN:false — three deliberate, separately-reviewed flips.
 #
 # Note: governance detection runs implicitly inside `runIdeate` via
 # `runGovernance` (idempotent — no-op if already populated this turn).
@@ -49,10 +59,10 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-      - name: Run Observe + Ideate
+      - name: Run Observe + Ideate + Propose (dry-run soak)
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          INPUT_PHASE: observe,ideate
+          INPUT_PHASE: observe,ideate,propose
           INPUT_CONFIG_PATH: .github/roadmap.yml
           INPUT_DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
