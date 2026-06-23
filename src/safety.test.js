@@ -6,7 +6,7 @@ import {
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, detectEcosystem,
   sanitizeContributorName, validateGitHubUsername,
-  resolveCrossRepoDestination,
+  resolveCrossRepoDestination, findingNamesRepo,
   sanitizeLabels, redactErrorForLog,
   wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
 } from './safety.js';
@@ -1022,5 +1022,23 @@ describe('wrapPrompt', () => {
     assert.ok(out.includes(PROMPT_DEFENCE));
     assert.ok(out.includes(DATA_BOUNDARY_START));
     assert.ok(out.includes(DATA_BOUNDARY_END));
+  });
+});
+
+describe('findingNamesRepo (exported for G9 anchor re-find)', () => {
+  it('matches a single-repo finding on its repo field', () => {
+    assert.equal(findingNamesRepo({ type: 'policy-drift', repo: 'teams-for-linux' }, 'teams-for-linux'), true);
+    assert.equal(findingNamesRepo({ type: 'policy-drift', repo: 'teams-for-linux' }, 'other'), false);
+  });
+
+  it('matches a standards-gap finding via its nonCompliant list, never its compliant list', () => {
+    const f = { type: 'standards-gap', nonCompliant: ['a', 'target'], compliant: ['b'] };
+    assert.equal(findingNamesRepo(f, 'target'), true);
+    assert.equal(findingNamesRepo(f, 'b'), false, 'a compliant repo is never a nudge target');
+  });
+
+  it('is false for a nullish finding or non-string repo', () => {
+    assert.equal(findingNamesRepo(null, 'x'), false);
+    assert.equal(findingNamesRepo({ repo: 'x' }, null), false);
   });
 });

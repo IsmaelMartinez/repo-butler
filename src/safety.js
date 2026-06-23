@@ -464,7 +464,7 @@ function matchesAny(text, patterns) {
 // `compliant` is deliberately ignored — a compliant repo is never a nudge
 // target. The caller restricts which finding TYPES may anchor an admit (see
 // STATISTIC_BEARING_FINDING_TYPES), so this helper only answers "named?".
-function findingNamesRepo(finding, repo) {
+export function findingNamesRepo(finding, repo) {
   if (!finding || typeof repo !== 'string') return false;
   if (finding.repo === repo) return true;
   return Array.isArray(finding.nonCompliant) && finding.nonCompliant.includes(repo);

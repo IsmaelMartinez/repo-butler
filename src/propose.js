@@ -2,8 +2,9 @@
 // Respects max_issues_per_run and require_approval settings.
 
 import { createClient, paginateIssues } from './github.js';
-import { validateIdeas, validateIssueBody, sanitizeLabels, redactErrorForLog, resolveCrossRepoDestination } from './safety.js';
+import { validateIdeas, validateIssueBody, sanitizeLabels, redactErrorForLog, resolveCrossRepoDestination, findingNamesRepo } from './safety.js';
 import { eligibleRepos } from './governance.js';
+import { hasOnboardingMarker } from './onboard.js';
 
 // Common words stripped from titles before comparison to reduce false positives.
 const STOP_WORDS = new Set([
@@ -144,6 +145,101 @@ export function buildIssueBody(idea) {
   sections.push(`*Priority: ${idea.priority} — proposed by [repo-butler](https://github.com/IsmaelMartinez/repo-butler)*`);
 
   return sections.join('\n\n');
+}
+
+// The single host-side umbrella issue that every cross-repo nudge back-links to
+// (ADR-011, G9). Identified by a stable title so it is found and reused across
+// runs rather than re-created, restoring the maintainer's one-place overview.
+const TRACKING_ISSUE_TITLE = 'Portfolio nudges — cross-repo proposal tracker';
+
+/**
+ * Compose a cross-repo issue body DETERMINISTICALLY from the anchoring governance
+ * finding rather than the LLM's free-form fields (ADR-011, G9). The body asserts
+ * only the portfolio statistic the butler itself computed — never a target-repo
+ * fact it never observed — which is the real guarantee the G4 gate's keyword
+ * denylist could only approximate. The LLM's host-oriented fields (rationale,
+ * currentState, affectedFiles, host issue refs) are deliberately NOT composed
+ * in, so nothing from the host snapshot leaks into another repo. It carries no
+ * GitHub cross-reference autolink (#N or owner/repo#N); the host-side tracking
+ * back-link is a BARE allowlisted URL, the only form that survives
+ * validateIssueBody({ crossRepo: true }) (G3).
+ */
+export function buildCrossRepoIssueBody(idea, finding, { trackingUrl = null } = {}) {
+  const lines = [];
+  const type = finding?.type;
+
+  if (type === 'standards-gap') {
+    const adopted = Array.isArray(finding.compliant) ? finding.compliant.length : 0;
+    const missing = Array.isArray(finding.nonCompliant) ? finding.nonCompliant.length : 0;
+    const applicable = adopted + missing;
+    const pct = Number.isFinite(finding.adoptionRate) ? Math.round(finding.adoptionRate * 100) : null;
+    const tool = finding.tool || 'this portfolio standard';
+    lines.push(`Across the portfolio, ${adopted} of ${applicable} applicable repositories have adopted **${tool}**${pct != null ? ` (${pct}% adoption)` : ''}. This repository is among the ${missing} that have not.`);
+    lines.push('');
+    lines.push('Adopting it would bring this repository in line with the portfolio norm.');
+  } else if (type === 'policy-drift') {
+    const category = finding.category || 'a portfolio standard';
+    if (finding.expected != null && finding.actual != null) {
+      lines.push(`Across the portfolio, this repository's **${category}** (${finding.actual}) diverges from the portfolio norm (${finding.expected}).`);
+    } else {
+      lines.push(`Across the portfolio, this repository diverges from the norm on **${category}**.`);
+    }
+    lines.push('');
+    lines.push('Bringing it in line with the portfolio would resolve this drift.');
+  } else if (type === 'tier-uplift') {
+    const current = finding.currentTier || 'its current';
+    const target = finding.targetTier || 'the next';
+    const checks = Array.isArray(finding.failingChecks) ? finding.failingChecks : [];
+    lines.push(`Across the portfolio, this repository sits at the **${current}** health tier and is within reach of **${target}** — ${checks.length} check(s) remain.`);
+    if (checks.length > 0) {
+      lines.push('');
+      lines.push(`Remaining checks for ${target}:`);
+      for (const c of checks) lines.push(`- ${c.name}`);
+    }
+    lines.push('');
+    lines.push(`Closing these would lift this repository to ${target}.`);
+  } else {
+    // Unknown anchor type — unreachable, since the gate admits only the three
+    // statistic-bearing classes. Fail safe with a minimal portfolio-grounded line.
+    lines.push('This repository was flagged by a portfolio-wide governance comparison computed by repo-butler.');
+  }
+
+  lines.push('');
+  lines.push('---');
+  if (trackingUrl) {
+    lines.push(`Tracked in the repo-butler portfolio backlog: ${trackingUrl}`);
+  }
+  lines.push('*Proposed by [repo-butler](https://github.com/IsmaelMartinez/repo-butler) from cross-portfolio observability.*');
+
+  return lines.join('\n');
+}
+
+/**
+ * Find or create the single host-side umbrella tracking issue (ADR-011, G9) that
+ * cross-repo nudges back-link to. Matched on a stable title so it is reused
+ * across runs. Returns its html_url, or null when it cannot be supplied — in
+ * dry-run (creating it would be a write) or on any API error — in which case the
+ * cross-repo body simply omits the back-link rather than blocking the nudge.
+ */
+export async function ensureTrackingIssue(gh, owner, hostRepo, labels, { dryRun = false } = {}) {
+  if (dryRun) return null;
+  try {
+    const open = await paginateIssues(gh, owner, hostRepo, { params: { state: 'open' }, max: 500 });
+    const existing = open.find(i => i.title === TRACKING_ISSUE_TITLE && !i.pull_request);
+    if (existing) return existing.html_url || null;
+    const body = [
+      'This issue is the single host-side tracker for cross-repo proposals repo-butler files into other portfolio repositories.',
+      '',
+      'Each portfolio-nudge issue filed into another repo links back here, so the portfolio maintainer keeps one place to see everything the butler has proposed elsewhere.',
+    ].join('\n');
+    const created = await gh.request(`/repos/${owner}/${hostRepo}/issues`, {
+      method: 'POST',
+      body: { title: TRACKING_ISSUE_TITLE, body, labels },
+    });
+    return created.html_url || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -312,6 +408,10 @@ export async function propose(context) {
   const maxPerTarget = Number.isFinite(rawMaxPerTarget) && rawMaxPerTarget >= 0 ? rawMaxPerTarget : 1;
   const proposalLabel = config.limits?.labels?.proposal || 'roadmap-proposal';
   const agentLabel = config.limits?.labels?.agent || 'agent-generated';
+  // Cross-repo issues carry one extra label (ADR-011, G9) so a target maintainer
+  // sees at a glance the issue is a bot-authored portfolio nudge. Host-only by
+  // construction below — it is added to the target's label set, never the host's.
+  const nudgeLabel = config.limits?.labels?.portfolioNudge || 'portfolio-nudge';
 
   // Cross-repo routing inputs (ADR-011, G5). The governance findings anchor the
   // gate; the portfolio's eligible repo names are the defence-in-depth
@@ -325,18 +425,24 @@ export async function propose(context) {
   // Ensure the proposal/agent labels exist on a repo before filing there.
   // Idempotent and memoised per repo: the host is done up front (unchanged from
   // before), and a cross-repo target is labelled lazily the first time an issue
-  // actually routes to it (so an empty allow-list touches no other repo).
-  const labelSpecs = [
+  // actually routes to it (so an empty allow-list touches no other repo). A
+  // cross-repo target additionally gets the portfolio-nudge label (G9); the host
+  // never does, so the nudge label stays target-only as ADR-011 specifies.
+  const baseLabelSpecs = [
     [proposalLabel, 'Issue proposed by repo-butler', '7057ff'],
     [agentLabel, 'Created by an automated agent', 'c5def5'],
   ];
+  const crossRepoLabelSpecs = [
+    ...baseLabelSpecs,
+    [nudgeLabel, 'Cross-repo nudge from repo-butler portfolio norms', 'fbca04'],
+  ];
   const labelledRepos = new Set();
-  const ensureLabelsOn = async (r) => {
+  const ensureLabelsOn = async (r, specs) => {
     if (labelledRepos.has(r)) return;
-    for (const [name, desc, color] of labelSpecs) await ensureLabel(gh, owner, r, name, desc, color);
+    for (const [name, desc, color] of specs) await ensureLabel(gh, owner, r, name, desc, color);
     labelledRepos.add(r);
   };
-  await ensureLabelsOn(repo);
+  await ensureLabelsOn(repo, baseLabelSpecs);
 
   // Sort by priority: high > medium > low.
   const priorityOrder = { high: 0, medium: 1, low: 2 };
@@ -357,18 +463,45 @@ export async function propose(context) {
   // per-run budget — the safe direction (fewer issues, never more).
   const perTargetCreated = new Map();
   const skippedCapped = [];
+  // Onboarding precondition (ADR-011, G9): a cross-repo target must carry the
+  // repo-butler marker before it can receive a nudge. Cached per-run so each
+  // distinct target is checked once. The single host-side umbrella tracking
+  // issue is resolved lazily the first time a cross-repo issue is actually filed
+  // (a write, so never in dry-run).
+  const onboardedCache = new Map();
+  let trackingUrl = null;
+  let trackingResolved = false;
 
   for (const idea of toPropose) {
     // Resolve the destination FIRST, before any repo-specific API call, so a
     // cross-repo target name is validated and allow-listed before we touch it
     // (ADR-011). With empty maps this is always the host repo.
-    const dest = resolveProposalDestination(idea, { findings, eligibleRepoNames, owner, hostRepo: repo, proposeTargets, proposeClasses });
+    let dest = resolveProposalDestination(idea, { findings, eligibleRepoNames, owner, hostRepo: repo, proposeTargets, proposeClasses });
 
     // A malformed (injection-shaped) target name is dropped outright: filed
     // nowhere, not even on the host, and never interpolated into an API path.
     if (dest.action === 'drop') {
       console.log(`Skipping '${idea.title}' — malformed target name, idea dropped (${dest.reason}).`);
       continue;
+    }
+
+    // Onboarding precondition (G9): a cross-repo target must carry the repo-butler
+    // onboarding marker — both a consent signal and a blast-radius fence (ADR-011).
+    // A non-onboarded target falls back to the host backlog, the same safe default
+    // as a not-allow-listed target, and the soak log records why. Cross-repo only;
+    // the result is cached so each distinct target costs at most one read per run.
+    // Done before the per-target cap so the cap (cross-repo only) sees the final
+    // destination — a downgraded idea files on the host and is never capped.
+    if (dest.crossRepo) {
+      let onboarded = onboardedCache.get(dest.repo);
+      if (onboarded === undefined) {
+        onboarded = await hasOnboardingMarker(gh, owner, dest.repo);
+        onboardedCache.set(dest.repo, onboarded);
+      }
+      if (!onboarded) {
+        console.log(`Routing '${idea.title}' to host — target ${dest.repo} is not onboarded (no repo-butler marker).`);
+        dest = { action: 'file', repo, crossRepo: false, reason: 'target-not-onboarded' };
+      }
     }
     const destRepo = dest.repo;
 
@@ -404,15 +537,37 @@ export async function propose(context) {
       continue;
     }
 
-    const labels = [proposalLabel, agentLabel, ...sanitizeLabels(idea.labels)];
-    const body = buildIssueBody(idea);
+    // Host issues keep the LLM-composed body; cross-repo issues get a DETERMINISTIC
+    // body built from the anchoring finding (G9), so the published text asserts
+    // only the portfolio statistic the butler computed and the LLM's host-oriented
+    // fields never leak into another repo. The nudge label is target-only.
+    let labels;
+    let body;
+    if (dest.crossRepo) {
+      // Re-find the anchoring finding the gate matched (same predicate); it is
+      // guaranteed present because the gate admitted this target on it.
+      const anchorFinding = findings.find(f => f.type === dest.anchorType && findingNamesRepo(f, destRepo));
+      // Resolve the single host-side umbrella tracking issue once per run, lazily,
+      // only now that a cross-repo issue is actually being filed (null in dry-run).
+      if (!trackingResolved) {
+        trackingUrl = await ensureTrackingIssue(gh, owner, repo, baseLabelSpecs.map(s => s[0]), { dryRun });
+        trackingResolved = true;
+      }
+      labels = [proposalLabel, agentLabel, nudgeLabel, ...sanitizeLabels(idea.labels)];
+      body = buildCrossRepoIssueBody(idea, anchorFinding, { trackingUrl });
+    } else {
+      labels = [proposalLabel, agentLabel, ...sanitizeLabels(idea.labels)];
+      body = buildIssueBody(idea);
+    }
 
     // validateIdeas only checks idea.body, but the composed body also embeds
     // the structured LLM fields (rationale, currentState, proposedState,
-    // scope, affectedFiles). Validate the final string that actually reaches
-    // GitHub so those fields pass the same gate (URLs, @mentions, keys, length).
-    // Cross-repo destinations get the extra cross-reference autolink gate (G3) so
-    // an owner/repo#N or bare #N can't notify or mis-link in the target repo.
+    // scope, affectedFiles) — or, for cross-repo, the deterministic finding text.
+    // Validate the final string that actually reaches GitHub so it passes the
+    // same gate (URLs, @mentions, keys, length). Cross-repo destinations get the
+    // extra cross-reference autolink gate (G3) so an owner/repo#N or bare #N can't
+    // notify or mis-link in the target repo — defence-in-depth on our own
+    // deterministic output, which carries only bare allowlisted URLs.
     const bodyCheck = validateIssueBody(body, { crossRepo: dest.crossRepo });
     if (!bodyCheck.valid) {
       console.warn(`SAFETY: composed body for '${idea.title}' failed validation, skipping idea:`);
@@ -439,7 +594,7 @@ export async function propose(context) {
     // Wrapped with the write below so a cross-repo target that has issues
     // disabled or is unwritable by the token fails this idea, not the whole run.
     try {
-      await ensureLabelsOn(destRepo);
+      await ensureLabelsOn(destRepo, dest.crossRepo ? crossRepoLabelSpecs : baseLabelSpecs);
 
       const issue = await gh.request(`/repos/${owner}/${destRepo}/issues`, {
         method: 'POST',
