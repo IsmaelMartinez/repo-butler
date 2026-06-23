@@ -197,7 +197,9 @@ export function buildCrossRepoIssueBody(finding, { trackingUrl = null } = {}) {
     if (checks.length > 0) {
       lines.push('');
       lines.push(`Remaining checks for ${target}:`);
-      for (const c of checks) lines.push(`- ${c.name}`);
+      // Defensive: governance always supplies { name, required_for } objects, but
+      // skip any nameless/nullish element rather than render a "- undefined" line.
+      for (const c of checks) if (c?.name) lines.push(`- ${c.name}`);
     }
     lines.push('');
     lines.push(`Closing these would lift this repository to ${target}.`);
@@ -564,7 +566,7 @@ export async function propose(context) {
     if (dest.crossRepo) {
       // Re-find the anchoring finding the gate matched (same predicate); it is
       // guaranteed present because the gate admitted this target on it.
-      const anchorFinding = findings.find(f => f.type === dest.anchorType && findingNamesRepo(f, destRepo));
+      const anchorFinding = findings.find(f => f?.type === dest.anchorType && findingNamesRepo(f, destRepo));
       // Resolve the single host-side umbrella tracking issue once per run, lazily,
       // only now that a cross-repo issue is actually being filed (null in dry-run).
       if (!trackingResolved) {
