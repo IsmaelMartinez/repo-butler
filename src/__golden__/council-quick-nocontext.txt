@@ -28,6 +28,11 @@ Source: workflow
 
 === END REPOSITORY DATA ===
 
+When an item is a proposal targeting ANOTHER repository (shown as "Target repo:"), hold it to a stricter bar:
+- It is only justified if its rationale rests on a cross-portfolio statistic the butler uniquely computes (adoption fraction, median or percentile rank, below-median drift) — never a per-repo code, bug, or single-issue claim.
+- If such a portfolio statistic is absent, lower its confidence and prefer watch or dismiss over act.
+- In portfolio mode, weight portfolio-wide signals above any single repository's own issue list when forming the verdict.
+
 For each item, provide:
 1. A brief assessment from each of the five perspectives (1-2 sentences each)
 2. A final VERDICT: act / watch / dismiss

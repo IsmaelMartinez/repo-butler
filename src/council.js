@@ -55,6 +55,45 @@ export const VERDICTS = {
   DISMISS: 'dismiss', // No action needed.
 };
 
+// --- Cross-repo quality filter (defence in depth) ---
+//
+// The council is an LLM, so it can never BE the cross-repo admissibility
+// boundary — that is the deterministic finding-anchoring gate in
+// propose()/safety.js (G4/G5). These rules are defence in depth: they bias the
+// council against weak cross-repo nudges and let the deterministic gate below
+// hold a low-rated cross-repo idea back. They never admit a cross-repo idea the
+// boundary would reject, and never touch host ideas.
+const CROSS_REPO_GROUNDING_RULES = [
+  'When an item is a proposal targeting ANOTHER repository (shown as "Target repo:"), hold it to a stricter bar:',
+  '- It is only justified if its rationale rests on a cross-portfolio statistic the butler uniquely computes (adoption fraction, median or percentile rank, below-median drift) — never a per-repo code, bug, or single-issue claim.',
+  '- If such a portfolio statistic is absent, lower its confidence and prefer watch or dismiss over act.',
+  '- In portfolio mode, weight portfolio-wide signals above any single repository\'s own issue list when forming the verdict.',
+];
+
+// A council-approved cross-repo idea (one with a targetRepo) is auto-filed only
+// when the council AFFIRMATIVELY rated it high-confidence and did not mark it
+// low-priority. Anything weaker is held back to the watchlist for human review.
+// Host ideas (no targetRepo) always clear.
+//
+// Requiring explicit 'high' confidence is what makes this fail closed: the
+// verdict parsers (parseDeliberationResponse / parseSynthesisResponse) default
+// an OMITTED confidence/priority line to 'medium' (a common LLM drift). Since
+// 'medium' is not in the confidence set, a verdict that simply drops the rating
+// lines lands at medium confidence and is held back — not admitted. A cross-repo
+// write is higher blast radius than a host one, so the absent/uncertain case
+// must demote. This is defence in depth; the admissibility boundary stays the
+// deterministic finding-anchoring gate in propose()/safety.js, never here.
+const CROSS_REPO_OK_CONFIDENCE = new Set(['high']);
+const CROSS_REPO_OK_PRIORITY = new Set(['critical', 'high', 'medium']);
+
+export function clearsCrossRepoCouncilBar(idea) {
+  if (!idea) return false;            // fail closed on a nullish idea (this is a safety gate)
+  if (!idea.targetRepo) return true;  // host idea — nothing to hold back
+  const confidence = String(idea.council_confidence || '').trim().toLowerCase();
+  const priority = String(idea.council_priority || '').trim().toLowerCase();
+  return CROSS_REPO_OK_CONFIDENCE.has(confidence) && CROSS_REPO_OK_PRIORITY.has(priority);
+}
+
 // --- Council deliberation ---
 
 // Run a full council deliberation on a set of events or proposals.
@@ -158,6 +197,8 @@ export function buildQuickDeliberationPrompt(items, context) {
     items: dataItems,
     padDataStart: true,
     outroLines: [
+      ...CROSS_REPO_GROUNDING_RULES,
+      '',
       'For each item, provide:',
       '1. A brief assessment from each of the five perspectives (1-2 sentences each)',
       '2. A final VERDICT: act / watch / dismiss',
@@ -204,6 +245,8 @@ export function buildPersonaPrompt(persona, items, context) {
     padDataStart: true,
     outroLines: [
       `Evaluate each item from your perspective as ${persona.role}.`,
+      ...CROSS_REPO_GROUNDING_RULES,
+      '',
       'For each item provide:',
       '',
       '---EVAL---',
@@ -247,6 +290,8 @@ export function buildSynthesisPrompt(items, assessments, context) {
     items: dataItems,
     padDataStart: true,
     outroLines: [
+      ...CROSS_REPO_GROUNDING_RULES,
+      '',
       'For each item, synthesise a final verdict. Use this format:',
       '',
       '---VERDICT---',
@@ -270,6 +315,15 @@ function formatItemForPrompt(item) {
   if (item.type) lines.push(`Type: ${item.type}`);
   if (item.severity) lines.push(`Severity: ${item.severity}`);
   if (item.title) lines.push(`Title: ${sanitizeForPrompt(item.title)}`);
+  // Cross-repo intent: a proposal that names another portfolio repo. Surfacing
+  // it lets the grounding rules below hold it to a stricter bar. The boundary
+  // itself stays in propose()/safety.js — this is only a visibility signal.
+  // Drop the line if sanitisation strips the value to empty, mirroring the
+  // label/author handling, so an injection-shaped target leaves no stray marker.
+  if (item.targetRepo) {
+    const safeTarget = sanitizeForPrompt(String(item.targetRepo));
+    if (safeTarget) lines.push(`Target repo: ${safeTarget}`);
+  }
   if (item.labels?.length) {
     // Drop empty entries left behind when sanitizeForPrompt strips an
     // injection-shaped label entirely, otherwise we get "Labels: , bug".
@@ -444,6 +498,8 @@ export async function reviewProposals(context, ideas) {
     proposedState: idea.proposedState,
     affectedFiles: idea.affectedFiles,
     scope: idea.scope,
+    // Surface cross-repo intent so the grounding rules apply (defence in depth).
+    targetRepo: idea.targetRepo,
   }));
 
   const result = await deliberate(context, items, {
@@ -457,14 +513,32 @@ export async function reviewProposals(context, ideas) {
       ...idea,
       council_verdict: verdict.verdict,
       council_confidence: verdict.confidence,
+      council_priority: verdict.priority,
       council_summary: verdict.summary,
       council_action: verdict.action,
       council_dissent: verdict.dissent,
     }),
   );
 
-  console.log(`Council review: ${approved.length} approved, ${watchlist.length} watchlisted, ${dismissed.length} dismissed.`);
-  return { approved, watchlist, dismissed };
+  // Deterministic quality gate: a council-approved cross-repo idea the council
+  // rated low-confidence or low-priority is held back to the watchlist (human
+  // review) rather than auto-filed. This only ever demotes approved -> watch
+  // for cross-repo ideas; it never promotes anything and never touches host
+  // ideas, so the cross-repo admissibility boundary stays in propose().
+  const passed = [];
+  const heldBack = [];
+  for (const idea of approved) {
+    if (clearsCrossRepoCouncilBar(idea)) {
+      passed.push(idea);
+    } else {
+      console.log(`Council quality gate: cross-repo idea "${idea.title}" -> watchlist (confidence=${idea.council_confidence}, priority=${idea.council_priority}).`);
+      heldBack.push({ ...idea, council_verdict: VERDICTS.WATCH, held_back_reason: 'cross-repo-quality-gate' });
+    }
+  }
+  const finalWatchlist = [...watchlist, ...heldBack];
+
+  console.log(`Council review: ${passed.length} approved, ${finalWatchlist.length} watchlisted, ${dismissed.length} dismissed.`);
+  return { approved: passed, watchlist: finalWatchlist, dismissed };
 }
 
 // Evaluate monitor events through the council.
