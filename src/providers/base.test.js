@@ -64,8 +64,8 @@ describe('fetchJson', () => {
     assert.deepEqual(received, { a: 1, b: { c: 2 } });
   });
 
-  it('throws on non-OK with provider name + status + response snippet', async () => {
-    globalThis.fetch = mock.fn(async () => errorResponse(429, 'rate limited: too many requests'));
+  it('throws on non-retriable non-OK with provider name + status + response snippet', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(400, 'bad request: invalid model'));
 
     await assert.rejects(
       () => fetchJson({
@@ -77,11 +77,13 @@ describe('fetchJson', () => {
       }),
       (err) => {
         assert.match(err.message, /Claude API error/);
-        assert.match(err.message, /429/);
-        assert.match(err.message, /rate limited/);
+        assert.match(err.message, /400/);
+        assert.match(err.message, /bad request/);
         return true;
       },
     );
+    // A non-retriable status throws on the first attempt — no backoff.
+    assert.equal(globalThis.fetch.mock.callCount(), 1);
   });
 
   it('truncates long error response bodies to 200 chars', async () => {
@@ -133,5 +135,103 @@ describe('fetchJson', () => {
       }),
       /no usable content/,
     );
+  });
+
+  it('retries a 429 then succeeds, returning the eventual content', async () => {
+    let n = 0;
+    globalThis.fetch = mock.fn(async () => {
+      n += 1;
+      return n === 1 ? errorResponse(429, 'rate limited') : jsonResponse({ result: 'ok' });
+    });
+    const sleep = mock.fn(async () => {});
+
+    const out = await fetchJson({
+      url: 'x', headers: {}, body: {}, extractText: (d) => d.result, providerName: 'Gemini', sleep,
+    });
+
+    assert.equal(out, 'ok');
+    assert.equal(globalThis.fetch.mock.callCount(), 2, 'one retry after the 429');
+    assert.equal(sleep.mock.callCount(), 1, 'backed off once before retrying');
+  });
+
+  it('also retries transient overload statuses (503, 529)', async () => {
+    for (const status of [503, 529]) {
+      let n = 0;
+      globalThis.fetch = mock.fn(async () => {
+        n += 1;
+        return n === 1 ? errorResponse(status, 'overloaded') : jsonResponse({ result: 'recovered' });
+      });
+      const out = await fetchJson({
+        url: 'x', headers: {}, body: {}, extractText: (d) => d.result, providerName: 'Claude', sleep: async () => {},
+      });
+      assert.equal(out, 'recovered', `status ${status} should be retried`);
+      assert.equal(globalThis.fetch.mock.callCount(), 2, `status ${status} retried once`);
+    }
+  });
+
+  it('honours the Retry-After header (seconds) for the backoff wait', async () => {
+    let n = 0;
+    globalThis.fetch = mock.fn(async () => {
+      n += 1;
+      return n === 1 ? errorResponse(429, 'slow down', { 'Retry-After': '7' }) : jsonResponse({ result: 'ok' });
+    });
+    const sleep = mock.fn(async () => {});
+
+    await fetchJson({
+      url: 'x', headers: {}, body: {}, extractText: (d) => d.result, providerName: 'Gemini', sleep,
+    });
+
+    assert.equal(sleep.mock.calls[0].arguments[0], 7000, 'waits exactly Retry-After seconds');
+  });
+
+  it('throws the real status after exhausting retries on a sustained 429', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(429, 'rate limited: too many requests'));
+    const sleep = mock.fn(async () => {});
+
+    await assert.rejects(
+      () => fetchJson({
+        url: 'x', headers: {}, body: {}, extractText: (d) => d, providerName: 'Gemini', sleep,
+      }),
+      (err) => {
+        assert.match(err.message, /Gemini API error: 429/);
+        return true;
+      },
+    );
+    assert.equal(globalThis.fetch.mock.callCount(), 3, 'three attempts total');
+    assert.equal(sleep.mock.callCount(), 2, 'backed off between the three attempts');
+    // Pin the default linear-backoff durations so a formula regression (e.g.
+    // attempt*5000 making the first wait 0ms) can't ship silently.
+    assert.equal(sleep.mock.calls[0].arguments[0], 5000, 'first default backoff is 5s');
+    assert.equal(sleep.mock.calls[1].arguments[0], 10000, 'second default backoff is 10s');
+  });
+
+  it('treats a non-positive Retry-After as linear backoff, not an immediate retry', async () => {
+    let n = 0;
+    globalThis.fetch = mock.fn(async () => {
+      n += 1;
+      return n === 1 ? errorResponse(429, 'now', { 'Retry-After': '0' }) : jsonResponse({ result: 'ok' });
+    });
+    const sleep = mock.fn(async () => {});
+
+    const out = await fetchJson({
+      url: 'x', headers: {}, body: {}, extractText: (d) => d.result, providerName: 'Gemini', sleep,
+    });
+
+    assert.equal(out, 'ok');
+    assert.equal(sleep.mock.calls[0].arguments[0], 5000, 'Retry-After: 0 uses the 5s linear backoff, not a 0ms hammer');
+  });
+
+  it('fails fast (no retry) when Retry-After exceeds the backoff cap', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(429, 'slow down', { 'Retry-After': '120' }));
+    const sleep = mock.fn(async () => {});
+
+    await assert.rejects(
+      () => fetchJson({
+        url: 'x', headers: {}, body: {}, extractText: (d) => d, providerName: 'Gemini', sleep,
+      }),
+      /Gemini API error: 429/,
+    );
+    assert.equal(globalThis.fetch.mock.callCount(), 1, 'no retry when the requested wait is too long to honour');
+    assert.equal(sleep.mock.callCount(), 0, 'did not sleep');
   });
 });

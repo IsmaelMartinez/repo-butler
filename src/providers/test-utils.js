@@ -9,10 +9,14 @@ export function jsonResponse(body, { status = 200 } = {}) {
   };
 }
 
-export function errorResponse(status, text = '') {
+export function errorResponse(status, text = '', headers = {}) {
+  const lower = Object.fromEntries(
+    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), String(v)]),
+  );
   return {
     ok: false,
     status,
+    headers: { get: (k) => lower[k.toLowerCase()] ?? null },
     json: async () => ({}),
     text: async () => text,
   };
