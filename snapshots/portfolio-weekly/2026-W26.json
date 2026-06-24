@@ -209,8 +209,8 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 16,
-      "open_bugs": 6,
+      "open_issues": 18,
+      "open_bugs": 8,
       "commits_6mo": 435,
       "stars": 4801,
       "license": "GPL-3.0",
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-23T18:52:01Z",
+      "pushed_at": "2026-06-24T12:56:29Z",
       "traffic": {
         "views_14d": {
           "count": 32,
@@ -932,7 +932,7 @@
       "id": 1185787142,
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 367,
+      "commits_6mo": 368,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-24T09:05:03Z",
+      "pushed_at": "2026-06-24T13:21:39Z",
       "traffic": {
         "views_14d": {
           "count": 31,
