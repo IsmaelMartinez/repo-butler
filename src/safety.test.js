@@ -7,7 +7,7 @@ import {
   sanitizeForPrompt, detectEcosystem,
   sanitizeContributorName, validateGitHubUsername,
   resolveCrossRepoDestination, findingNamesRepo,
-  sanitizeLabels, redactErrorForLog,
+  sanitizeLabels, redactErrorForLog, safeDeployedUrl,
   wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
 } from './safety.js';
 
@@ -1069,5 +1069,45 @@ describe('validateIssueTitle cross-repo mode (G9)', () => {
     // cite their own #N, so the cross-repo checks must not fire there.
     assert.equal(validateIssueTitle('Track #42 follow-up').valid, true);
     assert.equal(validateIssueTitle('Refactor this module').valid, true);
+  });
+});
+
+describe('safeDeployedUrl (deployed-page link boundary)', () => {
+  it('accepts and normalises an https URL', () => {
+    assert.equal(safeDeployedUrl('https://example.com'), 'https://example.com/');
+    assert.equal(safeDeployedUrl('https://teams-for-linux.app/docs'), 'https://teams-for-linux.app/docs');
+  });
+
+  it('accepts an http URL (a deployed page may not be https)', () => {
+    assert.equal(safeDeployedUrl('http://example.org/'), 'http://example.org/');
+  });
+
+  it('allows arbitrary custom-domain hosts (not subject to the LLM host allowlist)', () => {
+    assert.equal(safeDeployedUrl('https://ismaelmartinez.me.uk/'), 'https://ismaelmartinez.me.uk/');
+  });
+
+  it('rejects javascript: and data: schemes (escHtml alone would let these through)', () => {
+    assert.equal(safeDeployedUrl('javascript:alert(1)'), null);
+    assert.equal(safeDeployedUrl('JavaScript:alert(1)'), null);
+    assert.equal(safeDeployedUrl('data:text/html,<script>alert(1)</script>'), null);
+    assert.equal(safeDeployedUrl('mailto:a@b.com'), null);
+  });
+
+  it('returns null for empty, missing, non-string, or malformed input', () => {
+    assert.equal(safeDeployedUrl(''), null);
+    assert.equal(safeDeployedUrl('   '), null);
+    assert.equal(safeDeployedUrl(null), null);
+    assert.equal(safeDeployedUrl(undefined), null);
+    assert.equal(safeDeployedUrl(42), null);
+    assert.equal(safeDeployedUrl('not a url'), null);
+    assert.equal(safeDeployedUrl('/relative/path'), null);
+  });
+
+  it('rejects absurdly long URLs', () => {
+    assert.equal(safeDeployedUrl('https://example.com/' + 'a'.repeat(3000)), null);
+  });
+
+  it('trims surrounding whitespace before parsing', () => {
+    assert.equal(safeDeployedUrl('  https://example.com/  '), 'https://example.com/');
   });
 });

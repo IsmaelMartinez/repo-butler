@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection, reportCacheHit } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink } from './report-shared.js';
 
 describe('jsStr', () => {
   it('quotes and escapes strings for inline <script> embedding', () => {
@@ -1790,11 +1790,58 @@ describe('buildGovernanceSection', () => {
   });
 });
 
+describe('deployedLink (dashboard deployed-page link)', () => {
+  it('renders an anchor for a valid https homepage', () => {
+    const out = deployedLink('https://demo.example/');
+    assert.ok(out.includes('href="https://demo.example/"'), 'href is the normalised URL');
+    assert.ok(out.includes('class="site-link"'));
+    assert.ok(out.includes('↗'), 'uses the default glyph label');
+  });
+
+  it('uses a caller-supplied label', () => {
+    assert.ok(deployedLink('https://demo.example/', 'live site ↗').includes('>live site ↗</a>'));
+  });
+
+  it('returns empty string for an absent or unsafe homepage', () => {
+    assert.equal(deployedLink(null), '');
+    assert.equal(deployedLink(''), '');
+    assert.equal(deployedLink('javascript:alert(1)'), '', 'must not emit a javascript: link');
+    assert.equal(deployedLink('/relative'), '');
+  });
+
+  it('HTML-escapes the href (defence-in-depth on top of URL normalisation)', () => {
+    // A query string with a double-quote would break out of the attribute if
+    // not escaped; new URL() percent-encodes it, and escHtml is the backstop.
+    const out = deployedLink('https://demo.example/?q="onmouseover');
+    assert.ok(!out.includes('"onmouseover'), 'raw quote must not survive into the attribute');
+  });
+});
+
+describe('generatePortfolioReport deployed-page link', () => {
+  it('renders a live-site link in the table when a repo has a homepage', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const portfolio = { repos: [
+      { name: 'withsite', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS', homepage: 'https://withsite.example/' },
+      { name: 'nosite', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ]};
+    const mkDetails = () => ({ commits: 12, weekly: [1], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } });
+    const details = { withsite: mkDetails(), nosite: mkDetails() };
+    const html = generatePortfolioReport('owner', portfolio, details, null, null, {});
+    assert.ok(html.includes('href="https://withsite.example/"'), 'repo with a homepage gets a live-site link');
+    assert.ok(html.includes('class="site-link"'));
+    // Only the repo with a homepage gets a link. It appears once in the
+    // simplified table and once in the full (toggle) table = 2 occurrences;
+    // the homepage-less repo contributes none.
+    const linkCount = (html.match(/class="site-link"/g) || []).length;
+    assert.equal(linkCount, 2, 'the homepage repo links in both tables; the other repo gets none');
+  });
+});
+
 describe('buildRepoSnapshot', () => {
   it('produces the full report.js inline shape when given per-repo fetch data', () => {
     const owner = 'octo';
     const r = { name: 'widget', stars: 7, forks: 1, pushed_at: '2026-04-01T00:00:00Z' };
-    const meta = { stargazers_count: 7, forks_count: 1, subscribers_count: 3, default_branch: 'main', license: { spdx_id: 'MIT' } };
+    const meta = { stargazers_count: 7, forks_count: 1, subscribers_count: 3, default_branch: 'main', license: { spdx_id: 'MIT' }, homepage: 'https://widget.example/' };
     const communityProfile = { health_percentage: 85, files: { readme: true, license: true } };
     const releases = [
       { tag_name: 'v1.2.0', published_at: '2026-03-15T00:00:00Z', prerelease: false },
@@ -1826,7 +1873,7 @@ describe('buildRepoSnapshot', () => {
     // Construct the expected output inline, mirroring the pre-refactor shape.
     const expected = {
       repository: 'octo/widget',
-      meta: { stars: 7, forks: 1, watchers: 3, default_branch: 'main' },
+      meta: { stars: 7, forks: 1, watchers: 3, default_branch: 'main', homepage: 'https://widget.example/' },
       issues: {
         open: [
           { number: 10, title: 'Bug: x', labels: ['bug'], reactions: 2, comments: 1, created_at: '2026-03-01', updated_at: '2026-03-10' },
@@ -1862,7 +1909,7 @@ describe('buildRepoSnapshot', () => {
       details: { license: 'Apache-2.0', ci: 1 },
       meta: null, stars: 12, forks: 3, pushedAt: '2026-04-01T00:00:00Z',
     });
-    assert.deepEqual(snap.meta, { stars: 12, forks: 3 });
+    assert.deepEqual(snap.meta, { stars: 12, forks: 3, homepage: null });
     assert.equal(snap.license, 'Apache-2.0');
     assert.equal(snap.pushed_at, '2026-04-01T00:00:00Z');
   });
@@ -1916,7 +1963,7 @@ describe('buildRepoSnapshot', () => {
   it('defaults all optional inputs to neutral values', () => {
     const snap = buildRepoSnapshot({ owner: 'octo', repo: 'empty' });
     assert.equal(snap.repository, 'octo/empty');
-    assert.deepEqual(snap.meta, { stars: 0, forks: 0 });
+    assert.deepEqual(snap.meta, { stars: 0, forks: 0, homepage: null });
     assert.deepEqual(snap.issues, { open: [] });
     assert.deepEqual(snap.releases, []);
     assert.equal(snap.pushed_at, null);

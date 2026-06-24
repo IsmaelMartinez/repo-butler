@@ -6,7 +6,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, jsStr, fmt, countBy, isBlocked,
   daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
-  colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
+  colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
 } from './report-shared.js';
 
 // Range tuples for value-to-colour mapping in per-repo dashboards.
@@ -789,8 +789,9 @@ new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${tr
     ? `<h2>Open Work</h2>${prTriageHtml}${stalenessHtml}`
     : '<h2>Open Work</h2><p class="muted" style="font-size:0.9rem">No open work</p>';
 
+  const liveSite = deployedLink(snapshot.meta?.homepage, 'live site ↗');
   const body = `<h1><a href="https://github.com/${snapshot.repository}" class="repo-link">${snapshot.repository} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
-<div class="subtitle">${fmt(snapshot.meta?.stars)} stars · ${fmt(snapshot.meta?.forks)} forks · ${fmt(snapshot.meta?.watchers)} watchers — ${now} — <a href="index.html">portfolio</a> — <a href="digest.html">digest</a></div>
+<div class="subtitle">${fmt(snapshot.meta?.stars)} stars · ${fmt(snapshot.meta?.forks)} forks · ${fmt(snapshot.meta?.watchers)} watchers — ${now} — <a href="index.html">portfolio</a> — <a href="digest.html">digest</a>${liveSite ? ` — ${liveSite}` : ''}</div>
 <div class="grid">
   <div class="card"><h3>Open Issues</h3><div class="stat">${s.open_issues}</div><div class="stat-label">${s.blocked_issues} blocked, ${s.awaiting_feedback} awaiting feedback</div></div>
   <div class="card"><h3>PRs Merged (90d)</h3><div class="stat">${s.recently_merged_prs}</div><div class="stat-label">${s.human_prs} human, ${s.bot_prs} bot</div></div>
@@ -826,8 +827,9 @@ export function generateLightRepoReport(owner, repo, details) {
   const ci = details?.ci || 0;
   const license = details?.license || 'None';
 
+  const liveSite = deployedLink(repo.homepage, 'live site ↗');
   const body = `<h1>${escHtml(repo.name)}</h1>
-<div class="subtitle">${escHtml(repo.description || 'No description')} — ${now} — <a href="index.html">portfolio view</a></div>
+<div class="subtitle">${escHtml(repo.description || 'No description')} — ${now} — <a href="index.html">portfolio view</a>${liveSite ? ` — ${liveSite}` : ''}</div>
 <div class="grid">
   <div class="card"><h3>Language</h3><div class="stat stat-sm">${repo.language ? escHtml(repo.language) : '—'}</div></div>
   <div class="card"><h3>Stars</h3><div class="stat">${repo.stars}</div><div class="stat-label">${repo.forks} forks</div></div>

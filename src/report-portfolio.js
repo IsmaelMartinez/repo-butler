@@ -11,7 +11,7 @@ import {
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION, isExcludedRepo,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
-  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier,
+  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
 } from './report-shared.js';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
@@ -940,8 +940,9 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       : null;
     const nextStep = firstFail ? `<span class="muted" style="font-size:0.85em">${escHtml(firstFail.name)}</span>` : `<span style="color:${COLOR_SUCCESS};font-size:0.85em">All checks pass</span>`;
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
+    const siteLink = deployedLink(r.homepage);
     return `<tr>
-      <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
+      <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a>${siteLink ? ' ' + siteLink : ''} ${generateSparklineSVG(details[r.name]?.weekly)}</td>
       <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td>
       <td><span style="color:${issuesColor}">${openIssues}</span></td>
       <td>${openPRs == null ? '<span style="color:var(--faint)">—</span>' : `<span style="color:${prsColor}">${openPRs}</span>`}</td>
@@ -972,8 +973,9 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
       ? `${r.sbom.count}${libyearVal != null ? ` <span style="color:${libyearColor};font-size:0.8em" title="Libyear: dependency freshness">(${libyearVal.toFixed(1)}y)</span>` : ''}`
       : '—';
     const descTooltip = r.description ? ` title="${escHtml(r.description)}"` : '';
+    const siteLink = deployedLink(r.homepage);
     return `<tr>
-      <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a> ${generateSparklineSVG(details[r.name]?.weekly)}</td>
+      <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a>${siteLink ? ' ' + siteLink : ''} ${generateSparklineSVG(details[r.name]?.weekly)}</td>
       <td>${r.language ? escHtml(r.language) : '—'}</td><td>${r.stars}</td><td>${r.open_issues || 0}</td>
       <td>${r.commits || 0}</td>
       <td>${ciDisplay}</td>

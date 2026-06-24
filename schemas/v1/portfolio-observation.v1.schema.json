@@ -84,6 +84,10 @@
           "type": ["string", "null"],
           "description": "SPDX license identifier; null when unlicensed"
         },
+        "homepage": {
+          "type": ["string", "null"],
+          "description": "Deployed-page URL from the GitHub repo homepage field; null when unset. Rendered as a dashboard link after safeDeployedUrl() scheme validation."
+        },
         "has_issues": {
           "type": "boolean"
         },
