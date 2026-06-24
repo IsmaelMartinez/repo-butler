@@ -41,9 +41,11 @@ describe('GeminiProvider', () => {
     await assert.rejects(() => p.generate('x'), /Gemini returned no content/);
   });
 
-  it('throws Gemini API error with status on non-OK', async () => {
-    globalThis.fetch = mock.fn(async () => errorResponse(429, 'quota exceeded'));
+  it('throws Gemini API error with status on a non-retriable non-OK', async () => {
+    // 400 is non-retriable, so the throw path runs on the first attempt (a
+    // retriable 429/503/529 is covered by the fetchJson backoff tests).
+    globalThis.fetch = mock.fn(async () => errorResponse(400, 'invalid request'));
     const p = new GeminiProvider('k');
-    await assert.rejects(() => p.generate('x'), /Gemini API error: 429 quota exceeded/);
+    await assert.rejects(() => p.generate('x'), /Gemini API error: 400 invalid request/);
   });
 });
