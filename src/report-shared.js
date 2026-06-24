@@ -153,7 +153,12 @@ export function escHtml(s) {
 // trusted literal supplied by the caller, never user data.
 export function deployedLink(homepage, label = '↗') {
   const site = safeDeployedUrl(homepage);
-  return site ? `<a href="${escHtml(site)}" title="Live site" class="site-link">${label}</a>` : '';
+  // aria-label gives the (often icon-only) link an accessible name for screen
+  // readers; escHtml on the label is defence-in-depth (callers pass trusted
+  // literals today, but the helper is exported).
+  return site
+    ? `<a href="${escHtml(site)}" title="Live site" aria-label="Live site" class="site-link">${escHtml(label)}</a>`
+    : '';
 }
 
 // Encode a string for safe embedding inside an inline <script> block (e.g.

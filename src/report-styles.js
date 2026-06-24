@@ -57,6 +57,8 @@ h2{font-size:1.3rem;margin:2.9rem 0 1.1rem;color:var(--ink-strong);font-weight:6
 h2::after{content:"";position:absolute;left:0;bottom:0;width:52px;height:3px;border-radius:2px;background:var(--tartan)}
 .subtitle{color:var(--muted);font-size:0.9rem;margin-bottom:1.9rem}
 .subtitle a{color:var(--link)}
+.site-link{font-size:0.85em;text-decoration:none;color:var(--muted);margin-left:0.15em}
+.site-link:hover{color:var(--heather)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.2rem;margin-bottom:2rem}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.3rem;box-shadow:var(--card-shadow)}
 .card h3{font-size:0.72rem;color:var(--muted);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:600}

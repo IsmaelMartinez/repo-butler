@@ -1798,6 +1798,11 @@ describe('deployedLink (dashboard deployed-page link)', () => {
     assert.ok(out.includes('↗'), 'uses the default glyph label');
   });
 
+  it('gives the (icon-only) link an accessible name', () => {
+    assert.ok(deployedLink('https://demo.example/').includes('aria-label="Live site"'),
+      'icon-only link needs an aria-label for screen readers');
+  });
+
   it('uses a caller-supplied label', () => {
     assert.ok(deployedLink('https://demo.example/', 'live site ↗').includes('>live site ↗</a>'));
   });

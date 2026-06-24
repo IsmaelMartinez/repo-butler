@@ -1103,6 +1103,11 @@ describe('safeDeployedUrl (deployed-page link boundary)', () => {
     assert.equal(safeDeployedUrl('/relative/path'), null);
   });
 
+  it('rejects URLs with embedded credentials (phishing deception)', () => {
+    assert.equal(safeDeployedUrl('https://github.com@evil.example/'), null);
+    assert.equal(safeDeployedUrl('https://user:pass@evil.example/'), null);
+  });
+
   it('rejects absurdly long URLs', () => {
     assert.equal(safeDeployedUrl('https://example.com/' + 'a'.repeat(3000)), null);
   });

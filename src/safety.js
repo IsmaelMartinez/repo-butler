@@ -592,6 +592,11 @@ export function safeDeployedUrl(url) {
     return null;
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+  // Reject embedded credentials (e.g. https://github.com@evil.example/) — a
+  // classic phishing deception where the visible host looks trusted but the
+  // real host is after the `@`. The dashboard shows only an icon, so the user
+  // could not even spot the userinfo.
+  if (parsed.username || parsed.password) return null;
   return parsed.href;
 }
 
