@@ -1,5 +1,7 @@
 // Shared helpers and constants used by report-repo.js and report-portfolio.js.
 
+import { safeDeployedUrl } from './safety.js';
+
 export const SIX_MONTHS_AGO = new Date(Date.now() - 180 * 86400000);
 export const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
 
@@ -144,6 +146,21 @@ export function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Render a repo's deployed-page link for the dashboard, or '' when no valid
+// homepage URL is set. The homepage is owner-set free text from the GitHub repo
+// object, so it is scheme-checked (safeDeployedUrl rejects javascript:/data: and
+// garbage) and HTML-escaped before reaching the public page. `label` is a
+// trusted literal supplied by the caller, never user data.
+export function deployedLink(homepage, label = '↗') {
+  const site = safeDeployedUrl(homepage);
+  // aria-label gives the (often icon-only) link an accessible name for screen
+  // readers; escHtml on the label is defence-in-depth (callers pass trusted
+  // literals today, but the helper is exported).
+  return site
+    ? `<a href="${escHtml(site)}" title="Live site" aria-label="Live site" class="site-link">${escHtml(label)}</a>`
+    : '';
+}
+
 // Encode a string for safe embedding inside an inline <script> block (e.g.
 // chart labels). JSON.stringify handles quotes/backslashes/newlines; the
 // extra escapes stop a value containing `</script>` or `<!--` from breaking
@@ -221,13 +238,15 @@ export function buildRepoSnapshot({
   pushedAt = null,
   stars = 0,
   forks = 0,
+  homepage = null,
 } = {}) {
   return {
     repository: `${owner}/${repo}`,
     meta: meta ? {
       stars: meta.stargazers_count, forks: meta.forks_count,
       watchers: meta.subscribers_count, default_branch: meta.default_branch,
-    } : { stars, forks },
+      homepage: homepage || meta.homepage || null,
+    } : { stars, forks, homepage: homepage || null },
     issues: {
       open: openIssues.map(i => ({
         number: i.number, title: i.title, labels: i.labels.map(l => l.name),

@@ -246,6 +246,7 @@ export async function report(context) {
           pushedAt: r.pushed_at,
           stars: r.stars,
           forks: r.forks,
+          homepage: r.homepage || null,
         });
 
         // Reuse libyear from portfolio details (already computed in fetchPortfolioDetails).

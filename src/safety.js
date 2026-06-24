@@ -570,6 +570,36 @@ export function redactErrorForLog(err) {
   return `${err.slice(0, idx)} [REDACTED]`;
 }
 
+// Validate a repo's deployed-page URL (the GitHub `homepage` field) for safe
+// rendering as a link on the public dashboard. This is owner-set structured
+// metadata, not LLM output, so it is deliberately NOT subject to the
+// validateUrls host allowlist — a deployed page legitimately lives on any
+// custom domain. Instead we enforce the two properties that make an href safe
+// to emit: it must parse as an absolute http(s) URL (rejecting javascript:,
+// data:, mailto:, and garbage — escHtml alone would let `javascript:…` through
+// since it has no escapable characters) and be of sane length. Returns the
+// normalised URL string, or null when the field is empty or unsafe (callers
+// omit the link on null). The caller must still HTML-escape the result for the
+// attribute context via escHtml.
+export function safeDeployedUrl(url) {
+  if (typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.length > 2048) return null;
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+  // Reject embedded credentials (e.g. https://github.com@evil.example/) — a
+  // classic phishing deception where the visible host looks trusted but the
+  // real host is after the `@`. The dashboard shows only an icon, so the user
+  // could not even spot the userinfo.
+  if (parsed.username || parsed.password) return null;
+  return parsed.href;
+}
+
 // --- Internal helpers ---
 
 function validateUrls(text, { allowDocs = false } = {}) {
