@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-24T08:09:05.765Z",
+  "timestamp": "2026-06-24T11:55:08.480Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -12,7 +12,7 @@
     "license": "MIT",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-06-24T07:59:42Z",
+    "pushed_at": "2026-06-24T09:05:03Z",
     "archived": false
   },
   "issues": {
@@ -93,6 +93,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 308,
+        "title": "feat(providers): retry backoff for transient LLM 429/503/529",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-06-24T08:19:35Z"
+      },
       {
         "number": 305,
         "title": "chore: update roadmap (repo-butler)",
@@ -1398,13 +1405,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-10T15:28:04Z"
-      },
-      {
-        "number": 101,
-        "title": "feat: Astro integration Stream 1 — enriched snapshots, cache fix, libyear",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-09T09:42:50Z"
       }
     ]
   },
@@ -1586,10 +1586,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 1,
+    "pass_rate": 0.9878048780487805,
     "total_runs": 82,
-    "passed": 82,
-    "failed": 0
+    "passed": 81,
+    "failed": 1
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1614,7 +1614,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 1,
+    "ci_pass_rate": 0.9878048780487805,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
