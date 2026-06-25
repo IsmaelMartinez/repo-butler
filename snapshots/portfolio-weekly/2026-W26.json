@@ -215,7 +215,7 @@
       "stars": 4805,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9565217391304348,
+      "ciPassRate": 0.9583333333333334,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-25T09:33:50Z",
+      "pushed_at": "2026-06-25T12:57:18Z",
       "traffic": {
         "views_14d": {
           "count": 26,
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9294117647058824,
+      "ciPassRate": 0.9302325581395349,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-25T08:10:20Z",
+      "pushed_at": "2026-06-25T12:41:13Z",
       "traffic": {
         "views_14d": {
           "count": 30,
