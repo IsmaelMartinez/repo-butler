@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "type": "dependabot-stale",
+    "repo": "bonnie-wee-plot",
+    "stalePRs": [
+      {
+        "number": 394,
+        "title": "chore(deps-dev): bump the build-tools group across 1 directory with 2 updates",
+        "age": 31
+      }
+    ],
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 31 days).",
+      "acceptanceCriteria": [
+        "Each stale Dependabot PR is merged or closed"
+      ]
+    }
+  }
+]
