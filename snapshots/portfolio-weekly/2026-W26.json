@@ -209,10 +209,10 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 13,
-      "open_bugs": 4,
+      "open_issues": 14,
+      "open_bugs": 5,
       "commits_6mo": 443,
-      "stars": 4805,
+      "stars": 4807,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9743589743589743,
@@ -240,12 +240,12 @@
       "pushed_at": "2026-06-26T08:55:32Z",
       "traffic": {
         "views_14d": {
-          "count": 9273,
-          "uniques": 4401
+          "count": 9315,
+          "uniques": 4321
         },
         "clones_14d": {
-          "count": 7428,
-          "uniques": 810
+          "count": 9319,
+          "uniques": 850
         }
       },
       "computed": {
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-25T12:57:18Z",
+      "pushed_at": "2026-06-26T12:53:54Z",
       "traffic": {
         "views_14d": {
           "count": 27,
@@ -553,8 +553,8 @@
           "uniques": 10
         },
         "clones_14d": {
-          "count": 3105,
-          "uniques": 572
+          "count": 3807,
+          "uniques": 579
         }
       },
       "computed": {
@@ -656,8 +656,8 @@
           "uniques": 2
         },
         "clones_14d": {
-          "count": 1061,
-          "uniques": 242
+          "count": 1088,
+          "uniques": 241
         }
       },
       "computed": {
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-26T08:14:53Z",
+      "pushed_at": "2026-06-26T12:36:23Z",
       "traffic": {
         "views_14d": {
           "count": 30,
