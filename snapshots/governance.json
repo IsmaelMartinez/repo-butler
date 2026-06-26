@@ -6,7 +6,7 @@
       {
         "number": 394,
         "title": "chore(deps-dev): bump the build-tools group across 1 directory with 2 updates",
-        "age": 31
+        "age": 32
       }
     ],
     "priority": "medium",
@@ -14,7 +14,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 31 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 32 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
