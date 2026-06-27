@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-27
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -159,17 +159,7 @@ The phased plan (G1–G11 across six default-closed phases) builds these in depe
 
 ### ~~Code Health Sprint — multi-agent simplification review~~ SHIPPED
 
-Shipped 2026-04-28 across PRs #127–#146 (twenty PRs in total, plus the precursor #126 release-tier draft-filter fix). Originated from a four-team subagent review of the whole codebase (~12.5k LOC, 22 source files) that surfaced two correctness bugs and roughly twenty mechanical dedupe opportunities.
-
-Tier 0 (correctness): #127 fixed broken monitor cursor and council watchlist persistence — `loadCursor` was returning `null` unconditionally and `saveCursor` was guarding on a `store.writeFile` method that the store had never exposed, so the every-6h monitor was reporting every open issue/PR/alert as new on every run and the council was re-triaging the same backlog forever. Same root cause for the watchlist. Fixed by adding `readJSON`/`writeJSON` to the store factory and routing both callers through it.
-
-Tier 1 (structural): #128 unified the duplicate campaign definitions between `mcp.js` and `report-portfolio.js` into a shared `CAMPAIGN_DEFS` constant. #130 extracted `buildRepoSnapshot` to replace three drift-prone construction sites that all feed `computeHealthTier`. #129 added `gh.putFile`/`deleteFile` and an optional `{ ref }` to `getFileContent`/`listDir` so `store.js` could drop its hand-rolled `/contents/{path}` blocks and route through the github client. #132 reshaped `src/index.js` from 286 LOC of mixed concerns into a 159-LOC thin dispatcher, with each phase exporting its own `runX(context)` wrapper.
-
-Tier 2 (pattern dedup): #133 collapsed the severity-tally bodies in `observe.js` and the three near-identical scanner blocks in `monitor.js` via the existing `getAlertSummary` helper, extended additively to expose per-severity counts. #134 added a `colorByThreshold` helper used at nine sites across the report files. #131 merged the two LLM providers via a shared `fetchJson` helper in `providers/base.js`. #135 extracted `wrapPrompt` so the `PROMPT_DEFENCE` + `DATA_BOUNDARY_START` scaffolding lives in one place — defence-in-depth as much as simplification.
-
-Tier 3 (local cleanups): #137 collapsed the `mcp.js` 9-arm `callTool` switch by attaching handlers to each tool entry. #141 replaced the hardcoded persona list in `mcp.js` with `import { PERSONAS } from './council.js'`. #142 extracted `bucketVerdicts` for `triageEvents`/`reviewProposals`. #136 extracted `detectMetricDrift` for the CI and community-health drift detectors in `governance.js`. #138 switched `observe.js fetchMergedPRs` from the search API to `gh.paginate('/pulls', { state: closed })`. #139 extracted `pruneDir` for the weekly snapshot rotation. #143 replaced the `parseIdeas` regex pyramid with a field-loop parser. #140 extracted `htmlPage` for the report shell. #144 extracted `buildStatCard` for the repeated repo-health card fragments. #146 promoted `.muted`/`.text-success`/`.text-warning`/`.text-danger` utility classes for the literal-colour inline styles. #145 added `runGitOnDataBranch` (the data-branch reads in `mcp.js` previously hand-rolled the origin/-prefixed → bare ref fallback in two places).
-
-Side outcomes from the sprint: a latent CI bug surfaced and was fixed inside #131 (the `npm test` glob `src/**/*.test.js` only matched the providers subdirectory once subdirectory test files appeared, so CI was silently running 15 tests instead of 496). The `repo-butler-data` per-repo cache schema was bumped to invalidate stale entries when `released_at` shape changed (#126 precursor). Items deliberately left untouched: `config.js` hand-rolled YAML parser (well-scoped to CLAUDE.md's flat + one-level-nested contract), `libyear.js` cohesion (single-purpose, single caller), and any further file splitting (the 5-file report split is intentional).
+Shipped 2026-04-28 (#127, #146, #126, #128, #130, #129, #132, #133, #134, #131, #135, #137, #141, #142, #136, #138, #139, #143, #140, #144, #145). Full detail in git history.
 
 ### ~~Code Health Sprint — deferred follow-ups~~ SHIPPED
 
