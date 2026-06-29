@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 16,
-      "open_bugs": 7,
-      "commits_6mo": 443,
-      "stars": 4811,
+      "open_issues": 19,
+      "open_bugs": 10,
+      "commits_6mo": 444,
+      "stars": 4812,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9555555555555556,
+      "ciPassRate": 0.9583333333333334,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -237,7 +237,7 @@
       },
       "ci": 15,
       "released_at": "2026-06-26T06:37:57Z",
-      "pushed_at": "2026-06-28T18:41:56Z",
+      "pushed_at": "2026-06-29T14:53:59Z",
       "traffic": {
         "views_14d": {
           "count": 8843,
@@ -249,7 +249,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -263,7 +263,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -307,7 +307,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Fewer than 10 open bugs"
       }
     },
     "ismaelmartinez.me.uk": {
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-28T21:55:24Z",
+      "pushed_at": "2026-06-29T13:41:53Z",
       "traffic": {
         "views_14d": {
           "count": 28,
@@ -450,8 +450,8 @@
           "uniques": 5
         },
         "clones_14d": {
-          "count": 455,
-          "uniques": 133
+          "count": 457,
+          "uniques": 135
         }
       },
       "computed": {
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-06-29T08:40:53Z",
+      "pushed_at": "2026-06-29T13:19:48Z",
       "traffic": {
         "views_14d": {
           "count": 21,
@@ -1035,11 +1035,11 @@
       "id": 1196601911,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 266,
+      "commits_6mo": 270,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.98989898989899,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1061,15 +1061,15 @@
       },
       "ci": 5,
       "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-06-22T16:09:30Z",
+      "pushed_at": "2026-06-29T13:56:03Z",
       "traffic": {
         "views_14d": {
           "count": 2,
           "uniques": 2
         },
         "clones_14d": {
-          "count": 512,
-          "uniques": 117
+          "count": 504,
+          "uniques": 112
         }
       },
       "computed": {
