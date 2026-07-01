@@ -209,8 +209,8 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 20,
-      "open_bugs": 11,
+      "open_issues": 21,
+      "open_bugs": 12,
       "commits_6mo": 443,
       "stars": 4817,
       "license": "GPL-3.0",
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-06-30T18:46:28Z",
+      "pushed_at": "2026-07-01T13:06:40Z",
       "traffic": {
         "views_14d": {
           "count": 23,
@@ -520,7 +520,7 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 473,
+      "commits_6mo": 474,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 100,
@@ -546,7 +546,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-07-01T10:36:44Z",
+      "pushed_at": "2026-07-01T12:10:17Z",
       "traffic": {
         "views_14d": {
           "count": 19,
@@ -867,7 +867,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -886,7 +886,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -925,18 +925,18 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Release in the last 90 days"
       }
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 1,
+      "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 369,
+      "commits_6mo": 370,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9354838709677419,
+      "ciPassRate": 0.9361702127659575,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-07-01T08:27:25Z",
+      "pushed_at": "2026-07-01T13:54:45Z",
       "traffic": {
         "views_14d": {
           "count": 26,
