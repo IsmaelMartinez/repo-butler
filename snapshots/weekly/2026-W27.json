@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-01T12:01:26.791Z",
+  "timestamp": "2026-07-01T13:55:00.024Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,31 +7,26 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 3,
+    "open_issues_count": 1,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-01T08:27:25Z",
+    "pushed_at": "2026-07-01T13:54:45Z",
     "archived": false
   },
   "issues": {
-    "open": [
+    "open": [],
+    "recently_closed": [
       {
         "number": 307,
         "title": "Track: graduate the cross-repo PROPOSE soak (G10) — review ~2026-07-23 after a month of dry-run",
         "author": "IsmaelMartinez",
         "labels": [],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-06-23T08:52:08Z",
-        "updated_at": "2026-06-23T08:52:08Z",
-        "assignees": [],
-        "milestone": null
-      }
-    ],
-    "recently_closed": [
+        "closed_at": "2026-07-01T13:54:46Z",
+        "created_at": "2026-06-23T08:52:08Z"
+      },
       {
         "number": 220,
         "title": "GOVERNANCE: libyear abort cascade still drains event loop mid-phase (root-cause fix for #218)",
@@ -94,6 +89,16 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 310,
+        "title": "chore(deps): bump actions/checkout from 6.0.3 to 7.0.0",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-07-01T13:54:44Z"
+      },
       {
         "number": 311,
         "title": "chore: update roadmap (repo-butler)",
@@ -1399,13 +1404,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-11T18:07:42Z"
-      },
-      {
-        "number": 104,
-        "title": "docs: add distributable butler skills to roadmap",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-11T08:37:59Z"
       }
     ]
   },
@@ -1587,22 +1585,22 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9354838709677419,
-    "total_runs": 93,
-    "passed": 87,
+    "pass_rate": 0.9361702127659575,
+    "total_runs": 94,
+    "passed": 88,
     "failed": 6
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 1,
+    "open_issues": 0,
     "open_bugs": 0,
     "open_features": 0,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 7,
+    "recently_closed": 8,
     "recently_merged_prs": 186,
-    "bot_prs": 3,
-    "human_prs": 183,
+    "bot_prs": 4,
+    "human_prs": 182,
     "unique_contributors": 3,
     "releases": 1,
     "latest_release": "v1.1.0",
@@ -1615,11 +1613,11 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9354838709677419,
+    "ci_pass_rate": 0.9361702127659575,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
-      "sample_size": 7
+      "sample_size": 8
     }
   }
 }
