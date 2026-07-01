@@ -85,8 +85,6 @@ Scene-of-the-day comic briefing skill shipped 2026-06-20 (PR #291). Enhanced the
 Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened multi-repository routing boundaries and security logic by implementing G3 and G4 safety gates, which enforce deterministic routing and reject cross-reference autolinks in cross-repo issue bodies to prevent accidental data leakage or erratic routing across repository boundaries.
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
-
-Cross-repo PROPOSE soak (G10) graduated 2026-07-01 following a month-long dry-run evaluation of the multi-repository routing boundaries and security gates (PR #307).
 ---
 
 ## Roadmap
