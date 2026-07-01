@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-06-27
+**Last Updated:** 2026-07-01
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -167,15 +167,11 @@ All four follow-ups shipped across PRs #149–#152: parseIdeas BODY-then-stop (#
 
 ### ~~Portfolio Hardening Sweep — 2026-04-29~~ SHIPPED
 
-Shipped 2026-05-01. Code-scanning rollout (13/13 repos, security alerts zeroed across portfolio via 10 fix PRs), Dependabot config audit (all repos now have npm + github-actions, 4 PRs merged), and licence policy update (policy-drift-exempt config added in PR #157 whitelisting teams-for-linux GPL-3.0 and bonnie-wee-plot Community Allotment Licence). Zero open vulnerabilities across the portfolio as of snapshot 2026-W18.
+Shipped 2026-05-01 (#157). Full detail in git history.
 
 ### ~~Cross-repo PR automation (follow-up)~~ SHIPPED
 
-Shipped 2026-05-01 via `src/apply.js`, `.github/workflows/apply.yml`, and `src/dependabot-audit.js`.
-
-~~`governance:apply`~~ — SHIPPED. `applyGovernanceFindings` reads findings from the data branch, validates shape, generates templated config files for code-scanning + dependabot, opens PRs on target repos with the `governance-apply` label. Manual-dispatch only via `apply.yml`, dry-run by default (fail-closed semantics), batch-cap of 5 PRs per run, behind `require_approval`. See [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md) for the full layered-gate rationale.
-
-~~`dependabot:audit`~~ — SHIPPED. `auditDependabot` at `src/dependabot-audit.js` flags repos with stale unmerged Dependabot PRs (>30d high-priority, >60d critical). Findings persist as `dependabot-stale` entries in `governance.json` and are surfaced via the MCP `list_stale_dependabot_prs` tool plus the dashboard's Governance section.
+Shipped 2026-05-01. Full detail in git history.
 
 ### ~~`dependabot:rebase` — act on stale Dependabot PRs~~ SHIPPED
 
