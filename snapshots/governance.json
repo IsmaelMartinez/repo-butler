@@ -23,6 +23,28 @@
   },
   {
     "type": "tier-uplift",
+    "repo": "github-issue-triage-bot",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Release in the last 90 days",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift github-issue-triage-bot from silver to gold",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "acceptanceCriteria": [
+        "Check \"Release in the last 90 days\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
     "repo": "repo-butler",
     "currentTier": "silver",
     "targetTier": "gold",
