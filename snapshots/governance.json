@@ -1,6 +1,28 @@
 [
   {
     "type": "tier-uplift",
+    "repo": "yourear",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Release in the last 90 days",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift yourear from silver to gold",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "acceptanceCriteria": [
+        "Check \"Release in the last 90 days\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
     "repo": "teams-for-linux",
     "currentTier": "silver",
     "targetTier": "gold",
@@ -18,6 +40,94 @@
       "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
       "acceptanceCriteria": [
         "Check \"Fewer than 10 open bugs\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "ismaelmartinez.me.uk",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Release in the last 90 days",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift ismaelmartinez.me.uk from silver to gold",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "acceptanceCriteria": [
+        "Check \"Release in the last 90 days\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "bonnie-wee-plot",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Release in the last 90 days",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift bonnie-wee-plot from silver to gold",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "acceptanceCriteria": [
+        "Check \"Release in the last 90 days\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "betis-escocia",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Release in the last 90 days",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift betis-escocia from silver to gold",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "acceptanceCriteria": [
+        "Check \"Release in the last 90 days\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "ai-model-advisor",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Release in the last 90 days",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift ai-model-advisor from silver to gold",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "acceptanceCriteria": [
+        "Check \"Release in the last 90 days\" passes"
       ]
     }
   },
