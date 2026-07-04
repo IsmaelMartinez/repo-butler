@@ -43,7 +43,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -62,7 +62,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -101,7 +101,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Release in the last 90 days"
       }
     },
     "sound3fy": {
@@ -340,7 +340,7 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-07-04T03:37:42Z",
+      "pushed_at": "2026-07-04T13:45:04Z",
       "traffic": {
         "views_14d": {
           "count": 19,
@@ -352,7 +352,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -371,7 +371,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -410,7 +410,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Release in the last 90 days"
       }
     },
     "generator-atlassian-compass-event-catalog": {
@@ -558,7 +558,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -577,7 +577,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -616,7 +616,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Release in the last 90 days"
       }
     },
     "betis-escocia": {
@@ -661,7 +661,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -680,7 +680,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -719,7 +719,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Release in the last 90 days"
       }
     },
     "ai-model-advisor": {
@@ -764,7 +764,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -783,7 +783,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -822,7 +822,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Release in the last 90 days"
       }
     },
     "github-issue-triage-bot": {
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9895833333333334,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-07-04T09:20:42Z",
+      "pushed_at": "2026-07-04T12:55:17Z",
       "traffic": {
         "views_14d": {
           "count": 16,
