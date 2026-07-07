@@ -218,5 +218,27 @@
         "Check \"Release in the last 90 days\" passes"
       ]
     }
+  },
+  {
+    "type": "tier-uplift",
+    "repo": "lounge-tv",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Release in the last 90 days",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift lounge-tv from silver to gold",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "acceptanceCriteria": [
+        "Check \"Release in the last 90 days\" passes"
+      ]
+    }
   }
 ]
