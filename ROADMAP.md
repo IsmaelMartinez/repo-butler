@@ -86,9 +86,7 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
-Durable ledger capabilities and logging order improvements shipped 2026-07-08 (PR #313), enhancing system reliability, observability, and the durable soak ledger underpinnings.
-
-Administrative roadmap updates kept current 2026-07-08 (PR #312) to actively guide the project direction during stable maintenance periods.
+Roadmap compaction ADR link retention shipped 2026-07-08 (PR #315). Refined the automated roadmap update process to preserve Architecture Decision Record (ADR) links when compacting and archiving shipped roadmap sections, securing long-term traceability and administrative hygiene.
 ---
 
 ## Roadmap
