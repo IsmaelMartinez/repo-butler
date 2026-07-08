@@ -388,6 +388,23 @@ describe('checkPrReferencePreservation', () => {
     assert.equal(result.valid, true);
     assert.equal(result.inputCount, 0);
   });
+
+  it('does not count URL/path fragment anchors as issue refs', () => {
+    // `#2-decision` in a markdown anchor and `#3` in a URL fragment are not
+    // issue references — GitHub doesn't autolink them either. Counting them
+    // fabricated refs the output could never legitimately carry.
+    const input = 'See [ADR-009](docs/decisions/009-foo.md#2-decision) and https://example.com/page#3.';
+    const result = checkPrReferencePreservation(input, 'rewritten with no anchors');
+    assert.equal(result.valid, true);
+    assert.equal(result.inputCount, 0);
+  });
+
+  it('still matches the second ref of a dash-joined range (PRs #23–#37)', () => {
+    const input = 'Landed across PRs #23–#37 and PRs #40-#41.';
+    const result = checkPrReferencePreservation(input, '');
+    assert.equal(result.valid, false);
+    assert.deepEqual(result.missing, ['#23', '#37', '#40', '#41']);
+  });
 });
 
 describe('parseEditOps', () => {
@@ -589,6 +606,17 @@ describe('applyEditOps', () => {
     assert.ok(!result.includes('Governance apply stage 4 shipped'));
     assert.equal(applied.filter(a => a.includes('Implemented')).length, 1);
     assert.ok(skipped.some(s => s.includes('already documented')));
+  });
+
+  it('does not let a shipped line\'s anchor fragment block an append citing the real PR of that number', () => {
+    // A shipped entry linking [ADR-009](docs/decisions/009-foo.md#2-decision)
+    // must not register a phantom shipped ref #2 — that would silently skip a
+    // legitimate append announcing the real PR #2.
+    const documented = roadmap + '\n\n~~Trust model~~ SHIPPED per [ADR-009](docs/decisions/009-foo.md#2-decision).';
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Bootstrap fix shipped 2026-06-12 (PR #2).' }];
+    const { result, applied } = applyEditOps(documented, ops, '2026-06-12');
+    assert.ok(result.includes('Bootstrap fix shipped'));
+    assert.ok(applied.some(a => a.includes('Implemented')));
   });
 
   it('reports a bad section before judging duplicate refs', () => {
@@ -857,6 +885,13 @@ describe('compactRoadmap — link retention', () => {
     const { result } = compactRoadmap(wrap(body), today);
     assert.ok(result.includes('See [the decision](docs/decisions/009-settings-level-writes.md#2-decision).'));
     assert.ok(!result.includes('[ADR-009]'), 'anchored link target still covers the bare path');
+  });
+
+  it('does not fabricate an issue ref from a link target\'s #anchor fragment', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Decided in [ADR-009](docs/decisions/009-foo.md#2-decision). ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [ADR-009](docs/decisions/009-foo.md#2-decision). Full details in git history.'),
+      'ref list carries only #84 — the #2 in the anchor is not an issue ref');
   });
 
   it('carries an external URL link unchanged into the summary', () => {

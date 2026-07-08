@@ -101,12 +101,20 @@ export function checkStrikethroughPreservation(input, output) {
   return { valid: true, inputCount, outputCount };
 }
 
-// Extract every `#NN` PR/issue reference token from markdown text. Matches the
-// number-with-hash form regardless of surrounding context — `(PR #84)`, `PR
-// #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the numeric
-// ID. Returns a Set so duplicates collapse and order doesn't matter.
+// Extract every `#NN` PR/issue reference token from markdown text — `(PR
+// #84)`, `PR #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the
+// numeric ID. The lookbehind excludes `#N` that is really a URL/path fragment
+// anchor — `docs/decisions/009-foo.md#2-decision`, `https://host/path#3` —
+// where the `#` follows a word character or `/`; GitHub would not autolink
+// those as issue references either, and counting them mints bogus refs
+// (compactRoadmap would write a fabricated `#2` into a summary, and
+// applyEditOps' shippedRefs dedup could skip a legitimate append citing the
+// real PR #2). A range's second ref (`#23–#37`) follows a dash, and a
+// parenthesised or space-preceded ref follows a delimiter, so all the
+// reference forms above still match. Returns a Set so duplicates collapse and
+// order doesn't matter.
 function extractIssueRefs(text) {
-  return new Set((text?.match(/#\d+\b/g) || []));
+  return new Set((text?.match(/(?<![\w/])#\d+\b/g) || []));
 }
 
 // Extract every `docs/decisions/NNN-*.md` ADR reference from markdown text as
