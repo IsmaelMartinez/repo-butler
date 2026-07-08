@@ -603,8 +603,11 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     // exceed minBodyChars, and re-processing it would report a phantom
     // compaction, which bumps **Last Updated** in runUpdate and opens a
     // date-only roadmap PR on every tick. (`.` cannot cross a newline, so a
-    // multi-line body never trips this and stays eligible.)
-    if (/^Shipped \d{4}-\d{2}-\d{2}\b.*Full detail in git history\.$/.test(bodyText)) continue;
+    // multi-line body never trips this and stays eligible.) `details?` accepts
+    // the pre-#312-review "Full detail" wording too: ROADMAP.md still carries
+    // summaries minted with the old phrase, and re-compacting them would churn
+    // a date-only PR for pure wording.
+    if (/^Shipped \d{4}-\d{2}-\d{2}\b.*Full details? in git history\.$/.test(bodyText)) continue;
     if (bodyText.length < minBodyChars) continue;           // already short
     // Consider both body and heading dates (some entries date the heading, e.g.
     // `### ~~Landscape evaluation~~ — EVALUATED 2026-05-28`) and take the newest.
@@ -622,7 +625,7 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     // so carry every one (plus bare ADR paths, re-linked) alongside the PR refs.
     const links = extractSummaryLinks(body);
     const linkPart = links.length ? ` See ${links.join(', ')}.` : '';
-    const summary = `Shipped ${newest}${refPart}.${linkPart} Full detail in git history.`;
+    const summary = `Shipped ${newest}${refPart}.${linkPart} Full details in git history.`;
     lines.splice(headingIdx + 1, end - headingIdx - 1, '', summary, '');
     compacted.push(heading.replace(/^###\s+/, '').trim());
   }

@@ -742,7 +742,7 @@ describe('compactRoadmap', () => {
   it('compacts an old, long, struck subsection — preserving heading, date and refs', () => {
     const { result, compacted } = compactRoadmap(make(), today);
     assert.ok(result.includes('### ~~Phase 1 — Old Work~~ SHIPPED'), 'heading preserved verbatim');
-    assert.ok(result.includes('Shipped 2026-01-10 (#18, #22). Full detail in git history.'), 'summary preserves newest date + all refs');
+    assert.ok(result.includes('Shipped 2026-01-10 (#18, #22). Full details in git history.'), 'summary preserves newest date + all refs');
     assert.ok(!result.includes('Detailed prose about the work'), 'verbose body removed');
     assert.equal(compacted.length, 1);
     assert.ok(compacted[0].includes('Phase 1 — Old Work'));
@@ -809,7 +809,7 @@ describe('compactRoadmap — link retention', () => {
     const body = `Shipped 2026-01-10 (PR #84). Trust model in [ADR-009](docs/decisions/009-settings-level-writes.md). ${pad}`;
     const { result, compacted } = compactRoadmap(wrap(body), today);
     assert.equal(compacted.length, 1);
-    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [ADR-009](docs/decisions/009-settings-level-writes.md). Full detail in git history.'));
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [ADR-009](docs/decisions/009-settings-level-writes.md). Full details in git history.'));
     assert.ok(!result.includes('Trust model'), 'verbose body removed');
   });
 
@@ -822,19 +822,19 @@ describe('compactRoadmap — link retention', () => {
   it('collapses duplicate ADR references and preserves first-appearance order', () => {
     const body = `Shipped 2026-01-10. Per [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) and [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md); see [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) again. ${pad}`;
     const { result } = compactRoadmap(wrap(body), today);
-    assert.ok(result.includes('See [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md), [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md). Full detail in git history.'));
+    assert.ok(result.includes('See [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md), [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md). Full details in git history.'));
   });
 
   it('carries a non-ADR markdown link into the summary (PR #312 review: keep key pointers)', () => {
     const body = `Shipped 2026-01-10 (PR #84). Evaluation in [the tooling landscape](docs/research/multi-repo-tooling-landscape.md). ${pad}`;
     const { result } = compactRoadmap(wrap(body), today);
-    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [the tooling landscape](docs/research/multi-repo-tooling-landscape.md). Full detail in git history.'));
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [the tooling landscape](docs/research/multi-repo-tooling-landscape.md). Full details in git history.'));
   });
 
   it('omits the See clause entirely when the body has no links and no ADR paths', () => {
     const body = `Shipped 2026-01-10 (PR #84). Mentions docs/research/multi-repo-tooling-landscape.md but only as a bare path. ${pad}`;
     const { result } = compactRoadmap(wrap(body), today);
-    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full details in git history.'));
     assert.ok(!result.includes('docs/research/'), 'bare non-ADR paths are not retained');
   });
 
@@ -868,7 +868,7 @@ describe('compactRoadmap — link retention', () => {
   it('does not carry image embeds as links', () => {
     const body = `Shipped 2026-01-10 (PR #84). Chart: ![health trend](reports/trend.png) rendered nightly. ${pad}`;
     const { result } = compactRoadmap(wrap(body), today);
-    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full details in git history.'));
     assert.ok(!result.includes('trend.png'), 'an image embed is not a pointer worth carrying');
   });
 
@@ -908,7 +908,7 @@ describe('compactRoadmap — link retention', () => {
       + `docs/decisions/2026-01-05-dated-review.md and docs/decisions/2026-review/notes.md. ${pad}`;
     const { result, compacted } = compactRoadmap(wrap(body), today);
     assert.equal(compacted.length, 1);
-    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full details in git history.'));
     assert.ok(!result.includes('ADR-'), 'no ADR label minted from non-convention digits');
   });
 
@@ -924,11 +924,24 @@ describe('compactRoadmap — link retention', () => {
     // long summary would report a phantom compaction, which bumps
     // **Last Updated** in runUpdate and churns a date-only PR every tick.
     const adrs = Array.from({ length: 8 }, (_, i) => `[ADR-00${i + 1}](docs/decisions/00${i + 1}-decision-record-with-a-long-slug.md)`);
-    const summary = `Shipped 2026-01-10 (#84, #85, #86). See ${adrs.join(', ')}. Full detail in git history.`;
+    const summary = `Shipped 2026-01-10 (#84, #85, #86). See ${adrs.join(', ')}. Full details in git history.`;
     assert.ok(summary.length >= 400, 'fixture exercises the past-threshold case');
     const roadmap = wrap(summary);
     const { result, compacted } = compactRoadmap(roadmap, today);
     assert.equal(compacted.length, 0, 'already-compacted block is not re-reported');
+    assert.equal(result, roadmap);
+  });
+
+  it('skips a summary minted with the pre-#312-review "Full detail" wording', () => {
+    // ROADMAP.md carries summaries compacted before the phrase became "Full
+    // details"; the guard must accept both wordings or every tick re-compacts
+    // them (a phantom compaction bumps **Last Updated** and churns a PR).
+    const adrs = Array.from({ length: 8 }, (_, i) => `[ADR-00${i + 1}](docs/decisions/00${i + 1}-decision-record-with-a-long-slug.md)`);
+    const summary = `Shipped 2026-01-10 (#84, #85, #86). See ${adrs.join(', ')}. Full detail in git history.`;
+    assert.ok(summary.length >= 400, 'fixture exercises the past-threshold case');
+    const roadmap = wrap(summary);
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(compacted.length, 0, 'old-phrase summary is not re-compacted');
     assert.equal(result, roadmap);
   });
 });
