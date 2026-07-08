@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { validateRoadmap } from './safety.js';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -799,7 +800,7 @@ describe('compactRoadmap', () => {
   });
 });
 
-describe('compactRoadmap — ADR link retention', () => {
+describe('compactRoadmap — link retention', () => {
   const today = '2026-06-13';
   const wrap = (body) => ['## Roadmap', '', '### ~~Phase X~~ SHIPPED', '', body, '', '## Future', '', 'x'].join('\n');
   const pad = 'Detailed prose about the shipped work, long enough to clear the threshold. '.repeat(8);
@@ -824,11 +825,72 @@ describe('compactRoadmap — ADR link retention', () => {
     assert.ok(result.includes('See [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md), [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md). Full detail in git history.'));
   });
 
-  it('omits the ADR clause entirely when the body references no ADR', () => {
-    const body = `Shipped 2026-01-10 (PR #84). Mentions docs/research/multi-repo-tooling-landscape.md but no decision record. ${pad}`;
+  it('carries a non-ADR markdown link into the summary (PR #312 review: keep key pointers)', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Evaluation in [the tooling landscape](docs/research/multi-repo-tooling-landscape.md). ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [the tooling landscape](docs/research/multi-repo-tooling-landscape.md). Full detail in git history.'));
+  });
+
+  it('omits the See clause entirely when the body has no links and no ADR paths', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Mentions docs/research/multi-repo-tooling-landscape.md but only as a bare path. ${pad}`;
     const { result } = compactRoadmap(wrap(body), today);
     assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
-    assert.ok(!result.includes('docs/research/'), 'non-ADR paths are not retained');
+    assert.ok(!result.includes('docs/research/'), 'bare non-ADR paths are not retained');
+  });
+
+  it('dedupes markdown links by target, keeping the first link text', () => {
+    const body = `Shipped 2026-01-10. See [the design](docs/design.md) and later [design doc](docs/design.md) again. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [the design](docs/design.md).'));
+    assert.ok(!result.includes('[design doc]'), 'duplicate target collapses to first appearance');
+  });
+
+  it('keeps an ADR path referenced both bare and as a markdown link only once', () => {
+    const body = `Shipped 2026-01-10. Decided in [the settings ADR](docs/decisions/009-settings-level-writes.md); see docs/decisions/009-settings-level-writes.md for detail. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [the settings ADR](docs/decisions/009-settings-level-writes.md).'));
+    assert.equal(result.match(/009-settings-level-writes\.md/g).length, 1, 'the markdown link wins; no duplicate ADR promotion');
+  });
+
+  it('does not duplicate an ADR whose markdown link target carries an #anchor', () => {
+    const body = `Shipped 2026-01-10. See [the decision](docs/decisions/009-settings-level-writes.md#2-decision) and docs/decisions/009-settings-level-writes.md. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [the decision](docs/decisions/009-settings-level-writes.md#2-decision).'));
+    assert.ok(!result.includes('[ADR-009]'), 'anchored link target still covers the bare path');
+  });
+
+  it('carries an external URL link unchanged into the summary', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Rollout tracked in [the actions run](https://github.com/IsmaelMartinez/repo-butler/actions). ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [the actions run](https://github.com/IsmaelMartinez/repo-butler/actions).'));
+  });
+
+  it('does not carry image embeds as links', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Chart: ![health trend](reports/trend.png) rendered nightly. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(!result.includes('trend.png'), 'an image embed is not a pointer worth carrying');
+  });
+
+  it('keeps the summary on one line however many links the body has', () => {
+    const body = `Shipped 2026-01-10 (PR #84). See [a](docs/a.md), [b](docs/b.md), docs/decisions/007-agents-and-execution.md. ${pad}`;
+    const { result, compacted } = compactRoadmap(wrap(body), today);
+    assert.equal(compacted.length, 1);
+    const summaryLine = result.split('\n').find(l => l.startsWith('Shipped 2026-01-10'));
+    assert.ok(summaryLine.includes('[a](docs/a.md), [b](docs/b.md), [ADR-007](docs/decisions/007-agents-and-execution.md)'));
+  });
+
+  it('is idempotent when the summary carries non-ADR links — a second pass changes nothing', () => {
+    const body = `Shipped 2026-01-10 (PR #84). See [the design](docs/design.md) and [ADR-009](docs/decisions/009-settings-level-writes.md). ${pad}`;
+    const once = compactRoadmap(wrap(body), today).result;
+    const twice = compactRoadmap(once, today).result;
+    assert.equal(twice, once);
+  });
+
+  it('emits a summary that validateRoadmap accepts (relative paths and allowlisted hosts)', () => {
+    const body = `Shipped 2026-01-10 (PR #84). See [the design](docs/design.md) and [the run](https://github.com/IsmaelMartinez/repo-butler/actions). ${pad}`;
+    const { result } = compactRoadmap(`# Roadmap\n\n${wrap(body)}`, today);
+    assert.equal(validateRoadmap(result).valid, true);
   });
 
   it('is idempotent — the ADR links in a compacted summary survive a second pass unchanged', () => {

@@ -129,6 +129,32 @@ function extractAdrRefs(text) {
   return [...refs].map(([path, num]) => ({ path, num }));
 }
 
+// Collect every pointer worth carrying into a compacted summary: all markdown
+// links `[text](target)` in first-appearance order, deduped by target with the
+// author's link text preserved, followed by any bare `docs/decisions/NNN-*.md`
+// paths promoted to `[ADR-NNN](path)` links via extractAdrRefs. A path
+// referenced both bare and as a link target appears once — the markdown link
+// wins, so its text (and any `#anchor` in its target) survives; targets are
+// compared with the anchor stripped for exactly that dedup. Bare paths outside
+// docs/decisions/ are not carried: an unlinked path is prose, not a pointer,
+// and only the ADR convention is unambiguous enough to promote. Both regex
+// quantifiers are bounded (linear on adversarial text, same rationale as
+// extractAdrRefs) and both character classes exclude newlines, so every
+// returned link renders on one line. Returns rendered `[text](target)`
+// strings. PR #312/#315 reviews: compaction must not cost the section its key
+// pointers (files, research notes, ADRs).
+function extractSummaryLinks(text) {
+  const links = new Map(); // target as written → rendered link
+  for (const m of (text || '').matchAll(/(?<!!)\[([^\]\n]{1,200})\]\(([^()\s]{1,400})\)/g)) {
+    if (!links.has(m[2])) links.set(m[2], `[${m[1]}](${m[2]})`);
+  }
+  const linkedPaths = new Set([...links.keys()].map(t => t.replace(/#.*$/, '')));
+  for (const { path, num } of extractAdrRefs(text)) {
+    if (!linkedPaths.has(path) && !links.has(path)) links.set(path, `[ADR-${num}](${path})`);
+  }
+  return [...links.values()];
+}
+
 // Refuse output that drops any PR or issue reference present in the input.
 // PR #213 deleted the `License concern severity tuned 2026-04-04 (PR #84)`
 // paragraph under both the 80% length guard and the strikethrough-count
@@ -537,12 +563,13 @@ function newestDate(text) {
 // eligible only when its heading is struck through (`~~...~~`, the SHIPPED
 // convention), its body is at least `minBodyChars`, and its newest embedded date
 // is at least `maxAgeDays` old. The body is then replaced with a one-line pointer
-// preserving the newest date, every #NN reference, and any `docs/decisions/`
-// ADR links (re-linked as `[ADR-NNN](path)`); the heading is left exactly
-// as-is. Active (non-struck) blocks, recent completions, and the free-prose
+// preserving the newest date, every #NN reference, every markdown link (deduped
+// by target, author's text kept), and any bare `docs/decisions/` ADR paths
+// (re-linked as `[ADR-NNN](path)`); the heading is left exactly as-is. Active
+// (non-struck) blocks, recent completions, and the free-prose
 // `## Implemented` section are never touched — this only trims work the project
 // finished long ago. Idempotent: a compacted body is recognized by its summary
-// shape (it usually also falls below `minBodyChars`, but a ref/ADR-heavy
+// shape (it usually also falls below `minBodyChars`, but a ref/link-heavy
 // summary need not), so re-running is a no-op. Pure function. Exported for
 // testing.
 export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars = 400 } = {}) {
@@ -590,12 +617,12 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     if (!Number.isFinite(age) || age < maxAgeDays) continue; // undatable or too recent
     const refs = [...extractIssueRefs(body)];
     const refPart = refs.length ? ` (${refs.join(', ')})` : '';
-    // ADR links are the section's pointers into the decision record — dropping
-    // them costs discoverability (PR #312 review), so re-link each referenced
-    // `docs/decisions/NNN-*.md` in the summary alongside the PR refs.
-    const adrLinks = extractAdrRefs(body).map(({ path, num }) => `[ADR-${num}](${path})`);
-    const adrPart = adrLinks.length ? ` See ${adrLinks.join(', ')}.` : '';
-    const summary = `Shipped ${newest}${refPart}.${adrPart} Full detail in git history.`;
+    // Markdown links are the section's pointers into files, research notes and
+    // decision records — dropping them costs discoverability (PR #312 review),
+    // so carry every one (plus bare ADR paths, re-linked) alongside the PR refs.
+    const links = extractSummaryLinks(body);
+    const linkPart = links.length ? ` See ${links.join(', ')}.` : '';
+    const summary = `Shipped ${newest}${refPart}.${linkPart} Full detail in git history.`;
     lines.splice(headingIdx + 1, end - headingIdx - 1, '', summary, '');
     compacted.push(heading.replace(/^###\s+/, '').trim());
   }
