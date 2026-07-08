@@ -799,6 +799,46 @@ describe('compactRoadmap', () => {
   });
 });
 
+describe('compactRoadmap — ADR link retention', () => {
+  const today = '2026-06-13';
+  const wrap = (body) => ['## Roadmap', '', '### ~~Phase X~~ SHIPPED', '', body, '', '## Future', '', 'x'].join('\n');
+  const pad = 'Detailed prose about the shipped work, long enough to clear the threshold. '.repeat(8);
+
+  it('keeps a markdown ADR link in the one-line summary alongside PR refs', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Trust model in [ADR-009](docs/decisions/009-settings-level-writes.md). ${pad}`;
+    const { result, compacted } = compactRoadmap(wrap(body), today);
+    assert.equal(compacted.length, 1);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [ADR-009](docs/decisions/009-settings-level-writes.md). Full detail in git history.'));
+    assert.ok(!result.includes('Trust model'), 'verbose body removed');
+  });
+
+  it('re-links a bare ADR path referenced without markdown link syntax', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Design recorded in docs/decisions/007-agents-and-execution.md before landing. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [ADR-007](docs/decisions/007-agents-and-execution.md).'));
+  });
+
+  it('collapses duplicate ADR references and preserves first-appearance order', () => {
+    const body = `Shipped 2026-01-10. Per [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) and [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md); see [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) again. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md), [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md). Full detail in git history.'));
+  });
+
+  it('omits the ADR clause entirely when the body references no ADR', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Mentions docs/research/multi-repo-tooling-landscape.md but no decision record. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(!result.includes('docs/research/'), 'non-ADR paths are not retained');
+  });
+
+  it('is idempotent — the ADR links in a compacted summary survive a second pass unchanged', () => {
+    const body = `Shipped 2026-01-10 (PR #84). See [ADR-009](docs/decisions/009-settings-level-writes.md) and docs/decisions/007-agents-and-execution.md. ${pad}`;
+    const once = compactRoadmap(wrap(body), today).result;
+    const twice = compactRoadmap(once, today).result;
+    assert.equal(twice, once);
+  });
+});
+
 describe('compactRoadmap — review hardening', () => {
   const today = '2026-06-13';
   const longBody = (date) => `Shipped ${date} (PR #18). ` + 'Detailed prose about the work that was done here. '.repeat(12);

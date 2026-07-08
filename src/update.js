@@ -109,6 +109,15 @@ function extractIssueRefs(text) {
   return new Set((text?.match(/#\d+\b/g) || []));
 }
 
+// Extract every `docs/decisions/NNN-*.md` ADR path from markdown text, in
+// first-appearance order with duplicates collapsed. Matches the path whether
+// it sits inside a markdown link (`[ADR-009](docs/decisions/009-….md)`) or
+// appears bare in prose; any `#anchor` suffix is dropped with the rest of the
+// link syntax. Used by compactRoadmap so ADR pointers survive compaction.
+function extractAdrPaths(text) {
+  return [...new Set(text?.match(/docs\/decisions\/\d+[\w./-]*\.md/g) || [])];
+}
+
 // Refuse output that drops any PR or issue reference present in the input.
 // PR #213 deleted the `License concern severity tuned 2026-04-04 (PR #84)`
 // paragraph under both the 80% length guard and the strikethrough-count
@@ -517,7 +526,8 @@ function newestDate(text) {
 // eligible only when its heading is struck through (`~~...~~`, the SHIPPED
 // convention), its body is at least `minBodyChars`, and its newest embedded date
 // is at least `maxAgeDays` old. The body is then replaced with a one-line pointer
-// preserving the newest date and every #NN reference; the heading is left exactly
+// preserving the newest date, every #NN reference, and any `docs/decisions/`
+// ADR links (re-linked as `[ADR-NNN](path)`); the heading is left exactly
 // as-is. Active (non-struck) blocks, recent completions, and the free-prose
 // `## Implemented` section are never touched — this only trims work the project
 // finished long ago. Idempotent: a compacted one-line body falls below
@@ -559,7 +569,12 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     if (!Number.isFinite(age) || age < maxAgeDays) continue; // undatable or too recent
     const refs = [...extractIssueRefs(body)];
     const refPart = refs.length ? ` (${refs.join(', ')})` : '';
-    const summary = `Shipped ${newest}${refPart}. Full detail in git history.`;
+    // ADR links are the section's pointers into the decision record — dropping
+    // them costs discoverability (PR #312 review), so re-link each referenced
+    // `docs/decisions/NNN-*.md` in the summary alongside the PR refs.
+    const adrLinks = extractAdrPaths(body).map(p => `[ADR-${p.match(/decisions\/(\d+)/)[1]}](${p})`);
+    const adrPart = adrLinks.length ? ` See ${adrLinks.join(', ')}.` : '';
+    const summary = `Shipped ${newest}${refPart}.${adrPart} Full detail in git history.`;
     lines.splice(headingIdx + 1, end - headingIdx - 1, '', summary, '');
     compacted.push(heading.replace(/^###\s+/, '').trim());
   }
