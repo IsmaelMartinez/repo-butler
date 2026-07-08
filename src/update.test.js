@@ -837,6 +837,38 @@ describe('compactRoadmap — ADR link retention', () => {
     const twice = compactRoadmap(once, today).result;
     assert.equal(twice, once);
   });
+
+  it('rejects non-convention decision paths — no bogus ADR-NNN labels', () => {
+    // Only zero-padded flat `NNN-*.md` files are the ADR convention: an
+    // unpadded number, a 4-digit number, a date-prefixed review doc, and a
+    // nested folder must all be dropped rather than mislabeled (e.g. ADR-2026).
+    const body = 'Shipped 2026-01-10 (PR #84). Notes in docs/decisions/7-quick-note.md, docs/decisions/1234-too-wide.md, '
+      + `docs/decisions/2026-01-05-dated-review.md and docs/decisions/2026-review/notes.md. ${pad}`;
+    const { result, compacted } = compactRoadmap(wrap(body), today);
+    assert.equal(compacted.length, 1);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(!result.includes('ADR-'), 'no ADR label minted from non-convention digits');
+  });
+
+  it('extracts adjacent ADR paths separately instead of merging them into one broken link', () => {
+    const body = `Shipped 2026-01-10. Compare docs/decisions/009-a.md-vs-docs/decisions/010-b.md for the pivot. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('[ADR-009](docs/decisions/009-a.md)'));
+    assert.ok(result.includes('[ADR-010](docs/decisions/010-b.md)'));
+  });
+
+  it('skips an already-compacted summary even when refs + ADR links push it past minBodyChars', () => {
+    // Idempotence must not depend on the summary being short: re-processing a
+    // long summary would report a phantom compaction, which bumps
+    // **Last Updated** in runUpdate and churns a date-only PR every tick.
+    const adrs = Array.from({ length: 8 }, (_, i) => `[ADR-00${i + 1}](docs/decisions/00${i + 1}-decision-record-with-a-long-slug.md)`);
+    const summary = `Shipped 2026-01-10 (#84, #85, #86). See ${adrs.join(', ')}. Full detail in git history.`;
+    assert.ok(summary.length >= 400, 'fixture exercises the past-threshold case');
+    const roadmap = wrap(summary);
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(compacted.length, 0, 'already-compacted block is not re-reported');
+    assert.equal(result, roadmap);
+  });
 });
 
 describe('compactRoadmap — review hardening', () => {

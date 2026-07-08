@@ -109,13 +109,24 @@ function extractIssueRefs(text) {
   return new Set((text?.match(/#\d+\b/g) || []));
 }
 
-// Extract every `docs/decisions/NNN-*.md` ADR path from markdown text, in
-// first-appearance order with duplicates collapsed. Matches the path whether
-// it sits inside a markdown link (`[ADR-009](docs/decisions/009-….md)`) or
-// appears bare in prose; any `#anchor` suffix is dropped with the rest of the
-// link syntax. Used by compactRoadmap so ADR pointers survive compaction.
-function extractAdrPaths(text) {
-  return [...new Set(text?.match(/docs\/decisions\/\d+[\w./-]*\.md/g) || [])];
+// Extract every `docs/decisions/NNN-*.md` ADR reference from markdown text as
+// `{ path, num }` pairs, in first-appearance order with duplicates collapsed.
+// Matches the path whether it sits inside a markdown link
+// (`[ADR-009](docs/decisions/009-….md)`) or appears bare in prose; any
+// `#anchor` suffix is dropped with the rest of the link syntax. Strict by
+// design: the digits must be the repo's zero-padded `NNN-` ADR filename
+// prefix, so `7-…`, `1234-…`, date-prefixed files (`2026-05-28-….md`), and
+// nested paths (`/` is excluded from the tail) never mint a bogus `ADR-NNN`
+// label; and both quantifiers are bounded so matching stays linear on
+// adversarial text — compactRoadmap runs over LLM-written prose that
+// incorporates external repo data. Used by compactRoadmap so ADR pointers
+// survive compaction.
+function extractAdrRefs(text) {
+  const refs = new Map();
+  for (const m of (text || '').matchAll(/docs\/decisions\/(\d{3})-[\w.-]{0,200}\.md/g)) {
+    if (!refs.has(m[0])) refs.set(m[0], m[1]);
+  }
+  return [...refs].map(([path, num]) => ({ path, num }));
 }
 
 // Refuse output that drops any PR or issue reference present in the input.
@@ -530,8 +541,10 @@ function newestDate(text) {
 // ADR links (re-linked as `[ADR-NNN](path)`); the heading is left exactly
 // as-is. Active (non-struck) blocks, recent completions, and the free-prose
 // `## Implemented` section are never touched — this only trims work the project
-// finished long ago. Idempotent: a compacted one-line body falls below
-// `minBodyChars`, so re-running is a no-op. Pure function. Exported for testing.
+// finished long ago. Idempotent: a compacted body is recognized by its summary
+// shape (it usually also falls below `minBodyChars`, but a ref/ADR-heavy
+// summary need not), so re-running is a no-op. Pure function. Exported for
+// testing.
 export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars = 400 } = {}) {
   if (!roadmap) return { result: roadmap, compacted: [] };
   const lines = roadmap.split('\n');
@@ -557,7 +570,15 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     // completed entry and must not be compacted.
     if (!/^###\s+~~.+~~/.test(heading)) continue;
     const body = lines.slice(headingIdx + 1, end).join('\n');
-    if (body.trim().length < minBodyChars) continue;        // already short
+    const bodyText = body.trim();
+    // A summary produced by an earlier pass is already compact — recognize it
+    // by shape, not just length: with enough refs + ADR links a summary can
+    // exceed minBodyChars, and re-processing it would report a phantom
+    // compaction, which bumps **Last Updated** in runUpdate and opens a
+    // date-only roadmap PR on every tick. (`.` cannot cross a newline, so a
+    // multi-line body never trips this and stays eligible.)
+    if (/^Shipped \d{4}-\d{2}-\d{2}\b.*Full detail in git history\.$/.test(bodyText)) continue;
+    if (bodyText.length < minBodyChars) continue;           // already short
     // Consider both body and heading dates (some entries date the heading, e.g.
     // `### ~~Landscape evaluation~~ — EVALUATED 2026-05-28`) and take the newest.
     const newest = newestDate(`${body}\n${heading}`);
@@ -572,7 +593,7 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     // ADR links are the section's pointers into the decision record — dropping
     // them costs discoverability (PR #312 review), so re-link each referenced
     // `docs/decisions/NNN-*.md` in the summary alongside the PR refs.
-    const adrLinks = extractAdrPaths(body).map(p => `[ADR-${p.match(/decisions\/(\d+)/)[1]}](${p})`);
+    const adrLinks = extractAdrRefs(body).map(({ path, num }) => `[ADR-${num}](${path})`);
     const adrPart = adrLinks.length ? ` See ${adrLinks.join(', ')}.` : '';
     const summary = `Shipped ${newest}${refPart}.${adrPart} Full detail in git history.`;
     lines.splice(headingIdx + 1, end - headingIdx - 1, '', summary, '');
