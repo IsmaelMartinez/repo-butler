@@ -201,8 +201,26 @@ export function getPipelineState() {
 // and a process that exits before the buffer flushes silently loses every
 // recent log line. stderr is line-buffered, so the COMPLETE/FAILED marker
 // survives an abrupt exit and remains visible in the Actions log.
+// stdout is drained first so the boundary cannot overtake a phase's own log
+// lines still sitting in the block buffer — otherwise the Actions log shows
+// e.g. a PROPOSE "DRY RUN" line AFTER the PROPOSE COMPLETE banner, which
+// makes the soak log confusing to read. The empty write's callback fires
+// once everything queued before it has been flushed to the pipe.
+// Best-effort: a closed/destroyed stdout (e.g. a broken pipe at shutdown) must
+// not throw or stall here of all places — skip the drain and emit the banner.
 function logPhaseBoundary(line) {
-  console.error(line);
+  return new Promise(resolve => {
+    const emit = () => {
+      console.error(line);
+      resolve();
+    };
+    try {
+      if (!process.stdout.writable) return emit();
+      process.stdout.write('', emit);
+    } catch {
+      emit();
+    }
+  });
 }
 
 // Run the phase pipeline with per-phase isolation: an exception in one phase
@@ -214,7 +232,7 @@ export async function runPhases(phasesToRun, context, defaultProvider, deepProvi
   pipelineResults = [];
   for (const p of phasesToRun) {
     activePhase = p;
-    logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} ===\n`);
+    await logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} ===\n`);
     const runner = runners[p];
     if (!runner) {
       console.error(`Unknown phase: ${p}`);
@@ -227,11 +245,11 @@ export async function runPhases(phasesToRun, context, defaultProvider, deepProvi
     try {
       await runner(context);
       const durationMs = Date.now() - start;
-      logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} COMPLETE (${(durationMs / 1000).toFixed(1)}s) ===\n`);
+      await logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} COMPLETE (${(durationMs / 1000).toFixed(1)}s) ===\n`);
       pipelineResults.push({ phase: p, status: 'ok', durationMs });
     } catch (err) {
       const durationMs = Date.now() - start;
-      logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} FAILED (${(durationMs / 1000).toFixed(1)}s) ===`);
+      await logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} FAILED (${(durationMs / 1000).toFixed(1)}s) ===`);
       console.error(err?.stack || err);
       process.exitCode = 1;
       pipelineResults.push({ phase: p, status: 'failed', durationMs, error: err });

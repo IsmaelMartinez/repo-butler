@@ -363,10 +363,60 @@ export function resolveProposalDestination(idea, { findings = [], eligibleRepoNa
   return { action: 'file', repo: hostRepo, crossRepo: false, reason };
 }
 
+// Durable soak ledger (G10). The dry-run soak's routing records used to live
+// only in ephemeral Actions console output (aged out after 90 days) — a weak
+// audit trail for the decision that gates graduating a cross-repo class live.
+// Each PROPOSE run appends one entry to a rolling log on the data branch so
+// the graduation review reads a persisted history instead of scraping CI logs.
+// Same path idiom as the monitor cursor and council watchlist.
+const SOAK_LOG_PATH = 'snapshots/propose-soak.json';
+// ~6 months of weekly runs — comfortably spans the month-long soak window
+// plus post-graduation history for auditing live routing decisions.
+const MAX_SOAK_ENTRIES = 26;
+
+export async function appendSoakEntry(store, result, { dryRun } = {}) {
+  // Nothing to record when PROPOSE didn't run its routing loop (no ideas) or
+  // no store is wired (tests, local runs without a token).
+  if (!store?.readJSON || !store?.writeJSON) return;
+  if (!result || !Array.isArray(result.created)) return;
+  try {
+    const existing = await store.readJSON(SOAK_LOG_PATH);
+    const log = Array.isArray(existing) ? existing : [];
+    const entry = {
+      at: new Date().toISOString(),
+      dry_run: dryRun === true,
+      // The routing ledger: per idea, the LLM's requested target, where it
+      // actually routed, and the stable gate reason code. Slimmed to the
+      // routing fields — the full issue body never needs to persist here.
+      created: result.created.map(c => ({
+        title: c.title,
+        target_repo: c.targetRepo ?? null,
+        routed_repo: c.routedRepo ?? null,
+        cross_repo: c.crossRepo === true,
+        route_reason: c.routeReason ?? null,
+        number: c.number ?? null,
+      })),
+      dropped: result.dropped ?? 0,
+      skipped_duplicates: result.skippedDuplicates?.length ?? 0,
+      skipped_capped: result.skippedCapped?.length ?? 0,
+      failures: result.failures?.length ?? 0,
+    };
+    if (result.require_approval) entry.require_approval = true;
+    log.push(entry);
+    await store.writeJSON(SOAK_LOG_PATH, log.slice(-MAX_SOAK_ENTRIES));
+    console.log(`Propose soak ledger updated (${Math.min(log.length, MAX_SOAK_ENTRIES)} entries).`);
+  } catch (err) {
+    // Best-effort like saveCursor/saveWatchlist: a ledger write failure must
+    // never fail the PROPOSE phase that already did its real work.
+    console.warn(`Failed to save propose soak entry: ${err.message}`);
+  }
+}
+
 // Thin orchestration wrapper used by the index dispatcher.
 export async function runPropose(context) {
   const result = await propose(context);
   context.proposeResult = result;
+  await appendSoakEntry(context.store, result, { dryRun: context.dryRun });
   return result;
 }
 
