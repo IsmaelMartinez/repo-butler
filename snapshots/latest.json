@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-08T12:16:05.604Z",
+  "timestamp": "2026-07-08T17:24:04.372Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-08T09:25:07Z",
+    "pushed_at": "2026-07-08T16:49:32Z",
     "archived": false
   },
   "issues": {
@@ -89,6 +89,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 315,
+        "title": "feat(update): retain ADR links when compacting shipped roadmap sections",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-08T16:49:31Z"
+      },
       {
         "number": 313,
         "title": "feat(propose): durable G10 soak ledger + phase-banner log ordering",
@@ -1390,13 +1397,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-13T21:21:16Z"
-      },
-      {
-        "number": 107,
-        "title": "fix: improve mobile responsiveness for dashboard reports",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-13T08:48:02Z"
       }
     ]
   },
@@ -1578,9 +1578,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.989247311827957,
-    "total_runs": 93,
-    "passed": 92,
+    "pass_rate": 0.9891304347826086,
+    "total_runs": 92,
+    "passed": 91,
     "failed": 1
   },
   "summary": {
@@ -1606,7 +1606,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.989247311827957,
+    "ci_pass_rate": 0.9891304347826086,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
