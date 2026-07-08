@@ -206,12 +206,20 @@ export function getPipelineState() {
 // e.g. a PROPOSE "DRY RUN" line AFTER the PROPOSE COMPLETE banner, which
 // makes the soak log confusing to read. The empty write's callback fires
 // once everything queued before it has been flushed to the pipe.
+// Best-effort: a closed/destroyed stdout (e.g. a broken pipe at shutdown) must
+// not throw or stall here of all places — skip the drain and emit the banner.
 function logPhaseBoundary(line) {
   return new Promise(resolve => {
-    process.stdout.write('', () => {
+    const emit = () => {
       console.error(line);
       resolve();
-    });
+    };
+    try {
+      if (!process.stdout.writable) return emit();
+      process.stdout.write('', emit);
+    } catch {
+      emit();
+    }
   });
 }
 
