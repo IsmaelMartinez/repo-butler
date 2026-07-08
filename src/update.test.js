@@ -799,6 +799,78 @@ describe('compactRoadmap', () => {
   });
 });
 
+describe('compactRoadmap — ADR link retention', () => {
+  const today = '2026-06-13';
+  const wrap = (body) => ['## Roadmap', '', '### ~~Phase X~~ SHIPPED', '', body, '', '## Future', '', 'x'].join('\n');
+  const pad = 'Detailed prose about the shipped work, long enough to clear the threshold. '.repeat(8);
+
+  it('keeps a markdown ADR link in the one-line summary alongside PR refs', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Trust model in [ADR-009](docs/decisions/009-settings-level-writes.md). ${pad}`;
+    const { result, compacted } = compactRoadmap(wrap(body), today);
+    assert.equal(compacted.length, 1);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). See [ADR-009](docs/decisions/009-settings-level-writes.md). Full detail in git history.'));
+    assert.ok(!result.includes('Trust model'), 'verbose body removed');
+  });
+
+  it('re-links a bare ADR path referenced without markdown link syntax', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Design recorded in docs/decisions/007-agents-and-execution.md before landing. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [ADR-007](docs/decisions/007-agents-and-execution.md).'));
+  });
+
+  it('collapses duplicate ADR references and preserves first-appearance order', () => {
+    const body = `Shipped 2026-01-10. Per [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) and [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md); see [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md) again. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [ADR-010](docs/decisions/010-cross-repo-proposal-destinations.md), [ADR-005](docs/decisions/005-cross-repo-write-trust-model.md). Full detail in git history.'));
+  });
+
+  it('omits the ADR clause entirely when the body references no ADR', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Mentions docs/research/multi-repo-tooling-landscape.md but no decision record. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(!result.includes('docs/research/'), 'non-ADR paths are not retained');
+  });
+
+  it('is idempotent — the ADR links in a compacted summary survive a second pass unchanged', () => {
+    const body = `Shipped 2026-01-10 (PR #84). See [ADR-009](docs/decisions/009-settings-level-writes.md) and docs/decisions/007-agents-and-execution.md. ${pad}`;
+    const once = compactRoadmap(wrap(body), today).result;
+    const twice = compactRoadmap(once, today).result;
+    assert.equal(twice, once);
+  });
+
+  it('rejects non-convention decision paths — no bogus ADR-NNN labels', () => {
+    // Only zero-padded flat `NNN-*.md` files are the ADR convention: an
+    // unpadded number, a 4-digit number, a date-prefixed review doc, and a
+    // nested folder must all be dropped rather than mislabeled (e.g. ADR-2026).
+    const body = 'Shipped 2026-01-10 (PR #84). Notes in docs/decisions/7-quick-note.md, docs/decisions/1234-too-wide.md, '
+      + `docs/decisions/2026-01-05-dated-review.md and docs/decisions/2026-review/notes.md. ${pad}`;
+    const { result, compacted } = compactRoadmap(wrap(body), today);
+    assert.equal(compacted.length, 1);
+    assert.ok(result.includes('Shipped 2026-01-10 (#84). Full detail in git history.'));
+    assert.ok(!result.includes('ADR-'), 'no ADR label minted from non-convention digits');
+  });
+
+  it('extracts adjacent ADR paths separately instead of merging them into one broken link', () => {
+    const body = `Shipped 2026-01-10. Compare docs/decisions/009-a.md-vs-docs/decisions/010-b.md for the pivot. ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('[ADR-009](docs/decisions/009-a.md)'));
+    assert.ok(result.includes('[ADR-010](docs/decisions/010-b.md)'));
+  });
+
+  it('skips an already-compacted summary even when refs + ADR links push it past minBodyChars', () => {
+    // Idempotence must not depend on the summary being short: re-processing a
+    // long summary would report a phantom compaction, which bumps
+    // **Last Updated** in runUpdate and churns a date-only PR every tick.
+    const adrs = Array.from({ length: 8 }, (_, i) => `[ADR-00${i + 1}](docs/decisions/00${i + 1}-decision-record-with-a-long-slug.md)`);
+    const summary = `Shipped 2026-01-10 (#84, #85, #86). See ${adrs.join(', ')}. Full detail in git history.`;
+    assert.ok(summary.length >= 400, 'fixture exercises the past-threshold case');
+    const roadmap = wrap(summary);
+    const { result, compacted } = compactRoadmap(roadmap, today);
+    assert.equal(compacted.length, 0, 'already-compacted block is not re-reported');
+    assert.equal(result, roadmap);
+  });
+});
+
 describe('compactRoadmap — review hardening', () => {
   const today = '2026-06-13';
   const longBody = (date) => `Shipped ${date} (PR #18). ` + 'Detailed prose about the work that was done here. '.repeat(12);
