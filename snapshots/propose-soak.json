@@ -1,0 +1,96 @@
+[
+  {
+    "at": "2026-06-23T09:46:25.639Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Implement dry-run verification harness for `PROPOSE` phase graduation (G10)",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Standardize governance remediation change specs against ADR-007 Track B schema",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Add structured fallback handling for Gemini Flash API rate limits in UPDATE phase",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
+  },
+  {
+    "at": "2026-06-29T07:53:31.705Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Graduate cross-repo PROPOSE soak to production (G10)",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Implement Gemini 3.5 Flash section-edit validation tests",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
+  },
+  {
+    "at": "2026-07-06T07:41:12.520Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Establish Automated Release Cadence to Correct Portfolio-Wide Release Drift",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Implement Automated Release Workflow to Uplift to Gold Tier",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Implement Automatic Patch Release Workflow for github-issue-triage-bot",
+        "target_repo": "github-issue-triage-bot",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "rationale-not-portfolio-statistic",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
+  }
+]
