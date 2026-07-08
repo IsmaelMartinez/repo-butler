@@ -15,7 +15,10 @@ name: Repo Butler Weekly Ideate
 # proposal/agent labels exist on this repo, and never a cross-repo write.) A live
 # cross-repo write additionally requires BOTH maps populated AND
 # require_approval:false AND INPUT_DRY_RUN:false — three deliberate, separately-
-# reviewed flips.
+# reviewed flips. Each run's routing records also persist to a rolling ledger at
+# snapshots/propose-soak.json on the repo-butler-data branch (max 26 entries),
+# so the graduation review reads a durable history rather than scraping these
+# Actions logs before they age out.
 #
 # Note: governance detection runs implicitly inside `runIdeate` via
 # `runGovernance` (idempotent — no-op if already populated this turn).

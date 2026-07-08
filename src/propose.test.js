@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jaccardSimilarity, buildIssueBody, buildCrossRepoIssueBody, ensureTrackingIssue, findDuplicates, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination } from './propose.js';
+import { jaccardSimilarity, buildIssueBody, buildCrossRepoIssueBody, ensureTrackingIssue, findDuplicates, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination, appendSoakEntry, runPropose } from './propose.js';
 import { validateIdeas, validateIssueBody } from './safety.js';
 
 // A minimal in-memory GitHub client stub. propose() takes context.gh when
@@ -994,5 +994,111 @@ describe('propose — cross-repo title gate & anchor coverage (G9 review hardeni
     assert.equal(result.created.length, 2, 'both ideas file on the host (downgraded), not capped');
     assert.ok(result.created.every(c => !c.crossRepo && c.routedRepo === 'repo-butler'));
     assert.equal(result.skippedCapped.length, 0, 'the cross-repo per-target cap never fires for downgraded ideas');
+  });
+});
+
+describe('propose soak ledger persistence (G10)', () => {
+  const memStore = () => {
+    const persisted = {};
+    return {
+      persisted,
+      readJSON: async (path) => persisted[path] ?? null,
+      writeJSON: async (path, value) => { persisted[path] = value; },
+    };
+  };
+  const PATH = 'snapshots/propose-soak.json';
+  const result = (over = {}) => ({
+    created: [{
+      title: 'Adopt the portfolio licence', labels: ['roadmap-proposal'],
+      targetRepo: 'teams-for-linux', routedRepo: 'repo-butler',
+      crossRepo: false, routeReason: 'not-allowlisted', url: null,
+    }],
+    dropped: 2,
+    skippedDuplicates: [{ title: 'dup' }],
+    skippedCapped: [],
+    failures: [],
+    ...over,
+  });
+
+  it('appends a routing entry with the target/routed/reason fields', async () => {
+    const store = memStore();
+    await appendSoakEntry(store, result(), { dryRun: true });
+    const log = store.persisted[PATH];
+    assert.equal(log.length, 1);
+    const entry = log[0];
+    assert.equal(entry.dry_run, true);
+    assert.ok(entry.at, 'entry is timestamped');
+    assert.deepEqual(entry.created, [{
+      title: 'Adopt the portfolio licence',
+      target_repo: 'teams-for-linux',
+      routed_repo: 'repo-butler',
+      cross_repo: false,
+      route_reason: 'not-allowlisted',
+      number: null,
+    }]);
+    assert.equal(entry.dropped, 2);
+    assert.equal(entry.skipped_duplicates, 1);
+    assert.equal(entry.skipped_capped, 0);
+    assert.equal(entry.failures, 0);
+    assert.ok(!('require_approval' in entry), 'flag absent unless the approval gate fired');
+  });
+
+  it('appends to an existing log and caps it at 26 entries', async () => {
+    const store = memStore();
+    store.persisted[PATH] = Array.from({ length: 26 }, (_, i) => ({ at: `t${i}`, created: [] }));
+    await appendSoakEntry(store, result(), { dryRun: true });
+    const log = store.persisted[PATH];
+    assert.equal(log.length, 26, 'log stays capped');
+    assert.equal(log[0].at, 't1', 'oldest entry pruned');
+    assert.equal(log[25].created[0].title, 'Adopt the portfolio licence', 'newest entry is last');
+  });
+
+  it('recovers from a corrupted (non-array) persisted log', async () => {
+    const store = memStore();
+    store.persisted[PATH] = { not: 'an array' };
+    await appendSoakEntry(store, result(), { dryRun: true });
+    assert.equal(store.persisted[PATH].length, 1);
+  });
+
+  it('records the require_approval flag when the live-run approval gate fired', async () => {
+    const store = memStore();
+    await appendSoakEntry(store, { created: [], dropped: 3, require_approval: true }, { dryRun: false });
+    const entry = store.persisted[PATH][0];
+    assert.equal(entry.require_approval, true);
+    assert.equal(entry.dry_run, false);
+    assert.deepEqual(entry.created, []);
+  });
+
+  it('skips a null result (no ideas) and a store without the JSON helpers', async () => {
+    const store = memStore();
+    await appendSoakEntry(store, null, { dryRun: true });
+    assert.ok(!(PATH in store.persisted), 'null result writes nothing');
+    // Must not throw without a store.
+    await appendSoakEntry(null, result(), { dryRun: true });
+    await appendSoakEntry({}, result(), { dryRun: true });
+  });
+
+  it('a ledger write failure warns but never throws out of the phase', async () => {
+    const store = {
+      readJSON: async () => null,
+      writeJSON: async () => { throw new Error('ref update conflict'); },
+    };
+    await appendSoakEntry(store, result(), { dryRun: true }); // must not throw
+  });
+
+  it('runPropose persists the ledger entry from the real propose result', async () => {
+    const store = memStore();
+    const gh = stubGh();
+    const context = {
+      owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true, gh, store,
+      config: { limits: { require_approval: false } },
+      ideas: [{ title: 'A host idea', priority: 'low', labels: [], body: 'Body.' }],
+    };
+    const res = await runPropose(context);
+    assert.equal(res.created.length, 1);
+    const log = store.persisted[PATH];
+    assert.equal(log.length, 1);
+    assert.equal(log[0].created[0].routed_repo, 'repo-butler');
+    assert.equal(log[0].dry_run, true);
   });
 });
