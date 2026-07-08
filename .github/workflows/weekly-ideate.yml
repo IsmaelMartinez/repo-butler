@@ -10,9 +10,10 @@ name: Repo Butler Weekly Ideate
 # month-long dry-run soak that gates graduating any cross-repo class live (G10).
 # The cross-repo allow-lists (propose-targets / propose-classes in roadmap.yml)
 # stay empty for now, so every targeted idea falls back to the host and the log
-# surfaces the candidate flow without filing any issues. (The one write PROPOSE
-# still makes in dry-run is the idempotent host-label ensure — a no-op once the
-# proposal/agent labels exist on this repo, and never a cross-repo write.) A live
+# surfaces the candidate flow without filing any issues. (The only writes PROPOSE
+# still makes in dry-run are the idempotent host-label ensure — a no-op once the
+# proposal/agent labels exist on this repo — and the soak-ledger append below,
+# both on this host repo and never a cross-repo write.) A live
 # cross-repo write additionally requires BOTH maps populated AND
 # require_approval:false AND INPUT_DRY_RUN:false — three deliberate, separately-
 # reviewed flips. Each run's routing records also persist to a rolling ledger at
