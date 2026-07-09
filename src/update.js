@@ -101,12 +101,22 @@ export function checkStrikethroughPreservation(input, output) {
   return { valid: true, inputCount, outputCount };
 }
 
-// Extract every `#NN` PR/issue reference token from markdown text. Matches the
-// number-with-hash form regardless of surrounding context — `(PR #84)`, `PR
-// #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the numeric
-// ID. Returns a Set so duplicates collapse and order doesn't matter.
+// Extract every `#NN` PR/issue reference token from markdown text — `(PR
+// #84)`, `PR #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the
+// numeric ID. The lookbehind excludes `#N` that is really a URL/path fragment
+// anchor — `docs/decisions/009-foo.md#2-decision`, `https://host/path#3` —
+// where the `#` follows a word character or `/`, or a local markdown anchor
+// target (`[jump](#123)`), where it follows `](`; GitHub would not autolink
+// those as issue references either, and counting them mints bogus refs
+// (compactRoadmap would write a fabricated `#2` into a summary, and
+// applyEditOps' shippedRefs dedup could skip a legitimate append citing the
+// real PR #2). Same pair of lookbehinds as safety.js's BARE_ISSUE_REF. A
+// range's second ref (`#23–#37`) follows a dash, and a parenthesised or
+// space-preceded ref follows a delimiter (` (`, not `](`), so all the
+// reference forms above still match. Returns a Set so duplicates collapse and
+// order doesn't matter.
 function extractIssueRefs(text) {
-  return new Set((text?.match(/#\d+\b/g) || []));
+  return new Set((text?.match(/(?<![\w/])(?<!\]\()#\d+\b/g) || []));
 }
 
 // Extract every `docs/decisions/NNN-*.md` ADR reference from markdown text as
@@ -127,6 +137,35 @@ function extractAdrRefs(text) {
     if (!refs.has(m[0])) refs.set(m[0], m[1]);
   }
   return [...refs].map(([path, num]) => ({ path, num }));
+}
+
+// Collect every pointer worth carrying into a compacted summary: all markdown
+// links `[text](target)` in first-appearance order, deduped by target with the
+// author's link text preserved, followed by any bare `docs/decisions/NNN-*.md`
+// paths promoted to `[ADR-NNN](path)` links via extractAdrRefs. A path
+// referenced both bare and as a link target appears once — the markdown link
+// wins, so its text (and any `#anchor` in its target) survives; targets are
+// compared with the anchor stripped for exactly that dedup. Bare paths outside
+// docs/decisions/ are not carried: an unlinked path is prose, not a pointer,
+// and only the ADR convention is unambiguous enough to promote. Targets may
+// contain one level of balanced parentheses (valid CommonMark, e.g. Wikipedia
+// URLs); deeper nesting or an unbalanced paren ends the target. Every regex
+// quantifier is bounded and the alternatives are first-character disjoint
+// (linear on adversarial text, same rationale as extractAdrRefs), and every
+// character class excludes whitespace or newlines, so each returned link
+// renders on one line. Returns rendered `[text](target)` strings. PR
+// #312/#315 reviews: compaction must not cost the section its key pointers
+// (files, research notes, ADRs).
+function extractSummaryLinks(text) {
+  const links = new Map(); // target as written → rendered link
+  for (const m of (text || '').matchAll(/(?<!!)\[([^\]\n]{1,200})\]\(((?:[^()\s]|\([^()\s]{0,200}\)){1,400})\)/g)) {
+    if (!links.has(m[2])) links.set(m[2], `[${m[1]}](${m[2]})`);
+  }
+  const linkedPaths = new Set([...links.keys()].map(t => t.replace(/#.*$/, '')));
+  for (const { path, num } of extractAdrRefs(text)) {
+    if (!linkedPaths.has(path) && !links.has(path)) links.set(path, `[ADR-${num}](${path})`);
+  }
+  return [...links.values()];
 }
 
 // Refuse output that drops any PR or issue reference present in the input.
@@ -537,12 +576,13 @@ function newestDate(text) {
 // eligible only when its heading is struck through (`~~...~~`, the SHIPPED
 // convention), its body is at least `minBodyChars`, and its newest embedded date
 // is at least `maxAgeDays` old. The body is then replaced with a one-line pointer
-// preserving the newest date, every #NN reference, and any `docs/decisions/`
-// ADR links (re-linked as `[ADR-NNN](path)`); the heading is left exactly
-// as-is. Active (non-struck) blocks, recent completions, and the free-prose
+// preserving the newest date, every #NN reference, every markdown link (deduped
+// by target, author's text kept), and any bare `docs/decisions/` ADR paths
+// (re-linked as `[ADR-NNN](path)`); the heading is left exactly as-is. Active
+// (non-struck) blocks, recent completions, and the free-prose
 // `## Implemented` section are never touched — this only trims work the project
 // finished long ago. Idempotent: a compacted body is recognized by its summary
-// shape (it usually also falls below `minBodyChars`, but a ref/ADR-heavy
+// shape (it usually also falls below `minBodyChars`, but a ref/link-heavy
 // summary need not), so re-running is a no-op. Pure function. Exported for
 // testing.
 export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars = 400 } = {}) {
@@ -576,8 +616,11 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     // exceed minBodyChars, and re-processing it would report a phantom
     // compaction, which bumps **Last Updated** in runUpdate and opens a
     // date-only roadmap PR on every tick. (`.` cannot cross a newline, so a
-    // multi-line body never trips this and stays eligible.)
-    if (/^Shipped \d{4}-\d{2}-\d{2}\b.*Full detail in git history\.$/.test(bodyText)) continue;
+    // multi-line body never trips this and stays eligible.) `details?` accepts
+    // the pre-#312-review "Full detail" wording too: ROADMAP.md still carries
+    // summaries minted with the old phrase, and re-compacting them would churn
+    // a date-only PR for pure wording.
+    if (/^Shipped \d{4}-\d{2}-\d{2}\b.*Full details? in git history\.$/.test(bodyText)) continue;
     if (bodyText.length < minBodyChars) continue;           // already short
     // Consider both body and heading dates (some entries date the heading, e.g.
     // `### ~~Landscape evaluation~~ — EVALUATED 2026-05-28`) and take the newest.
@@ -590,12 +633,12 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
     if (!Number.isFinite(age) || age < maxAgeDays) continue; // undatable or too recent
     const refs = [...extractIssueRefs(body)];
     const refPart = refs.length ? ` (${refs.join(', ')})` : '';
-    // ADR links are the section's pointers into the decision record — dropping
-    // them costs discoverability (PR #312 review), so re-link each referenced
-    // `docs/decisions/NNN-*.md` in the summary alongside the PR refs.
-    const adrLinks = extractAdrRefs(body).map(({ path, num }) => `[ADR-${num}](${path})`);
-    const adrPart = adrLinks.length ? ` See ${adrLinks.join(', ')}.` : '';
-    const summary = `Shipped ${newest}${refPart}.${adrPart} Full detail in git history.`;
+    // Markdown links are the section's pointers into files, research notes and
+    // decision records — dropping them costs discoverability (PR #312 review),
+    // so carry every one (plus bare ADR paths, re-linked) alongside the PR refs.
+    const links = extractSummaryLinks(body);
+    const linkPart = links.length ? ` See ${links.join(', ')}.` : '';
+    const summary = `Shipped ${newest}${refPart}.${linkPart} Full details in git history.`;
     lines.splice(headingIdx + 1, end - headingIdx - 1, '', summary, '');
     compacted.push(heading.replace(/^###\s+/, '').trim());
   }
