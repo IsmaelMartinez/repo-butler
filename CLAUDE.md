@@ -10,7 +10,7 @@ node --test src/observe.test.js    # Run a single test file
 npm start                          # Run full pipeline (all phases)
 npm run observe                    # Run observe phase only
 npm run report                     # Run report phase only
-INPUT_DRY_RUN=true npm start       # Dry run (no writes to GitHub)
+INPUT_DRY_RUN=true npm start       # Dry run (no issue/PR/roadmap writes; snapshots still persist)
 ```
 
 The CI workflow also runs a secret-leak lint check that greps source files for hardcoded API keys (sk-, AIza, ghp_, ghs_). This excludes safety.js and *.test.js.
@@ -80,7 +80,7 @@ The report module is split into five files. `src/report.js` is the entry point t
 
 ## Report generation
 
-- Scheduled and dispatch workflows: `self-test.yml` (cron `0 7,11,16,20 * * *`, runs `observe,assess,update,governance,report`, ~13 min), `weekly-ideate.yml` (Mondays 06:00 UTC, runs `observe,ideate,propose` dry-run — council deliberation plus the G10 cross-repo PROPOSE soak; dry-run means PROPOSE files no issues or PRs — its only writes are the idempotent host-label ensure and an append of each run's routing records to the rolling `snapshots/propose-soak.json` ledger on the data branch, max 26 entries; reads governance findings refreshed by the daily pipeline), `monitor.yml` (every 6h, runs the monitor phase), `apply.yml` (manual-dispatch governance remediation, dry-run by default, max 5 PRs/run), `onboard.yml` (workflow_dispatch + GitHub App webhook on installation). Trigger the main one manually with `gh workflow run "Repo Butler" --ref main`.
+- Scheduled and dispatch workflows: `self-test.yml` (cron `0 7,11,16,20 * * *`, runs `observe,assess,update,governance,report`, ~13 min), `weekly-ideate.yml` (Mondays 06:00 UTC, runs `observe,ideate,propose` dry-run — council deliberation plus the G10 cross-repo PROPOSE soak; dry-run means PROPOSE files no issues — its only writes are the idempotent host-label ensure and an append of each run's routing records to the rolling `snapshots/propose-soak.json` ledger on the data branch, max 26 entries; reads governance findings refreshed by the daily pipeline), `monitor.yml` (every 6h, runs the monitor phase), `apply.yml` (manual-dispatch governance remediation, dry-run by default, max 5 PRs/run), `onboard.yml` (workflow_dispatch + GitHub App webhook on installation). Trigger the main one manually with `gh workflow run "Repo Butler" --ref main`.
 - Report caching uses a SHA-256 hash of the snapshot summary. Adding new fields to the summary object will trigger regeneration.
 - Per-repo reports get a full dashboard (charts, health section) for repos with 10+ commits, or a lightweight card for quieter ones.
 - The per-repo `repoSnapshot` in report.js is assembled inline — when adding new observation data, remember to populate it both in observe.js (for the OBSERVE→REPORT pipeline) and in the inline repoSnapshot construction in report.js (for the portfolio→per-repo path).
