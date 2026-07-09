@@ -10,7 +10,7 @@
     "report": "node --env-file=.env.local src/index.js --phase=report",
     "assess": "node --env-file=.env.local src/index.js --phase=assess",
     "all": "node --env-file=.env.local src/index.js --phase=all",
-    "test": "find src -name '*.test.js' -print0 | xargs -0 node --test"
+    "test": "find src -name '*.test.js' -print0 | xargs -0 node --test --test-concurrency=1"
   },
   "keywords": [
     "github",

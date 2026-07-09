@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm test                           # Run all tests (find src -name '*.test.js' | xargs node --test)
+npm test                           # Run all tests (find src -name '*.test.js' -print0 | xargs -0 node --test --test-concurrency=1)
 node --test src/observe.test.js    # Run a single test file
 npm start                          # Run full pipeline (all phases)
 npm run observe                    # Run observe phase only
@@ -14,6 +14,8 @@ INPUT_DRY_RUN=true npm start       # Dry run (no issue/PR/roadmap writes; snapsh
 ```
 
 The CI workflow also runs a secret-leak lint check that greps source files for hardcoded API keys (sk-, AIza, ghp_, ghs_). This excludes safety.js and *.test.js.
+
+`--test-concurrency=1` is deliberate: Node's test runner isolates each file in its own child process, and under the default concurrency the largest file (report.test.js, 2000+ lines) intermittently lost its trailing suites over the IPC channel — a full run would silently report ~50 fewer tests with no failure surfaced apart from a stray count mismatch. Serializing removed the flake in repeated local runs at a ~2.5s cost.
 
 ## Code review before merging
 
