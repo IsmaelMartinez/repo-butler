@@ -19,7 +19,7 @@ The CI workflow also runs a secret-leak lint check that greps source files for h
 
 ## Code review before merging
 
-Never merge a PR before the AI code review bot has completed its review. GitHub Copilot code review is the portfolio standard, live on all repos since 2026-06-15 (ADR-009) — wait for the GitHub Copilot review (any review/check whose name contains `copilot`). The legacy Gemini Code Assist consumer review is being sunset (new org installs blocked 2026-06-18; all review activity ceases 2026-07-17), so do not wait on it after that date; CodeRabbit is no longer active here. Wait up to 20 minutes for the review to finish. After the review completes, address every inline comment before merging — either apply the fix, or explain why not and reply to each comment individually via the GitHub API. Use the /address-pr-comments skill for this workflow.
+Never merge a PR before the AI code review bot has completed its review. GitHub Copilot code review is the portfolio standard (ADR-009) — wait for the GitHub Copilot review (any review/check whose name contains `copilot`). Legacy review bots (e.g. Gemini Code Assist, CodeRabbit) are deprecated and no longer active here; do not wait on them. Wait up to 20 minutes for the review to finish. After the review completes, address every inline comment before merging — either apply the fix, or explain why not and reply to each comment individually via the GitHub API. Use the /address-pr-comments skill for this workflow.
 
 ## Architecture
 
