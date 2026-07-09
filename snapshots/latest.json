@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-09T17:50:24.367Z",
+  "timestamp": "2026-07-09T21:18:19.674Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 2,
+    "open_issues_count": 1,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-09T14:25:22Z",
+    "pushed_at": "2026-07-09T19:56:51Z",
     "archived": false
   },
   "issues": {
@@ -89,6 +89,20 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 320,
+        "title": "docs: drop dated Gemini sunset timeline from review-before-merge policy",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-09T19:56:50Z"
+      },
+      {
+        "number": 319,
+        "title": "chore: PR #317 follow-ups — dedupe issue-ref regex, fix test-runner flake",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-09T19:16:40Z"
+      },
       {
         "number": 317,
         "title": "fix(update): roadmap compactor follow-ups — keep all links, grammar, no bogus anchor refs",
@@ -1386,20 +1400,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-14T16:18:30Z"
-      },
-      {
-        "number": 112,
-        "title": "feat: surface governance findings on the portfolio dashboard",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-14T10:08:32Z"
-      },
-      {
-        "number": 111,
-        "title": "fix: restructure REPORT_FORCE expression so scheduled runs actually regenerate",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-14T06:47:40Z"
       }
     ]
   },
