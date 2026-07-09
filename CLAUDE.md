@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm test                           # Run all tests (find src -name '*.test.js' | xargs node --test --test-concurrency=1)
+npm test                           # Run all tests (find src -name '*.test.js' -print0 | xargs -0 node --test --test-concurrency=1)
 node --test src/observe.test.js    # Run a single test file
 npm start                          # Run full pipeline (all phases)
 npm run observe                    # Run observe phase only

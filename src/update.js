@@ -103,7 +103,7 @@ export function checkStrikethroughPreservation(input, output) {
 
 // Extract every `#NN` PR/issue reference token from markdown text — `(PR
 // #84)`, `PR #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the
-// numeric ID. Excludes `#N` that is really a URL/path fragment anchor —
+// matched `#NN` token. Excludes `#N` that is really a URL/path fragment anchor —
 // `docs/decisions/009-foo.md#2-decision`, `https://host/path#3` — or a local
 // markdown anchor target (`[jump](#123)`); GitHub would not autolink those as
 // issue references either, and counting them mints bogus refs (compactRoadmap
