@@ -144,7 +144,19 @@ export function validateIssueBody(body, { crossRepo = false } = {}) {
 // bodies (ADR-011's cross-reference neutralisation tightening). Errors name the
 // pattern, never the matched token, so nothing adversary-supplied is echoed.
 const QUALIFIED_CROSSREF = /\b[A-Za-z0-9][\w.-]*\/[A-Za-z0-9][\w.-]*#\d+\b/;
-const BARE_ISSUE_REF = /(?<![\w/])(?<!\]\()#\d+\b/;
+
+// Source (no flags) for the `#NN` issue/PR reference pattern, shared with
+// update.js's extractIssueRefs. The lookbehind pair excludes a `#N` that is
+// really a URL/path fragment anchor (`docs/decisions/009-foo.md#2-decision`,
+// `https://host/path#3`), where the `#` follows a word character or `/`, or a
+// local markdown anchor target (`[jump](#123)`), where it follows `](` —
+// GitHub would not autolink those as issue references either. Exported as a
+// source string rather than a shared RegExp instance: update.js needs a `g`
+// flag for exhaustive matching while validateCrossRefs only tests for
+// presence, and a single `g`-flagged instance would carry stateful lastIndex
+// across the two call sites.
+export const ISSUE_REF_PATTERN_SOURCE = '(?<![\\w/])(?<!\\]\\()#\\d+\\b';
+const BARE_ISSUE_REF = new RegExp(ISSUE_REF_PATTERN_SOURCE);
 const GH_SHORTHAND = /\bGH-\d+\b/i; // GitHub autolinks GH-123 like #123 (case-insensitive)
 const URL_TOKEN = /https?:\/\/[^\s)>\]"']+/gi;
 

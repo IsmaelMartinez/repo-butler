@@ -1,7 +1,7 @@
 // UPDATE phase: generate an updated roadmap document and open a PR.
 
 import { createClient } from './github.js';
-import { validateIssueBody, validateRoadmap, sanitizeForPrompt, wrapPrompt, redactErrorForLog } from './safety.js';
+import { validateIssueBody, validateRoadmap, sanitizeForPrompt, wrapPrompt, redactErrorForLog, ISSUE_REF_PATTERN_SOURCE } from './safety.js';
 
 // Canonical home is safety.js (the security boundary); re-exported here for
 // backwards compat with existing imports.
@@ -103,20 +103,19 @@ export function checkStrikethroughPreservation(input, output) {
 
 // Extract every `#NN` PR/issue reference token from markdown text — `(PR
 // #84)`, `PR #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the
-// numeric ID. The lookbehind excludes `#N` that is really a URL/path fragment
-// anchor — `docs/decisions/009-foo.md#2-decision`, `https://host/path#3` —
-// where the `#` follows a word character or `/`, or a local markdown anchor
-// target (`[jump](#123)`), where it follows `](`; GitHub would not autolink
-// those as issue references either, and counting them mints bogus refs
-// (compactRoadmap would write a fabricated `#2` into a summary, and
-// applyEditOps' shippedRefs dedup could skip a legitimate append citing the
-// real PR #2). Same pair of lookbehinds as safety.js's BARE_ISSUE_REF. A
-// range's second ref (`#23–#37`) follows a dash, and a parenthesised or
-// space-preceded ref follows a delimiter (` (`, not `](`), so all the
-// reference forms above still match. Returns a Set so duplicates collapse and
-// order doesn't matter.
+// numeric ID. Excludes `#N` that is really a URL/path fragment anchor —
+// `docs/decisions/009-foo.md#2-decision`, `https://host/path#3` — or a local
+// markdown anchor target (`[jump](#123)`); GitHub would not autolink those as
+// issue references either, and counting them mints bogus refs (compactRoadmap
+// would write a fabricated `#2` into a summary, and applyEditOps' shippedRefs
+// dedup could skip a legitimate append citing the real PR #2). Uses
+// safety.js's ISSUE_REF_PATTERN_SOURCE (same pattern backs BARE_ISSUE_REF
+// there) so the two call sites can't drift apart. A range's second ref
+// (`#23–#37`) follows a dash, and a parenthesised or space-preceded ref
+// follows a delimiter (` (`, not `](`), so all the reference forms above
+// still match. Returns a Set so duplicates collapse and order doesn't matter.
 function extractIssueRefs(text) {
-  return new Set((text?.match(/(?<![\w/])(?<!\]\()#\d+\b/g) || []));
+  return new Set((text?.match(new RegExp(ISSUE_REF_PATTERN_SOURCE, 'g')) || []));
 }
 
 // Extract every `docs/decisions/NNN-*.md` ADR reference from markdown text as
