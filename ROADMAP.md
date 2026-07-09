@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-08
+**Last Updated:** 2026-07-09
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -86,7 +86,9 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
-Roadmap compaction ADR link retention shipped 2026-07-08 (PR #315). Refined the automated roadmap update process to preserve Architecture Decision Record (ADR) links when compacting and archiving shipped roadmap sections, securing long-term traceability and administrative hygiene.
+Roadmap formatting and documentation refinement shipped 2026-07-09 (PRs #316 and #317). Updated development guidelines in CLAUDE.md to align with actual workflows and resolved roadmap layout issues to maintain clean project guidelines.
+
+Automated dependency updates shipped 2026-07-09 (PR #318), leveraging automated dependency groups to keep codebase security and third-party packages up-to-date with minimal manual overhead.
 ---
 
 ## Roadmap
@@ -139,11 +141,11 @@ The portfolio dashboard's structure had drifted back toward a data dump as Gover
 
 ### Scheduled pipeline wiring
 
-Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS, UPDATE (dry-run), and REPORT run daily via `self-test.yml`, and IDEATE runs weekly via `weekly-ideate.yml` (dry-run). Only PROPOSE remains manual-only. Alongside the main pipeline, MONITOR runs every 6h via `monitor.yml`. `.github/roadmap.yml:6-8` declares `schedule: { assess: daily, ideate: weekly }` — both now match reality. The 2026-04-14 incident where `snapshots/latest.json` had been frozen since 2026-04-03 (because `self-test.yml` defaulted to `phase=report` with no OBSERVE) exposed this gap; the fix landed as commit `9795952` on main. The remaining work is a two-week soak test on UPDATE and IDEATE before graduating either off dry-run.
+All seven main pipeline phases are now wired to triggers: OBSERVE, ASSESS, UPDATE (live since 2026-05-26), GOVERNANCE, and REPORT run daily via `self-test.yml`, and IDEATE and PROPOSE run weekly via `weekly-ideate.yml` (dry-run — PROPOSE files no issues; its only writes are the idempotent host-label ensure and each run's routing-record append to the rolling `snapshots/propose-soak.json` ledger on the data branch for the G10 graduation review). Alongside the main pipeline, MONITOR runs every 6h via `monitor.yml`. `.github/roadmap.yml:6-8` declares `schedule: { assess: daily, ideate: weekly }` — both now match reality. The 2026-04-14 incident where `snapshots/latest.json` had been frozen since 2026-04-03 (because `self-test.yml` defaulted to `phase=report` with no OBSERVE) exposed this gap; the fix landed as commit `9795952` on main. UPDATE has since graduated off dry-run (2026-05-26, see below); the soak still running is the month-long G10 dry-run PROPOSE soak.
 
 ~~**Wire ASSESS into the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`, so the daily run diffs snapshots, calls the LLM for a narrative, proposes a ROADMAP.md update in dry-run mode, and computes weekly trends. The per-repo report for the butler repo now renders an Assessment section from `context.assessment.assessment` alongside the trend direction from `context.trends`. `schedule.assess: daily` in roadmap.yml is no longer aspirational.
 
-~~**Weekly IDEATE workflow (dry-run first)**~~ — SHIPPED. `.github/workflows/weekly-ideate.yml` runs `observe,ideate` every Monday at 06:00 UTC with `dry-run: true`. No issue or PR writes; governance findings still persist to the `repo-butler-data` branch for the MCP `get_governance_findings` tool. Graduate to `observe,ideate,propose` later once the council output is trusted. Acceptance (pending): governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality.
+~~**Weekly IDEATE workflow (dry-run first)**~~ — SHIPPED. `.github/workflows/weekly-ideate.yml` initially ran `observe,ideate` every Monday at 06:00 UTC with `dry-run: true` — no issue or PR writes; governance findings still persist to the `repo-butler-data` branch for the MCP `get_governance_findings` tool — with graduation to `observe,ideate,propose` deferred until the council output was trusted. Acceptance (pending): governance findings refresh weekly; `get_governance_findings` returns data <7 days old; `schedule.ideate: weekly` matches reality. (Since graduated: the workflow now runs `observe,ideate,propose` dry-run as the G10 soak — see "Cross-repo PROPOSE destinations" below.)
 
 ~~**UPDATE in dry-run mode on the daily schedule**~~ — SHIPPED. `self-test.yml` now defaults to `observe,assess,update,report`. `src/update.js` gates writes behind `dryRun`, so daily CI logs what it *would* change without touching the file.
 
@@ -151,7 +153,7 @@ Five of the six main pipeline phases are now wired to triggers: OBSERVE, ASSESS,
 
 ~~**UPDATE prompt rebuild + section-edit mode**~~ — SHIPPED 2026-05-26. The full-document reproduction approach (PRs #179, #187, #188) proved fundamentally unsuitable: three models (Gemini 2.5 Flash, Claude Sonnet 4, Gemini 3.5 Flash) all consistently deleted or rewrote paragraphs despite explicit verbatim instructions, and four safety guards (length 80%, strikethrough count, PR-reference count, validateRoadmap) correctly caught every bad edit but meant no PR was ever created. PR #231 replaced it with section-edit mode: the LLM receives the roadmap as read-only context and emits a JSON array of `{"action": "append", "section": "...", "text": "..."}` ops; the code applies them deterministically and updates the date without LLM involvement. The LLM can only add content, never delete or rewrite. Run time dropped from ~40s to ~6s, and the first two generated PRs (#232, #233) merged cleanly. Gemini bumped from 2.5 to 3.5 Flash in PR #230. The legacy guards remain defined but inactive, with `validateRoadmap` as the active defence-in-depth.
 
-**Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.
+~~**Deliberately out of scope: PROPOSE on a schedule.** PROPOSE creates real GitHub issues (`src/propose.js:172-246`) and has spam-risk blast radius. It stays manual-only until IDEATE has been producing trustworthy council-approved proposals for at least a month. When it graduates, it belongs on `weekly-ideate.yml` (not daily), behind the existing `require_approval: true` flag in roadmap.yml so every issue needs a human label-flip to leave draft status.~~ — SUPERSEDED as predicted: PROPOSE now runs on `weekly-ideate.yml` in dry-run as the ADR-011 G10 soak (no issues filed; a live write still requires the allow-lists populated, `require_approval: false`, and `INPUT_DRY_RUN: false`). See "Cross-repo PROPOSE destinations" below.
 
 ### Cross-repo PROPOSE destinations — PROPOSED (ADR-010, ADR-011)
 
