@@ -147,15 +147,18 @@ function extractAdrRefs(text) {
 // wins, so its text (and any `#anchor` in its target) survives; targets are
 // compared with the anchor stripped for exactly that dedup. Bare paths outside
 // docs/decisions/ are not carried: an unlinked path is prose, not a pointer,
-// and only the ADR convention is unambiguous enough to promote. Both regex
-// quantifiers are bounded (linear on adversarial text, same rationale as
-// extractAdrRefs) and both character classes exclude newlines, so every
-// returned link renders on one line. Returns rendered `[text](target)`
-// strings. PR #312/#315 reviews: compaction must not cost the section its key
-// pointers (files, research notes, ADRs).
+// and only the ADR convention is unambiguous enough to promote. Targets may
+// contain one level of balanced parentheses (valid CommonMark, e.g. Wikipedia
+// URLs); deeper nesting or an unbalanced paren ends the target. Every regex
+// quantifier is bounded and the alternatives are first-character disjoint
+// (linear on adversarial text, same rationale as extractAdrRefs), and every
+// character class excludes whitespace or newlines, so each returned link
+// renders on one line. Returns rendered `[text](target)` strings. PR
+// #312/#315 reviews: compaction must not cost the section its key pointers
+// (files, research notes, ADRs).
 function extractSummaryLinks(text) {
   const links = new Map(); // target as written → rendered link
-  for (const m of (text || '').matchAll(/(?<!!)\[([^\]\n]{1,200})\]\(([^()\s]{1,400})\)/g)) {
+  for (const m of (text || '').matchAll(/(?<!!)\[([^\]\n]{1,200})\]\(((?:[^()\s]|\([^()\s]{0,200}\)){1,400})\)/g)) {
     if (!links.has(m[2])) links.set(m[2], `[${m[1]}](${m[2]})`);
   }
   const linkedPaths = new Set([...links.keys()].map(t => t.replace(/#.*$/, '')));

@@ -392,7 +392,7 @@ describe('checkPrReferencePreservation', () => {
   it('does not count URL/path fragment anchors as issue refs', () => {
     // `#2-decision` in a markdown anchor and `#3` in a URL fragment are not
     // issue references — GitHub doesn't autolink them either. Counting them
-    // fabricated refs the output could never legitimately carry.
+    // would fabricate refs the output could never legitimately carry.
     const input = 'See [ADR-009](docs/decisions/009-foo.md#2-decision) and https://example.com/page#3.';
     const result = checkPrReferencePreservation(input, 'rewritten with no anchors');
     assert.equal(result.valid, true);
@@ -911,6 +911,12 @@ describe('compactRoadmap — link retention', () => {
     const body = `Shipped 2026-01-10 (PR #84). Rollout tracked in [the actions run](https://github.com/IsmaelMartinez/repo-butler/actions). ${pad}`;
     const { result } = compactRoadmap(wrap(body), today);
     assert.ok(result.includes('See [the actions run](https://github.com/IsmaelMartinez/repo-butler/actions).'));
+  });
+
+  it('carries a link whose target contains balanced parentheses (valid CommonMark)', () => {
+    const body = `Shipped 2026-01-10 (PR #84). Background in [the wiki](https://github.com/IsmaelMartinez/repo-butler/wiki/Roadmap_(archive)). ${pad}`;
+    const { result } = compactRoadmap(wrap(body), today);
+    assert.ok(result.includes('See [the wiki](https://github.com/IsmaelMartinez/repo-butler/wiki/Roadmap_(archive)).'));
   });
 
   it('does not carry image embeds as links', () => {
