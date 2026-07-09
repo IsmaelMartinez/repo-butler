@@ -105,16 +105,18 @@ export function checkStrikethroughPreservation(input, output) {
 // #84)`, `PR #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the
 // numeric ID. The lookbehind excludes `#N` that is really a URL/path fragment
 // anchor — `docs/decisions/009-foo.md#2-decision`, `https://host/path#3` —
-// where the `#` follows a word character or `/`; GitHub would not autolink
+// where the `#` follows a word character or `/`, or a local markdown anchor
+// target (`[jump](#123)`), where it follows `](`; GitHub would not autolink
 // those as issue references either, and counting them mints bogus refs
 // (compactRoadmap would write a fabricated `#2` into a summary, and
 // applyEditOps' shippedRefs dedup could skip a legitimate append citing the
-// real PR #2). A range's second ref (`#23–#37`) follows a dash, and a
-// parenthesised or space-preceded ref follows a delimiter, so all the
+// real PR #2). Same pair of lookbehinds as safety.js's BARE_ISSUE_REF. A
+// range's second ref (`#23–#37`) follows a dash, and a parenthesised or
+// space-preceded ref follows a delimiter (` (`, not `](`), so all the
 // reference forms above still match. Returns a Set so duplicates collapse and
 // order doesn't matter.
 function extractIssueRefs(text) {
-  return new Set((text?.match(/(?<![\w/])#\d+\b/g) || []));
+  return new Set((text?.match(/(?<![\w/])(?<!\]\()#\d+\b/g) || []));
 }
 
 // Extract every `docs/decisions/NNN-*.md` ADR reference from markdown text as

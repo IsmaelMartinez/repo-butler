@@ -399,6 +399,19 @@ describe('checkPrReferencePreservation', () => {
     assert.equal(result.inputCount, 0);
   });
 
+  it('does not count local markdown anchor targets ([jump](#123)) as issue refs', () => {
+    const input = 'See [the 2026 plan](#123-plan) and [jump](#123).';
+    const result = checkPrReferencePreservation(input, 'rewritten with no anchors');
+    assert.equal(result.valid, true);
+    assert.equal(result.inputCount, 0);
+  });
+
+  it('still matches parenthesised refs — `(#84)` is not a markdown anchor', () => {
+    const result = checkPrReferencePreservation('Shipped 2026-01-10 (#84, #85).', '');
+    assert.equal(result.valid, false);
+    assert.deepEqual(result.missing, ['#84', '#85']);
+  });
+
   it('still matches the second ref of a dash-joined range (PRs #23–#37)', () => {
     const input = 'Landed across PRs #23–#37 and PRs #40-#41.';
     const result = checkPrReferencePreservation(input, '');
