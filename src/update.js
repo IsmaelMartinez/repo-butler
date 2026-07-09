@@ -115,7 +115,9 @@ export function checkStrikethroughPreservation(input, output) {
 // follows a delimiter (` (`, not `](`), so all the reference forms above
 // still match. Returns a Set so duplicates collapse and order doesn't matter.
 // The `g`-flagged RegExp is compiled once at module scope and reused — safe
-// here because String.prototype.match() doesn't consult or mutate lastIndex.
+// here because String.prototype.match() ignores any prior lastIndex and
+// resets it to 0 when done, unlike .exec()/.test(), which read and persist
+// lastIndex across calls and would need a fresh instance per call.
 const ISSUE_REF_REGEXP = new RegExp(ISSUE_REF_PATTERN_SOURCE, 'g');
 function extractIssueRefs(text) {
   return new Set((text?.match(ISSUE_REF_REGEXP) || []));
