@@ -114,8 +114,11 @@ export function checkStrikethroughPreservation(input, output) {
 // (`#23–#37`) follows a dash, and a parenthesised or space-preceded ref
 // follows a delimiter (` (`, not `](`), so all the reference forms above
 // still match. Returns a Set so duplicates collapse and order doesn't matter.
+// The `g`-flagged RegExp is compiled once at module scope and reused — safe
+// here because String.prototype.match() doesn't consult or mutate lastIndex.
+const ISSUE_REF_REGEXP = new RegExp(ISSUE_REF_PATTERN_SOURCE, 'g');
 function extractIssueRefs(text) {
-  return new Set((text?.match(new RegExp(ISSUE_REF_PATTERN_SOURCE, 'g')) || []));
+  return new Set((text?.match(ISSUE_REF_REGEXP) || []));
 }
 
 // Extract every `docs/decisions/NNN-*.md` ADR reference from markdown text as
