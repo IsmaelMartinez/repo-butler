@@ -230,7 +230,7 @@ export GEMINI_API_KEY=...      # for assess/update/ideate
 export CLAUDE_API_KEY=...      # optional, for deep ideate
 
 npm start                      # all phases
-INPUT_DRY_RUN=true npm start   # no writes to GitHub
+INPUT_DRY_RUN=true npm start   # no issue/PR/roadmap writes; snapshots still persist
 INPUT_PHASE=observe npm start  # single phase
 ```
 
