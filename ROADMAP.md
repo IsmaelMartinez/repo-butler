@@ -86,9 +86,7 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
-Roadmap formatting and documentation refinement shipped 2026-07-09 (PRs #316 and #317). Updated development guidelines in CLAUDE.md to align with actual workflows and resolved roadmap layout issues to maintain clean project guidelines.
-
-Automated dependency updates shipped 2026-07-09 (PR #318), leveraging automated dependency groups to keep codebase security and third-party packages up-to-date with minimal manual overhead.
+Review-before-merge policy and test runner stabilization shipped 2026-07-09 (PRs #319 and #320). Updated the "review-before-merge" guidelines to remove outdated Gemini timeline references and resolved technical debt by deduplicating regular expressions and fixing a flaky test runner to ensure CI/CD pipeline reliability.
 ---
 
 ## Roadmap
