@@ -1,5 +1,139 @@
 [
   {
+    "type": "standards-gap",
+    "tool": "issue-form-templates",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "yourear",
+      "teams-for-linux",
+      "ismaelmartinez.me.uk",
+      "generator-atlassian-compass-event-catalog",
+      "bonnie-wee-plot",
+      "betis-escocia",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv",
+      "delegate-local"
+    ],
+    "nonCompliant": [
+      "sound3fy",
+      "repo-butler"
+    ],
+    "repoEcosystems": {
+      "sound3fy": null,
+      "repo-butler": null
+    },
+    "repoAutoMerge": {
+      "sound3fy": true,
+      "repo-butler": true
+    },
+    "adoptionRate": 0.8571428571428571,
+    "priority": "low",
+    "remediation": {
+      "executor": "template",
+      "targetFiles": [
+        ".github/ISSUE_TEMPLATE/bug_report.yml"
+      ],
+      "intent": "Add issue-form-templates to 2 non-compliant repo(s)",
+      "rationale": "Standards gap: issue-form-templates adopted by 86% of in-scope repos; missing in sound3fy, repo-butler.",
+      "acceptanceCriteria": [
+        "Every non-compliant repo passes the issue-form-templates standard check"
+      ]
+    }
+  },
+  {
+    "type": "standards-gap",
+    "tool": "codeowners",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "yourear",
+      "sound3fy",
+      "teams-for-linux",
+      "ismaelmartinez.me.uk",
+      "generator-atlassian-compass-event-catalog",
+      "betis-escocia",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv",
+      "delegate-local"
+    ],
+    "nonCompliant": [
+      "bonnie-wee-plot"
+    ],
+    "repoEcosystems": {
+      "bonnie-wee-plot": null
+    },
+    "repoAutoMerge": {
+      "bonnie-wee-plot": true
+    },
+    "adoptionRate": 0.9285714285714286,
+    "priority": "low",
+    "remediation": {
+      "executor": "template",
+      "targetFiles": [
+        ".github/CODEOWNERS"
+      ],
+      "intent": "Add codeowners to 1 non-compliant repo(s)",
+      "rationale": "Standards gap: codeowners adopted by 93% of in-scope repos; missing in bonnie-wee-plot.",
+      "acceptanceCriteria": [
+        "Every non-compliant repo passes the codeowners standard check"
+      ]
+    }
+  },
+  {
+    "type": "standards-gap",
+    "tool": "security-md",
+    "scope": {
+      "type": "universal"
+    },
+    "compliant": [
+      "yourear",
+      "sound3fy",
+      "teams-for-linux",
+      "ismaelmartinez.me.uk",
+      "generator-atlassian-compass-event-catalog",
+      "betis-escocia",
+      "ai-model-advisor",
+      "github-issue-triage-bot",
+      "repo-butler",
+      "wifisentinel",
+      "votescot",
+      "lounge-tv",
+      "delegate-local"
+    ],
+    "nonCompliant": [
+      "bonnie-wee-plot"
+    ],
+    "repoEcosystems": {
+      "bonnie-wee-plot": null
+    },
+    "repoAutoMerge": {
+      "bonnie-wee-plot": true
+    },
+    "adoptionRate": 0.9285714285714286,
+    "priority": "low",
+    "remediation": {
+      "executor": "template",
+      "targetFiles": [
+        ".github/SECURITY.md"
+      ],
+      "intent": "Add security-md to 1 non-compliant repo(s)",
+      "rationale": "Standards gap: security-md adopted by 93% of in-scope repos; missing in bonnie-wee-plot.",
+      "acceptanceCriteria": [
+        "Every non-compliant repo passes the security-md standard check"
+      ]
+    }
+  },
+  {
     "type": "tier-uplift",
     "repo": "yourear",
     "currentTier": "silver",
