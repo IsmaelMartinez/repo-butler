@@ -38,7 +38,7 @@
           "uniques": 1
         },
         "clones_14d": {
-          "count": 68,
+          "count": 67,
           "uniques": 35
         }
       },
@@ -137,8 +137,8 @@
       "pushed_at": "2026-07-07T19:54:52Z",
       "traffic": {
         "views_14d": {
-          "count": 2,
-          "uniques": 2
+          "count": 1,
+          "uniques": 1
         },
         "clones_14d": {
           "count": 43,
@@ -212,7 +212,7 @@
       "open_issues": 26,
       "open_bugs": 14,
       "commits_6mo": 440,
-      "stars": 4840,
+      "stars": 4841,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9655172413793104,
@@ -240,12 +240,12 @@
       "pushed_at": "2026-07-06T14:56:27Z",
       "traffic": {
         "views_14d": {
-          "count": 6999,
-          "uniques": 3389
+          "count": 6832,
+          "uniques": 3322
         },
         "clones_14d": {
-          "count": 20007,
-          "uniques": 326
+          "count": 19737,
+          "uniques": 296
         }
       },
       "computed": {
@@ -340,14 +340,14 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-07-10T14:39:17Z",
+      "pushed_at": "2026-07-11T03:15:30Z",
       "traffic": {
         "views_14d": {
-          "count": 9,
-          "uniques": 4
+          "count": 10,
+          "uniques": 5
         },
         "clones_14d": {
-          "count": 1187,
+          "count": 1211,
           "uniques": 374
         }
       },
@@ -417,7 +417,7 @@
       "id": 853382390,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 153,
+      "commits_6mo": 147,
       "stars": 4,
       "license": "MIT",
       "communityHealth": 85,
@@ -450,8 +450,8 @@
           "uniques": 4
         },
         "clones_14d": {
-          "count": 135,
-          "uniques": 62
+          "count": 123,
+          "uniques": 58
         }
       },
       "computed": {
@@ -549,12 +549,12 @@
       "pushed_at": "2026-07-08T06:48:50Z",
       "traffic": {
         "views_14d": {
-          "count": 7,
-          "uniques": 3
+          "count": 6,
+          "uniques": 2
         },
         "clones_14d": {
-          "count": 7047,
-          "uniques": 438
+          "count": 6330,
+          "uniques": 439
         }
       },
       "computed": {
@@ -656,8 +656,8 @@
           "uniques": 1
         },
         "clones_14d": {
-          "count": 139,
-          "uniques": 60
+          "count": 140,
+          "uniques": 62
         }
       },
       "computed": {
@@ -752,15 +752,15 @@
       },
       "ci": 9,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-07-10T06:36:02Z",
+      "pushed_at": "2026-07-11T05:33:41Z",
       "traffic": {
         "views_14d": {
           "count": 8,
           "uniques": 5
         },
         "clones_14d": {
-          "count": 81,
-          "uniques": 29
+          "count": 118,
+          "uniques": 36
         }
       },
       "computed": {
@@ -862,8 +862,8 @@
           "uniques": 0
         },
         "clones_14d": {
-          "count": 81,
-          "uniques": 17
+          "count": 221,
+          "uniques": 22
         }
       },
       "computed": {
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9404761904761905,
+      "ciPassRate": 0.9411764705882353,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,15 +958,15 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-07-10T19:12:50Z",
+      "pushed_at": "2026-07-11T07:29:24Z",
       "traffic": {
         "views_14d": {
-          "count": 11,
-          "uniques": 8
+          "count": 12,
+          "uniques": 9
         },
         "clones_14d": {
-          "count": 3532,
-          "uniques": 798
+          "count": 3429,
+          "uniques": 770
         }
       },
       "computed": {
@@ -1064,12 +1064,12 @@
       "pushed_at": "2026-07-09T06:53:59Z",
       "traffic": {
         "views_14d": {
-          "count": 10,
-          "uniques": 10
+          "count": 13,
+          "uniques": 12
         },
         "clones_14d": {
-          "count": 804,
-          "uniques": 156
+          "count": 824,
+          "uniques": 159
         }
       },
       "computed": {
@@ -1171,8 +1171,8 @@
           "uniques": 2
         },
         "clones_14d": {
-          "count": 52,
-          "uniques": 27
+          "count": 68,
+          "uniques": 32
         }
       },
       "computed": {
@@ -1270,12 +1270,12 @@
       "pushed_at": "2026-06-21T07:44:36Z",
       "traffic": {
         "views_14d": {
-          "count": 21,
+          "count": 22,
           "uniques": 3
         },
         "clones_14d": {
-          "count": 14,
-          "uniques": 8
+          "count": 13,
+          "uniques": 7
         }
       },
       "computed": {
@@ -1373,12 +1373,12 @@
       "pushed_at": "2026-06-28T22:47:03Z",
       "traffic": {
         "views_14d": {
-          "count": 525,
-          "uniques": 261
+          "count": 524,
+          "uniques": 260
         },
         "clones_14d": {
-          "count": 173,
-          "uniques": 80
+          "count": 270,
+          "uniques": 54
         }
       },
       "computed": {
