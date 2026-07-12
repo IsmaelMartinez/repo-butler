@@ -45,28 +45,6 @@
   },
   {
     "type": "tier-uplift",
-    "repo": "ismaelmartinez.me.uk",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift ismaelmartinez.me.uk from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
     "repo": "bonnie-wee-plot",
     "currentTier": "silver",
     "targetTier": "gold",
@@ -169,28 +147,6 @@
       "executor": "agent",
       "targetFiles": [],
       "intent": "Uplift repo-butler from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "wifisentinel",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift wifisentinel from silver to gold",
       "rationale": "1 check(s) block gold: Release in the last 90 days.",
       "acceptanceCriteria": [
         "Check \"Release in the last 90 days\" passes"
