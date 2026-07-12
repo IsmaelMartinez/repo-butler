@@ -181,7 +181,7 @@ guaranteed to receive updates.
     content: () => `name: Scheduled release
 
 # Added by Repo Butler (release-cadence standard). Cuts a patch release with
-# generated notes when the latest release is over 60 days old and unreleased
+# generated notes when the latest release is at least 60 days old and unreleased
 # commits exist. Skips (never guesses) when there is no published release yet,
 # the latest tag is not plain semver, or there is nothing new to release.
 
@@ -252,7 +252,7 @@ jobs:
 // prerequisites the butler cannot perform itself.
 const TOOL_PR_NOTES = {
   'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
-  'release-cadence': 'Notes: the workflow only cuts a release when the latest release is over 60 days old AND unreleased commits exist; it skips repos with no published release (the first release stays yours) or a non-semver latest tag. Releases created with `GITHUB_TOKEN` do not trigger other workflows — if this repo publishes artifacts on release, wire that trigger up separately or dispatch the release manually.',
+  'release-cadence': 'Notes: the workflow only cuts a release when the latest release is at least 60 days old AND unreleased commits exist; it skips repos with no published release (the first release stays yours) or a non-semver latest tag. Releases created with `GITHUB_TOKEN` do not trigger other workflows — if this repo publishes artifacts on release, wire that trigger up separately or dispatch the release manually.',
 };
 
 // Stable marker present in every templated apply PR body. Written when the PR is
