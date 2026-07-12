@@ -243,17 +243,24 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .then(d => ({ license: d.license?.spdx_id || 'None', allowAutoMerge: !!d.allow_auto_merge }))
         .catch(() => ({ license: 'None', allowAutoMerge: false })),
       gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
-        .then(d => ({
-          ci: d.total_count || 0,
-          hasAutoMergeWorkflow: (d.workflows || []).some(w => w.path === '.github/workflows/dependabot-auto-merge.yml'),
-          // Any workflow whose path or display name mentions "release" counts as
-          // release automation — deliberately broader than the templated
-          // .github/workflows/release.yml so hand-rolled release/publish
-          // pipelines (electron-builder, semantic-release, …) are not flagged
-          // and never receive a redundant apply PR. Drives the release-cadence
-          // governance standard; release RECENCY stays the tier checks' job.
-          hasReleaseWorkflow: (d.workflows || []).some(w => /release/i.test(w.path || '') || /release/i.test(w.name || '')),
-        }))
+        .then(d => {
+          const wfs = d.workflows || [];
+          return {
+            ci: d.total_count || 0,
+            hasAutoMergeWorkflow: wfs.some(w => w.path === '.github/workflows/dependabot-auto-merge.yml'),
+            // Any workflow whose path or display name mentions "release" counts as
+            // release automation — deliberately broader than the templated
+            // .github/workflows/release.yml so hand-rolled release/publish
+            // pipelines (electron-builder, semantic-release, …) are not flagged
+            // and never receive a redundant apply PR. Drives the release-cadence
+            // governance standard; release RECENCY stays the tier checks' job.
+            // The fetch is a single unpaginated page: when the repo has more
+            // workflows than were returned, the list is truncated, so fail toward
+            // "present" — a truncated read must never open a remediation PR.
+            hasReleaseWorkflow: wfs.some(w => /release/i.test(w.path || '') || /release/i.test(w.name || ''))
+              || (d.total_count || 0) > wfs.length,
+          };
+        })
         .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: false })),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {

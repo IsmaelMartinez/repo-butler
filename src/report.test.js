@@ -1612,6 +1612,35 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['rel-repo'].hasReleaseWorkflow, true);
   });
 
+  it('fails hasReleaseWorkflow toward present when the workflows page is truncated', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) {
+          // 101 workflows on the repo, only one (non-release) returned on this
+          // page — the release workflow may be on a later page, so the detector
+          // must not report a gap from incomplete data.
+          return Promise.resolve({ total_count: 101, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }] });
+        }
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'many-wf', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['many-wf'].hasReleaseWorkflow, true);
+  });
+
   it('surfaces hasCopilotReview through fetchPortfolioDetails (active Copilot ruleset → true)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // The shared detection helper lists rulesets via gh.paginate and reads each

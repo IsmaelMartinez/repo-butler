@@ -1,5 +1,9 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
 
 describe('validateFindings', () => {
@@ -181,6 +185,12 @@ describe('generateTemplate', () => {
     // Patch bump forces base 10 so a leading-zero patch (v1.2.08) can't be
     // parsed as octal and crash the arithmetic (review feedback).
     assert.ok(result.content.includes('10#${BASH_REMATCH[4]}'));
+    // An unparseable published_at must skip, not go red under set -e.
+    assert.ok(result.content.includes('Unparseable release date'));
+    // Serialise cron + manual dispatch so overlapping runs can't race the same
+    // next tag; never cancel a run mid-release.
+    assert.ok(result.content.includes('concurrency:'));
+    assert.ok(result.content.includes('cancel-in-progress: false'));
     // The release write itself, with generated notes, pinned to the run's SHA.
     assert.ok(result.content.includes('gh release create "$next" --target "${GITHUB_SHA}" --generate-notes'));
     // Needs only contents:write — no packages/publish scopes.
@@ -200,6 +210,136 @@ describe('generateTemplate', () => {
     assert.notEqual(result, null);
     assert.equal(result.path, '.github/dependabot.yml');
     assert.ok(result.content.includes('package-ecosystem: "npm"'));
+  });
+});
+
+// Execution-level coverage for the release-cadence workflow script: the string
+// assertions above pin the template's shape; these actually RUN the bash logic
+// with a stubbed `gh` and a scratch git repo, one test per skip/release branch.
+// Linux-only (bash + GNU date), matching the ubuntu-latest runner the workflow
+// itself targets.
+describe('release-cadence workflow script (execution)', () => {
+  if (process.platform !== 'linux') {
+    it('requires bash + GNU date (ubuntu-latest, matching the workflow runner)', { skip: true }, () => {});
+    return;
+  }
+
+  // Pull the `run: |` block scalar out of the generated YAML (content indented
+  // 10 spaces under the step). No YAML dependency — the repo is zero-dep.
+  const extractRunScript = (content) => {
+    const lines = content.split('\n');
+    const start = lines.findIndex(l => l.trim() === 'run: |');
+    assert.notEqual(start, -1, 'template must contain a run: | block');
+    const script = [];
+    for (let i = start + 1; i < lines.length; i++) {
+      if (lines[i] === '') { script.push(''); continue; }
+      if (!lines[i].startsWith('          ')) break;
+      script.push(lines[i].slice(10));
+    }
+    return script.join('\n');
+  };
+
+  // One shared fixture: a repo whose history is  one ── two(HEAD),  with tags
+  //   v1.2.3, v1.2.08, release-2026-01  on "one"  (commits exist since)
+  //   v9.9.9                            on "two"  (nothing to release)
+  // and a gh stub that answers `gh api …releases/latest` from STUB_TAG/STUB_DATE
+  // (empty STUB_TAG = 404) and logs any other call as "GH-CALLED: …".
+  const base = mkdtempSync(join(tmpdir(), 'release-cadence-'));
+  const bin = join(base, 'bin');
+  const repo = join(base, 'repo');
+  mkdirSync(bin);
+  mkdirSync(repo);
+  writeFileSync(join(base, 'script.sh'), extractRunScript(generateTemplate('release-cadence', '', null).content));
+  writeFileSync(join(bin, 'gh'), [
+    '#!/bin/bash',
+    'if [ "$1" = "api" ]; then',
+    '  [ -z "$STUB_TAG" ] && exit 1',
+    '  echo "$STUB_TAG,$STUB_DATE"',
+    '  exit 0',
+    'fi',
+    'echo "GH-CALLED: $*"',
+    '',
+  ].join('\n'));
+  chmodSync(join(bin, 'gh'), 0o755);
+  const git = (...args) => {
+    const r = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+    assert.equal(r.status, 0, `git ${args.join(' ')} failed: ${r.stderr}`);
+  };
+  git('init', '-q');
+  git('config', 'user.email', 'test@test');
+  git('config', 'user.name', 'test');
+  writeFileSync(join(repo, 'f'), 'one');
+  git('add', 'f');
+  git('commit', '-qm', 'one');
+  git('tag', 'v1.2.3');
+  git('tag', 'v1.2.08');
+  git('tag', 'release-2026-01');
+  writeFileSync(join(repo, 'f'), 'two');
+  git('commit', '-aqm', 'two');
+  git('tag', 'v9.9.9');
+
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const runScript = (env) => spawnSync('bash', [join(base, 'script.sh')], {
+    cwd: repo,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      GITHUB_REPOSITORY: 'owner/repo',
+      GITHUB_SHA: 'deadbeef',
+      STUB_TAG: '',
+      STUB_DATE: '',
+      ...env,
+    },
+  });
+
+  it('cuts the next patch release when stale with unreleased commits', () => {
+    const r = runScript({ STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /GH-CALLED: release create v1\.2\.4 --target deadbeef --generate-notes/);
+  });
+
+  it('bumps a leading-zero patch in base 10 instead of crashing on octal', () => {
+    const r = runScript({ STUB_TAG: 'v1.2.08', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /GH-CALLED: release create v1\.2\.9 /);
+  });
+
+  it('skips when the latest release is fresh', () => {
+    const r = runScript({ STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(10) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /cadence healthy, skipping/);
+    assert.doesNotMatch(r.stdout, /GH-CALLED/);
+  });
+
+  it('skips when there is no published release (gh api 404)', () => {
+    const r = runScript({});
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /No published release yet/);
+  });
+
+  it('skips on incomplete release data (empty published_at)', () => {
+    const r = runScript({ STUB_TAG: 'v1.2.3' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Incomplete release data/);
+  });
+
+  it('skips (not fails) on an unparseable published_at', () => {
+    const r = runScript({ STUB_TAG: 'v1.2.3', STUB_DATE: 'not-a-date' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Unparseable release date/);
+  });
+
+  it('skips a non-semver latest tag rather than guessing a scheme', () => {
+    const r = runScript({ STUB_TAG: 'release-2026-01', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /not plain semver/);
+  });
+
+  it('skips when there are no commits since the latest release', () => {
+    const r = runScript({ STUB_TAG: 'v9.9.9', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /nothing to release/);
   });
 });
 

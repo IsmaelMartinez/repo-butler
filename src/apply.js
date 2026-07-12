@@ -190,6 +190,12 @@ on:
     - cron: '0 6 1,15 * *'
   workflow_dispatch:
 
+# A manual dispatch overlapping the cron could race both runs into creating
+# the same next tag; serialise instead (never cancel a run mid-release).
+concurrency:
+  group: \${{ github.workflow }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -216,7 +222,11 @@ jobs:
             echo "Incomplete release data retrieved — skipping."
             exit 0
           fi
-          age_days=$(( ( $(date +%s) - $(date -d "$published" +%s) ) / 86400 ))
+          if ! published_epoch=$(date -d "$published" +%s 2>/dev/null); then
+            echo "Unparseable release date ($published) — skipping rather than failing."
+            exit 0
+          fi
+          age_days=$(( ( $(date +%s) - published_epoch ) / 86400 ))
           if [ "$age_days" -lt 60 ]; then
             echo "Latest release $tag is \${age_days} day(s) old — cadence healthy, skipping."
             exit 0
