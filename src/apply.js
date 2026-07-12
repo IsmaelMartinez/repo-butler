@@ -166,12 +166,79 @@ Security fixes are applied to the latest released version. Older versions are no
 guaranteed to receive updates.
 `,
   },
+  'release-cadence': {
+    // A scheduled patch-release workflow that keeps the "Release in the last
+    // 90 days" gold check passing without spamming releases. Ecosystem-agnostic
+    // by construction: it only reads git history and calls `gh release create`
+    // — it never builds or publishes artifacts. Every ambiguous situation skips
+    // rather than guesses: no published release yet (the FIRST release stays a
+    // human decision), a non-semver latest tag (won't invent a scheme), no
+    // commits since the last release (nothing to release), or a release younger
+    // than 60 days (cadence already healthy). Cron fires on the 1st and 15th,
+    // so a lapsed repo releases at worst ~75 days after its previous release —
+    // comfortably inside the 90-day tier window.
+    path: '.github/workflows/release.yml',
+    content: () => `name: Scheduled release
+
+# Added by Repo Butler (release-cadence standard). Cuts a patch release with
+# generated notes when the latest release is over 60 days old and unreleased
+# commits exist. Skips (never guesses) when there is no published release yet,
+# the latest tag is not plain semver, or there is nothing new to release.
+
+on:
+  schedule:
+    - cron: '0 6 1,15 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cut a patch release when the cadence has lapsed
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || true)
+          if [ -z "$tag" ]; then
+            echo "No published release yet — skipping; the first release stays a human decision."
+            exit 0
+          fi
+          published=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq .published_at)
+          age_days=$(( ( $(date +%s) - $(date -d "$published" +%s) ) / 86400 ))
+          if [ "$age_days" -lt 60 ]; then
+            echo "Latest release $tag is \${age_days} day(s) old — cadence healthy, skipping."
+            exit 0
+          fi
+          commits=$(git rev-list --count "$tag..HEAD" 2>/dev/null || echo 0)
+          if [ "$commits" -eq 0 ]; then
+            echo "No commits since $tag — nothing to release, skipping."
+            exit 0
+          fi
+          if [[ "$tag" =~ ^(v?)([0-9]+)\\.([0-9]+)\\.([0-9]+)$ ]]; then
+            next="\${BASH_REMATCH[1]}\${BASH_REMATCH[2]}.\${BASH_REMATCH[3]}.$(( BASH_REMATCH[4] + 1 ))"
+          else
+            echo "Latest tag $tag is not plain semver — skipping rather than guessing a scheme."
+            exit 0
+          fi
+          echo "Cutting $next: $commits commit(s) since $tag (\${age_days} days old)."
+          gh release create "$next" --target "\${GITHUB_SHA}" --generate-notes
+`,
+  },
 };
 
 // Tool-specific notes appended to the PR body. Used to document manual
 // prerequisites the butler cannot perform itself.
 const TOOL_PR_NOTES = {
   'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
+  'release-cadence': 'Notes: the workflow only cuts a release when the latest release is over 60 days old AND unreleased commits exist; it skips repos with no published release (the first release stays yours) or a non-semver latest tag. Releases created with `GITHUB_TOKEN` do not trigger other workflows — if this repo publishes artifacts on release, wire that trigger up separately or dispatch the release manually.',
 };
 
 // Stable marker present in every templated apply PR body. Written when the PR is

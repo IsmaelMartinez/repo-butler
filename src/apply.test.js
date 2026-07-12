@@ -161,6 +161,27 @@ describe('generateTemplate', () => {
     assert.equal(generateTemplate('security-md', 'Go', 'someone-else').content, result.content);
   });
 
+  it('generates a scheduled patch-release workflow (ecosystem-agnostic, fail-safe skips)', () => {
+    const result = generateTemplate('release-cadence', 'JavaScript', 'IsmaelMartinez');
+    assert.equal(result.path, '.github/workflows/release.yml');
+    // Cadence gates: scheduled cron plus manual dispatch, 60-day age threshold.
+    assert.ok(result.content.includes("cron: '0 6 1,15 * *'"));
+    assert.ok(result.content.includes('workflow_dispatch'));
+    assert.ok(result.content.includes('-lt 60'));
+    // Fail-safe skips: no first release, nothing to release, non-semver tag.
+    assert.ok(result.content.includes('first release stays a human decision'));
+    assert.ok(result.content.includes('nothing to release'));
+    assert.ok(result.content.includes('not plain semver'));
+    // The release write itself, with generated notes, pinned to the run's SHA.
+    assert.ok(result.content.includes('gh release create "$next" --target "${GITHUB_SHA}" --generate-notes'));
+    // Needs only contents:write — no packages/publish scopes.
+    assert.ok(result.content.includes('contents: write'));
+    // ${{ }} expressions survive JS template-literal escaping intact.
+    assert.ok(result.content.includes('GH_TOKEN: ${{ github.token }}'));
+    // Identical regardless of ecosystem or owner — reads git history only.
+    assert.equal(generateTemplate('release-cadence', 'Go', 'someone-else').content, result.content);
+  });
+
   it('returns null for unknown tool', () => {
     assert.equal(generateTemplate('secret-scanning', 'JavaScript'), null);
   });
