@@ -1641,6 +1641,32 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['many-wf'].hasReleaseWorkflow, true);
   });
 
+  it('fails hasReleaseWorkflow toward present when the workflows request errors', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) return Promise.reject(new Error('rate limited'));
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'err-wf', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    // A transient API failure is incomplete data: the write-gating signal must
+    // not manufacture a release-cadence gap (and a remediation PR) from it.
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['err-wf'].hasReleaseWorkflow, true);
+  });
+
   it('surfaces hasCopilotReview through fetchPortfolioDetails (active Copilot ruleset → true)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // The shared detection helper lists rulesets via gh.paginate and reads each

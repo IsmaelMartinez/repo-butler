@@ -261,7 +261,11 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
               || (d.total_count || 0) > wfs.length,
           };
         })
-        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: false })),
+        // hasReleaseWorkflow fails toward present on a request error for the same
+        // reason as the truncation guard above: it gates a cross-repo write, so a
+        // transient API failure must never manufacture a remediation PR. The other
+        // fields keep their long-standing zero/false fallbacks (read-only signals).
+        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true })),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
           let hasIssueTemplate = !!d.files?.issue_template;
