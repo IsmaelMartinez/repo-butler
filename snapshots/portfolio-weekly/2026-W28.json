@@ -314,7 +314,7 @@
       "id": 786898753,
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 152,
+      "commits_6mo": 158,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -338,9 +338,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 9,
-      "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-07-12T11:14:29Z",
+      "ci": 11,
+      "released_at": "2026-07-12T14:48:55Z",
+      "pushed_at": "2026-07-12T14:48:54Z",
       "traffic": {
         "views_14d": {
           "count": 10,
@@ -352,7 +352,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -371,7 +371,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -410,7 +410,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Release in the last 90 days"
+        "next_step": null
       }
     },
     "generator-atlassian-compass-event-catalog": {
@@ -520,11 +520,11 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 457,
+      "commits_6mo": 458,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.8555555555555555,
+      "ciPassRate": 0.8488372093023255,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -546,7 +546,7 @@
       },
       "ci": 7,
       "released_at": "2026-04-04T14:32:15Z",
-      "pushed_at": "2026-07-12T11:19:22Z",
+      "pushed_at": "2026-07-12T14:54:49Z",
       "traffic": {
         "views_14d": {
           "count": 7,
@@ -958,7 +958,7 @@
       },
       "ci": 11,
       "released_at": "2026-03-31T22:55:25Z",
-      "pushed_at": "2026-07-12T09:02:49Z",
+      "pushed_at": "2026-07-12T12:50:04Z",
       "traffic": {
         "views_14d": {
           "count": 12,
@@ -1039,7 +1039,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9873417721518988,
+      "ciPassRate": 0.9875,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1060,8 +1060,8 @@
         "count": 0
       },
       "ci": 7,
-      "released_at": "2026-04-01T08:19:52Z",
-      "pushed_at": "2026-07-12T07:31:57Z",
+      "released_at": "2026-07-12T13:00:13Z",
+      "pushed_at": "2026-07-12T13:00:12Z",
       "traffic": {
         "views_14d": {
           "count": 12,
@@ -1073,7 +1073,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -1092,7 +1092,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -1131,7 +1131,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Release in the last 90 days"
+        "next_step": null
       }
     },
     "votescot": {
