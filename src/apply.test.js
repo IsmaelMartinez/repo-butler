@@ -168,10 +168,19 @@ describe('generateTemplate', () => {
     assert.ok(result.content.includes("cron: '0 6 1,15 * *'"));
     assert.ok(result.content.includes('workflow_dispatch'));
     assert.ok(result.content.includes('-lt 60'));
-    // Fail-safe skips: no first release, nothing to release, non-semver tag.
+    // Fail-safe skips: no first release, incomplete API data, nothing to
+    // release, non-semver tag.
     assert.ok(result.content.includes('first release stays a human decision'));
+    assert.ok(result.content.includes('Incomplete release data'));
     assert.ok(result.content.includes('nothing to release'));
     assert.ok(result.content.includes('not plain semver'));
+    // One combined API call for tag + published_at (review feedback: halves the
+    // rate-limit cost and lets the incomplete-data guard above actually fire).
+    assert.ok(result.content.includes("--jq '[.tag_name, .published_at] | join(\",\")'"));
+    assert.equal((result.content.match(/gh api/g) || []).length, 1);
+    // Patch bump forces base 10 so a leading-zero patch (v1.2.08) can't be
+    // parsed as octal and crash the arithmetic (review feedback).
+    assert.ok(result.content.includes('10#${BASH_REMATCH[4]}'));
     // The release write itself, with generated notes, pinned to the run's SHA.
     assert.ok(result.content.includes('gh release create "$next" --target "${GITHUB_SHA}" --generate-notes'));
     // Needs only contents:write — no packages/publish scopes.

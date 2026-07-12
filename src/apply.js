@@ -206,12 +206,16 @@ jobs:
           GH_TOKEN: \${{ github.token }}
         run: |
           set -euo pipefail
-          tag=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || true)
-          if [ -z "$tag" ]; then
+          release=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq '[.tag_name, .published_at] | join(",")' 2>/dev/null || true)
+          if [ -z "$release" ]; then
             echo "No published release yet — skipping; the first release stays a human decision."
             exit 0
           fi
-          published=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq .published_at)
+          IFS=',' read -r tag published <<< "$release"
+          if [ -z "$tag" ] || [ -z "$published" ]; then
+            echo "Incomplete release data retrieved — skipping."
+            exit 0
+          fi
           age_days=$(( ( $(date +%s) - $(date -d "$published" +%s) ) / 86400 ))
           if [ "$age_days" -lt 60 ]; then
             echo "Latest release $tag is \${age_days} day(s) old — cadence healthy, skipping."
@@ -223,7 +227,7 @@ jobs:
             exit 0
           fi
           if [[ "$tag" =~ ^(v?)([0-9]+)\\.([0-9]+)\\.([0-9]+)$ ]]; then
-            next="\${BASH_REMATCH[1]}\${BASH_REMATCH[2]}.\${BASH_REMATCH[3]}.$(( BASH_REMATCH[4] + 1 ))"
+            next="\${BASH_REMATCH[1]}\${BASH_REMATCH[2]}.\${BASH_REMATCH[3]}.$(( 10#\${BASH_REMATCH[4]} + 1 ))"
           else
             echo "Latest tag $tag is not plain semver — skipping rather than guessing a scheme."
             exit 0
