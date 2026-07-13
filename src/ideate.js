@@ -136,7 +136,8 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     outroLines.push('- Prioritise standards propagation and policy drift correction proposals over generic improvements.');
     outroLines.push('- Each idea should reference specific repos and cross-repo statistics (e.g. "configured in 14/19 repos").');
     outroLines.push('- Rationale must explain why this is a portfolio-level concern, not a per-repo issue.');
-    outroLines.push('- Include the TARGET_REPO line (in the format block, above BODY) only when the proposal concerns one specific portfolio repo named in the findings; omit it for proposals about this repo. Use the short repo name only (e.g. "my-repo").');
+    outroLines.push('- When a proposal remediates a finding in ONE specific portfolio repo (adding a missing standard to a non-compliant repo, correcting one repo\'s policy drift, or uplifting one repo\'s tier), you MUST include the TARGET_REPO line (in the format block, above BODY) set to that repo\'s short name exactly as it appears in the findings (e.g. "my-repo"). Omit the line only for proposals about this repo or the portfolio as a whole.');
+    outroLines.push('- For any idea that has a TARGET_REPO, RATIONALE must cite the anchoring finding\'s portfolio statistic as a number — an "N of M repos" count, an N/M fraction, or a percentage taken from the findings above (e.g. "8 of 14 repos fail the release-cadence check") — and must justify the change in portfolio terms only, never with claims about the target repo\'s code, tests, or issue contents.');
     outroLines.push('- For any idea that has a TARGET_REPO, set AFFECTED_FILES to "unknown" and do NOT cite this repo\'s issue numbers (e.g. #42) in RATIONALE or BODY — it will be filed in the target repo, which does not share this repo\'s issue numbering. Cite the cross-repo statistic instead.');
   }
 
@@ -152,22 +153,43 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
   });
 }
 
-// Append governance findings to the LLM prompt data section.
+// Append governance findings to the LLM prompt data section. Every finding
+// class that may anchor a cross-repo proposal (standards-gap, policy-drift,
+// tier-uplift) must surface a citable portfolio statistic here: the routing
+// gate (resolveCrossRepoDestination, Gate 4) admits a targeted proposal only
+// when its rationale carries an "N of M" count, an N/M fraction, or a
+// percentage, so a finding rendered without one leaves the model nothing
+// admissible to cite.
 function appendGovernanceContext(parts, findings) {
   parts.push('', '--- Portfolio Governance Findings ---');
+
+  const upliftRepos = [];
+  let inScopeTotal = 0;
 
   for (const f of findings) {
     if (f.type === 'standards-gap') {
       const total = f.compliant.length + f.nonCompliant.length;
-      parts.push(`Standard: ${f.tool} (${f.scope.type}) — ${f.compliant.length}/${total} repos compliant. Missing: ${f.nonCompliant.join(', ')}`);
+      inScopeTotal = Math.max(inScopeTotal, total);
+      parts.push(`Standard: ${f.tool} (${f.scope.type}) — ${f.compliant.length}/${total} repos compliant; ${f.nonCompliant.length} of ${total} missing: ${f.nonCompliant.join(', ')}`);
     } else if (f.type === 'policy-drift') {
       parts.push(`Drift: ${f.repo} uses ${f.actual} (expected: ${f.expected}, category: ${f.category})`);
     } else if (f.type === 'tier-uplift') {
+      upliftRepos.push(f.repo);
       parts.push(`Uplift: ${f.repo} is ${f.currentTier}, needs [${f.failingChecks.map(c => c.name).join(', ')}] for ${f.targetTier}`);
     } else if (f.type === 'dependabot-stale') {
       const oldest = Math.max(...f.stalePRs.map(p => p.age));
       parts.push(`Stale Dependabot PRs: ${f.repo} has ${f.stalePRs.length} PRs older than 30d (oldest: ${oldest}d)`);
     }
+  }
+
+  // Tier-uplift findings are per-repo and carry no fraction of their own, so a
+  // proposal anchored only on one has no statistic to cite. Aggregate them
+  // against the in-scope portfolio size (largest standards-gap population —
+  // scopes vary per tool, so this is the best available denominator). Without
+  // gap findings there is no denominator; a bare count would not pass the
+  // routing gate, so the line is omitted rather than rendered unciteable.
+  if (upliftRepos.length > 0 && inScopeTotal > 0) {
+    parts.push(`Tier uplift summary: ${upliftRepos.length} of ${inScopeTotal} in-scope repos sit below their target tier.`);
   }
 
   parts.push('--- End Portfolio Governance Findings ---', '');
