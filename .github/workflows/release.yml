@@ -1,0 +1,66 @@
+name: Scheduled release
+
+# Added by Repo Butler (release-cadence standard). Cuts a patch release with
+# generated notes when the latest release is at least 60 days old and unreleased
+# commits exist. Skips (never guesses) when there is no published release yet,
+# the latest tag is not plain semver, or there is nothing new to release.
+
+on:
+  schedule:
+    - cron: '0 6 1,15 * *'
+  workflow_dispatch:
+
+# A manual dispatch overlapping the cron could race both runs into creating
+# the same next tag; serialise instead (never cancel a run mid-release).
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cut a patch release when the cadence has lapsed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '[.tag_name, .published_at] | join(",")' 2>/dev/null || true)
+          if [ -z "$release" ]; then
+            echo "No published release yet — skipping; the first release stays a human decision."
+            exit 0
+          fi
+          IFS=',' read -r tag published <<< "$release"
+          if [ -z "$tag" ] || [ -z "$published" ]; then
+            echo "Incomplete release data retrieved — skipping."
+            exit 0
+          fi
+          if ! published_epoch=$(date -d "$published" +%s 2>/dev/null); then
+            echo "Unparseable release date ($published) — skipping rather than failing."
+            exit 0
+          fi
+          age_days=$(( ( $(date +%s) - published_epoch ) / 86400 ))
+          if [ "$age_days" -lt 60 ]; then
+            echo "Latest release $tag is ${age_days} day(s) old — cadence healthy, skipping."
+            exit 0
+          fi
+          commits=$(git rev-list --count "$tag..HEAD" 2>/dev/null || echo 0)
+          if [ "$commits" -eq 0 ]; then
+            echo "No commits since $tag — nothing to release, skipping."
+            exit 0
+          fi
+          if [[ "$tag" =~ ^(v?)([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            next="${BASH_REMATCH[1]}${BASH_REMATCH[2]}.${BASH_REMATCH[3]}.$(( 10#${BASH_REMATCH[4]} + 1 ))"
+          else
+            echo "Latest tag $tag is not plain semver — skipping rather than guessing a scheme."
+            exit 0
+          fi
+          echo "Cutting $next: $commits commit(s) since $tag (${age_days} days old)."
+          gh release create "$next" --target "${GITHUB_SHA}" --generate-notes
