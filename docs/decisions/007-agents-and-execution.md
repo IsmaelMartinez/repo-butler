@@ -10,6 +10,8 @@ Amended: 2026-06-15 — stage 4 graduated to live. The `apply-schedule` allow-li
 
 Amended: 2026-06-15 — stage 5 (selective auto-merge) shipped, default-closed. The REST `pulls/{n}/merge` path was chosen over GraphQL (no new transport, no per-repo "Allow auto-merge" prerequisite). Auto-merge is opt-in per class via an empty-by-default `apply-automerge` allow-list, bounded to the deterministic template tools, gated on green CI + a mergeable PR, squash-only with the merge SHA recorded. The stage-5 design's kill-switch wording is corrected here: `require_approval=true` is the master operating switch (false halts all apply), not the auto-merge kill switch — the kill switches are the empty allow-list and disabling the scheduled workflow. See the Update (2026-06-15): stage 5 section and the [ADR-005](005-cross-repo-write-trust-model.md) 2026-06-15 amendment.
 
+Amended: 2026-07-13 — `code-review-bot`, the settings-executor class (ADR-009), promoted onto the `apply-schedule` allow-list, completing the stage-4 rollout for the last held-back class. The 2026-06-15 stage-4 amendment kept it off the schedule until it earned its own track record; that gate is met by the 2026-06-15 live rollout (13/13 repos, zero errors, independently verified) plus every weekly scheduled run since completing cleanly. See the ADR-009 "Scheduled promotion (2026-07-13)" note for the gate analysis. The class stays ineligible for stage-5 auto-merge by construction.
+
 Status: Accepted
 
 ## Context
