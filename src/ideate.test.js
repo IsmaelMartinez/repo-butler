@@ -468,7 +468,8 @@ describe('buildIdeatePrompt', () => {
     ];
     const governancePrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
     assert.ok(governancePrompt.includes('you MUST include the TARGET_REPO line'));
-    assert.ok(governancePrompt.includes('the bare repo name only, never an "owner/" prefix'));
+    assert.ok(governancePrompt.includes('bare short name'));
+    assert.ok(governancePrompt.includes('use only the part after the slash'));
     assert.ok(governancePrompt.includes("RATIONALE must cite the anchoring finding's portfolio statistic"));
     assert.ok(governancePrompt.includes('8 of 14 repos fail the release-cadence check'));
 
