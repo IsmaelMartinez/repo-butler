@@ -155,8 +155,9 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
 
 // Append governance findings to the LLM prompt data section. The routing gate
 // (resolveCrossRepoDestination, Gate 4) admits a targeted proposal only when
-// its rationale carries an "N of M" count, an N/M fraction, or a percentage,
-// so anchor-capable finding classes surface a citable statistic here where
+// its rationale carries an "N of M" count, an N/M fraction, a percentage, or
+// a median/percentile rank stated with cross-portfolio context, so
+// anchor-capable finding classes surface a citable statistic here where
 // one can be computed: standards-gap lines always carry their own fraction;
 // tier-uplift and policy-drift findings get an aggregate summary line, but
 // only when a standards-gap finding supplies the denominator (see below).
