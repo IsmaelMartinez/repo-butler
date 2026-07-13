@@ -191,7 +191,7 @@ function appendGovernanceContext(parts, findings) {
   // available denominator, clamped so the fraction can never exceed 1 when a
   // gap finding is scoped narrower than the aggregated repo set). Without gap
   // findings there is no denominator; a bare count would not pass the routing
-  // gate, so the line is omitted rather than rendered unciteable.
+  // gate, so the line is omitted rather than rendered uncitable.
   if (upliftRepos.size > 0 && inScopeTotal > 0) {
     parts.push(`Tier uplift summary: ${upliftRepos.size} of ${Math.max(inScopeTotal, upliftRepos.size)} in-scope repos sit below their target tier.`);
   }
