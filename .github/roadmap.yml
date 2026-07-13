@@ -50,6 +50,20 @@ standards:
   # on the apply-schedule allow-list below, and going live needs the GitHub App's
   # administration:write scope.
   code-review-bot: universal
+  # Release automation: any workflow named/pathed "release". Remediation is a
+  # templated scheduled patch-release workflow (apply.js) that keeps the
+  # "Release in the last 90 days" gold check passing — added after the 2026-07
+  # portfolio-wide release drift, where the whole April release batch aged past
+  # 90 days at once and 8 repos dropped from gold to silver together. Manual
+  # apply.yml dispatch only for now (NOT on apply-schedule / apply-automerge
+  # below); promotion follows the usual per-class track-record gate (ADR-007).
+  release-cadence: universal
+
+# Per-standard repo exclusions (comma-separated). sound3fy is release_exempt
+# from the 90-day gold check by design, so it must not be nudged into release
+# automation either.
+standards-exclude:
+  release-cadence: sound3fy
 
 release_exempt: sound3fy
 

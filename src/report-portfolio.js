@@ -243,8 +243,29 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         .then(d => ({ license: d.license?.spdx_id || 'None', allowAutoMerge: !!d.allow_auto_merge }))
         .catch(() => ({ license: 'None', allowAutoMerge: false })),
       gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
-        .then(d => ({ ci: d.total_count || 0, hasAutoMergeWorkflow: (d.workflows || []).some(w => w.path === '.github/workflows/dependabot-auto-merge.yml') }))
-        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false })),
+        .then(d => {
+          const wfs = d.workflows || [];
+          return {
+            ci: d.total_count || 0,
+            hasAutoMergeWorkflow: wfs.some(w => w.path === '.github/workflows/dependabot-auto-merge.yml'),
+            // Any workflow whose path or display name mentions "release" counts as
+            // release automation — deliberately broader than the templated
+            // .github/workflows/release.yml so hand-rolled release/publish
+            // pipelines (electron-builder, semantic-release, …) are not flagged
+            // and never receive a redundant apply PR. Drives the release-cadence
+            // governance standard; release RECENCY stays the tier checks' job.
+            // The fetch is a single unpaginated page: when the repo has more
+            // workflows than were returned, the list is truncated, so fail toward
+            // "present" — a truncated read must never open a remediation PR.
+            hasReleaseWorkflow: wfs.some(w => /release/i.test(w.path || '') || /release/i.test(w.name || ''))
+              || (d.total_count || 0) > wfs.length,
+          };
+        })
+        // hasReleaseWorkflow fails toward present on a request error for the same
+        // reason as the truncation guard above: it gates a cross-repo write, so a
+        // transient API failure must never manufacture a remediation PR. The other
+        // fields keep their long-standing zero/false fallbacks (read-only signals).
+        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true })),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
           let hasIssueTemplate = !!d.files?.issue_template;
@@ -336,8 +357,8 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
-    const { ci, hasAutoMergeWorkflow } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, libyear: null, codeScanning, secretScanning, traffic };
+    const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow } = workflowsMeta;
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -455,6 +476,7 @@ const STANDARD_LABELS = {
   'codeowners': 'CODEOWNERS',
   'security-md': 'Security policy',
   'code-review-bot': 'Copilot code review',
+  'release-cadence': 'Release automation',
 };
 
 const DRIFT_LABELS = {

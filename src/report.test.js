@@ -1577,6 +1577,94 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const details = await fetchPortfolioDetails(gh, 'owner', repos);
     assert.equal(details['no-am'].hasAutoMergeWorkflow, false);
     assert.equal(details['no-am'].allowAutoMerge, false);
+    // No workflow named or pathed "release" in this fixture either.
+    assert.equal(details['no-am'].hasReleaseWorkflow, false);
+  });
+
+  it('derives hasReleaseWorkflow from a release-named workflow (name OR path match)', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const makeGh = (workflows) => ({
+      request: (path) => {
+        if (path.includes('/actions/workflows')) {
+          return Promise.resolve({ total_count: workflows.length, workflows });
+        }
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    });
+    const repos = [
+      { name: 'rel-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    // Path match: the templated .github/workflows/release.yml.
+    let details = await fetchPortfolioDetails(makeGh([{ name: 'Scheduled release', path: '.github/workflows/release.yml' }]), 'owner', repos);
+    assert.equal(details['rel-repo'].hasReleaseWorkflow, true);
+    // Name match: a hand-rolled publish pipeline whose PATH doesn't say release —
+    // it must still count so a working pipeline never gets a redundant apply PR.
+    details = await fetchPortfolioDetails(makeGh([{ name: 'Build & Release', path: '.github/workflows/build.yml' }]), 'owner', repos);
+    assert.equal(details['rel-repo'].hasReleaseWorkflow, true);
+  });
+
+  it('fails hasReleaseWorkflow toward present when the workflows page is truncated', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) {
+          // 101 workflows on the repo, only one (non-release) returned on this
+          // page — the release workflow may be on a later page, so the detector
+          // must not report a gap from incomplete data.
+          return Promise.resolve({ total_count: 101, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }] });
+        }
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'many-wf', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['many-wf'].hasReleaseWorkflow, true);
+  });
+
+  it('fails hasReleaseWorkflow toward present when the workflows request errors', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) return Promise.reject(new Error('rate limited'));
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'err-wf', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    // A transient API failure is incomplete data: the write-gating signal must
+    // not manufacture a release-cadence gap (and a remediation PR) from it.
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(details['err-wf'].hasReleaseWorkflow, true);
   });
 
   it('surfaces hasCopilotReview through fetchPortfolioDetails (active Copilot ruleset → true)', async () => {

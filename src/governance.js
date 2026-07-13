@@ -69,6 +69,11 @@ const STANDARD_DETECTORS = {
   'codeowners': (_repo, details) => !!details?.hasCodeowners,
   'security-md': (_repo, details) => !!details?.hasSecurityPolicy,
   'code-review-bot': (_repo, details) => !!details?.hasCopilotReview,
+  // Checks for release automation MACHINERY (any workflow named/pathed
+  // "release"), not release recency — recency is the tier-uplift check's job.
+  // The two compose: this standard installs the cadence workflow, the workflow
+  // keeps the "Release in the last 90 days" gold check passing.
+  'release-cadence': (_repo, details) => !!details?.hasReleaseWorkflow,
 };
 
 // Minimum adoption rate to infer an implicit universal standard.
@@ -360,9 +365,12 @@ export function generateUpliftProposals(repos, details, config = null) {
 // auto-merge on non-major Dependabot PRs), codeowners (a `* @<owner>` file
 // routing review to the repo owner), and security-md (a generic SECURITY.md
 // vulnerability-reporting policy).
+// release-cadence adds a scheduled patch-release workflow (ecosystem-agnostic:
+// it only reads git history and calls `gh release create`, never builds or
+// publishes artifacts, so it cannot go red on heterogeneous repos).
 // ci-workflows is deliberately NOT here: a static CI workflow fanned across
 // heterogeneous repos would open red-CI PRs, so it stays agent-routed.
-const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md']);
+const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md', 'release-cadence']);
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
 const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
@@ -384,6 +392,7 @@ const STANDARD_TARGET_FILES = {
   'dependabot-auto-merge': ['.github/workflows/dependabot-auto-merge.yml'],
   'codeowners': ['.github/CODEOWNERS'],
   'security-md': ['.github/SECURITY.md'],
+  'release-cadence': ['.github/workflows/release.yml'],
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],

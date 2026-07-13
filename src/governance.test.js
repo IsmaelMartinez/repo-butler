@@ -213,6 +213,19 @@ describe('detectStandardsGaps', () => {
     assert.deepEqual(result.findings[0].nonCompliant, ['b']);
   });
 
+  it('detects release-cadence gaps (missing release automation workflow)', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasReleaseWorkflow: true },
+      b: { hasReleaseWorkflow: false },
+    });
+    const standards = [{ tool: 'release-cadence', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+  });
+
   it('detects code-review-bot gaps (missing Copilot review ruleset)', () => {
     const repos = [makeRepo('a'), makeRepo('b')];
     const details = makeDetails(repos, {
@@ -485,6 +498,12 @@ describe('buildRemediationPlan', () => {
     const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'dependabot-auto-merge', nonCompliant: ['r'], adoptionRate: 0.5 });
     assert.equal(plan.executor, 'template');
     assert.deepEqual(plan.targetFiles, ['.github/workflows/dependabot-auto-merge.yml']);
+  });
+
+  it('routes release-cadence to template with the release workflow target file', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'release-cadence', nonCompliant: ['r'], adoptionRate: 0.4 });
+    assert.equal(plan.executor, 'template');
+    assert.deepEqual(plan.targetFiles, ['.github/workflows/release.yml']);
   });
 
   it('routes a content-tailored standards tool to the agent executor', () => {

@@ -42,7 +42,8 @@ export function isExcludedRepo(name) {
 // v3: added hasAutoMergeWorkflow + allowAutoMerge to details (dependabot-auto-merge standard).
 // v4: added hasCodeowners + hasSecurityPolicy to details (codeowners + security-md standards).
 // v5: added hasCopilotReview to details (code-review-bot standard).
-export const REPO_CACHE_SCHEMA_VERSION = 5;
+// v6: added hasReleaseWorkflow to details (release-cadence standard).
+export const REPO_CACHE_SCHEMA_VERSION = 6;
 
 // True for releases that are actually published. GitHub returns drafts (with
 // null published_at) at the top of /releases when ordered by created_at, so
