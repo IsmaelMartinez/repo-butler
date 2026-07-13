@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-13T06:06:26.893Z",
+  "timestamp": "2026-07-13T09:28:10.640Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 1,
+    "open_issues_count": 2,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-13T06:06:16Z",
+    "pushed_at": "2026-07-13T08:42:17Z",
     "archived": false
   },
   "issues": {
@@ -89,6 +89,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 323,
+        "title": "feat(ideate): steer cross-repo proposals through the PROPOSE routing gate",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-13T08:36:05Z"
+      },
       {
         "number": 321,
         "title": "feat(governance): release-cadence standard + templated scheduled-release apply class",
@@ -1393,13 +1400,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-15T09:48:07Z"
-      },
-      {
-        "number": 114,
-        "title": "fix: include private repos in portfolio discovery + refresh docs",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-14T20:04:58Z"
       }
     ]
   },
@@ -1478,6 +1478,12 @@
   "milestones": [],
   "releases": [
     {
+      "tag": "v1.1.1",
+      "name": "v1.1.1",
+      "published_at": "2026-07-13T06:39:54Z",
+      "prerelease": false
+    },
+    {
       "tag": "v1.1.0",
       "name": "v1.1.0 — Governance Engine + Security Hardening",
       "published_at": "2026-03-31T22:55:25Z",
@@ -1518,6 +1524,11 @@
     {
       "name": "Onboard Repos",
       "path": ".github/workflows/onboard.yml",
+      "state": "active"
+    },
+    {
+      "name": "Release recovery",
+      "path": ".github/workflows/release-recovery.yml",
       "state": "active"
     },
     {
@@ -1581,10 +1592,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9883720930232558,
-    "total_runs": 86,
-    "passed": 85,
-    "failed": 1
+    "pass_rate": 0.9647058823529412,
+    "total_runs": 85,
+    "passed": 82,
+    "failed": 3
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1598,8 +1609,8 @@
     "bot_prs": 5,
     "human_prs": 180,
     "unique_contributors": 3,
-    "releases": 1,
-    "latest_release": "v1.1.0",
+    "releases": 2,
+    "latest_release": "v1.1.1",
     "top_open_labels": [],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
@@ -1609,7 +1620,7 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9883720930232558,
+    "ci_pass_rate": 0.9647058823529412,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
