@@ -9,6 +9,12 @@ name: Release recovery
 # release-cadence workflow PRs are merged across the portfolio.
 
 on:
+  # The push trigger exists only to make GitHub register this branch-only
+  # workflow so it becomes dispatchable; a push run has no `repos` input and
+  # exits without doing anything.
+  push:
+    branches: [claude/release-cadence-rollout-recovery-0o444f]
+    paths: ['.github/workflows/release-recovery.yml']
   workflow_dispatch:
     inputs:
       repos:
@@ -37,10 +43,14 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           OWNER: ${{ github.repository_owner }}
-          REPOS: ${{ github.event.inputs.repos }}
+          REPOS: ${{ github.event.inputs.repos || '' }}
           DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
         run: |
           set -euo pipefail
+          if [ -z "$REPOS" ]; then
+            echo "No repos input (push-triggered registration run) — nothing to do."
+            exit 0
+          fi
           IFS=',' read -ra repos <<< "$REPOS"
           for repo in "${repos[@]}"; do
             repo=$(echo "$repo" | xargs)
