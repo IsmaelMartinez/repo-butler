@@ -215,7 +215,7 @@
       "stars": 4842,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9655172413793104,
+      "ciPassRate": 0.9661016949152542,
       "vulns": {
         "count": 2,
         "critical": 0,
@@ -652,8 +652,8 @@
       "pushed_at": "2026-07-13T07:39:13Z",
       "traffic": {
         "views_14d": {
-          "count": 1,
-          "uniques": 1
+          "count": 0,
+          "uniques": 0
         },
         "clones_14d": {
           "count": 140,
@@ -958,7 +958,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-07-13T09:30:05Z",
+      "pushed_at": "2026-07-13T10:23:33Z",
       "traffic": {
         "views_14d": {
           "count": 8,
@@ -1064,12 +1064,12 @@
       "pushed_at": "2026-07-12T13:00:12Z",
       "traffic": {
         "views_14d": {
-          "count": 12,
-          "uniques": 11
+          "count": 22,
+          "uniques": 13
         },
         "clones_14d": {
-          "count": 827,
-          "uniques": 162
+          "count": 858,
+          "uniques": 166
         }
       },
       "computed": {
@@ -1274,8 +1274,8 @@
           "uniques": 3
         },
         "clones_14d": {
-          "count": 12,
-          "uniques": 6
+          "count": 11,
+          "uniques": 5
         }
       },
       "computed": {
