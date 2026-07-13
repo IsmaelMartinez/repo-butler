@@ -123,9 +123,11 @@ describe('prompt builder golden snapshots', () => {
   it('buildIdeatePrompt — governance-mode with findings', () => {
     assert.equal(
       buildIdeatePrompt(snapshot, null, null, 2, [
+        // Repo fields are bare short names, matching the real contract:
+        // governance.js builds every finding repo field from r.name.
         { type: 'standards-gap', tool: 'codeowners', scope: { type: 'all' }, compliant: ['a', 'b'], nonCompliant: ['c'] },
-        { type: 'policy-drift', repo: 'octo/x', actual: 'mit', expected: 'apache-2.0', category: 'license' },
-        { type: 'tier-uplift', repo: 'octo/y', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }] },
+        { type: 'policy-drift', repo: 'x', actual: 'mit', expected: 'apache-2.0', category: 'license' },
+        { type: 'tier-uplift', repo: 'y', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }] },
       ]),
       golden('ideate-governance.txt')
     );

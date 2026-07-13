@@ -29,8 +29,8 @@ Roadmap content here.
 
 --- Portfolio Governance Findings ---
 Standard: codeowners (all) — 2/3 repos compliant; 1 of 3 missing: c
-Drift: octo/x uses mit (expected: apache-2.0, category: license)
-Uplift: octo/y is silver, needs [tests] for gold
+Drift: x uses mit (expected: apache-2.0, category: license)
+Uplift: y is silver, needs [tests] for gold
 Tier uplift summary: 1 of 3 in-scope repos sit below their target tier.
 Policy drift summary: 1 of 3 in-scope repos diverge from an expected policy.
 --- End Portfolio Governance Findings ---
