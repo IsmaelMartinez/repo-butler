@@ -206,6 +206,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # The job only reads git history; gh authenticates via GH_TOKEN.
+          persist-credentials: false
 
       - name: Cut a patch release when the cadence has lapsed
         env:
