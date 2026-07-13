@@ -92,5 +92,31 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-07-13T09:30:03.843Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Establish automated release cadence tracking to resolve portfolio-wide non-compliance",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Implement automated release cadence workflow to meet portfolio standards",
+        "target_repo": "yourear",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "not-allowlisted",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
