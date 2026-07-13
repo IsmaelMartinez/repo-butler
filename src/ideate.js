@@ -117,7 +117,7 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
     // BODY is swallowed into the body and never parsed. Keeping it adjacent to
     // the other structured fields is what makes the model emit it where the
     // parser can capture it.
-    ...(hasGovernance ? ['TARGET_REPO: <short name of the one portfolio repo this proposal targets, taken from the findings above; omit this line entirely for a proposal about this repo>'] : []),
+    ...(hasGovernance ? ['TARGET_REPO: <short name of the one portfolio repo this proposal targets, taken from the findings above; omit this line entirely for a proposal about this repo or the portfolio as a whole>'] : []),
     'BODY: <full GitHub issue body in markdown incorporating all the above sections>',
     '---END---',
     '',
@@ -163,7 +163,8 @@ export function buildIdeatePrompt(snapshot, assessment, projectContext, maxIdeas
 function appendGovernanceContext(parts, findings) {
   parts.push('', '--- Portfolio Governance Findings ---');
 
-  const upliftRepos = [];
+  const upliftRepos = new Set();
+  const driftRepos = new Set();
   let inScopeTotal = 0;
 
   for (const f of findings) {
@@ -172,9 +173,10 @@ function appendGovernanceContext(parts, findings) {
       inScopeTotal = Math.max(inScopeTotal, total);
       parts.push(`Standard: ${f.tool} (${f.scope.type}) — ${f.compliant.length}/${total} repos compliant; ${f.nonCompliant.length} of ${total} missing: ${f.nonCompliant.join(', ')}`);
     } else if (f.type === 'policy-drift') {
+      driftRepos.add(f.repo);
       parts.push(`Drift: ${f.repo} uses ${f.actual} (expected: ${f.expected}, category: ${f.category})`);
     } else if (f.type === 'tier-uplift') {
-      upliftRepos.push(f.repo);
+      upliftRepos.add(f.repo);
       parts.push(`Uplift: ${f.repo} is ${f.currentTier}, needs [${f.failingChecks.map(c => c.name).join(', ')}] for ${f.targetTier}`);
     } else if (f.type === 'dependabot-stale') {
       const oldest = Math.max(...f.stalePRs.map(p => p.age));
@@ -182,14 +184,19 @@ function appendGovernanceContext(parts, findings) {
     }
   }
 
-  // Tier-uplift findings are per-repo and carry no fraction of their own, so a
-  // proposal anchored only on one has no statistic to cite. Aggregate them
-  // against the in-scope portfolio size (largest standards-gap population —
-  // scopes vary per tool, so this is the best available denominator). Without
-  // gap findings there is no denominator; a bare count would not pass the
-  // routing gate, so the line is omitted rather than rendered unciteable.
-  if (upliftRepos.length > 0 && inScopeTotal > 0) {
-    parts.push(`Tier uplift summary: ${upliftRepos.length} of ${inScopeTotal} in-scope repos sit below their target tier.`);
+  // Tier-uplift and policy-drift findings are per-repo and carry no fraction
+  // of their own, so a proposal anchored only on one has no statistic to cite.
+  // Aggregate each class against the in-scope portfolio size (largest
+  // standards-gap population — scopes vary per tool, so this is the best
+  // available denominator, clamped so the fraction can never exceed 1 when a
+  // gap finding is scoped narrower than the aggregated repo set). Without gap
+  // findings there is no denominator; a bare count would not pass the routing
+  // gate, so the line is omitted rather than rendered unciteable.
+  if (upliftRepos.size > 0 && inScopeTotal > 0) {
+    parts.push(`Tier uplift summary: ${upliftRepos.size} of ${Math.max(inScopeTotal, upliftRepos.size)} in-scope repos sit below their target tier.`);
+  }
+  if (driftRepos.size > 0 && inScopeTotal > 0) {
+    parts.push(`Policy drift summary: ${driftRepos.size} of ${Math.max(inScopeTotal, driftRepos.size)} in-scope repos diverge from an expected policy.`);
   }
 
   parts.push('--- End Portfolio Governance Findings ---', '');

@@ -493,6 +493,36 @@ describe('buildIdeatePrompt', () => {
     assert.ok(prompt.includes('Tier uplift summary: 2 of 4 in-scope repos sit below their target tier.'));
   });
 
+  it('clamps the tier-uplift denominator so the fraction never exceeds 1 when gap findings are scoped narrower', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'go-lint', scope: { type: 'go' }, compliant: ['a'], nonCompliant: ['b'], adoptionRate: 0.5, priority: 'medium' },
+      { type: 'tier-uplift', repo: 'c', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }], priority: 'high' },
+      { type: 'tier-uplift', repo: 'd', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }], priority: 'high' },
+      { type: 'tier-uplift', repo: 'e', currentTier: 'bronze', targetTier: 'silver', failingChecks: [{ name: 'ci' }], priority: 'high' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Tier uplift summary: 3 of 3 in-scope repos sit below their target tier.'));
+  });
+
+  it('aggregates policy-drift findings into a citable portfolio statistic, deduplicating repos', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: ['a', 'b', 'c'], nonCompliant: ['d'], adoptionRate: 0.75, priority: 'medium' },
+      { type: 'policy-drift', category: 'license', repo: 'd', expected: 'MIT', actual: 'Apache-2.0', priority: 'medium' },
+      { type: 'policy-drift', category: 'ci', repo: 'd', expected: 'actions', actual: 'circleci', priority: 'medium' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Policy drift summary: 1 of 4 in-scope repos diverge from an expected policy.'));
+  });
+
+  it('omits the policy-drift summary when no standards-gap finding provides a denominator', () => {
+    const findings = [
+      { type: 'policy-drift', category: 'license', repo: 'd', expected: 'MIT', actual: 'Apache-2.0', priority: 'medium' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Drift: d uses Apache-2.0'));
+    assert.ok(!prompt.includes('Policy drift summary:'));
+  });
+
   it('omits the tier-uplift summary when no standards-gap finding provides a denominator', () => {
     const findings = [
       { type: 'tier-uplift', repo: 'a', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }], priority: 'high' },
