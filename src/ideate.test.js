@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIdeas, buildIdeatePrompt } from './ideate.js';
+import { resolveCrossRepoDestination } from './safety.js';
 
 describe('parseIdeas', () => {
   it('parses new structured format with all fields', () => {
@@ -459,6 +460,96 @@ describe('buildIdeatePrompt', () => {
 
     const hostPrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null);
     assert.ok(!hostPrompt.includes('TARGET_REPO'));
+  });
+
+  it('instructs the model to SET TARGET_REPO for single-repo remediation and to cite the anchoring statistic in RATIONALE (governance mode only)', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'release-cadence', scope: { type: 'universal' }, compliant: ['a', 'b'], nonCompliant: ['c'], adoptionRate: 0.67, priority: 'high' },
+    ];
+    const governancePrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(governancePrompt.includes('you MUST include the TARGET_REPO line'));
+    assert.ok(governancePrompt.includes('copied verbatim from the findings above'));
+    assert.ok(governancePrompt.includes('TARGET_REPO must never contain "/"'));
+    assert.ok(governancePrompt.includes("RATIONALE must cite the anchoring finding's portfolio statistic"));
+    assert.ok(governancePrompt.includes('8 of 14 repos fail the release-cadence check'));
+
+    const hostPrompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, null);
+    assert.ok(!hostPrompt.includes('portfolio statistic'));
+  });
+
+  it('renders each standards-gap finding with a citable "N of M missing" statistic', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'release-cadence', scope: { type: 'universal' }, compliant: ['a', 'b', 'c', 'd', 'e'], nonCompliant: ['f', 'g', 'h'], adoptionRate: 0.62, priority: 'high' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('5/8 repos compliant; 3 of 8 missing: f, g, h'));
+  });
+
+  it('aggregates tier-uplift findings into a citable portfolio statistic when a standards-gap denominator exists', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: ['a', 'b', 'c'], nonCompliant: ['d'], adoptionRate: 0.75, priority: 'medium' },
+      { type: 'tier-uplift', repo: 'd', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Release in the last 90 days' }], priority: 'high' },
+      { type: 'tier-uplift', repo: 'a', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Release in the last 90 days' }], priority: 'high' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Tier uplift summary: 2 of 4 in-scope repos sit below their target tier.'));
+  });
+
+  it('clamps the tier-uplift denominator so the fraction never exceeds 1 when gap findings are scoped narrower', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'go-lint', scope: { type: 'go' }, compliant: ['a'], nonCompliant: ['b'], adoptionRate: 0.5, priority: 'medium' },
+      { type: 'tier-uplift', repo: 'c', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }], priority: 'high' },
+      { type: 'tier-uplift', repo: 'd', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }], priority: 'high' },
+      { type: 'tier-uplift', repo: 'e', currentTier: 'bronze', targetTier: 'silver', failingChecks: [{ name: 'ci' }], priority: 'high' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Tier uplift summary: 3 of 3 in-scope repos sit below their target tier.'));
+  });
+
+  it('aggregates policy-drift findings into a citable portfolio statistic, deduplicating repos', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'license', scope: { type: 'universal' }, compliant: ['a', 'b', 'c'], nonCompliant: ['d'], adoptionRate: 0.75, priority: 'medium' },
+      { type: 'policy-drift', category: 'license', repo: 'd', expected: 'MIT', actual: 'Apache-2.0', priority: 'medium' },
+      { type: 'policy-drift', category: 'ci', repo: 'd', expected: 'actions', actual: 'circleci', priority: 'medium' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Policy drift summary: 1 of 4 in-scope repos diverge from an expected policy.'));
+  });
+
+  it('omits the policy-drift summary when no standards-gap finding provides a denominator', () => {
+    const findings = [
+      { type: 'policy-drift', category: 'license', repo: 'd', expected: 'MIT', actual: 'Apache-2.0', priority: 'medium' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Drift: d uses Apache-2.0'));
+    assert.ok(!prompt.includes('Policy drift summary:'));
+  });
+
+  it('omits the tier-uplift summary when no standards-gap finding provides a denominator', () => {
+    const findings = [
+      { type: 'tier-uplift', repo: 'a', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'tests' }], priority: 'high' },
+    ];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Uplift: a is silver'));
+    assert.ok(!prompt.includes('Tier uplift summary:'));
+  });
+
+  it("the prompt's own example rationale phrasing is admitted by the cross-repo routing gate", () => {
+    // Guards against drift between what the prompt tells the model to write
+    // and what resolveCrossRepoDestination's Gate 4 patterns actually admit:
+    // an idea whose rationale follows the prompt's example must route cross-repo.
+    const finding = { type: 'standards-gap', tool: 'release-cadence', scope: { type: 'universal' }, compliant: ['a'], nonCompliant: ['stale-repo'], adoptionRate: 0.5, priority: 'high' };
+    const idea = {
+      targetRepo: 'stale-repo',
+      rationale: '8 of 14 repos fail the release-cadence check; stale-repo has had no release in over 90 days.',
+    };
+    const dest = resolveCrossRepoDestination(idea, {
+      findings: [finding],
+      eligibleRepoNames: ['stale-repo'],
+      owner: 'octo',
+    });
+    assert.equal(dest.destination, 'cross-repo');
+    assert.equal(dest.reason, 'admitted');
   });
 
   it('preserves existing behaviour when no governance findings', () => {

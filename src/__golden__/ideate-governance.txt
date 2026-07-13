@@ -28,9 +28,11 @@ Roadmap content here.
 
 
 --- Portfolio Governance Findings ---
-Standard: codeowners (all) — 2/3 repos compliant. Missing: c
-Drift: octo/x uses mit (expected: apache-2.0, category: license)
-Uplift: octo/y is silver, needs [tests] for gold
+Standard: codeowners (all) — 2/3 repos compliant; 1 of 3 missing: c
+Drift: x uses mit (expected: apache-2.0, category: license)
+Uplift: y is silver, needs [tests] for gold
+Tier uplift summary: 1 of 3 in-scope repos sit below their target tier.
+Policy drift summary: 1 of 3 in-scope repos diverge from an expected policy.
 --- End Portfolio Governance Findings ---
 
 === END REPOSITORY DATA ===
@@ -45,7 +47,7 @@ CURRENT_STATE: <what exists now>
 PROPOSED_STATE: <what should change>
 AFFECTED_FILES: <comma-separated list of likely affected files/directories, or "unknown">
 SCOPE: <one-sentence scope boundary>
-TARGET_REPO: <short name of the one portfolio repo this proposal targets, taken from the findings above; omit this line entirely for a proposal about this repo>
+TARGET_REPO: <short name of the one portfolio repo this proposal targets, taken from the findings above; omit this line entirely for a proposal about this repo or the portfolio as a whole>
 BODY: <full GitHub issue body in markdown incorporating all the above sections>
 ---END---
 
@@ -62,5 +64,6 @@ Guidelines:
 - Prioritise standards propagation and policy drift correction proposals over generic improvements.
 - Each idea should reference specific repos and cross-repo statistics (e.g. "configured in 14/19 repos").
 - Rationale must explain why this is a portfolio-level concern, not a per-repo issue.
-- Include the TARGET_REPO line (in the format block, above BODY) only when the proposal concerns one specific portfolio repo named in the findings; omit it for proposals about this repo. Use the short repo name only (e.g. "my-repo").
+- When a proposal remediates a finding in ONE specific portfolio repo (adding a missing standard to a non-compliant repo, correcting one repo's policy drift, or uplifting one repo's tier), you MUST include the TARGET_REPO line (in the format block, above BODY) set to that repo's short name copied verbatim from the findings above (findings always list bare repo names, e.g. "my-repo" — TARGET_REPO must never contain "/"). Omit the line only for proposals about this repo or the portfolio as a whole.
+- For any idea that has a TARGET_REPO, RATIONALE must cite the anchoring finding's portfolio statistic as a number — an "N of M repos" count, an N/M fraction, or a percentage taken from the findings above (e.g. "8 of 14 repos fail the release-cadence check") — and must justify the change in portfolio terms only, never with claims about the target repo's code, tests, or issue contents.
 - For any idea that has a TARGET_REPO, set AFFECTED_FILES to "unknown" and do NOT cite this repo's issue numbers (e.g. #42) in RATIONALE or BODY — it will be filed in the target repo, which does not share this repo's issue numbering. Cite the cross-repo statistic instead.
