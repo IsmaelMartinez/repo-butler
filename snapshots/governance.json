@@ -1,150 +1,6 @@
 [
   {
     "type": "standards-gap",
-    "tool": "issue-form-templates",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "yourear",
-      "sound3fy",
-      "teams-for-linux",
-      "ismaelmartinez.me.uk",
-      "bonnie-wee-plot",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "repo-butler",
-      "wifisentinel",
-      "lounge-tv",
-      "delegate-local"
-    ],
-    "nonCompliant": [
-      "generator-atlassian-compass-event-catalog",
-      "betis-escocia",
-      "votescot"
-    ],
-    "repoEcosystems": {
-      "generator-atlassian-compass-event-catalog": null,
-      "betis-escocia": null,
-      "votescot": null
-    },
-    "repoAutoMerge": {
-      "generator-atlassian-compass-event-catalog": true,
-      "betis-escocia": true,
-      "votescot": true
-    },
-    "adoptionRate": 0.7857142857142857,
-    "priority": "medium",
-    "remediation": {
-      "executor": "template",
-      "targetFiles": [
-        ".github/ISSUE_TEMPLATE/bug_report.yml"
-      ],
-      "intent": "Add issue-form-templates to 3 non-compliant repo(s)",
-      "rationale": "Standards gap: issue-form-templates adopted by 79% of in-scope repos; missing in generator-atlassian-compass-event-catalog, betis-escocia, votescot.",
-      "acceptanceCriteria": [
-        "Every non-compliant repo passes the issue-form-templates standard check"
-      ]
-    }
-  },
-  {
-    "type": "standards-gap",
-    "tool": "codeowners",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "yourear",
-      "sound3fy",
-      "ismaelmartinez.me.uk",
-      "generator-atlassian-compass-event-catalog",
-      "bonnie-wee-plot",
-      "betis-escocia",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "repo-butler",
-      "votescot",
-      "delegate-local"
-    ],
-    "nonCompliant": [
-      "teams-for-linux",
-      "wifisentinel",
-      "lounge-tv"
-    ],
-    "repoEcosystems": {
-      "teams-for-linux": null,
-      "wifisentinel": null,
-      "lounge-tv": null
-    },
-    "repoAutoMerge": {
-      "teams-for-linux": true,
-      "wifisentinel": true,
-      "lounge-tv": true
-    },
-    "adoptionRate": 0.7857142857142857,
-    "priority": "medium",
-    "remediation": {
-      "executor": "template",
-      "targetFiles": [
-        ".github/CODEOWNERS"
-      ],
-      "intent": "Add codeowners to 3 non-compliant repo(s)",
-      "rationale": "Standards gap: codeowners adopted by 79% of in-scope repos; missing in teams-for-linux, wifisentinel, lounge-tv.",
-      "acceptanceCriteria": [
-        "Every non-compliant repo passes the codeowners standard check"
-      ]
-    }
-  },
-  {
-    "type": "standards-gap",
-    "tool": "security-md",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "yourear",
-      "sound3fy",
-      "ismaelmartinez.me.uk",
-      "generator-atlassian-compass-event-catalog",
-      "bonnie-wee-plot",
-      "betis-escocia",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "repo-butler",
-      "votescot",
-      "delegate-local"
-    ],
-    "nonCompliant": [
-      "teams-for-linux",
-      "wifisentinel",
-      "lounge-tv"
-    ],
-    "repoEcosystems": {
-      "teams-for-linux": null,
-      "wifisentinel": null,
-      "lounge-tv": null
-    },
-    "repoAutoMerge": {
-      "teams-for-linux": true,
-      "wifisentinel": true,
-      "lounge-tv": true
-    },
-    "adoptionRate": 0.7857142857142857,
-    "priority": "medium",
-    "remediation": {
-      "executor": "template",
-      "targetFiles": [
-        ".github/SECURITY.md"
-      ],
-      "intent": "Add security-md to 3 non-compliant repo(s)",
-      "rationale": "Standards gap: security-md adopted by 79% of in-scope repos; missing in teams-for-linux, wifisentinel, lounge-tv.",
-      "acceptanceCriteria": [
-        "Every non-compliant repo passes the security-md standard check"
-      ]
-    }
-  },
-  {
-    "type": "standards-gap",
     "tool": "release-cadence",
     "scope": {
       "type": "universal"
@@ -153,6 +9,7 @@
       "teams-for-linux",
       "ismaelmartinez.me.uk",
       "generator-atlassian-compass-event-catalog",
+      "repo-butler",
       "wifisentinel",
       "delegate-local"
     ],
@@ -162,7 +19,6 @@
       "betis-escocia",
       "ai-model-advisor",
       "github-issue-triage-bot",
-      "repo-butler",
       "votescot",
       "lounge-tv"
     ],
@@ -172,7 +28,6 @@
       "betis-escocia": null,
       "ai-model-advisor": null,
       "github-issue-triage-bot": null,
-      "repo-butler": null,
       "votescot": null,
       "lounge-tv": null
     },
@@ -182,43 +37,20 @@
       "betis-escocia": true,
       "ai-model-advisor": true,
       "github-issue-triage-bot": true,
-      "repo-butler": true,
       "votescot": true,
       "lounge-tv": true
     },
-    "adoptionRate": 0.38461538461538464,
+    "adoptionRate": 0.46153846153846156,
     "priority": "high",
     "remediation": {
       "executor": "template",
       "targetFiles": [
         ".github/workflows/release.yml"
       ],
-      "intent": "Add release-cadence to 8 non-compliant repo(s)",
-      "rationale": "Standards gap: release-cadence adopted by 38% of in-scope repos; missing in yourear, bonnie-wee-plot, betis-escocia, ai-model-advisor, github-issue-triage-bot, repo-butler, votescot, lounge-tv.",
+      "intent": "Add release-cadence to 7 non-compliant repo(s)",
+      "rationale": "Standards gap: release-cadence adopted by 46% of in-scope repos; missing in yourear, bonnie-wee-plot, betis-escocia, ai-model-advisor, github-issue-triage-bot, votescot, lounge-tv.",
       "acceptanceCriteria": [
         "Every non-compliant repo passes the release-cadence standard check"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "yourear",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift yourear from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
       ]
     }
   },
@@ -246,34 +78,12 @@
   },
   {
     "type": "tier-uplift",
-    "repo": "bonnie-wee-plot",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift bonnie-wee-plot from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
     "repo": "betis-escocia",
     "currentTier": "silver",
     "targetTier": "gold",
     "failingChecks": [
       {
-        "name": "Release in the last 90 days",
+        "name": "Zero critical/high security findings",
         "required_for": "gold"
       }
     ],
@@ -282,119 +92,9 @@
       "executor": "agent",
       "targetFiles": [],
       "intent": "Uplift betis-escocia from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
+      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
       "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "ai-model-advisor",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift ai-model-advisor from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "github-issue-triage-bot",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift github-issue-triage-bot from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "repo-butler",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift repo-butler from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "votescot",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift votescot from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "lounge-tv",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Release in the last 90 days",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift lounge-tv from silver to gold",
-      "rationale": "1 check(s) block gold: Release in the last 90 days.",
-      "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes"
+        "Check \"Zero critical/high security findings\" passes"
       ]
     }
   }
