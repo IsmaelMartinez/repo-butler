@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-09
+**Last Updated:** 2026-07-13
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -86,7 +86,7 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
-Review-before-merge policy and test runner stabilization shipped 2026-07-09 (PRs #319 and #320). Updated the "review-before-merge" guidelines to remove outdated Gemini timeline references and resolved technical debt by deduplicating regular expressions and fixing a flaky test runner to ensure CI/CD pipeline reliability.
+Release cadence governance standard shipped 2026-07-13 (PR #321). Introduced a universal `release-cadence` standard and templated scheduled-release apply class to automate scheduled release cycles and establish predictable delivery cadences across the portfolio.
 ---
 
 ## Roadmap
@@ -182,6 +182,10 @@ The Governance Apply phase now actively addresses stale Dependabot PR findings b
 ### ~~Dependabot auto-merge standard~~ SHIPPED
 
 A new universal governance standard checks every eligible repo for a `.github/workflows/dependabot-auto-merge.yml` workflow that enables auto-merge on non-major Dependabot PRs. Detection reuses the existing portfolio `/actions/workflows` fetcher (no new API calls) to set `hasAutoMergeWorkflow` per repo, and the standard routes through the templatable apply path, so `governance:apply` can open a remediation PR that drops in an ecosystem-agnostic workflow built on `dependabot/fetch-metadata@v3` and `gh pr merge --auto` (no `--squash`, so each repo keeps its own default merge method). The detector also reads the repo's `allow_auto_merge` setting as an advisory (`allowAutoMerge` / per-finding `repoAutoMerge`) since the workflow only takes effect once Allow auto-merge is enabled and branch protection requires status checks; the remediation PR documents these prerequisites. Phase 2 — having the butler flip the `allow_auto_merge` repo setting and configure branch protection itself, plus the corresponding ADR-005 amendment — is deliberately deferred.
+
+### Release cadence standard — self-healing gold-tier releases
+
+Born from the 2026-07 portfolio-wide release drift: the whole early-April manual release batch crossed the 90-day gold boundary at once in week 27, dropping the portfolio from 14/14 gold to 5/14 in a single week, with eight repos failing exactly one check ("Release in the last 90 days"). The weekly IDEATE run diagnosed it and proposed the fix ("Establish Automated Release Cadence to Correct Portfolio-Wide Release Drift", 2026-07-06 soak ledger) but, being in the G10 dry-run soak, could not file it — so the fix landed as a reviewed change instead. A new universal `release-cadence` governance standard detects release automation machinery (any workflow whose name or path mentions "release", reusing the existing `/actions/workflows` fetcher — no new API calls, so hand-rolled publish pipelines count as compliant), and a new templatable apply class remediates gaps with a scheduled patch-release workflow: on the 1st and 15th it cuts a patch release with generated notes when the latest release is at least 60 days old AND unreleased commits exist (worst-case staleness ~75 days, inside the 90-day tier window). Fail-safe by construction — it skips repos with no published release (the first release stays a human decision), non-semver tags, or nothing new to release, and it only reads git history plus `gh release create`, never building or publishing artifacts, so it cannot go red on heterogeneous repos. `sound3fy` is excluded via `standards-exclude` to mirror its `release_exempt` status. Ships manual-dispatch only (`apply.yml`, dry-run by default), absent from `apply-schedule` and `apply-automerge` per the ADR-007 one-class-at-a-time promotion ladder; release RECENCY itself remains the tier-uplift finding's job, so the two compose — the standard installs the machinery, the machinery keeps the gold check passing.
 
 ### Phase 5 — Portfolio Governance Engine
 
