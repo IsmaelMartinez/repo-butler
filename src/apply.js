@@ -494,8 +494,11 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
     try {
       const listing = await gh.request(`/repos/${owner}/${repo}/contents/`);
       if (Array.isArray(listing)) rootFiles = listing.map(f => f.name);
-    } catch {
-      // fall through with null
+    } catch (err) {
+      // The Contents API 404s on an empty repo root: that is a real "no
+      // manifests exist" answer, so gate every manager out rather than
+      // falling back to an ecosystem default. Other errors leave null.
+      if (err.message?.includes(': 404')) rootFiles = [];
     }
   }
 

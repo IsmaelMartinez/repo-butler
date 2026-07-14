@@ -49,6 +49,16 @@ describe('filterSupportedDeps', () => {
     assert.deepEqual(filterSupportedDeps([]), []);
   });
 
+  it('skips deps with malformed percent-encoding instead of throwing (URIError)', () => {
+    const packages = [
+      { name: 'bad', version: '1.0.0', purl: 'pkg:npm/bad%zzname@1.0.0' },
+      { name: 'express', version: '4.18.2', purl: 'pkg:npm/express@4.18.2' },
+    ];
+    const result = filterSupportedDeps(packages);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].name, 'express');
+  });
+
   it('ignores purl types that are prototype keys rather than adapters', () => {
     const packages = [
       { name: 'x', version: '1.0.0', purl: 'pkg:toString/x@1.0.0' },

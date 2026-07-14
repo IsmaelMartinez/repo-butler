@@ -77,7 +77,14 @@ export function filterSupportedDeps(sbomPackages) {
     const atIdx = withoutPrefix.startsWith('@')
       ? withoutPrefix.indexOf('@', 1)
       : withoutPrefix.indexOf('@');
-    const name = atIdx >= 0 ? decodeURIComponent(withoutPrefix.slice(0, atIdx)) : decodeURIComponent(withoutPrefix);
+    let name;
+    try {
+      name = decodeURIComponent(atIdx >= 0 ? withoutPrefix.slice(0, atIdx) : withoutPrefix);
+    } catch {
+      // Malformed percent-encoding in external SBOM data (URIError) — skip
+      // this dep rather than failing the whole set.
+      continue;
+    }
     deps.push({ registry, name, currentVersion: p.version });
   }
   return deps;

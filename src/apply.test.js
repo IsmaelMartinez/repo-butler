@@ -545,6 +545,30 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.pairs.length, 5);
   });
 
+  it('treats a 404 root listing as an empty repo — dependabot config gates out the manager', async () => {
+    const emptyRepoGh = {
+      ...mockGh,
+      request: async (path, opts) => {
+        // Root listing GET 404s (empty repo root, Contents API behaviour).
+        if (path.endsWith('/contents/') && !opts?.method) {
+          calls.push({ type: 'request', path, opts });
+          throw new Error('GitHub API GET /repos/owner/repo-a/contents/: 404 Not Found');
+        }
+        return mockGh.request(path, opts);
+      },
+    };
+    const findings = [
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+    ];
+    const result = await applyGovernanceFindings(emptyRepoGh, 'owner', findings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    const put = calls.find(c => c.type === 'request' && c.opts?.method === 'PUT' && c.path.includes('dependabot.yml'));
+    assert.ok(put, 'dependabot.yml should still be written');
+    const content = Buffer.from(put.opts.body.content, 'base64').toString();
+    assert.ok(!content.includes('package-ecosystem: "npm"'), '404 root means no manifest — no npm entry');
+    assert.ok(content.includes('package-ecosystem: "github-actions"'));
+  });
+
   it('skips repos with existing open PR (dedup)', async () => {
     const deduplicatingGh = {
       ...mockGh,
