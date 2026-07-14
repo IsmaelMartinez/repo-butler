@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-13
+**Last Updated:** 2026-07-14
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -86,7 +86,9 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
-Release cadence governance standard shipped 2026-07-13 (PR #321). Introduced a universal `release-cadence` standard and templated scheduled-release apply class to automate scheduled release cycles and establish predictable delivery cadences across the portfolio.
+Scheduled promotion of code-review-bot onto the scheduled apply path shipped 2026-07-13 (PR #324), completing the ADR-007 stage-4 rollout. This integrates the code-review-bot into the automated maintenance workflows, leveraging the clean track record of previous manual rollouts to ensure seamless, scheduled repository governance.
+
+Structured release-cadence configuration introduced 2026-07-12 (PR #322) to establish predictable deployment cycles and automate scheduled patch-release workflows across the portfolio, ensuring long-term planning alignment and mitigating manual release drift.
 ---
 
 ## Roadmap
@@ -124,6 +126,8 @@ Then add the functionality here: a `code-review-bot` governance standard plus a 
 Progress (2026-06-13): Copilot code review chosen as the standard, and both halves now shipped. Detection: a `code-review-bot` governance standard checks each eligible repo for an active `copilot_code_review` repository ruleset (`details.hasCopilotReview`, derived in `fetchPortfolioDetails` via the shared `hasActiveCopilotReviewRuleset` helper), surfacing missing coverage as a standards-gap finding on the dashboard and MCP. Auto-enable: because Copilot review is a repository ruleset rather than a committed file, it cannot ride the templated file-PR path, so it routes to a new `settings` executor and a PR-less ruleset write — the trust model for which is set out in [ADR-009](docs/decisions/009-settings-level-writes.md) (Accepted 2026-06-13 after a five-persona council review). The apply path (`applyCopilotReviewRulesets`) rides the same five ADR-005 gates plus three writes-without-a-PR gates: additive/idempotent with a distinctively-named ruleset and a live pre-write detection check, scope-minimised to the single Copilot rule on the default branch (cannot block merges or restrict access), and a name-guarded `removeCopilotReviewRuleset` rollback affordance. v1 is manual-dispatch only (`apply.yml`, `tools=code-review-bot`), dry-run by default, and absent from the `apply-schedule` allow-list. Going live additionally requires granting the GitHub App `administration: write` (broader than the PR path's token) and is the maintainer's deliberate step; scheduled promotion waits on the codeowners/security-md track record per ADR-007's stage-4 gate.
 
 Progress (2026-06-15): SHIPPED and LIVE. PR #271 (detection) and PR #272 (ADR-009 auto-enable) merged, the maintainer granted the GitHub App `administration: write` scope and approved it on the installation, and two manual `apply.yml` dispatches (`tools=code-review-bot`, dry-run off) created the `repo-butler/copilot-code-review` ruleset across all 13 non-compliant repos — a five-repo canary followed by a sweep of the remaining eight at `max-apply-per-run=15`, with the live idempotency guard skipping the already-enabled five (0 errors, independently verified 13/13 via the rulesets API). The `code-review-bot` standards-gap finding is now clear: zero non-compliant repos, so Copilot code review covers the portfolio ahead of Gemini Code Assist's 2026-07-17 sunset. v1 stays manual-dispatch only and absent from the `apply-schedule` allow-list; promoting it onto the no-human scheduled apply is the remaining ADR-007 stage-4 step, now backed by this clean track record.
+
+Progress (2026-07-13): scheduled promotion shipped. `code-review-bot` joined the `apply-schedule` allow-list — the last held-back class, completing the ADR-007 stage-4 rollout — backed by the clean 13/13 manual rollout of 2026-06-15 (the settings write's one live execution; the intervening weekly scheduled runs were clean but skipped this class, so they prove the harness, not the write). The same change wires the `copilotReview` result into the scheduled run summary so a PR-less settings write always leaves an audit line. ADR-009 carries the gate analysis ("Scheduled promotion (2026-07-13)" note); the class remains auto-merge-ineligible by construction.
 
 ### ~~Dashboard Narrative Restructure~~ SHIPPED
 
