@@ -110,19 +110,10 @@ apply-schedule:
   codeowners: true
   security-md: true
   dependabot-rebase: true
-  # Promoted 2026-07-13: code-review-bot, the one settings-executor class
-  # (ADR-009). A settings write has no PR-review moment, so it was held off the
-  # schedule until it earned its own track record; that gate is now met — the
-  # 2026-06-15 live rollout enabled the ruleset on 13/13 repos with 0 errors
-  # (independently verified via the rulesets API), and every scheduled apply run
-  # since has completed cleanly. The write stays additive and idempotent (live
-  # pre-write detection check, distinctively-named `repo-butler/copilot-code-review`
-  # ruleset, name-guarded rollback via removeCopilotReviewRuleset), is
-  # scope-minimised to the single Copilot rule on the default branch, and cannot
-  # block merges or restrict access. With the portfolio currently at zero
-  # code-review-bot findings the flip is forward-looking: a scheduled run only
-  # acts when a new repo appears without the ruleset. Never auto-merge eligible
-  # (settings classes are excluded from apply-automerge by construction).
+  # Promoted 2026-07-13: code-review-bot, the one settings-executor class — the
+  # last held-back class, held until the 13/13 clean live rollout of 2026-06-15.
+  # Gate analysis in ADR-009 ("Scheduled promotion (2026-07-13)" note). Never
+  # auto-merge eligible (settings classes are excluded by construction).
   code-review-bot: true
 
 # Per-finding-class AUTO-MERGE allow-list (ADR-007 stage 5). A deterministic
