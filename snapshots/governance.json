@@ -10,13 +10,13 @@
       "ismaelmartinez.me.uk",
       "generator-atlassian-compass-event-catalog",
       "bonnie-wee-plot",
+      "betis-escocia",
       "repo-butler",
       "wifisentinel",
       "delegate-local"
     ],
     "nonCompliant": [
       "yourear",
-      "betis-escocia",
       "ai-model-advisor",
       "github-issue-triage-bot",
       "votescot",
@@ -24,7 +24,6 @@
     ],
     "repoEcosystems": {
       "yourear": null,
-      "betis-escocia": null,
       "ai-model-advisor": null,
       "github-issue-triage-bot": null,
       "votescot": null,
@@ -32,21 +31,20 @@
     },
     "repoAutoMerge": {
       "yourear": true,
-      "betis-escocia": true,
       "ai-model-advisor": true,
       "github-issue-triage-bot": true,
       "votescot": true,
       "lounge-tv": true
     },
-    "adoptionRate": 0.5384615384615384,
+    "adoptionRate": 0.6153846153846154,
     "priority": "medium",
     "remediation": {
       "executor": "template",
       "targetFiles": [
         ".github/workflows/release.yml"
       ],
-      "intent": "Add release-cadence to 6 non-compliant repo(s)",
-      "rationale": "Standards gap: release-cadence adopted by 54% of in-scope repos; missing in yourear, betis-escocia, ai-model-advisor, github-issue-triage-bot, votescot, lounge-tv.",
+      "intent": "Add release-cadence to 5 non-compliant repo(s)",
+      "rationale": "Standards gap: release-cadence adopted by 62% of in-scope repos; missing in yourear, ai-model-advisor, github-issue-triage-bot, votescot, lounge-tv.",
       "acceptanceCriteria": [
         "Every non-compliant repo passes the release-cadence standard check"
       ]
@@ -71,28 +69,6 @@
       "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
       "acceptanceCriteria": [
         "Check \"Fewer than 10 open bugs\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "betis-escocia",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift betis-escocia from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
       ]
     }
   }
