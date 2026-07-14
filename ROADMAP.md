@@ -86,9 +86,7 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
-Scheduled promotion of code-review-bot onto the scheduled apply path shipped 2026-07-13 (PR #324), completing the ADR-007 stage-4 rollout. This integrates the code-review-bot into the automated maintenance workflows, leveraging the clean track record of previous manual rollouts to ensure seamless, scheduled repository governance.
-
-Structured release-cadence configuration introduced 2026-07-12 (PR #322) to establish predictable deployment cycles and automate scheduled patch-release workflows across the portfolio, ensuring long-term planning alignment and mitigating manual release drift.
+Multi-ecosystem libyear porting shipped 2026-07-14 (PR #325). Expanded the core dependency freshness tool to support pip (Python), cargo (Rust), and maven/gradle (Java/Kotlin) package manager ecosystems, resolving key review follow-ups from PR #324 and significantly broadening the tool's utility for multi-language repositories.
 ---
 
 ## Roadmap
