@@ -156,3 +156,32 @@ apply-automerge:
   # PR itself and the CI-green precondition validates it before any merge. Strongest
   # track record of all classes (the 2026-05-01 13/13-repo code-scanning rollout).
   code-scanning: true
+
+# Cross-repo PROPOSE allow-lists (ADR-010 / ADR-011, G10). Two independent
+# key-presence maps: an idea files an issue on another repo ONLY when the
+# deterministic routing gate (resolveCrossRepoDestination, safety.js) admits it
+# AND its anchoring finding class is enabled in propose-classes AND its target
+# repo short-name is in propose-targets. Both were empty for the month-long
+# dry-run soak (ledger: snapshots/propose-soak.json on the data branch).
+#
+# Populating these maps does NOT by itself file anything anywhere: the weekly
+# ideate run stays dry-run and limits.require_approval stays true, so a live
+# cross-repo write still requires two further separately-reviewed flips
+# (require_approval: false AND INPUT_DRY_RUN: false — see the three-flips note
+# in .github/workflows/weekly-ideate.yml). With the maps populated, the weekly
+# soak ledger starts recording the admitted `cross-repo` route end-to-end, still
+# without writing. Demotion is the usual one-line revert: remove the key.
+propose-classes:
+  # Graduated 2026-07: standards-gap, the first cross-repo class. ADR-011
+  # originally slated tier-uplift first, but the soak evidence anchored here —
+  # the only gate-admitted cross-repo candidate of the soak (2026-07-13, the
+  # release-cadence nudge for yourear) was standards-gap-anchored, while
+  # tier-uplift produced zero admitted candidates all month. Gate analysis in
+  # ADR-010 ("G10 graduation" note) and the matching ADR-011 amendment.
+  standards-gap: true
+
+propose-targets:
+  # yourear: the graduation canary — the soak's one gate-admitted target,
+  # onboarded (CLAUDE.md marker), and the established canary repo for new
+  # cross-repo write classes (cf. the codeowners canary, yourear #47).
+  yourear: true
