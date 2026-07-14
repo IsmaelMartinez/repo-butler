@@ -214,8 +214,11 @@ describe('computeLibyearWithTimeout', () => {
 
   it('resolves crates.io packages, preferring max_stable_version', async () => {
     const seenUrls = [];
-    globalThis.fetch = mock.fn(async (url) => {
+    globalThis.fetch = mock.fn(async (url, opts) => {
       seenUrls.push(url);
+      // crates.io policy requires an identifying User-Agent — regressing this
+      // would surface as 403s in production.
+      assert.ok(opts.headers['User-Agent'].includes('repo-butler'));
       return {
         ok: true,
         json: async () => ({
