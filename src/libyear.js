@@ -110,10 +110,13 @@ async function fetchVersionDates(registry, packageName, currentVersion, perFetch
       signal: controller.signal,
     });
     if (!resp.ok) {
-      // Throttling would otherwise silently deflate the metric (crates.io in
-      // particular caps request rates); 404s stay quiet as before.
+      // Throttling or a policy denial would otherwise silently deflate the
+      // metric (crates.io in particular caps request rates and enforces a
+      // User-Agent policy); 404s stay quiet as before. Label by status — a
+      // 403 is a refusal, not necessarily throttling.
       if (resp.status === 429 || resp.status === 403) {
-        console.warn(`[libyear] ${registry} rate-limited the lookup for '${packageName}' (HTTP ${resp.status}) — dep skipped`);
+        const reason = resp.status === 429 ? 'rate-limited' : 'refused (HTTP 403)';
+        console.warn(`[libyear] ${registry} ${reason} the lookup for '${packageName}' — dep skipped`);
       }
       return null;
     }
