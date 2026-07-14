@@ -44,12 +44,20 @@ jobs:
   'dependabot-actions': {
     path: '.github/dependabot.yml',
     content: (eco) => {
+      // One Dependabot package-ecosystem per detectEcosystem() value. Findings
+      // carry a single ecosystem name, not the manifest file list, so Java maps
+      // to maven even though detectEcosystem also confirms Gradle repos — the
+      // PR note tells the maintainer to swap maven→gradle in that case.
+      const manager = {
+        JavaScript: 'npm',
+        TypeScript: 'npm',
+        Go: 'gomod',
+        Python: 'pip',
+        Rust: 'cargo',
+        Java: 'maven',
+      }[eco];
       const ecosystems = [];
-      if (eco === 'JavaScript') {
-        ecosystems.push({ manager: 'npm', directory: '/' });
-      } else if (eco === 'Go') {
-        ecosystems.push({ manager: 'gomod', directory: '/' });
-      }
+      if (manager) ecosystems.push({ manager, directory: '/' });
       ecosystems.push({ manager: 'github-actions', directory: '/' });
 
       const updates = ecosystems.map(e => `  - package-ecosystem: "${e.manager}"
@@ -258,6 +266,7 @@ jobs:
 // Tool-specific notes appended to the PR body. Used to document manual
 // prerequisites the butler cannot perform itself.
 const TOOL_PR_NOTES = {
+  'dependabot-actions': 'Notes: the language entry is keyed off the detected ecosystem (npm, gomod, pip, cargo, maven). For Java the butler cannot tell Maven from Gradle apart, so it emits `maven` — change it to `gradle` if this repo builds with Gradle. Adjust the `directory` if the manifest is not at the repo root.',
   'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
   'release-cadence': 'Notes: the workflow only cuts a release when the latest release is at least 60 days old AND unreleased commits exist; it skips repos with no published release (the first release stays yours) or a non-semver latest tag. Releases created with `GITHUB_TOKEN` do not trigger other workflows — if this repo publishes artifacts on release, wire that trigger up separately or dispatch the release manually.',
 };

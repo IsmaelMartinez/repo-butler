@@ -123,6 +123,36 @@ describe('generateTemplate', () => {
     assert.ok(!result.content.includes('package-ecosystem: "gomod"'));
   });
 
+  it('generates dependabot template for TypeScript (npm, same as JavaScript)', () => {
+    const result = generateTemplate('dependabot-actions', 'TypeScript');
+    assert.ok(result.content.includes('package-ecosystem: "npm"'));
+    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+  });
+
+  it('generates dependabot template for Python (pip)', () => {
+    const result = generateTemplate('dependabot-actions', 'Python');
+    assert.ok(result.content.includes('package-ecosystem: "pip"'));
+    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+  });
+
+  it('generates dependabot template for Rust (cargo)', () => {
+    const result = generateTemplate('dependabot-actions', 'Rust');
+    assert.ok(result.content.includes('package-ecosystem: "cargo"'));
+    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+  });
+
+  it('generates dependabot template for Java (maven, with a gradle caveat in the PR note)', () => {
+    const result = generateTemplate('dependabot-actions', 'Java');
+    assert.ok(result.content.includes('package-ecosystem: "maven"'));
+    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+  });
+
+  it('falls back to github-actions only for an unknown ecosystem', () => {
+    const result = generateTemplate('dependabot-actions', 'COBOL');
+    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+    assert.equal((result.content.match(/package-ecosystem/g) || []).length, 1);
+  });
+
   it('generates a generic issue-form template (ecosystem-agnostic)', () => {
     const result = generateTemplate('issue-form-templates', 'JavaScript');
     assert.equal(result.path, '.github/ISSUE_TEMPLATE/bug_report.yml');
