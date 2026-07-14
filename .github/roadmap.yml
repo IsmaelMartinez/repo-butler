@@ -45,10 +45,9 @@ standards:
   codeowners: universal
   security-md: universal
   # AI code review coverage: an active copilot_code_review repository ruleset.
-  # Routes to the `settings` executor — a PR-less ruleset write (ADR-009), run on
-  # the manual apply.yml dispatch (tools=code-review-bot), dry-run by default. NOT
-  # on the apply-schedule allow-list below, and going live needs the GitHub App's
-  # administration:write scope.
+  # Routes to the `settings` executor — a PR-less ruleset write (ADR-009). The
+  # GitHub App's administration:write scope was granted 2026-06-15; promoted onto
+  # the apply-schedule allow-list below 2026-07-13 (see the entry there).
   code-review-bot: universal
   # Release automation: any workflow named/pathed "release". Remediation is a
   # templated scheduled patch-release workflow (apply.js) that keeps the
@@ -102,8 +101,7 @@ policy-drift-exempt:
 # still human-reviewed and merged; nothing auto-merges. A manual workflow_dispatch
 # of apply-scheduled.yml stays dry-run by default. The manual dispatch path
 # (apply.yml) ignores this block entirely. Remove a key to demote that class back
-# to dispatch-only. code-review-bot is intentionally absent — it is a settings
-# write with no PR-review moment, so it stays manual-dispatch-only per ADR-009.
+# to dispatch-only.
 apply-schedule:
   code-scanning: true
   dependabot-actions: true
@@ -112,6 +110,11 @@ apply-schedule:
   codeowners: true
   security-md: true
   dependabot-rebase: true
+  # Promoted 2026-07-13: code-review-bot, the one settings-executor class — the
+  # last held-back class, held until the 13/13 clean live rollout of 2026-06-15.
+  # Gate analysis in ADR-009 ("Scheduled promotion (2026-07-13)" note). Never
+  # auto-merge eligible (settings classes are excluded by construction).
+  code-review-bot: true
 
 # Per-finding-class AUTO-MERGE allow-list (ADR-007 stage 5). A deterministic
 # template class listed here as `tool: true` lets the butler squash-merge its OWN

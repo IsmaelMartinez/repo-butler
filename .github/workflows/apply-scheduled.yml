@@ -80,6 +80,7 @@ jobs:
           APPLY: ${{ steps.apply.outputs.apply }}
           NUDGE: ${{ steps.apply.outputs.nudge }}
           AUTOMERGE: ${{ steps.apply.outputs.automerge }}
+          COPILOT_REVIEW: ${{ steps.apply.outputs.copilotReview }}
           DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry-run || 'true') }}
         run: |
           mode="dry-run"
@@ -92,5 +93,8 @@ jobs:
             echo "- Apply summary: \`${APPLY:-(none — dry-run or nothing actionable)}\`"
             echo "- Nudge summary: \`${NUDGE:-(none — dry-run or nothing actionable)}\`"
             echo "- Auto-merge summary: \`${AUTOMERGE:-(none — empty allow-list or nothing green)}\`"
+            # The ADR-009 settings write has no PR to point at afterwards, so this
+            # line IS its audit record — it must never be dropped from the summary.
+            echo "- Copilot-review (settings write) summary: \`${COPILOT_REVIEW:-(none — not allow-listed or nothing actionable)}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none}"
+          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none} copilotReview=${COPILOT_REVIEW:-none}"

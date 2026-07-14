@@ -31,6 +31,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The job only reads code; SARIF uploads use the security-events token.
+          persist-credentials: false
       - uses: github/codeql-action/init@v3
         with:
           languages: ${lang}
@@ -206,6 +209,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # The job only reads git history; gh authenticates via GH_TOKEN.
+          persist-credentials: false
 
       - name: Cut a patch release when the cadence has lapsed
         env:
@@ -681,10 +686,10 @@ export async function applyCopilotReviewRulesets(gh, owner, findings, config, op
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
-  // Stage 4 (ADR-007) / ADR-009: default-closed on the no-human scheduled path.
-  // v1 ships with code-review-bot absent from the apply-schedule allow-list, so a
-  // scheduled dispatch skips it until the track-record gate is met. Manual dispatch
-  // is unaffected.
+  // Stage 4 (ADR-007) / ADR-009: the no-human scheduled path acts only when
+  // code-review-bot is on the apply-schedule allow-list (default-closed; promoted
+  // 2026-07-13 — see the ADR-009 "Scheduled promotion" note). Manual dispatch is
+  // unaffected.
   if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], 'code-review-bot')) {
     console.log('copilot-review [scheduled]: code-review-bot not on the apply-schedule allow-list — skipping');
     return { status: 'skipped-unscheduled', targets: [] };
