@@ -163,7 +163,7 @@ Return value: `{ tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed,
 | `sbom` | `{ count, packages[] }`\|null | `/dependency-graph/sbom` |
 | `released_at` | ISO string\|null | latest release `.published_at` |
 | `hasIssueTemplate` | boolean | community profile + `.github/ISSUE_TEMPLATE/` fallback |
-| `libyear` | number\|null | computed from `sbom.packages` against npm registry |
+| `libyear` | number\|null | computed from `sbom.packages` against the npm/PyPI/crates.io registries (other ecosystems are skipped) |
 | `contributors` | number | unique human PR authors (last 90 days) |
 
 `computeHealthTier(r)` reads `pushed_at` from the portfolio repo object (not from `details`), so callers must merge: `{ ...portfolioRepo, ...details[repoName] }`.

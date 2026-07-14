@@ -110,10 +110,38 @@ describe('generateTemplate', () => {
     assert.ok(result.content.includes('interval: "weekly"'));
   });
 
-  it('generates dependabot template for Go', () => {
-    const result = generateTemplate('dependabot-actions', 'Go');
-    assert.ok(result.content.includes('package-ecosystem: "gomod"'));
+  // Without a root listing, each unambiguous ecosystem falls back to its
+  // default manager; with a listing, the manager requires its manifest.
+  for (const [eco, manager, manifest] of [
+    ['JavaScript', 'npm', 'package.json'],
+    ['TypeScript', 'npm', 'package.json'],
+    ['Go', 'gomod', 'go.mod'],
+    ['Python', 'pip', 'pyproject.toml'],
+    ['Rust', 'cargo', 'Cargo.toml'],
+  ]) {
+    it(`maps ${eco} to ${manager} (fallback and manifest-gated)`, () => {
+      for (const rootFiles of [null, ['README.md', manifest]]) {
+        const result = generateTemplate('dependabot-actions', eco, undefined, rootFiles);
+        assert.ok(result.content.includes(`package-ecosystem: "${manager}"`));
+        assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+      }
+    });
+  }
+
+  it('emits github-actions only when the root listing lacks the manifest', () => {
+    const result = generateTemplate('dependabot-actions', 'Python', undefined, ['main.py', 'README.md']);
+    assert.equal((result.content.match(/package-ecosystem/g) || []).length, 1);
     assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+  });
+
+  it('resolves Java to maven or gradle from the root listing, never by guess', () => {
+    const maven = generateTemplate('dependabot-actions', 'Java', undefined, ['pom.xml']);
+    assert.ok(maven.content.includes('package-ecosystem: "maven"'));
+    const gradle = generateTemplate('dependabot-actions', 'Java', undefined, ['build.gradle.kts']);
+    assert.ok(gradle.content.includes('package-ecosystem: "gradle"'));
+    // Ambiguous without a listing — auto-merge eligible class, so no guessing.
+    const unknown = generateTemplate('dependabot-actions', 'Java');
+    assert.equal((unknown.content.match(/package-ecosystem/g) || []).length, 1);
   });
 
   it('generates dependabot template for bare (no package manager)', () => {
@@ -121,6 +149,15 @@ describe('generateTemplate', () => {
     assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
     assert.ok(!result.content.includes('package-ecosystem: "npm"'));
     assert.ok(!result.content.includes('package-ecosystem: "gomod"'));
+  });
+
+  it('falls back to github-actions only for unknown or prototype-key ecosystems', () => {
+    for (const eco of ['COBOL', 'toString', 'constructor', 'hasOwnProperty']) {
+      const result = generateTemplate('dependabot-actions', eco);
+      assert.equal((result.content.match(/package-ecosystem/g) || []).length, 1,
+        `expected github-actions only for eco='${eco}'`);
+      assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+    }
   });
 
   it('generates a generic issue-form template (ecosystem-agnostic)', () => {
@@ -506,6 +543,30 @@ describe('applyGovernanceFindings', () => {
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, baseConfig, { dryRun: true, maxPerRun: 5 });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.pairs.length, 5);
+  });
+
+  it('treats a 404 root listing as an empty repo — dependabot config gates out the manager', async () => {
+    const emptyRepoGh = {
+      ...mockGh,
+      request: async (path, opts) => {
+        // Root listing GET 404s (empty repo root, Contents API behaviour).
+        if (path.endsWith('/contents/') && !opts?.method) {
+          calls.push({ type: 'request', path, opts });
+          throw new Error('GitHub API GET /repos/owner/repo-a/contents/: 404 Not Found');
+        }
+        return mockGh.request(path, opts);
+      },
+    };
+    const findings = [
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+    ];
+    const result = await applyGovernanceFindings(emptyRepoGh, 'owner', findings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    const put = calls.find(c => c.type === 'request' && c.opts?.method === 'PUT' && c.path.includes('dependabot.yml'));
+    assert.ok(put, 'dependabot.yml should still be written');
+    const content = Buffer.from(put.opts.body.content, 'base64').toString();
+    assert.ok(!content.includes('package-ecosystem: "npm"'), '404 root means no manifest — no npm entry');
+    assert.ok(content.includes('package-ecosystem: "github-actions"'));
   });
 
   it('skips repos with existing open PR (dedup)', async () => {
