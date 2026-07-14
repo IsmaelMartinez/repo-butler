@@ -365,7 +365,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
 
   // Compute libyear freshness (skip cached repos — already computed).
   // Run repos in small batches (not fully parallel). Running all 15 at once
-  // saturates registry.npmjs.org with 15×5=75 concurrent requests, and the
+  // saturates the package registries (npm/PyPI/crates.io) with 15×5=75 concurrent requests, and the
   // timeout fires en masse — "This operation was aborted" for every package.
   // Batches of 3 repos give at most 15 concurrent fetches and let each repo
   // actually complete within its timeout. Settled (not all) so one repo's

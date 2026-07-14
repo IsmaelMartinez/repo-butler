@@ -152,7 +152,7 @@ src/
 ├── store.js              # Snapshot + weekly history + hash persistence via Git Data API
 ├── config.js             # YAML config loader with defaults
 ├── github.js             # GitHub REST API client with rate limit handling
-├── libyear.js            # Dependency freshness (libyear metric via npm registry)
+├── libyear.js            # Dependency freshness (libyear metric via npm/PyPI/crates.io)
 └── providers/
     ├── base.js           # LLM provider interface
     ├── gemini.js         # Gemini Flash (free tier, API key via header)

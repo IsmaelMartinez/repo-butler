@@ -110,10 +110,38 @@ describe('generateTemplate', () => {
     assert.ok(result.content.includes('interval: "weekly"'));
   });
 
-  it('generates dependabot template for Go', () => {
-    const result = generateTemplate('dependabot-actions', 'Go');
-    assert.ok(result.content.includes('package-ecosystem: "gomod"'));
+  // Without a root listing, each unambiguous ecosystem falls back to its
+  // default manager; with a listing, the manager requires its manifest.
+  for (const [eco, manager, manifest] of [
+    ['JavaScript', 'npm', 'package.json'],
+    ['TypeScript', 'npm', 'package.json'],
+    ['Go', 'gomod', 'go.mod'],
+    ['Python', 'pip', 'pyproject.toml'],
+    ['Rust', 'cargo', 'Cargo.toml'],
+  ]) {
+    it(`maps ${eco} to ${manager} (fallback and manifest-gated)`, () => {
+      for (const rootFiles of [null, ['README.md', manifest]]) {
+        const result = generateTemplate('dependabot-actions', eco, undefined, rootFiles);
+        assert.ok(result.content.includes(`package-ecosystem: "${manager}"`));
+        assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+      }
+    });
+  }
+
+  it('emits github-actions only when the root listing lacks the manifest', () => {
+    const result = generateTemplate('dependabot-actions', 'Python', undefined, ['main.py', 'README.md']);
+    assert.equal((result.content.match(/package-ecosystem/g) || []).length, 1);
     assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+  });
+
+  it('resolves Java to maven or gradle from the root listing, never by guess', () => {
+    const maven = generateTemplate('dependabot-actions', 'Java', undefined, ['pom.xml']);
+    assert.ok(maven.content.includes('package-ecosystem: "maven"'));
+    const gradle = generateTemplate('dependabot-actions', 'Java', undefined, ['build.gradle.kts']);
+    assert.ok(gradle.content.includes('package-ecosystem: "gradle"'));
+    // Ambiguous without a listing — auto-merge eligible class, so no guessing.
+    const unknown = generateTemplate('dependabot-actions', 'Java');
+    assert.equal((unknown.content.match(/package-ecosystem/g) || []).length, 1);
   });
 
   it('generates dependabot template for bare (no package manager)', () => {
@@ -123,34 +151,13 @@ describe('generateTemplate', () => {
     assert.ok(!result.content.includes('package-ecosystem: "gomod"'));
   });
 
-  it('generates dependabot template for TypeScript (npm, same as JavaScript)', () => {
-    const result = generateTemplate('dependabot-actions', 'TypeScript');
-    assert.ok(result.content.includes('package-ecosystem: "npm"'));
-    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
-  });
-
-  it('generates dependabot template for Python (pip)', () => {
-    const result = generateTemplate('dependabot-actions', 'Python');
-    assert.ok(result.content.includes('package-ecosystem: "pip"'));
-    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
-  });
-
-  it('generates dependabot template for Rust (cargo)', () => {
-    const result = generateTemplate('dependabot-actions', 'Rust');
-    assert.ok(result.content.includes('package-ecosystem: "cargo"'));
-    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
-  });
-
-  it('generates dependabot template for Java (maven, with a gradle caveat in the PR note)', () => {
-    const result = generateTemplate('dependabot-actions', 'Java');
-    assert.ok(result.content.includes('package-ecosystem: "maven"'));
-    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
-  });
-
-  it('falls back to github-actions only for an unknown ecosystem', () => {
-    const result = generateTemplate('dependabot-actions', 'COBOL');
-    assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
-    assert.equal((result.content.match(/package-ecosystem/g) || []).length, 1);
+  it('falls back to github-actions only for unknown or prototype-key ecosystems', () => {
+    for (const eco of ['COBOL', 'toString', 'constructor', 'hasOwnProperty']) {
+      const result = generateTemplate('dependabot-actions', eco);
+      assert.equal((result.content.match(/package-ecosystem/g) || []).length, 1,
+        `expected github-actions only for eco='${eco}'`);
+      assert.ok(result.content.includes('package-ecosystem: "github-actions"'));
+    }
   });
 
   it('generates a generic issue-form template (ecosystem-agnostic)', () => {

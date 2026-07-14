@@ -56,31 +56,29 @@ const REGISTRIES = {
   },
 };
 
-const PURL_PREFIX_TO_REGISTRY = {
-  'pkg:npm/': 'npm',
-  'pkg:pypi/': 'pypi',
-  'pkg:cargo/': 'cargo',
-};
-
 /**
  * Extract package name, version, and registry from SBOM dependency data.
- * Filters to ecosystems with a registry adapter using the purl field.
+ * Filters to ecosystems with a registry adapter using the purl field. The
+ * REGISTRIES keys are purl types, so adding an adapter is the only step
+ * needed to support a new ecosystem here.
  */
 export function filterSupportedDeps(sbomPackages) {
   if (!sbomPackages || sbomPackages.length === 0) return [];
   const deps = [];
   for (const p of sbomPackages) {
-    if (!p.purl || !p.version) continue;
-    const prefix = Object.keys(PURL_PREFIX_TO_REGISTRY).find(pre => p.purl.startsWith(pre));
-    if (!prefix) continue;
     // purl format: pkg:<type>/name@version, or for npm scoped packages
     // pkg:npm/@scope/name@version (the scope's `@` may be literal or %40).
-    const withoutPrefix = p.purl.slice(prefix.length);
+    if (!p.purl || !p.version || !p.purl.startsWith('pkg:')) continue;
+    const slash = p.purl.indexOf('/');
+    if (slash < 0) continue;
+    const registry = p.purl.slice('pkg:'.length, slash);
+    if (!Object.hasOwn(REGISTRIES, registry)) continue;
+    const withoutPrefix = p.purl.slice(slash + 1);
     const atIdx = withoutPrefix.startsWith('@')
       ? withoutPrefix.indexOf('@', 1)
       : withoutPrefix.indexOf('@');
     const name = atIdx >= 0 ? decodeURIComponent(withoutPrefix.slice(0, atIdx)) : decodeURIComponent(withoutPrefix);
-    deps.push({ registry: PURL_PREFIX_TO_REGISTRY[prefix], name, currentVersion: p.version });
+    deps.push({ registry, name, currentVersion: p.version });
   }
   return deps;
 }
@@ -104,15 +102,24 @@ async function fetchVersionDates(registry, packageName, currentVersion, perFetch
       headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
       signal: controller.signal,
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      // Throttling would otherwise silently deflate the metric (crates.io in
+      // particular caps request rates); 404s stay quiet as before.
+      if (resp.status === 429 || resp.status === 403) {
+        console.warn(`[libyear] ${registry} rate-limited the lookup for '${packageName}' (HTTP ${resp.status}) — dep skipped`);
+      }
+      return null;
+    }
     const data = await resp.json();
 
     const extracted = adapter.extract(data, currentVersion);
-    if (!extracted) return null;
+    if (!extracted || !extracted.currentIso || !extracted.latestIso) return null;
 
-    const currentDate = extracted.currentIso ? new Date(extracted.currentIso) : null;
-    const latestDate = extracted.latestIso ? new Date(extracted.latestIso) : null;
-    if (!currentDate || !latestDate) return null;
+    const currentDate = new Date(extracted.currentIso);
+    const latestDate = new Date(extracted.latestIso);
+    // Guard parseability, not just presence — an Invalid Date is truthy and
+    // would propagate NaN through computeDepAge into total_libyear.
+    if (Number.isNaN(currentDate.getTime()) || Number.isNaN(latestDate.getTime())) return null;
 
     return { currentDate, latestVersion: extracted.latestVersion, latestDate };
   } catch (error) {

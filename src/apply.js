@@ -8,6 +8,24 @@ import { hasActiveCopilotReviewRuleset } from './github.js';
 // Canonical home is safety.js (the security boundary).
 export { REPO_NAME_PATTERN };
 
+// Dependabot manager candidates per detectEcosystem() ecosystem, with the root
+// manifests that prove each manager applies. Java lists two candidates because
+// detectEcosystem confirms it for Maven and Gradle repos alike; the live root
+// listing in applyToRepo disambiguates. Keys must track ECOSYSTEM_MAP in
+// safety.js — an ecosystem added there without an entry here degrades to a
+// github-actions-only config.
+const DEPENDABOT_MANAGERS = {
+  JavaScript: [{ manager: 'npm', manifests: ['package.json'] }],
+  TypeScript: [{ manager: 'npm', manifests: ['package.json'] }],
+  Go: [{ manager: 'gomod', manifests: ['go.mod'] }],
+  Python: [{ manager: 'pip', manifests: ['requirements.txt', 'pyproject.toml', 'setup.py', 'Pipfile'] }],
+  Rust: [{ manager: 'cargo', manifests: ['Cargo.toml'] }],
+  Java: [
+    { manager: 'maven', manifests: ['pom.xml'] },
+    { manager: 'gradle', manifests: ['build.gradle', 'build.gradle.kts'] },
+  ],
+};
+
 const TEMPLATES = {
   'code-scanning': {
     path: '.github/workflows/codeql-analysis.yml',
@@ -43,21 +61,25 @@ jobs:
   },
   'dependabot-actions': {
     path: '.github/dependabot.yml',
-    content: (eco) => {
-      // One Dependabot package-ecosystem per detectEcosystem() value. Findings
-      // carry a single ecosystem name, not the manifest file list, so Java maps
-      // to maven even though detectEcosystem also confirms Gradle repos — the
-      // PR note tells the maintainer to swap maven→gradle in that case.
-      const manager = {
-        JavaScript: 'npm',
-        TypeScript: 'npm',
-        Go: 'gomod',
-        Python: 'pip',
-        Rust: 'cargo',
-        Java: 'maven',
-      }[eco];
+    content: (eco, _owner, rootFiles) => {
+      // Candidate Dependabot managers per detectEcosystem() value, each gated
+      // on the root manifest that proves it applies. `eco` comes from findings
+      // persisted on the data branch, so guard the lookup with Object.hasOwn —
+      // a prototype key like 'toString' must miss, not resolve to a Function.
+      const candidates = Object.hasOwn(DEPENDABOT_MANAGERS, eco) ? DEPENDABOT_MANAGERS[eco] : [];
+      let chosen = null;
+      if (Array.isArray(rootFiles)) {
+        chosen = candidates.find(c => c.manifests.some(m => rootFiles.includes(m))) || null;
+      } else {
+        // No live root listing (listing failed, or a caller without one): fall
+        // back to the ecosystem's manager only when it is unambiguous. Java is
+        // never guessed — this class auto-merges (apply-automerge), so a wrong
+        // maven-vs-gradle pick would land unattended and the repo would count
+        // as compliant while Dependabot errors on a missing manifest.
+        chosen = candidates.length === 1 ? candidates[0] : null;
+      }
       const ecosystems = [];
-      if (manager) ecosystems.push({ manager, directory: '/' });
+      if (chosen) ecosystems.push({ manager: chosen.manager, directory: '/' });
       ecosystems.push({ manager: 'github-actions', directory: '/' });
 
       const updates = ecosystems.map(e => `  - package-ecosystem: "${e.manager}"
@@ -266,7 +288,7 @@ jobs:
 // Tool-specific notes appended to the PR body. Used to document manual
 // prerequisites the butler cannot perform itself.
 const TOOL_PR_NOTES = {
-  'dependabot-actions': 'Notes: the language entry is keyed off the detected ecosystem (npm, gomod, pip, cargo, maven). For Java the butler cannot tell Maven from Gradle apart, so it emits `maven` — change it to `gradle` if this repo builds with Gradle. Adjust the `directory` if the manifest is not at the repo root.',
+  'dependabot-actions': 'Notes: a language entry (npm, gomod, pip, cargo, maven, or gradle) is included only when its manifest was found at the repo root; otherwise the config covers github-actions only. If your manifests live outside the root, add an entry with the matching `directory`.',
   'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
   'release-cadence': 'Notes: the workflow only cuts a release when the latest release is at least 60 days old AND unreleased commits exist; it skips repos with no published release (the first release stays yours) or a non-semver latest tag. Releases created with `GITHUB_TOKEN` do not trigger other workflows — if this repo publishes artifacts on release, wire that trigger up separately or dispatch the release manually.',
 };
@@ -277,10 +299,10 @@ const TOOL_PR_NOTES = {
 // forgeable by anyone with push access. Single source of truth for both sites.
 export const APPLY_PR_MARKER = 'Opened automatically by [Repo Butler]';
 
-export function generateTemplate(tool, ecosystem, owner) {
+export function generateTemplate(tool, ecosystem, owner, rootFiles = null) {
   const tmpl = TEMPLATES[tool];
   if (!tmpl) return null;
-  return { path: tmpl.path, content: tmpl.content(ecosystem || '', owner) };
+  return { path: tmpl.path, content: tmpl.content(ecosystem || '', owner, rootFiles) };
 }
 
 export function validateFindings(findings) {
@@ -461,7 +483,23 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
   const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
   const defaultBranch = repoMeta.default_branch || 'main';
 
-  const template = generateTemplate(tool, ecosystem, owner);
+  // Live root listing so the dependabot template only emits a package-ecosystem
+  // entry whose manifest actually exists (and resolves Java's maven-vs-gradle).
+  // This class is auto-merge eligible (apply-automerge), so a guessed manager
+  // could land unattended; gate on evidence at apply time, mirroring the
+  // ADR-009 live pre-write check. On failure the template falls back to the
+  // ecosystem's unambiguous default.
+  let rootFiles = null;
+  if (tool === 'dependabot-actions') {
+    try {
+      const listing = await gh.request(`/repos/${owner}/${repo}/contents/`);
+      if (Array.isArray(listing)) rootFiles = listing.map(f => f.name);
+    } catch {
+      // fall through with null
+    }
+  }
+
+  const template = generateTemplate(tool, ecosystem, owner, rootFiles);
   if (!template) {
     return { repo, tool, status: 'skipped', reason: 'no template' };
   }

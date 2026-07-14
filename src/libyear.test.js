@@ -49,6 +49,14 @@ describe('filterSupportedDeps', () => {
     assert.deepEqual(filterSupportedDeps([]), []);
   });
 
+  it('ignores purl types that are prototype keys rather than adapters', () => {
+    const packages = [
+      { name: 'x', version: '1.0.0', purl: 'pkg:toString/x@1.0.0' },
+      { name: 'y', version: '1.0.0', purl: 'pkg:constructor/y@1.0.0' },
+    ];
+    assert.deepEqual(filterSupportedDeps(packages), []);
+  });
+
   it('returns empty array when no supported packages present', () => {
     const packages = [
       { name: 'go-pkg', version: '1.0.0', purl: 'pkg:golang/example.com@1.0.0', license: 'MIT' },
@@ -259,6 +267,21 @@ describe('computeLibyearWithTimeout', () => {
     // without it, the default 5000ms per-fetch timer would dominate suite runtime.
     const result = await computeLibyearWithTimeout(packages, 50, { perFetchMs: 30 });
     assert.equal(result, null);
+  });
+
+  it('skips deps whose registry dates are unparseable instead of producing NaN', async () => {
+    globalThis.fetch = mock.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        'dist-tags': { latest: '2.0.0' },
+        time: { '1.0.0': 'not-a-date', '2.0.0': '2024-01-01T00:00:00Z' },
+      }),
+    }));
+    const packages = [
+      { name: 'bad-dates', version: '1.0.0', purl: 'pkg:npm/bad-dates@1.0.0' },
+    ];
+    const result = await computeLibyearWithTimeout(packages, 5000);
+    assert.equal(result, null, 'undateable dep must be skipped, not summed as NaN');
   });
 
   it('returns null when only unsupported ecosystems are present', async () => {
