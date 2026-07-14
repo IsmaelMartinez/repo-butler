@@ -1,70 +1,122 @@
 // Libyear dependency freshness computation.
-// Computes cumulative age (in years) of a repo's npm dependencies
-// versus their latest published versions using the npm registry.
+// Computes cumulative age (in years) of a repo's dependencies versus their
+// latest published versions. Supports the npm, PyPI, and crates.io registries,
+// keyed off the SBOM purl prefix; other ecosystems are skipped.
 
-const REGISTRY_BASE = 'https://registry.npmjs.org';
 const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
 const DEFAULT_PER_FETCH_TIMEOUT_MS = 5000;
 
+// crates.io's crawler policy requires an identifying User-Agent; the other
+// registries don't care, so one honest value is sent everywhere.
+const USER_AGENT = 'repo-butler (+https://github.com/IsmaelMartinez/repo-butler)';
+
+// One adapter per supported registry: build the metadata URL for a package and
+// extract { currentIso, latestVersion, latestIso } from the response body.
+// Extractors return null (never throw) on missing data — a dep that can't be
+// dated is skipped, matching the historical npm-only behaviour.
+const REGISTRIES = {
+  npm: {
+    url: (name) => {
+      // npm expects scoped packages as `@scope/name` (literal `@` and `/`).
+      // Encode each path segment so other unsafe characters are escaped
+      // without relying on a post-hoc string replacement.
+      const encoded = name.startsWith('@')
+        ? `@${name.slice(1).split('/').map(encodeURIComponent).join('/')}`
+        : encodeURIComponent(name);
+      return `https://registry.npmjs.org/${encoded}`;
+    },
+    extract: (data, currentVersion) => {
+      const time = data.time;
+      const latestVersion = data['dist-tags']?.latest;
+      if (!time || !latestVersion) return null;
+      return { currentIso: time[currentVersion], latestVersion, latestIso: time[latestVersion] };
+    },
+  },
+  pypi: {
+    url: (name) => `https://pypi.org/pypi/${encodeURIComponent(name)}/json`,
+    extract: (data, currentVersion) => {
+      const releases = data.releases;
+      const latestVersion = data.info?.version;
+      if (!releases || !latestVersion) return null;
+      // A release maps to its uploaded files; the first file's upload time
+      // dates the version. Releases with no files can't be dated.
+      const uploadedAt = (v) => releases[v]?.[0]?.upload_time_iso_8601 || releases[v]?.[0]?.upload_time;
+      return { currentIso: uploadedAt(currentVersion), latestVersion, latestIso: uploadedAt(latestVersion) };
+    },
+  },
+  cargo: {
+    url: (name) => `https://crates.io/api/v1/crates/${encodeURIComponent(name)}`,
+    extract: (data, currentVersion) => {
+      const versions = data.versions;
+      const latestVersion = data.crate?.max_stable_version || data.crate?.newest_version;
+      if (!Array.isArray(versions) || !latestVersion) return null;
+      const createdAt = (v) => versions.find(e => e.num === v)?.created_at;
+      return { currentIso: createdAt(currentVersion), latestVersion, latestIso: createdAt(latestVersion) };
+    },
+  },
+};
+
+const PURL_PREFIX_TO_REGISTRY = {
+  'pkg:npm/': 'npm',
+  'pkg:pypi/': 'pypi',
+  'pkg:cargo/': 'cargo',
+};
+
 /**
- * Extract npm package name and version from SBOM dependency data.
- * Filters to only npm ecosystem packages using the purl field.
+ * Extract package name, version, and registry from SBOM dependency data.
+ * Filters to ecosystems with a registry adapter using the purl field.
  */
-export function filterNpmDeps(sbomPackages) {
+export function filterSupportedDeps(sbomPackages) {
   if (!sbomPackages || sbomPackages.length === 0) return [];
-  return sbomPackages
-    .filter(p => p.purl && p.purl.startsWith('pkg:npm/') && p.version)
-    .map(p => {
-      // purl format: pkg:npm/@scope/name@version or pkg:npm/name@version
-      const withoutPrefix = p.purl.slice('pkg:npm/'.length);
-      const atIdx = withoutPrefix.startsWith('@')
-        ? withoutPrefix.indexOf('@', 1)
-        : withoutPrefix.indexOf('@');
-      const name = atIdx >= 0 ? decodeURIComponent(withoutPrefix.slice(0, atIdx)) : decodeURIComponent(withoutPrefix);
-      return { name, currentVersion: p.version };
-    });
+  const deps = [];
+  for (const p of sbomPackages) {
+    if (!p.purl || !p.version) continue;
+    const prefix = Object.keys(PURL_PREFIX_TO_REGISTRY).find(pre => p.purl.startsWith(pre));
+    if (!prefix) continue;
+    // purl format: pkg:<type>/name@version, or for npm scoped packages
+    // pkg:npm/@scope/name@version (the scope's `@` may be literal or %40).
+    const withoutPrefix = p.purl.slice(prefix.length);
+    const atIdx = withoutPrefix.startsWith('@')
+      ? withoutPrefix.indexOf('@', 1)
+      : withoutPrefix.indexOf('@');
+    const name = atIdx >= 0 ? decodeURIComponent(withoutPrefix.slice(0, atIdx)) : decodeURIComponent(withoutPrefix);
+    deps.push({ registry: PURL_PREFIX_TO_REGISTRY[prefix], name, currentVersion: p.version });
+  }
+  return deps;
 }
 
 /**
- * Fetch publish date for a specific version and the latest version from the npm registry.
- * Owns a per-fetch AbortController so a slow registry call self-terminates after
- * perFetchTimeoutMs without affecting sibling fetches — replaces the legacy
- * cascading-abort design (issue #218/#220) that drained the event loop mid-phase
- * when its outer timeout fired across many in-flight fetches simultaneously.
+ * Fetch publish date for a specific version and the latest version from the
+ * package's registry. Owns a per-fetch AbortController so a slow registry call
+ * self-terminates after perFetchTimeoutMs without affecting sibling fetches —
+ * replaces the legacy cascading-abort design (issue #218/#220) that drained
+ * the event loop mid-phase when its outer timeout fired across many in-flight
+ * fetches simultaneously.
  * Returns { currentDate, latestVersion, latestDate } or null on failure.
  */
-async function fetchVersionDates(packageName, currentVersion, perFetchTimeoutMs = DEFAULT_PER_FETCH_TIMEOUT_MS) {
+async function fetchVersionDates(registry, packageName, currentVersion, perFetchTimeoutMs = DEFAULT_PER_FETCH_TIMEOUT_MS) {
+  const adapter = REGISTRIES[registry];
+  if (!adapter) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), perFetchTimeoutMs);
   try {
-    // npm registry expects scoped packages as `@scope/name` (literal `@` and `/`).
-    // Encode each path segment so other unsafe characters are escaped without
-    // relying on a post-hoc string replacement.
-    const encodedName = packageName.startsWith('@')
-      ? `@${packageName.slice(1).split('/').map(encodeURIComponent).join('/')}`
-      : encodeURIComponent(packageName);
-    const url = `${REGISTRY_BASE}/${encodedName}`;
-    const resp = await fetch(url, {
-      headers: { Accept: 'application/json' },
+    const resp = await fetch(adapter.url(packageName), {
+      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
       signal: controller.signal,
     });
     if (!resp.ok) return null;
     const data = await resp.json();
 
-    const time = data.time;
-    if (!time) return null;
+    const extracted = adapter.extract(data, currentVersion);
+    if (!extracted) return null;
 
-    const latestVersion = data['dist-tags']?.latest;
-    if (!latestVersion) return null;
-
-    const currentDate = time[currentVersion] ? new Date(time[currentVersion]) : null;
-    const latestDate = time[latestVersion] ? new Date(time[latestVersion]) : null;
-
+    const currentDate = extracted.currentIso ? new Date(extracted.currentIso) : null;
+    const latestDate = extracted.latestIso ? new Date(extracted.latestIso) : null;
     if (!currentDate || !latestDate) return null;
 
-    return { currentDate, latestVersion, latestDate };
+    return { currentDate, latestVersion: extracted.latestVersion, latestDate };
   } catch (error) {
-    console.warn(`[libyear] Failed to fetch version dates for '${packageName}':`, error.message || error);
+    console.warn(`[libyear] Failed to fetch version dates for '${packageName}' (${registry}):`, error.message || error);
     return null;
   } finally {
     clearTimeout(timer);
@@ -98,8 +150,8 @@ export function aggregateLibyear(resolved) {
 
 /**
  * Compute the total libyear metric for a set of SBOM dependencies.
- * Queries the npm registry for each npm dependency to find the age gap
- * between the current and latest versions. Each fetch self-terminates
+ * Queries each dependency's registry (npm, PyPI, or crates.io) to find the
+ * age gap between the current and latest versions. Each fetch self-terminates
  * after perFetchTimeoutMs.
  *
  * The optional loopBreakSignal is checked between batches only — it is NOT
@@ -112,18 +164,18 @@ export function aggregateLibyear(resolved) {
  * Each dep in deps: { name, current, latest, years }.
  */
 export async function computeLibyear(sbomPackages, perFetchTimeoutMs, loopBreakSignal) {
-  const npmDeps = filterNpmDeps(sbomPackages);
-  if (npmDeps.length === 0) return null;
+  const deps = filterSupportedDeps(sbomPackages);
+  if (deps.length === 0) return null;
 
-  // Batch in groups of 5 to avoid hammering the registry.
+  // Batch in groups of 5 to avoid hammering the registries.
   const results = [];
   const BATCH_SIZE = 5;
-  for (let i = 0; i < npmDeps.length; i += BATCH_SIZE) {
+  for (let i = 0; i < deps.length; i += BATCH_SIZE) {
     if (loopBreakSignal?.aborted) break;
-    const batch = npmDeps.slice(i, i + BATCH_SIZE);
+    const batch = deps.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (dep) => {
-        const dates = await fetchVersionDates(dep.name, dep.currentVersion, perFetchTimeoutMs);
+        const dates = await fetchVersionDates(dep.registry, dep.name, dep.currentVersion, perFetchTimeoutMs);
         if (!dates) return null;
         const years = computeDepAge(dates.currentDate, dates.latestDate);
         return {

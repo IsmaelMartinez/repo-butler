@@ -1,9 +1,9 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterNpmDeps, computeDepAge, aggregateLibyear, computeLibyearWithTimeout } from './libyear.js';
+import { filterSupportedDeps, computeDepAge, aggregateLibyear, computeLibyearWithTimeout } from './libyear.js';
 
-describe('filterNpmDeps', () => {
-  it('filters to only npm packages with purl and version', () => {
+describe('filterSupportedDeps', () => {
+  it('filters to only supported packages with purl and version', () => {
     const packages = [
       { name: 'express', version: '4.18.2', purl: 'pkg:npm/express@4.18.2', license: 'MIT' },
       { name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21', license: 'MIT' },
@@ -11,10 +11,11 @@ describe('filterNpmDeps', () => {
       { name: 'no-version-pkg', version: null, purl: 'pkg:npm/no-version-pkg', license: 'MIT' },
       { name: 'no-purl', version: '1.0.0', purl: null, license: 'MIT' },
     ];
-    const result = filterNpmDeps(packages);
+    const result = filterSupportedDeps(packages);
     assert.equal(result.length, 2);
     assert.equal(result[0].name, 'express');
     assert.equal(result[0].currentVersion, '4.18.2');
+    assert.equal(result[0].registry, 'npm');
     assert.equal(result[1].name, 'lodash');
     assert.equal(result[1].currentVersion, '4.17.21');
   });
@@ -24,7 +25,7 @@ describe('filterNpmDeps', () => {
       { name: '@babel/core', version: '7.23.0', purl: 'pkg:npm/%40babel/core@7.23.0', license: 'MIT' },
       { name: '@types/node', version: '20.8.0', purl: 'pkg:npm/%40types/node@20.8.0', license: 'MIT' },
     ];
-    const result = filterNpmDeps(packages);
+    const result = filterSupportedDeps(packages);
     assert.equal(result.length, 2);
     assert.equal(result[0].name, '@babel/core');
     assert.equal(result[0].currentVersion, '7.23.0');
@@ -32,16 +33,28 @@ describe('filterNpmDeps', () => {
     assert.equal(result[1].currentVersion, '20.8.0');
   });
 
-  it('returns empty array for null/empty input', () => {
-    assert.deepEqual(filterNpmDeps(null), []);
-    assert.deepEqual(filterNpmDeps([]), []);
+  it('recognises PyPI and crates.io purls with their registries', () => {
+    const packages = [
+      { name: 'django', version: '4.2.0', purl: 'pkg:pypi/django@4.2.0', license: 'BSD-3-Clause' },
+      { name: 'serde', version: '1.0.190', purl: 'pkg:cargo/serde@1.0.190', license: 'MIT' },
+    ];
+    const result = filterSupportedDeps(packages);
+    assert.equal(result.length, 2);
+    assert.deepEqual(result[0], { registry: 'pypi', name: 'django', currentVersion: '4.2.0' });
+    assert.deepEqual(result[1], { registry: 'cargo', name: 'serde', currentVersion: '1.0.190' });
   });
 
-  it('returns empty array when no npm packages present', () => {
+  it('returns empty array for null/empty input', () => {
+    assert.deepEqual(filterSupportedDeps(null), []);
+    assert.deepEqual(filterSupportedDeps([]), []);
+  });
+
+  it('returns empty array when no supported packages present', () => {
     const packages = [
       { name: 'go-pkg', version: '1.0.0', purl: 'pkg:golang/example.com@1.0.0', license: 'MIT' },
+      { name: 'gem-pkg', version: '1.0.0', purl: 'pkg:gem/rails@1.0.0', license: 'MIT' },
     ];
-    assert.deepEqual(filterNpmDeps(packages), []);
+    assert.deepEqual(filterSupportedDeps(packages), []);
   });
 });
 
@@ -154,6 +167,83 @@ describe('computeLibyearWithTimeout', () => {
     assert.equal(result.oldest.name, 'express');
   });
 
+  it('resolves PyPI packages via the pypi.org JSON API', async () => {
+    const seenUrls = [];
+    globalThis.fetch = mock.fn(async (url, opts) => {
+      seenUrls.push(url);
+      assert.ok(opts.headers['User-Agent'].includes('repo-butler'));
+      return {
+        ok: true,
+        json: async () => ({
+          info: { version: '5.0.0' },
+          releases: {
+            '4.2.0': [{ upload_time_iso_8601: '2023-04-01T00:00:00Z' }],
+            '5.0.0': [{ upload_time_iso_8601: '2024-04-01T00:00:00Z' }],
+          },
+        }),
+      };
+    });
+    const packages = [
+      { name: 'django', version: '4.2.0', purl: 'pkg:pypi/django@4.2.0' },
+    ];
+    const result = await computeLibyearWithTimeout(packages, 5000);
+    assert.deepEqual(seenUrls, ['https://pypi.org/pypi/django/json']);
+    assert.ok(result);
+    assert.equal(result.dependency_count, 1);
+    assert.equal(result.deps[0].latest, '5.0.0');
+    assert.ok(result.total_libyear > 0.9 && result.total_libyear < 1.1);
+  });
+
+  it('resolves crates.io packages, preferring max_stable_version', async () => {
+    const seenUrls = [];
+    globalThis.fetch = mock.fn(async (url) => {
+      seenUrls.push(url);
+      return {
+        ok: true,
+        json: async () => ({
+          crate: { max_stable_version: '1.0.200', newest_version: '2.0.0-beta.1' },
+          versions: [
+            { num: '2.0.0-beta.1', created_at: '2025-01-01T00:00:00Z' },
+            { num: '1.0.200', created_at: '2024-06-01T00:00:00Z' },
+            { num: '1.0.190', created_at: '2023-06-01T00:00:00Z' },
+          ],
+        }),
+      };
+    });
+    const packages = [
+      { name: 'serde', version: '1.0.190', purl: 'pkg:cargo/serde@1.0.190' },
+    ];
+    const result = await computeLibyearWithTimeout(packages, 5000);
+    assert.deepEqual(seenUrls, ['https://crates.io/api/v1/crates/serde']);
+    assert.ok(result);
+    assert.equal(result.deps[0].latest, '1.0.200');
+    assert.ok(result.total_libyear > 0.9 && result.total_libyear < 1.1);
+  });
+
+  it('mixes registries in one computation and skips undateable versions', async () => {
+    globalThis.fetch = mock.fn(async (url) => ({
+      ok: true,
+      json: async () => {
+        if (url.startsWith('https://registry.npmjs.org/')) {
+          return {
+            'dist-tags': { latest: '2.0.0' },
+            time: { '1.0.0': '2023-01-01T00:00:00Z', '2.0.0': '2024-01-01T00:00:00Z' },
+          };
+        }
+        // PyPI response whose current version has no uploaded files — undateable.
+        return { info: { version: '3.0.0' }, releases: { '3.0.0': [{ upload_time_iso_8601: '2024-01-01T00:00:00Z' }], '2.9.0': [] } };
+      },
+    }));
+    const packages = [
+      { name: 'express', version: '1.0.0', purl: 'pkg:npm/express@1.0.0' },
+      { name: 'flask', version: '2.9.0', purl: 'pkg:pypi/flask@2.9.0' },
+    ];
+    const result = await computeLibyearWithTimeout(packages, 5000);
+    assert.ok(result);
+    assert.equal(result.dependency_count, 1);
+    assert.equal(result.deps[0].name, 'express');
+  });
+
   it('returns null when timeout expires', async () => {
     // Mock fetch that respects AbortSignal (like real fetch does).
     globalThis.fetch = mock.fn((url, opts) => new Promise((_, reject) => {
@@ -171,7 +261,7 @@ describe('computeLibyearWithTimeout', () => {
     assert.equal(result, null);
   });
 
-  it('returns null for non-npm packages', async () => {
+  it('returns null when only unsupported ecosystems are present', async () => {
     const packages = [
       { name: 'go-pkg', version: '1.0.0', purl: 'pkg:golang/example.com@1.0.0' },
     ];

@@ -689,7 +689,7 @@ export function buildLibyearCard(libyear) {
     : '';
   return `<div class="card"><h3>Dep Freshness (Libyear)</h3>
 <div class="stat" style="color:${color}">${total.toFixed(1)}y</div>
-<div class="stat-label">${libyear.dependency_count} npm deps checked${oldestLabel ? '<br>' + oldestLabel : ''}</div></div>`;
+<div class="stat-label">${libyear.dependency_count} deps checked${oldestLabel ? '<br>' + oldestLabel : ''}</div></div>`;
 }
 
 
