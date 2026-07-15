@@ -6,45 +6,37 @@
       "type": "universal"
     },
     "compliant": [
+      "yourear",
       "teams-for-linux",
       "ismaelmartinez.me.uk",
       "generator-atlassian-compass-event-catalog",
       "bonnie-wee-plot",
       "betis-escocia",
+      "ai-model-advisor",
       "repo-butler",
       "wifisentinel",
+      "votescot",
+      "lounge-tv",
       "delegate-local"
     ],
     "nonCompliant": [
-      "yourear",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "votescot",
-      "lounge-tv"
+      "github-issue-triage-bot"
     ],
     "repoEcosystems": {
-      "yourear": null,
-      "ai-model-advisor": null,
-      "github-issue-triage-bot": null,
-      "votescot": null,
-      "lounge-tv": null
+      "github-issue-triage-bot": null
     },
     "repoAutoMerge": {
-      "yourear": true,
-      "ai-model-advisor": true,
-      "github-issue-triage-bot": true,
-      "votescot": true,
-      "lounge-tv": true
+      "github-issue-triage-bot": true
     },
-    "adoptionRate": 0.6153846153846154,
-    "priority": "medium",
+    "adoptionRate": 0.9230769230769231,
+    "priority": "low",
     "remediation": {
       "executor": "template",
       "targetFiles": [
         ".github/workflows/release.yml"
       ],
-      "intent": "Add release-cadence to 5 non-compliant repo(s)",
-      "rationale": "Standards gap: release-cadence adopted by 62% of in-scope repos; missing in yourear, ai-model-advisor, github-issue-triage-bot, votescot, lounge-tv.",
+      "intent": "Add release-cadence to 1 non-compliant repo(s)",
+      "rationale": "Standards gap: release-cadence adopted by 92% of in-scope repos; missing in github-issue-triage-bot.",
       "acceptanceCriteria": [
         "Every non-compliant repo passes the release-cadence standard check"
       ]
