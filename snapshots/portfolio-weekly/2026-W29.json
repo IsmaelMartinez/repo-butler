@@ -5,7 +5,7 @@
       "id": 36797125,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 47,
+      "commits_6mo": 48,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -29,9 +29,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 6,
+      "ci": 8,
       "released_at": "2026-07-13T06:39:36Z",
-      "pushed_at": "2026-07-13T06:39:35Z",
+      "pushed_at": "2026-07-15T10:05:41Z",
       "traffic": {
         "views_14d": {
           "count": 1,
@@ -212,10 +212,10 @@
       "open_issues": 26,
       "open_bugs": 14,
       "commits_6mo": 442,
-      "stars": 4846,
+      "stars": 4847,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.975,
+      "ciPassRate": 0.9743589743589743,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 11,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-07-15T02:50:38Z",
+      "pushed_at": "2026-07-15T10:18:43Z",
       "traffic": {
         "views_14d": {
           "count": 6,
@@ -520,11 +520,11 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 431,
+      "commits_6mo": 432,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.95,
+      "ciPassRate": 0.9746835443037974,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -546,7 +546,7 @@
       },
       "ci": 8,
       "released_at": "2026-07-13T06:39:40Z",
-      "pushed_at": "2026-07-14T08:29:54Z",
+      "pushed_at": "2026-07-15T10:13:20Z",
       "traffic": {
         "views_14d": {
           "count": 5,
@@ -726,7 +726,7 @@
       "id": 1066410774,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 116,
+      "commits_6mo": 117,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -750,9 +750,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 9,
+      "ci": 10,
       "released_at": "2026-07-13T06:39:46Z",
-      "pushed_at": "2026-07-13T06:39:45Z",
+      "pushed_at": "2026-07-15T10:05:44Z",
       "traffic": {
         "views_14d": {
           "count": 4,
@@ -853,7 +853,7 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 14,
+      "ci": 15,
       "released_at": "2026-07-13T06:39:49Z",
       "pushed_at": "2026-07-13T06:39:49Z",
       "traffic": {
@@ -930,7 +930,7 @@
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 0,
+      "open_issues": 1,
       "open_bugs": 0,
       "commits_6mo": 383,
       "stars": 3,
@@ -958,7 +958,7 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-07-15T07:46:55Z",
+      "pushed_at": "2026-07-15T10:05:09Z",
       "traffic": {
         "views_14d": {
           "count": 6,
@@ -1138,11 +1138,11 @@
       "id": 1200865354,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 297,
+      "commits_6mo": 298,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9361702127659575,
+      "ciPassRate": 0.9468085106382979,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1162,9 +1162,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 9,
+      "ci": 10,
       "released_at": "2026-07-13T06:39:58Z",
-      "pushed_at": "2026-07-13T06:39:57Z",
+      "pushed_at": "2026-07-15T10:05:48Z",
       "traffic": {
         "views_14d": {
           "count": 10,
@@ -1241,7 +1241,7 @@
       "id": 1201344218,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 41,
+      "commits_6mo": 43,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 100,
@@ -1265,9 +1265,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 5,
+      "ci": 7,
       "released_at": "2026-07-13T06:40:00Z",
-      "pushed_at": "2026-07-13T06:40:00Z",
+      "pushed_at": "2026-07-15T10:05:44Z",
       "traffic": {
         "views_14d": {
           "count": 11,
