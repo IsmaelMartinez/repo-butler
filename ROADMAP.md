@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-14
+**Last Updated:** 2026-07-15
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -86,7 +86,7 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
-Multi-ecosystem libyear porting shipped 2026-07-14 (PR #325). Expanded the core dependency freshness tool to support pip (Python), cargo (Rust), and maven/gradle (Java/Kotlin) package manager ecosystems, resolving key review follow-ups from PR #324 and significantly broadening the tool's utility for multi-language repositories.
+Release-cadence workflow template hardening initiated 2026-07-15 via issue #327. This work addresses Copilot security review findings on the workflow template to harden the repository's CI/CD automation pipeline.
 ---
 
 ## Roadmap
