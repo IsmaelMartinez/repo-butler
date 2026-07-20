@@ -15,7 +15,6 @@
       "ai-model-advisor",
       "repo-butler",
       "wifisentinel",
-      "votescot",
       "lounge-tv",
       "delegate-local"
     ],
@@ -28,7 +27,7 @@
     "repoAutoMerge": {
       "github-issue-triage-bot": true
     },
-    "adoptionRate": 0.9230769230769231,
+    "adoptionRate": 0.9166666666666666,
     "priority": "low",
     "remediation": {
       "executor": "template",
