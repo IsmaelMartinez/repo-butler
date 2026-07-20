@@ -118,5 +118,39 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-07-20T09:16:00.487Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Harden release-cadence workflow template against privilege escalation",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Remediate security findings to uplift ai-model-advisor to Gold tier",
+        "target_repo": "ai-model-advisor",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "not-allowlisted",
+        "number": null
+      },
+      {
+        "title": "Align github-issue-triage-bot with portfolio release-cadence standard",
+        "target_repo": "github-issue-triage-bot",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "not-allowlisted",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
