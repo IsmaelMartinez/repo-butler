@@ -1,6 +1,6 @@
 ---
 name: repo-butler-apply
-description: Use when the user wants to act on governance findings, open remediation PRs, fix standards gaps, or apply tier-uplift / policy-drift / stale-Dependabot fixes across the portfolio. Routes findings by their executor hint — dispatching the cloud workflow for templatable gaps and drafting local PRs for findings that need tailored content.
+description: Use when the user wants to act on governance findings, open remediation PRs, fix standards gaps, or apply tier-uplift / policy-drift / stale-Dependabot / open-vulnerability fixes across the portfolio. Routes findings by their executor hint — dispatching the cloud workflow for templatable gaps and drafting local PRs for findings that need tailored content.
 ---
 
 # Repo Butler Apply

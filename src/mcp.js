@@ -167,7 +167,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, and tier uplift opportunities from the latest pipeline run.',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high security alerts) from the latest pipeline run.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -330,6 +330,7 @@ function toolGetGovernanceFindings() {
         gaps: findings.filter(f => f.type === 'standards-gap').length,
         drift: findings.filter(f => f.type === 'policy-drift').length,
         uplift: findings.filter(f => f.type === 'tier-uplift').length,
+        openVulnerabilities: findings.filter(f => f.type === 'open-vulnerability').length,
         // ADR-007 remediation contract: route findings by executor hint.
         byExecutor: {
           template: findings.filter(f => f.remediation?.executor === 'template').length,

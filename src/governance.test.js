@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, buildRemediationPlan, attachRemediationPlans } from './governance.js';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, buildRemediationPlan, attachRemediationPlans } from './governance.js';
 
 // --- Test helpers ---
 
@@ -470,6 +470,101 @@ describe('generateUpliftProposals', () => {
 
 // --- Remediation plan contract (ADR-007 Track B stage 1) ---
 
+describe('detectOpenVulnerabilities', () => {
+  it('returns no findings when every repo is clean', () => {
+    const repos = [makeRepo('repo-a'), makeRepo('repo-b')];
+    const details = makeDetails(repos); // default vulns { count: 0, max_severity: null }
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('flags a repo with an open high Dependabot alert as medium priority', () => {
+    const repos = [makeRepo('repo-a'), makeRepo('repo-b')];
+    const details = makeDetails(repos, {
+      'repo-b': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' } },
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    assert.equal(findings.length, 1);
+    const f = findings[0];
+    assert.equal(f.type, 'open-vulnerability');
+    assert.equal(f.repo, 'repo-b');
+    assert.deepEqual(f.sources, ['dependabot']);
+    assert.equal(f.high, 1);
+    assert.equal(f.critical, 0);
+    assert.equal(f.priority, 'medium');
+    assert.equal(f.max_severity, 'high');
+  });
+
+  it('raises a critical Dependabot alert to high priority', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'high');
+    assert.equal(f.max_severity, 'critical');
+    assert.equal(f.critical, 1);
+  });
+
+  it('treats any secret-scanning hit as high priority', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 0, max_severity: null }, secretScanning: { count: 2 } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.deepEqual(f.sources, ['secret-scanning']);
+    assert.equal(f.secretScanning, 2);
+    assert.equal(f.priority, 'high');
+  });
+
+  it('aggregates counts and sources across Dependabot and code scanning', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': {
+        vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' },
+        codeScanning: { count: 2, critical: 1, high: 1, max_severity: 'critical' },
+      },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.deepEqual(f.sources, ['dependabot', 'code-scanning']);
+    assert.equal(f.critical, 1);
+    assert.equal(f.high, 2);
+    assert.equal(f.priority, 'high');
+  });
+
+  it('skips repos whose alert data is null (scanning off / token lacks scope) rather than flagging unknowns', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, { 'repo-a': { vulns: null, codeScanning: null, secretScanning: null } });
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('ignores medium/low-only alerts (consistent with the Gold security check)', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 3, critical: 0, high: 0, medium: 2, low: 1, max_severity: 'medium' } },
+    });
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('excludes archived, fork, and test/shadow repos (eligibleRepos)', () => {
+    const repos = [
+      makeRepo('repo-archived', { archived: true }),
+      makeRepo('repo-fork', { fork: true }),
+      makeRepo('repo-shadow'),
+    ];
+    const details = makeDetails(repos, {
+      'repo-archived': { vulns: { count: 1, high: 1, max_severity: 'high' } },
+      'repo-fork': { vulns: { count: 1, high: 1, max_severity: 'high' } },
+      'repo-shadow': { vulns: { count: 1, high: 1, max_severity: 'high' } },
+    });
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('skips a repo entirely absent from the details map', () => {
+    const repos = [makeRepo('repo-a')];
+    assert.deepEqual(detectOpenVulnerabilities(repos, {}), []);
+  });
+});
+
 describe('buildRemediationPlan', () => {
   it('routes a templatable standards tool to the template executor', () => {
     const plan = buildRemediationPlan({
@@ -552,6 +647,17 @@ describe('buildRemediationPlan', () => {
     });
     assert.equal(plan.executor, 'manual');
     assert.match(plan.rationale, /70 days/);
+  });
+
+  it('routes open-vulnerability to manual and reports counts + sources', () => {
+    const plan = buildRemediationPlan({
+      type: 'open-vulnerability', repo: 'r', critical: 2, high: 1, secretScanning: 3, sources: ['dependabot', 'secret-scanning'],
+    });
+    assert.equal(plan.executor, 'manual');
+    assert.deepEqual(plan.targetFiles, []);
+    assert.match(plan.rationale, /2 critical/);
+    assert.match(plan.rationale, /3 secret-scanning/);
+    assert.match(plan.rationale, /dependabot/);
   });
 
   it('falls back to manual for an unknown finding type', () => {

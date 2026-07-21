@@ -20,7 +20,7 @@ Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phas
 
 `UPDATE` — Rewrites `ROADMAP.md` and opens a PR. All LLM-generated content passes through `src/safety.js` validators before publication.
 
-`GOVERNANCE` — Runs deterministic detectors over the portfolio: standards-gap, policy-drift, tier-uplift proposals, and stale Dependabot PR audits. No LLM cost. Findings persist to `snapshots/governance.json` on the data branch and feed both the IDEATE prompt and the `get_governance_findings` MCP tool. Daily pipeline runs it 4×/day.
+`GOVERNANCE` — Runs deterministic detectors over the portfolio: standards-gap, policy-drift, tier-uplift proposals, open-vulnerability (repos with open critical/high security alerts), and stale Dependabot PR audits. No LLM cost. Findings persist to `snapshots/governance.json` on the data branch and feed both the IDEATE prompt and the `get_governance_findings` MCP tool. Daily pipeline runs it 4×/day.
 
 `IDEATE` — Generates improvement proposals. Uses deep LLM provider (Claude Sonnet if configured, else falls back to default). Input is snapshot + portfolio context + triage bot intelligence + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
 
