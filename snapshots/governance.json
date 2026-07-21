@@ -43,6 +43,28 @@
   },
   {
     "type": "tier-uplift",
+    "repo": "yourear",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Zero critical/high security findings",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift yourear from silver to gold",
+      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+      "acceptanceCriteria": [
+        "Check \"Zero critical/high security findings\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
     "repo": "teams-for-linux",
     "currentTier": "silver",
     "targetTier": "gold",
