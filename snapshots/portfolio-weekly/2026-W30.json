@@ -211,18 +211,18 @@
       "id": 151476958,
       "open_issues": 26,
       "open_bugs": 16,
-      "commits_6mo": 445,
-      "stars": 4865,
+      "commits_6mo": 446,
+      "stars": 4866,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.8070175438596491,
+      "ciPassRate": 0.8571428571428571,
       "vulns": {
-        "count": 6,
+        "count": 1,
         "critical": 0,
-        "high": 4,
-        "medium": 2,
+        "high": 0,
+        "medium": 1,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 27,
@@ -237,15 +237,15 @@
       },
       "ci": 15,
       "released_at": "2026-06-26T06:37:57Z",
-      "pushed_at": "2026-07-21T11:41:32Z",
+      "pushed_at": "2026-07-21T15:23:08Z",
       "traffic": {
         "views_14d": {
-          "count": 6668,
-          "uniques": 3167
+          "count": 6671,
+          "uniques": 3133
         },
         "clones_14d": {
-          "count": 15907,
-          "uniques": 276
+          "count": 15099,
+          "uniques": 280
         }
       },
       "computed": {
@@ -283,7 +283,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -314,11 +314,11 @@
       "id": 786898753,
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 194,
+      "commits_6mo": 197,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9662921348314607,
+      "ciPassRate": 0.8842105263157894,
       "vulns": {
         "count": 5,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 11,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-07-21T08:20:57Z",
+      "pushed_at": "2026-07-21T14:04:46Z",
       "traffic": {
         "views_14d": {
           "count": 8,
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.8947368421052632,
+      "ciPassRate": 0.8842105263157894,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,15 +958,15 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-07-21T10:54:32Z",
+      "pushed_at": "2026-07-21T13:10:59Z",
       "traffic": {
         "views_14d": {
           "count": 5,
           "uniques": 3
         },
         "clones_14d": {
-          "count": 2690,
-          "uniques": 567
+          "count": 2586,
+          "uniques": 550
         }
       },
       "computed": {
