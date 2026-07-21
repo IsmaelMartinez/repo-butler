@@ -2,7 +2,7 @@
 // Manual-dispatch only — never on cron. Reads findings from the data branch,
 // validates shape, generates templated config files, and opens PRs.
 
-import { REPO_NAME_PATTERN } from './safety.js';
+import { REPO_NAME_PATTERN, codeqlLanguageFor } from './safety.js';
 import { hasActiveCopilotReviewRuleset } from './github.js';
 // Re-export for backwards compat with existing onboard.js import.
 // Canonical home is safety.js (the security boundary).
@@ -30,7 +30,7 @@ const TEMPLATES = {
   'code-scanning': {
     path: '.github/workflows/codeql-analysis.yml',
     content: (eco) => {
-      const lang = eco === 'Go' ? 'go' : eco === 'Python' ? 'python' : 'javascript-typescript';
+      const lang = codeqlLanguageFor(eco);
       return `name: CodeQL
 
 on:

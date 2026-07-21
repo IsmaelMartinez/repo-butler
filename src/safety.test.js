@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   validateIssueTitle, validateIssueBody, validateCrossRefs,
   validateRoadmap, validateIdeas, validateProvider,
-  sanitizeForPrompt, detectEcosystem,
+  sanitizeForPrompt, detectEcosystem, codeqlLanguageFor,
   sanitizeContributorName, validateGitHubUsername,
   resolveCrossRepoDestination, findingNamesRepo,
   sanitizeLabels, redactErrorForLog, safeDeployedUrl,
@@ -530,6 +530,53 @@ describe('detectEcosystem', () => {
       topics: ['python'],
     });
     assert.ok(result.has('Python'));
+  });
+});
+
+describe('codeqlLanguageFor', () => {
+  it('maps each ecosystem to its codeql-action language identifier', () => {
+    assert.equal(codeqlLanguageFor('JavaScript'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor('TypeScript'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor('Go'), 'go');
+    assert.equal(codeqlLanguageFor('Python'), 'python');
+    assert.equal(codeqlLanguageFor('Rust'), 'rust');
+    assert.equal(codeqlLanguageFor('Java'), 'java-kotlin');
+  });
+
+  it('covers every ecosystem detectEcosystem can produce', () => {
+    // Keys must track ECOSYSTEM_MAP: confirm a repo of each ecosystem resolves
+    // to a non-fallback identifier, so a future ECOSYSTEM_MAP addition without a
+    // matching ECOSYSTEM_TOOLS entry trips this test rather than silently
+    // emitting a javascript-typescript analysis.
+    const repos = [
+      { language: 'JavaScript', ecosystemFiles: ['package.json'], topics: ['nodejs'] },
+      { language: 'TypeScript', ecosystemFiles: ['tsconfig.json'], topics: ['typescript'] },
+      { language: 'Go', ecosystemFiles: ['go.mod'], topics: ['golang'] },
+      { language: 'Python', ecosystemFiles: ['pyproject.toml'], topics: ['python'] },
+      { language: 'Rust', ecosystemFiles: ['Cargo.toml'], topics: ['rust'] },
+      { language: 'Java', ecosystemFiles: ['pom.xml'], topics: ['java'] },
+    ];
+    for (const repo of repos) {
+      for (const eco of detectEcosystem(repo)) {
+        assert.notEqual(
+          codeqlLanguageFor(eco), undefined,
+          `${eco} has no ECOSYSTEM_TOOLS entry`,
+        );
+        // Java and Rust must not fall through to the JS/TS default.
+        if (eco === 'Java') assert.equal(codeqlLanguageFor(eco), 'java-kotlin');
+        if (eco === 'Rust') assert.equal(codeqlLanguageFor(eco), 'rust');
+      }
+    }
+  });
+
+  it('falls back to javascript-typescript for an unmapped ecosystem', () => {
+    assert.equal(codeqlLanguageFor('Cobol'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor(undefined), 'javascript-typescript');
+  });
+
+  it('does not resolve inherited Object.prototype keys to a function', () => {
+    assert.equal(codeqlLanguageFor('constructor'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor('toString'), 'javascript-typescript');
   });
 });
 
