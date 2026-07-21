@@ -72,10 +72,6 @@
       {
         "name": "Fewer than 10 open bugs",
         "required_for": "gold"
-      },
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
       }
     ],
     "priority": "high",
@@ -83,10 +79,9 @@
       "executor": "agent",
       "targetFiles": [],
       "intent": "Uplift teams-for-linux from silver to gold",
-      "rationale": "2 check(s) block gold: Fewer than 10 open bugs, Zero critical/high security findings.",
+      "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
       "acceptanceCriteria": [
-        "Check \"Fewer than 10 open bugs\" passes",
-        "Check \"Zero critical/high security findings\" passes"
+        "Check \"Fewer than 10 open bugs\" passes"
       ]
     }
   },
