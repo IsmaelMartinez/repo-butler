@@ -88,7 +88,7 @@ Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). Thi
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Consolidated and matured the multi-repository orchestration architecture by graduating `standards-gap` as the first cross-repository PROPOSE class to handle standardized workflow capabilities seamlessly across target repositories.
+Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 ---
 
 ## Roadmap
