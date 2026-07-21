@@ -87,6 +87,8 @@ Cross-repo PROPOSE safety gates shipped 2026-06-22 (PRs #298 and #299). Hardened
 Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). This final dense block of foundational feature gates integrated cross-repo routing into the write path (#300), implemented volume capping with a per-target two-axis limit (#301), added duplicate detection look-backs over closed issues (#302), and introduced a cross-repo quality filter with confidence/priority gates (#303) to safely handle multi-repository environments.
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
+
+Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Consolidated and matured the multi-repository orchestration architecture by graduating `standards-gap` as the first cross-repository PROPOSE class to handle standardized workflow capabilities seamlessly across target repositories.
 ---
 
 ## Roadmap
