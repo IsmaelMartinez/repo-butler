@@ -36,14 +36,17 @@
     },
     "critical": {
       "type": "integer",
+      "minimum": 0,
       "description": "open-vulnerability only: count of open critical Dependabot + code-scanning alerts."
     },
     "high": {
       "type": "integer",
+      "minimum": 0,
       "description": "open-vulnerability only: count of open high Dependabot + code-scanning alerts."
     },
     "secretScanning": {
       "type": "integer",
+      "minimum": 0,
       "description": "open-vulnerability only: count of open secret-scanning alerts."
     },
     "max_severity": {

@@ -167,7 +167,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high security alerts) from the latest pipeline run.',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },

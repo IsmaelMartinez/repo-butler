@@ -41,7 +41,7 @@ Available tools:
 
 `get_snapshot_diff` — Compare the current observation against the previous one. Shows what changed since the last pipeline run (issues opened/closed, PRs merged, releases).
 
-`get_governance_findings` — Get the latest governance findings: standards gaps, policy drift, tier uplift opportunities, and open vulnerabilities (repos with open critical/high security alerts).
+`get_governance_findings` — Get the latest governance findings: standards gaps, policy drift, tier uplift opportunities, and open vulnerabilities (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit).
 
 `trigger_refresh` — Trigger a fresh report regeneration. Runs the GitHub Actions workflow asynchronously (~7 minutes). Use after making health improvements to see updated results. Pass `phase: "report"` for dashboards only or `phase: "all"` for the full pipeline.
 
