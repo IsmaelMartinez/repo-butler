@@ -46,6 +46,11 @@
       "type": "integer",
       "description": "open-vulnerability only: count of open secret-scanning alerts."
     },
+    "max_severity": {
+      "type": "string",
+      "enum": ["critical", "high"],
+      "description": "open-vulnerability only: peak urgency of the finding — `critical` when an open critical alert or any secret-scanning hit is present (secrets are treated as critical-urgency), else `high`."
+    },
     "remediation": { "$ref": "#/$defs/RemediationPlan" }
   },
   "$defs": {
