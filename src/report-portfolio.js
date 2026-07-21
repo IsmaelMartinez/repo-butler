@@ -539,7 +539,7 @@ export function buildGovernanceSection(findings) {
         const counts = [];
         if (v.critical) counts.push(`${v.critical} critical`);
         if (v.high) counts.push(`${v.high} high`);
-        if (v.secretScanning) counts.push(`${v.secretScanning} secret`);
+        if (v.secretScanning) counts.push(`${v.secretScanning} secret-scanning`);
         return `<tr>
   <td><a href="${escHtml(v.repo)}.html">${escHtml(v.repo)}</a></td>
   <td><span style="color:${PRIORITY_COLOR[v.priority] || 'var(--muted)'}">${escHtml(v.priority)}</span></td>
