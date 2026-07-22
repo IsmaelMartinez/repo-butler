@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-22T17:10:45.165Z",
+  "timestamp": "2026-07-22T20:21:23.678Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 5,
+    "open_issues_count": 4,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-22T13:46:26Z",
+    "pushed_at": "2026-07-22T20:21:09Z",
     "archived": false
   },
   "issues": {
@@ -102,6 +102,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 334,
+        "title": "feat(governance): detect Dependabot autofix state on open-vulnerability findings (Phase 3, ADR-012)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-22T20:21:07Z"
+      },
       {
         "number": 333,
         "title": "feat(apply): enable Dependabot security updates on open-vulnerability repos (Phase 2, ADR-012)",
@@ -1612,10 +1619,14 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9879518072289156,
-    "total_runs": 83,
-    "passed": 82,
+    "pass_rate": 0.9876543209876543,
+    "total_runs": 81,
+    "passed": 80,
     "failed": 1
+  },
+  "automated_security_fixes": {
+    "enabled": true,
+    "paused": false
   },
   "summary": {
     "repo": "3 stars, 0 forks",
@@ -1625,9 +1636,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 8,
-    "recently_merged_prs": 185,
+    "recently_merged_prs": 186,
     "bot_prs": 5,
-    "human_prs": 180,
+    "human_prs": 181,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
@@ -1640,7 +1651,8 @@
     "code_scanning_alert_count": 0,
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
-    "ci_pass_rate": 0.9879518072289156,
+    "automated_security_fixes_active": true,
+    "ci_pass_rate": 0.9876543209876543,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
