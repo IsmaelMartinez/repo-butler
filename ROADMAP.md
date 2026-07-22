@@ -88,7 +88,7 @@ Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). Thi
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-Phase 3 of ADR-012 shipped 2026-07-22 (PR #334). Upgraded the core governance and vulnerability detection mechanisms by introducing automated detection of Dependabot autofix states on open-vulnerability findings, advancing the project's systematic security compliance capabilities.
+Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 ---
 
 ## Roadmap
