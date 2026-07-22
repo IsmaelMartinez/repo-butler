@@ -97,8 +97,24 @@ describe('generateTemplate', () => {
     assert.ok(result.content.includes('languages: go'));
   });
 
-  it('generates code-scanning template with default language for unknown ecosystem', () => {
-    const result = generateTemplate('code-scanning', 'Rust');
+  // Each ecosystem maps to its own codeql-action language identifier. Rust and
+  // Java previously fell through to javascript-typescript, emitting a JS/TS
+  // analysis that scanned no matching source on those repos.
+  for (const [eco, lang] of [
+    ['TypeScript', 'javascript-typescript'],
+    ['Python', 'python'],
+    ['Rust', 'rust'],
+    ['Java', 'java-kotlin'],
+  ]) {
+    it(`generates code-scanning template with ${lang} for ${eco}`, () => {
+      const result = generateTemplate('code-scanning', eco);
+      assert.equal(result.path, '.github/workflows/codeql-analysis.yml');
+      assert.ok(result.content.includes(`languages: ${lang}`));
+    });
+  }
+
+  it('generates code-scanning template with the javascript-typescript fallback for an unmapped ecosystem', () => {
+    const result = generateTemplate('code-scanning', 'Cobol');
     assert.ok(result.content.includes('languages: javascript-typescript'));
   });
 

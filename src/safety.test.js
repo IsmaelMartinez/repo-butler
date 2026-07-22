@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import {
   validateIssueTitle, validateIssueBody, validateCrossRefs,
   validateRoadmap, validateIdeas, validateProvider,
-  sanitizeForPrompt, detectEcosystem,
+  sanitizeForPrompt, detectEcosystem, codeqlLanguageFor,
+  ECOSYSTEM_MAP, ECOSYSTEM_TOOLS,
   sanitizeContributorName, validateGitHubUsername,
   resolveCrossRepoDestination, findingNamesRepo,
   sanitizeLabels, redactErrorForLog, safeDeployedUrl,
@@ -530,6 +531,54 @@ describe('detectEcosystem', () => {
       topics: ['python'],
     });
     assert.ok(result.has('Python'));
+  });
+});
+
+describe('codeqlLanguageFor', () => {
+  it('maps each ecosystem to its codeql-action language identifier', () => {
+    assert.equal(codeqlLanguageFor('JavaScript'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor('TypeScript'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor('Go'), 'go');
+    assert.equal(codeqlLanguageFor('Python'), 'python');
+    assert.equal(codeqlLanguageFor('Rust'), 'rust');
+    assert.equal(codeqlLanguageFor('Java'), 'java-kotlin');
+  });
+
+  it('has an explicit ECOSYSTEM_TOOLS entry for every ECOSYSTEM_MAP key', () => {
+    // The invariant the fallback would otherwise mask: an ecosystem added to
+    // ECOSYSTEM_MAP without a matching ECOSYSTEM_TOOLS entry resolves to the
+    // javascript-typescript fallback, silently emitting a JS/TS analysis for
+    // (say) a future Swift or Ruby repo. Assert membership directly against the
+    // map — a value check can't catch it, since a real JS/TS entry and the
+    // fallback share the same string.
+    for (const eco of Object.keys(ECOSYSTEM_MAP)) {
+      assert.ok(
+        Object.hasOwn(ECOSYSTEM_TOOLS, eco) && ECOSYSTEM_TOOLS[eco].codeqlLanguage,
+        `${eco} is in ECOSYSTEM_MAP but has no ECOSYSTEM_TOOLS.codeqlLanguage entry`,
+      );
+    }
+  });
+
+  it('resolves non-JS/TS ecosystems without hitting the fallback', () => {
+    // Every non-JS/TS ecosystem must map to a distinct identifier, proving it
+    // isn't relying on the shared javascript-typescript default.
+    for (const eco of Object.keys(ECOSYSTEM_MAP)) {
+      if (eco === 'JavaScript' || eco === 'TypeScript') continue;
+      assert.notEqual(
+        codeqlLanguageFor(eco), 'javascript-typescript',
+        `${eco} unexpectedly falls back to javascript-typescript`,
+      );
+    }
+  });
+
+  it('falls back to javascript-typescript for an unmapped ecosystem', () => {
+    assert.equal(codeqlLanguageFor('Cobol'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor(undefined), 'javascript-typescript');
+  });
+
+  it('does not resolve inherited Object.prototype keys to a function', () => {
+    assert.equal(codeqlLanguageFor('constructor'), 'javascript-typescript');
+    assert.equal(codeqlLanguageFor('toString'), 'javascript-typescript');
   });
 });
 
