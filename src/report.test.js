@@ -1425,14 +1425,23 @@ describe('report cache invalidation includes report.js', () => {
 });
 
 describe('fetchPortfolioDetails incremental cache', () => {
-  it('uses cached details when pushed_at and open_issues_count match', async () => {
+  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix setting)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // Mock GitHub client — should NOT be called for cached repos.
-    let apiCalled = false;
+    // The only permitted call on a cache hit is the single autofix GET (ADR-012
+    // Phase 3): the setting can flip without a push, so it is refreshed while every
+    // push-invariant field comes from cache. No paginate / getFileContent / full
+    // re-fetch should occur.
+    const requestPaths = [];
+    let paginateCalled = false;
+    let getFileContentCalled = false;
     const gh = {
-      request: () => { apiCalled = true; return Promise.resolve({}); },
-      paginate: () => { apiCalled = true; return Promise.resolve([]); },
-      getFileContent: () => { apiCalled = true; return Promise.resolve(null); },
+      request: (path) => {
+        requestPaths.push(path);
+        if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+        return Promise.resolve({});
+      },
+      paginate: () => { paginateCalled = true; return Promise.resolve([]); },
+      getFileContent: () => { getFileContentCalled = true; return Promise.resolve(null); },
     };
     const repos = [
       { name: 'cached-repo', pushed_at: '2026-04-01T00:00:00Z', open_issues: 5, archived: false, fork: false, stars: 10 },
@@ -1443,13 +1452,16 @@ describe('fetchPortfolioDetails incremental cache', () => {
           schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: '2026-04-01T00:00:00Z',
           open_issues_count: 5,
-          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null },
+          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null, autofix: null },
         },
       },
     };
     const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
-    assert.equal(apiCalled, false, 'should not call API for cached repo');
+    assert.deepEqual(requestPaths, ['/repos/owner/cached-repo/automated-security-fixes'], 'only the autofix GET runs on a cache hit');
+    assert.equal(paginateCalled, false, 'no paginate on a cache hit');
+    assert.equal(getFileContentCalled, false, 'no getFileContent on a cache hit');
     assert.equal(details['cached-repo'].commits, 42, 'should use cached commits');
+    assert.deepEqual(details['cached-repo'].autofix, { enabled: true, paused: false }, 'refreshes the stale autofix state from the live GET');
     assert.ok(details._cachedRepos.includes('cached-repo'), 'should mark as cached');
   });
 

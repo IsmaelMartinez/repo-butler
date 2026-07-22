@@ -227,9 +227,16 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       && cached.pushed_at === r.pushed_at
       && cached.open_issues_count === (r.open_issues || 0)
     ) {
-      details[r.name] = cached.details;
+      // The Dependabot autofix setting (ADR-012 Phase 3) is a repo-settings toggle
+      // that can flip without a push or an open-issue-count change, so the cache key
+      // does not capture it. Every other cached field is genuinely push-invariant;
+      // this one is not, and leaving it stale would let a quiet repo's "in flight /
+      // not driven" annotation drift indefinitely. Refresh it with a single cheap
+      // GET on the cache-hit path and merge into a COPY — never mutate the cache.
+      const autofix = await getAutomatedSecurityFixesState(gh, owner, r.name);
+      details[r.name] = { ...cached.details, autofix };
       cachedRepos.add(r.name);
-      console.log(`  ↩ ${r.name} — unchanged, using cache`);
+      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix refreshed)`);
       return;
     }
     const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
