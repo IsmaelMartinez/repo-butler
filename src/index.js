@@ -93,8 +93,13 @@ async function runApply(context) {
   // dispatched here on a scheduled run, and (unlike the Copilot settings write) is
   // never promotable via apply-schedule. Manual dispatch only: it runs on a blank
   // `tools` (all actionable) or when `tools` explicitly names `dependabot-security`.
-  // Live writes need the App's `administration: write` scope.
-  const depSecRequested = !scheduled && (tools.length === 0 || tools.includes('dependabot-security'));
+  // The enable and disable toggles are mutually exclusive (see the helper) — naming
+  // both is contradictory and runs neither. Live writes need `administration: write`.
+  const depSecDispatch = resolveDependabotSecurityDispatch(tools, scheduled);
+  if (depSecDispatch.conflict) {
+    console.error('apply: `tools` names both dependabot-security and dependabot-security-off — contradictory dispatch; skipping BOTH settings writes.');
+  }
+  const depSecRequested = depSecDispatch.enable;
   const depSecResult = depSecRequested
     ? await applyDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
     : null;
@@ -113,7 +118,7 @@ async function runApply(context) {
   // deliberate operator action and never rides an enable/apply run. Live DELETEs
   // need the App's `administration: write` scope. DELETE reverts the SETTING, not
   // any bump PR GitHub already opened.
-  const depSecOffRequested = !scheduled && tools.includes('dependabot-security-off');
+  const depSecOffRequested = depSecDispatch.disable;
   const depSecOffResult = depSecOffRequested
     ? await disableDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
     : null;
@@ -217,6 +222,23 @@ const PHASE_RUNNERS = {
   monitor: runMonitor,
   apply: runApply,
 };
+
+// Resolve which of the two mutually-exclusive ADR-012 settings toggles a manual
+// apply dispatch requests. Enabling (`dependabot-security`, or a blank `tools` =
+// all actionable) and disabling (`dependabot-security-off`, explicit only) target
+// the same repo setting, so naming BOTH in one dispatch is contradictory — it
+// would PUT then DELETE in a single run, netting an unpredictable toggle. Fail
+// SAFE: on conflict, run NEITHER. Both are off the no-human scheduled path by
+// construction, so a scheduled run resolves to neither. Pure — no I/O.
+export function resolveDependabotSecurityDispatch(tools, scheduled) {
+  const list = Array.isArray(tools) ? tools : [];
+  const conflict = list.includes('dependabot-security') && list.includes('dependabot-security-off');
+  return {
+    conflict,
+    enable: !scheduled && !conflict && (list.length === 0 || list.includes('dependabot-security')),
+    disable: !scheduled && !conflict && list.includes('dependabot-security-off'),
+  };
+}
 
 export function validateRepoFormat(repo) {
   if (!repo.includes('/')) {
