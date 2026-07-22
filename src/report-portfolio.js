@@ -3,7 +3,7 @@
 import { CSS, SITE_FOOTER, htmlPage, THEME_INIT, THEME_TOGGLE, THEME_TOGGLE_JS } from './report-styles.js';
 import { computeLibyearWithTimeout } from './libyear.js';
 import { buildActionItems } from './report-repo.js';
-import { hasActiveCopilotReviewRuleset } from './github.js';
+import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState } from './github.js';
 import { detectTierChanges } from './tier-change.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
@@ -232,7 +232,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       console.log(`  ↩ ${r.name} — unchanged, using cache`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -353,12 +353,22 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // with the settings-apply idempotency guard (apply.js) via github.js so both
       // agree on what "already enabled" means. Drives the code-review-bot standard.
       hasActiveCopilotReviewRuleset(gh, owner, r.name).then(hasCopilotReview => ({ hasCopilotReview })),
+      // GitHub's Dependabot automated security fixes state (ADR-012 Phase 3):
+      // { enabled, paused } | null. Feeds the deterministic open-vulnerability
+      // detector (governance.js) so a dependabot-sourced finding can distinguish
+      // "remediation in flight" (autofix ON — GitHub is already opening bump PRs)
+      // from "not being driven to resolution" (OFF). Detection stays pure (no gh
+      // client); the state is fetched here and threaded into details[repo], exactly
+      // as hasActiveCopilotReviewRuleset feeds code-review-bot detection. Returns
+      // null on any error (feature unavailable, or the App lacks administration:
+      // write) → governance reads it as "unknown" and does not annotate.
+      getAutomatedSecurityFixesState(gh, owner, r.name),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
     const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, libyear: null, codeScanning, secretScanning, traffic };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -540,17 +550,27 @@ export function buildGovernanceSection(findings) {
         if (v.critical) counts.push(`${v.critical} critical`);
         if (v.high) counts.push(`${v.high} high`);
         if (v.secretScanning) counts.push(`${v.secretScanning} secret-scanning`);
+        // Dependabot autofix state (ADR-012 Phase 3): only meaningful for
+        // dependabot-sourced findings (autofixEnabled is present). "in flight" =
+        // GitHub is opening the bump PRs; "not driven" = the alerts are unattended;
+        // "unknown" = state unreadable. A code/secret-only finding shows "—".
+        let autofixCell = '<span class="muted">—</span>';
+        if (v.autofixEnabled === true) autofixCell = `<span style="color:${COLOR_SUCCESS}">✓ in flight</span>`;
+        else if (v.autofixEnabled === false) autofixCell = `<span style="color:${COLOR_DANGER}">✗ not driven</span>`;
+        else if (v.autofixEnabled === null) autofixCell = '<span class="muted">unknown</span>';
         return `<tr>
   <td><a href="${escHtml(v.repo)}.html">${escHtml(v.repo)}</a></td>
   <td><span style="color:${PRIORITY_COLOR[v.priority] || 'var(--muted)'}">${escHtml(v.priority)}</span></td>
   <td>${escHtml((v.sources || []).join(', '))}</td>
   <td>${escHtml(counts.join(', ') || 'open alerts')}</td>
+  <td>${autofixCell}</td>
 </tr>`;
       })
       .join('');
     parts.push(`<h3>Open Vulnerabilities</h3>
+<p class="muted">Dependabot autofix: <em>in flight</em> = GitHub's automated security fixes are opening the bump PRs; <em>not driven</em> = enable them via the <code>dependabot-security</code> apply action.</p>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>Priority</th><th>Source</th><th>Open alerts</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>Priority</th><th>Source</th><th>Open alerts</th><th>Dependabot autofix</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`);
   }

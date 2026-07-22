@@ -398,6 +398,38 @@ export function detectOpenVulnerabilities(repos, details) {
     // mirroring adoptionPriority's high/medium banding so the dashboard's
     // high-priority governance banner is not flooded by every high alert.
     const urgent = critical > 0 || secretCount > 0;
+    let priority = urgent ? 'high' : 'medium';
+
+    // Remediation-in-flight annotation (ADR-012 Phase 3). Only meaningful when
+    // Dependabot is a source — enabling GitHub's automated security fixes can only
+    // resolve dependency bumps, never a code-scanning finding or a leaked secret.
+    // The state is fetched in the OBSERVE/portfolio-details layer (detection stays
+    // PURE — no gh client here) and threaded into details[repo].autofix as
+    // { enabled, paused } | null. autofixEnabled is the derived tri-state:
+    //   true  → autofix ON and not paused: GitHub is already opening the bump PRs
+    //           (remediation in flight);
+    //   false → autofix OFF or paused: the alerts are not being driven to resolution;
+    //   null  → state unreadable/unknown (feature unavailable or missing scope) —
+    //           we don't annotate and behave exactly as before.
+    let autofixEnabled = null;
+    const dependabotSourced = sources.includes('dependabot');
+    if (dependabotSourced) {
+      const st = d.autofix;
+      autofixEnabled = st == null ? null : (st.enabled === true && st.paused !== true);
+    }
+
+    // When autofix is ON and Dependabot is the ONLY source, GitHub is already
+    // driving the fix — downgrade high→medium so the high-priority governance
+    // banner reflects "in flight, not unattended". max_severity is NOT touched
+    // (the alert is still open, so the health-tier drop stands — "in flight" is a
+    // governance annotation, not a tier reprieve). A finding that also carries a
+    // code-scanning or secret-scanning source keeps its priority: those sources
+    // still need manual work that autofix cannot perform.
+    const dependabotOnly = sources.length === 1 && dependabotSourced;
+    if (autofixEnabled === true && dependabotOnly && priority === 'high') {
+      priority = 'medium';
+    }
+
     findings.push({
       type: 'open-vulnerability',
       repo: r.name,
@@ -406,7 +438,10 @@ export function detectOpenVulnerabilities(repos, details) {
       secretScanning: secretCount,
       sources,
       max_severity: urgent ? 'critical' : 'high',
-      priority: urgent ? 'high' : 'medium',
+      priority,
+      // Only dependabot-sourced findings carry the annotation — for a
+      // code-scanning/secret-only finding the field is irrelevant and omitted.
+      ...(dependabotSourced ? { autofixEnabled } : {}),
     });
   }
 
@@ -530,6 +565,14 @@ export function buildRemediationPlan(finding) {
     case 'open-vulnerability': {
       const sources = finding.sources || [];
       const secret = finding.secretScanning || 0;
+      // ADR-012 Phase 3: reflect whether Dependabot autofix is already driving the
+      // dependency-bump remediation, so the operator sees "in flight" vs "not
+      // driven" alongside the alert counts. Only set on dependabot-sourced findings.
+      const autofixNote = finding.autofixEnabled === true
+        ? ' Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).'
+        : finding.autofixEnabled === false
+          ? ' Dependabot automated security fixes are OFF — not being driven to resolution; the dependabot-security apply action would enable them.'
+          : '';
       // executor 'manual': surfacing this is deterministic, but resolving it is
       // per-repo work (a dependency bump, a code fix, a secret rotation) outside
       // the templated-PR lane. The Phase-2 apply action that enables Dependabot
@@ -541,7 +584,7 @@ export function buildRemediationPlan(finding) {
         executor: 'manual',
         targetFiles: [],
         intent: `Remediate open security alerts in ${finding.repo}`,
-        rationale: `${finding.critical || 0} critical / ${finding.high || 0} high open alert(s)${secret ? ` + ${secret} secret-scanning hit(s)` : ''} from ${sources.join(', ') || 'unknown source'}.`,
+        rationale: `${finding.critical || 0} critical / ${finding.high || 0} high open alert(s)${secret ? ` + ${secret} secret-scanning hit(s)` : ''} from ${sources.join(', ') || 'unknown source'}.${autofixNote}`,
         acceptanceCriteria: ['No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain'],
       };
     }

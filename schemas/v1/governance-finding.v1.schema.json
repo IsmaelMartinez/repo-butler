@@ -54,6 +54,10 @@
       "enum": ["critical", "high"],
       "description": "open-vulnerability only: peak urgency of the finding — `critical` when an open critical alert or any secret-scanning hit is present (secrets are treated as critical-urgency), else `high`."
     },
+    "autofixEnabled": {
+      "type": ["boolean", "null"],
+      "description": "open-vulnerability, dependabot-sourced only (ADR-012 Phase 3): whether GitHub's Dependabot automated security fixes are actively opening the bump PRs. true = remediation in flight (enabled and not paused); false = OFF/paused (not being driven to resolution); null = state unreadable/unknown. Read in the OBSERVE/portfolio-details layer (detection stays pure). When true and Dependabot is the only source, a high-priority finding is downgraded to medium; max_severity is never changed and the health-tier drop stands."
+    },
     "remediation": { "$ref": "#/$defs/RemediationPlan" }
   },
   "$defs": {

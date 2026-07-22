@@ -30,9 +30,9 @@ async function runApply(context) {
   // Stage 4 (ADR-007): set by the scheduled apply workflow only. On the no-human
   // path, apply.js gates each finding class behind the apply-schedule allow-list.
   const scheduled = process.env.INPUT_SCHEDULED === 'true';
-  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, autoMergeGovernancePRs;
+  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, disableDependabotSecurityUpdates, autoMergeGovernancePRs;
   try {
-    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, autoMergeGovernancePRs } = await import('./apply.js'));
+    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, disableDependabotSecurityUpdates, autoMergeGovernancePRs } = await import('./apply.js'));
   } catch {
     console.error('Apply module not available yet (src/apply.js). Skipping.');
     return;
@@ -105,6 +105,25 @@ async function runApply(context) {
     );
   }
 
+  // Dependabot security-updates DISABLE (ADR-012 reversibility, the mirror of
+  // dependabot-security). Behind the identical fences, and — like the enable path —
+  // fenced OFF the no-human scheduled path by construction. EXPLICIT dispatch only:
+  // it never fires on a blank `tools` run (which enables actionable findings), only
+  // when `tools` names `dependabot-security-off`, so a rollback is always a
+  // deliberate operator action and never rides an enable/apply run. Live DELETEs
+  // need the App's `administration: write` scope. DELETE reverts the SETTING, not
+  // any bump PR GitHub already opened.
+  const depSecOffRequested = !scheduled && tools.includes('dependabot-security-off');
+  const depSecOffResult = depSecOffRequested
+    ? await disableDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
+    : null;
+  if (depSecOffResult?.summary && process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `dependabotSecurityOff=${JSON.stringify(depSecOffResult.summary)}\n`,
+    );
+  }
+
   // Selective auto-merge reconcile pass (ADR-007 stage 5). Squash-merges the
   // butler's own green templated apply PRs for `apply-automerge`-allow-listed
   // classes (default empty → no-op). Deliberately NOT triggered by a blank-tools
@@ -162,6 +181,15 @@ async function runApply(context) {
       .join(', ');
     errParts.push(
       `dependabot-security: ${depSecResult.summary.errors} error(s) [${failed}]; ${depSecResult.summary.enabled} enabled, ${depSecResult.summary.skipped} skipped`,
+    );
+  }
+  if (depSecOffResult?.summary?.errors > 0) {
+    const failed = depSecOffResult.results
+      .filter(r => r.status === 'error')
+      .map(r => r.repo)
+      .join(', ');
+    errParts.push(
+      `dependabot-security-off: ${depSecOffResult.summary.errors} error(s) [${failed}]; ${depSecOffResult.summary.removed} disabled`,
     );
   }
   if (autoMergeResult?.summary?.errors > 0) {

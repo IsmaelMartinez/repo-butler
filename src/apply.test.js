@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -1321,6 +1321,24 @@ describe('applyDependabotSecurityUpdates', () => {
     // enter the auto-merge path — isAutoMergeAllowed requires a TEMPLATES entry.
     assert.equal(isAutoMergeAllowed({ 'dependabot-security': true }, 'dependabot-security'), false);
   });
+
+  it('flags a stale snapshot in the preview: finding said autofix ON but the live read says OFF (ADR-012 Phase 3)', async () => {
+    // The finding's autofixEnabled annotation (OBSERVE snapshot) claims the repo is
+    // already enabled, but the live read disagrees — the LIVE read wins the write
+    // decision (repo still gets enabled) and the divergence is surfaced.
+    const findings = [{ type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'], autofixEnabled: true }];
+    const gh = { request: async (path, opts) => ((!opts?.method || opts.method === 'GET') ? { enabled: false, paused: false } : null) };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.deepEqual(result.targets, ['repo-a'], 'live read wins: repo still previews as would-enable');
+    assert.equal(result.results[0].snapshotStale, true, 'the snapshot/live divergence is flagged');
+  });
+
+  it('does not flag a stale snapshot when snapshot and live read agree', async () => {
+    const findings = [{ type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'], autofixEnabled: false }];
+    const gh = { request: async (path, opts) => ((!opts?.method || opts.method === 'GET') ? { enabled: false, paused: false } : null) };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.ok(!('snapshotStale' in result.results[0]), 'no stale flag when snapshot matches live');
+  });
 });
 
 describe('removeDependabotSecurityUpdates', () => {
@@ -1337,6 +1355,92 @@ describe('removeDependabotSecurityUpdates', () => {
     const result = await removeDependabotSecurityUpdates(gh, 'owner', 'repo-a');
     assert.equal(result.status, 'error');
     assert.match(result.error, /500/);
+  });
+});
+
+describe('disableDependabotSecurityUpdates (dependabot-security-off reversibility dispatch)', () => {
+  const baseConfig = { limits: { require_approval: true } };
+  const baseFindings = [
+    { type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'] },
+    { type: 'open-vulnerability', repo: 'repo-b', sources: ['dependabot'] },
+  ];
+
+  it('refuses to run when require_approval is not set (Gate 3)', async () => {
+    const calls = [];
+    const gh = { request: async (p, o) => { calls.push({ p, o }); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
+    assert.equal(result.status, 'refused');
+    assert.equal(calls.length, 0, 'no DELETE when refused');
+  });
+
+  it('dry-run previews the would-remove targets and makes no DELETE (Gate 2 fail-closed)', async () => {
+    const writes = [];
+    const gh = { request: async (path, opts) => { if (opts?.method === 'DELETE') writes.push(path); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.deepEqual(result.targets, ['repo-a', 'repo-b']);
+    assert.equal(result.summary.wouldRemove, 2);
+    assert.equal(writes.length, 0, 'a dry-run performs no DELETE');
+  });
+
+  it('undefined dryRun stays dry-run (fail-closed)', async () => {
+    const writes = [];
+    const gh = { request: async (path, opts) => { if (opts?.method === 'DELETE') writes.push(path); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, {});
+    assert.equal(result.status, 'dry-run');
+    assert.equal(writes.length, 0);
+  });
+
+  it('DELETEs automated-security-fixes on every target when live', async () => {
+    const deletes = [];
+    const gh = { request: async (path, opts) => { if (opts?.method === 'DELETE') deletes.push(path); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { removed: 2, errors: 0 });
+    assert.deepEqual(deletes, [
+      '/repos/owner/repo-a/automated-security-fixes',
+      '/repos/owner/repo-b/automated-security-fixes',
+    ]);
+  });
+
+  it('isolates a per-repo DELETE error and continues to the next repo', async () => {
+    const gh = {
+      request: async (path, opts) => {
+        if (opts?.method === 'DELETE' && path.includes('/repo-a/')) throw new Error('403 administration: write required');
+        return null;
+      },
+    };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { removed: 1, errors: 1 });
+  });
+
+  it('scheduled run ALWAYS skips — fenced off the no-human path by construction (ADR-012)', async () => {
+    const gh = { request: async () => { throw new Error('should never be called'); } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+  });
+
+  it('scheduled run skips even when someone allow-lists it (never allow-listable — the reversal inherits the enable fence)', async () => {
+    const gh = { request: async () => { throw new Error('should never be called'); } };
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-security-off': true } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+  });
+
+  it('is auto-merge-ineligible by construction (no TEMPLATES entry)', () => {
+    assert.equal(isAutoMergeAllowed({ 'dependabot-security-off': true }, 'dependabot-security-off'), false);
+  });
+
+  it('honours the per-run cap and repo-name validation via the shared target selection', async () => {
+    const gh = { request: async () => null };
+    const findings = [
+      { type: 'open-vulnerability', repo: 'valid-a', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'bad name!', sources: ['dependabot'] }, // invalid → dropped
+      { type: 'open-vulnerability', repo: 'valid-b', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'valid-c', sources: ['dependabot'] },
+    ];
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: true, maxPerRun: 2 });
+    assert.deepEqual(result.targets, ['valid-a', 'valid-b'], 'invalid name dropped, capped at 2');
   });
 });
 

@@ -160,3 +160,34 @@ un-schedulable by construction, and relaxing that would require redoing the fail
 analysis), auto-merging the resulting bump PRs, or extending the same treatment to any
 settings write that can block merges or restrict access — those remain out of scope for
 both ADR-009 and this ADR.
+
+## Phase 3 addendum — detection consumes the enabled state (2026-07-22)
+
+Phase 3 wires the `GET .../automated-security-fixes` read (`getAutomatedSecurityFixesState`,
+already used by the LIVE apply idempotency guard above) into **detection**, so a
+`dependabot`-sourced `open-vulnerability` finding can distinguish "remediation in flight"
+(autofix ON — GitHub is opening the bump PRs) from "not being driven to resolution" (OFF).
+Two changes, neither opening a new trust boundary:
+
+- **The state is fetched read-only in the OBSERVE/portfolio-details layer** (`observe.js` +
+  `report-portfolio.js`), threaded into `details[repo].autofix`, and read by the pure
+  `detectOpenVulnerabilities` — detection gains no GitHub client. The finding carries
+  `autofixEnabled` (`true`/`false`/`null`; paused → `false`, unreadable → `null`). When
+  `true` and Dependabot is the only source, a `high` finding is downgraded to `medium`;
+  `max_severity` is untouched and the health-tier drop stands (an open alert is still open —
+  "in flight" is a governance annotation, not a tier reprieve). Because the read is inert
+  (a `GET`, degrading to `null` on any error), it introduces **no new trust boundary** and
+  needs no new ADR — this addendum is the cross-link.
+
+- **The reversibility DELETE gains an operator entry point.** `disableDependabotSecurityUpdates`
+  (`tools=dependabot-security-off`) wraps `removeDependabotSecurityUpdates` over the same
+  dependabot-sourced target selection behind the *identical* fence stack as the enable path —
+  `require_approval`, dry-run fail-closed, **manual-dispatch only / OFF the scheduled path by
+  construction**, per-run cap, repo-name validation — and is an explicit dispatch only (never
+  fires on a blank `tools` run). Reversal remains partial per failure mode 4: it reverts the
+  setting only, not any bump PR GitHub already opened, and leaves vulnerability-alerts on.
+
+The Phase 3 read shares the same egress-proxy caveat as the canary above: the interactive
+session cannot reach the API path, so the live `GET` 200 confirmation remains a maintainer/
+Action step. Detection degrades to `null` ("unknown, don't annotate") on any error, so a
+proxy-blocked read is inert rather than misleading.
