@@ -563,6 +563,99 @@ describe('detectOpenVulnerabilities', () => {
     const repos = [makeRepo('repo-a')];
     assert.deepEqual(detectOpenVulnerabilities(repos, {}), []);
   });
+
+  // --- ADR-012 Phase 3: Dependabot autofix "in flight" annotation ---
+
+  it('carries autofixEnabled=true from details.autofix (enabled, not paused) on a dependabot finding', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.autofixEnabled, true);
+  });
+
+  it('carries autofixEnabled=false when autofix is off, and false when paused', () => {
+    const repos = [makeRepo('off'), makeRepo('paused')];
+    const details = makeDetails(repos, {
+      off: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: false, paused: false } },
+      paused: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: true } },
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    assert.equal(findings.find(f => f.repo === 'off').autofixEnabled, false);
+    assert.equal(findings.find(f => f.repo === 'paused').autofixEnabled, false, 'paused → not actively driving → false');
+  });
+
+  it('carries autofixEnabled=null when the autofix state is unreadable/absent', () => {
+    const repos = [makeRepo('nullstate'), makeRepo('nofield')];
+    const details = makeDetails(repos, {
+      nullstate: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: null },
+      nofield: { vulns: { count: 1, high: 1, max_severity: 'high' } }, // no autofix key at all
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    assert.equal(findings.find(f => f.repo === 'nullstate').autofixEnabled, null);
+    assert.equal(findings.find(f => f.repo === 'nofield').autofixEnabled, null);
+  });
+
+  it('downgrades a dependabot-ONLY critical finding high→medium when autofix is in flight', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'medium', 'in-flight remediation lowers the banner priority');
+    assert.equal(f.max_severity, 'critical', 'max_severity is NOT touched — the alert is still open');
+    assert.equal(f.autofixEnabled, true);
+  });
+
+  it('does NOT downgrade when autofix is off (stays high)', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' }, autofix: { enabled: false, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'high');
+  });
+
+  it('does NOT downgrade a multi-source finding even with autofix in flight (code-scanning still needs manual work)', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': {
+        vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        codeScanning: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        autofix: { enabled: true, paused: false },
+      },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.deepEqual(f.sources, ['dependabot', 'code-scanning']);
+    assert.equal(f.priority, 'high', 'a code-scanning source keeps priority — autofix cannot fix it');
+  });
+
+  it('does not attach autofixEnabled to code-scanning / secret-scanning-only findings', () => {
+    const repos = [makeRepo('cs'), makeRepo('secret')];
+    const details = makeDetails(repos, {
+      cs: { vulns: { count: 0, max_severity: null }, codeScanning: { count: 1, critical: 1, high: 0, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
+      secret: { vulns: { count: 0, max_severity: null }, secretScanning: { count: 1 }, autofix: { enabled: true, paused: false } },
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    const cs = findings.find(f => f.repo === 'cs');
+    const secret = findings.find(f => f.repo === 'secret');
+    assert.ok(!('autofixEnabled' in cs), 'code-scanning-only finding has no autofixEnabled field');
+    assert.ok(!('autofixEnabled' in secret), 'secret-scanning-only finding has no autofixEnabled field');
+    assert.equal(cs.priority, 'high');
+    assert.equal(secret.priority, 'high');
+  });
+
+  it('records the in-flight distinction in the remediation rationale', () => {
+    const repos = [makeRepo('on'), makeRepo('off')];
+    const details = makeDetails(repos, {
+      on: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: false } },
+      off: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: false, paused: false } },
+    });
+    const findings = attachRemediationPlans(detectOpenVulnerabilities(repos, details));
+    assert.match(findings.find(f => f.repo === 'on').remediation.rationale, /in flight/i);
+    assert.match(findings.find(f => f.repo === 'off').remediation.rationale, /not being driven|OFF/i);
+  });
 });
 
 describe('buildRemediationPlan', () => {

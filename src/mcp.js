@@ -167,7 +167,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run.',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -331,6 +331,12 @@ function toolGetGovernanceFindings() {
         drift: findings.filter(f => f.type === 'policy-drift').length,
         uplift: findings.filter(f => f.type === 'tier-uplift').length,
         openVulnerabilities: findings.filter(f => f.type === 'open-vulnerability').length,
+        // ADR-012 Phase 3: how many dependabot-sourced open-vulnerability findings
+        // have autofix ON (remediation in flight — GitHub is opening the bump PRs)
+        // vs OFF (not being driven to resolution). Each finding also carries the
+        // per-repo `autofixEnabled` tri-state (true/false/null) for detail.
+        autofixInFlight: findings.filter(f => f.type === 'open-vulnerability' && f.autofixEnabled === true).length,
+        autofixNotDriven: findings.filter(f => f.type === 'open-vulnerability' && f.autofixEnabled === false).length,
         // ADR-007 remediation contract: route findings by executor hint.
         byExecutor: {
           template: findings.filter(f => f.remediation?.executor === 'template').length,

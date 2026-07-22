@@ -1,4 +1,4 @@
-import { createClient, paginateIssues } from './github.js';
+import { createClient, paginateIssues, getAutomatedSecurityFixesState } from './github.js';
 import { isBugIssue, isBlocked, isFeatureIssue, isPublishedRelease, getAlertSummary } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
@@ -49,6 +49,7 @@ export async function observe(context) {
     codeScanningAlerts,
     secretScanningAlerts,
     ciPassRate,
+    autofix,
   ] = await Promise.all([
     fetchOpenIssues(gh, owner, repo),
     fetchClosedIssues(gh, owner, repo, issuesSince),
@@ -63,6 +64,11 @@ export async function observe(context) {
     fetchCodeScanningAlerts(gh, owner, repo),
     fetchSecretScanningAlerts(gh, owner, repo),
     fetchCIPassRate(gh, owner, repo),
+    // Dependabot automated security fixes state (ADR-012 Phase 3): { enabled,
+    // paused } | null. Gathered here on the OBSERVE→REPORT pipeline path so the
+    // per-repo snapshot carries it too (the portfolio-details path fetches it in
+    // report-portfolio.js). Returns null on any error / missing scope.
+    getAutomatedSecurityFixesState(gh, owner, repo),
   ]);
 
   const roadmapPath = config.roadmap?.path || 'ROADMAP.md';
@@ -100,9 +106,10 @@ export async function observe(context) {
     code_scanning_alerts: codeScanningAlerts,
     secret_scanning_alerts: secretScanningAlerts,
     ci_pass_rate: ciPassRate,
+    automated_security_fixes: autofix,
     summary: buildSummary({
       openIssues, closedIssues, mergedPRs, releases, repoMeta, labels,
-      communityProfile, dependabotAlerts, codeScanningAlerts, secretScanningAlerts, ciPassRate,
+      communityProfile, dependabotAlerts, codeScanningAlerts, secretScanningAlerts, ciPassRate, autofix,
     }),
   };
 
@@ -492,7 +499,7 @@ async function fetchCIPassRate(gh, owner, repo) {
 
 // --- Analysis helpers ---
 
-function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta, labels, communityProfile, dependabotAlerts, codeScanningAlerts, secretScanningAlerts, ciPassRate }) {
+function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta, labels, communityProfile, dependabotAlerts, codeScanningAlerts, secretScanningAlerts, ciPassRate, autofix }) {
   const labelCounts = {};
   for (const issue of openIssues) {
     for (const label of issue.labels) {
@@ -543,6 +550,10 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
     code_scanning_alert_count: codeScanningAlerts ? codeScanningAlerts.count : null,
     code_scanning_max_severity: codeScanningAlerts?.max_severity ?? null,
     secret_scanning_alert_count: secretScanningAlerts ? secretScanningAlerts.count : null,
+    // Dependabot automated security fixes (ADR-012 Phase 3): true when GitHub is
+    // actively opening bump PRs (enabled AND not paused), false when off/paused,
+    // null when the state is unreadable (feature unavailable / missing scope).
+    automated_security_fixes_active: autofix == null ? null : (autofix.enabled === true && autofix.paused !== true),
     ci_pass_rate: ciPassRate?.pass_rate ?? null,
     bus_factor: computeBusFactor(mergedPRs),
     time_to_close_median: computeTimeToCloseMedian(closedIssues),

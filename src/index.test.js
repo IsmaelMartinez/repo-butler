@@ -1,6 +1,6 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { runPhases, parsePhases, validateRepoFormat, getPipelineState } from './index.js';
+import { runPhases, parsePhases, validateRepoFormat, getPipelineState, resolveDependabotSecurityDispatch } from './index.js';
 
 describe('parsePhases', () => {
   it('splits a comma list and trims whitespace', () => {
@@ -18,6 +18,41 @@ describe('validateRepoFormat', () => {
   });
   it('rejects bare names', () => {
     assert.throws(() => validateRepoFormat('foo'));
+  });
+});
+
+describe('resolveDependabotSecurityDispatch (ADR-012 enable/disable mutual exclusion)', () => {
+  it('blank tools → enable only (all actionable), never disable', () => {
+    assert.deepEqual(resolveDependabotSecurityDispatch([], false), { conflict: false, enable: true, disable: false });
+  });
+
+  it('dependabot-security → enable only', () => {
+    const r = resolveDependabotSecurityDispatch(['dependabot-security'], false);
+    assert.equal(r.enable, true);
+    assert.equal(r.disable, false);
+    assert.equal(r.conflict, false);
+  });
+
+  it('dependabot-security-off → disable only (never on a blank run)', () => {
+    const r = resolveDependabotSecurityDispatch(['dependabot-security-off'], false);
+    assert.equal(r.disable, true);
+    assert.equal(r.enable, false, 'the off tool is not the enable tool and is not blank');
+  });
+
+  it('naming BOTH is a contradictory dispatch → conflict, run neither (fail safe)', () => {
+    const r = resolveDependabotSecurityDispatch(['dependabot-security', 'dependabot-security-off'], false);
+    assert.deepEqual(r, { conflict: true, enable: false, disable: false });
+  });
+
+  it('a scheduled run resolves to neither toggle (both off the no-human path by construction)', () => {
+    assert.deepEqual(resolveDependabotSecurityDispatch([], true), { conflict: false, enable: false, disable: false });
+    assert.deepEqual(resolveDependabotSecurityDispatch(['dependabot-security-off'], true), { conflict: false, enable: false, disable: false });
+  });
+
+  it('an unrelated tool leaves both off (no blank-run enable)', () => {
+    const r = resolveDependabotSecurityDispatch(['code-review-bot'], false);
+    assert.equal(r.enable, false);
+    assert.equal(r.disable, false);
   });
 });
 

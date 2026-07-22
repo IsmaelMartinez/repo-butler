@@ -264,6 +264,10 @@ export function buildRepoSnapshot({
     dependabot_alerts: details?.vulns || null,
     code_scanning_alerts: details?.codeScanning ?? null,
     secret_scanning_alerts: details?.secretScanning ?? null,
+    // Dependabot automated security fixes state (ADR-012 Phase 3): { enabled,
+    // paused } | null, threaded from portfolio details so the portfolio→per-repo
+    // path carries the same field the OBSERVE→REPORT path sets in observe.js.
+    automated_security_fixes: details?.autofix ?? null,
     ci_pass_rate: details?.ciPassRate != null ? { pass_rate: details.ciPassRate, total_runs: 0, passed: 0, failed: 0 } : null,
     sbom: details?.sbom || null,
     summary: {
@@ -279,6 +283,7 @@ export function buildRepoSnapshot({
       ci_workflows: details?.ci || 0,
       bus_factor: busFactor,
       time_to_close_median: timeToCloseMedian,
+      automated_security_fixes_active: details?.autofix == null ? null : (details.autofix.enabled === true && details.autofix.paused !== true),
     },
   };
 }

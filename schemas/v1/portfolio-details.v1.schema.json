@@ -120,6 +120,20 @@
             { "type": "null" }
           ],
           "description": "Rolling 14-day views and clones summary from /traffic/views and /traffic/clones. Requires push access on the token; null when unavailable (403/404). Adjacent weekly snapshots overlap by 7 days — fine for trend forecasting, not for cumulative counts."
+        },
+        "autofix": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["enabled", "paused"],
+              "properties": {
+                "enabled": { "type": "boolean", "description": "Dependabot automated security fixes are enabled on the repo" },
+                "paused": { "type": "boolean", "description": "GitHub paused the fixes (e.g. an inactive repo) — enabled but not opening PRs" }
+              }
+            },
+            { "type": "null" }
+          ],
+          "description": "Dependabot automated security fixes state from GET /automated-security-fixes (ADR-012 Phase 3); null when unavailable (feature off, or the App lacks administration: write). Consumed by detectOpenVulnerabilities to annotate a dependabot-sourced open-vulnerability finding as remediation-in-flight vs not-driven. Detection stays pure — the state is fetched here, in the OBSERVE/portfolio-details layer."
         }
       }
     },

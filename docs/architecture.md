@@ -262,6 +262,19 @@ and it skips any repo already enabled *or paused*. It acts only on the
 `dependabot`-sourced `open-vulnerability` findings; dispatch it with
 `tools=dependabot-security`, dry-run by default.
 
+The reversal shares that fence stack. `disableDependabotSecurityUpdates`
+(`tools=dependabot-security-off`) wraps the per-repo `removeDependabotSecurityUpdates`
+DELETE over the same target selection behind the identical gates — manual-dispatch
+only, off the scheduled path by construction, dry-run fail-closed, per-run cap,
+repo-name validation — and is an *explicit* dispatch only, so it never rides a blank
+`tools` run. Reversal is **partial by design**: the DELETE reverts the *setting only*,
+never closing any bump PR GitHub already opened, and it leaves vulnerability-alerts
+enabled. Detection now consumes the enabled state (ADR-012 Phase 3): a
+dependabot-sourced `open-vulnerability` finding carries `autofixEnabled`
+(`true`/`false`/`null`), fetched read-only in the OBSERVE/portfolio-details layer and
+surfaced on the dashboard and via `get_governance_findings`, so "remediation in flight"
+is visible without a new trust boundary — the read is inert.
+
 Note that `apply` lives in the dispatcher's `PHASE_RUNNERS` map but is
 intentionally absent from the `PHASES` list, so it never runs as part of
 `--phase=all` — it can only be invoked explicitly.

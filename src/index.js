@@ -30,9 +30,9 @@ async function runApply(context) {
   // Stage 4 (ADR-007): set by the scheduled apply workflow only. On the no-human
   // path, apply.js gates each finding class behind the apply-schedule allow-list.
   const scheduled = process.env.INPUT_SCHEDULED === 'true';
-  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, autoMergeGovernancePRs;
+  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, disableDependabotSecurityUpdates, autoMergeGovernancePRs;
   try {
-    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, autoMergeGovernancePRs } = await import('./apply.js'));
+    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, disableDependabotSecurityUpdates, autoMergeGovernancePRs } = await import('./apply.js'));
   } catch {
     console.error('Apply module not available yet (src/apply.js). Skipping.');
     return;
@@ -93,8 +93,13 @@ async function runApply(context) {
   // dispatched here on a scheduled run, and (unlike the Copilot settings write) is
   // never promotable via apply-schedule. Manual dispatch only: it runs on a blank
   // `tools` (all actionable) or when `tools` explicitly names `dependabot-security`.
-  // Live writes need the App's `administration: write` scope.
-  const depSecRequested = !scheduled && (tools.length === 0 || tools.includes('dependabot-security'));
+  // The enable and disable toggles are mutually exclusive (see the helper) — naming
+  // both is contradictory and runs neither. Live writes need `administration: write`.
+  const depSecDispatch = resolveDependabotSecurityDispatch(tools, scheduled);
+  if (depSecDispatch.conflict) {
+    console.error('apply: `tools` names both dependabot-security and dependabot-security-off — contradictory dispatch; skipping BOTH settings writes.');
+  }
+  const depSecRequested = depSecDispatch.enable;
   const depSecResult = depSecRequested
     ? await applyDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
     : null;
@@ -102,6 +107,25 @@ async function runApply(context) {
     appendFileSync(
       process.env.GITHUB_OUTPUT,
       `dependabotSecurity=${JSON.stringify(depSecResult.summary)}\n`,
+    );
+  }
+
+  // Dependabot security-updates DISABLE (ADR-012 reversibility, the mirror of
+  // dependabot-security). Behind the identical fences, and — like the enable path —
+  // fenced OFF the no-human scheduled path by construction. EXPLICIT dispatch only:
+  // it never fires on a blank `tools` run (which enables actionable findings), only
+  // when `tools` names `dependabot-security-off`, so a rollback is always a
+  // deliberate operator action and never rides an enable/apply run. Live DELETEs
+  // need the App's `administration: write` scope. DELETE reverts the SETTING, not
+  // any bump PR GitHub already opened.
+  const depSecOffRequested = depSecDispatch.disable;
+  const depSecOffResult = depSecOffRequested
+    ? await disableDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
+    : null;
+  if (depSecOffResult?.summary && process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `dependabotSecurityOff=${JSON.stringify(depSecOffResult.summary)}\n`,
     );
   }
 
@@ -164,6 +188,15 @@ async function runApply(context) {
       `dependabot-security: ${depSecResult.summary.errors} error(s) [${failed}]; ${depSecResult.summary.enabled} enabled, ${depSecResult.summary.skipped} skipped`,
     );
   }
+  if (depSecOffResult?.summary?.errors > 0) {
+    const failed = depSecOffResult.results
+      .filter(r => r.status === 'error')
+      .map(r => r.repo)
+      .join(', ');
+    errParts.push(
+      `dependabot-security-off: ${depSecOffResult.summary.errors} error(s) [${failed}]; ${depSecOffResult.summary.removed} disabled`,
+    );
+  }
   if (autoMergeResult?.summary?.errors > 0) {
     const failed = autoMergeResult.results
       .filter(r => r.status === 'error')
@@ -189,6 +222,23 @@ const PHASE_RUNNERS = {
   monitor: runMonitor,
   apply: runApply,
 };
+
+// Resolve which of the two mutually-exclusive ADR-012 settings toggles a manual
+// apply dispatch requests. Enabling (`dependabot-security`, or a blank `tools` =
+// all actionable) and disabling (`dependabot-security-off`, explicit only) target
+// the same repo setting, so naming BOTH in one dispatch is contradictory — it
+// would PUT then DELETE in a single run, netting an unpredictable toggle. Fail
+// SAFE: on conflict, run NEITHER. Both are off the no-human scheduled path by
+// construction, so a scheduled run resolves to neither. Pure — no I/O.
+export function resolveDependabotSecurityDispatch(tools, scheduled) {
+  const list = Array.isArray(tools) ? tools : [];
+  const conflict = list.includes('dependabot-security') && list.includes('dependabot-security-off');
+  return {
+    conflict,
+    enable: !scheduled && !conflict && (list.length === 0 || list.includes('dependabot-security')),
+    disable: !scheduled && !conflict && list.includes('dependabot-security-off'),
+  };
+}
 
 export function validateRepoFormat(repo) {
   if (!repo.includes('/')) {

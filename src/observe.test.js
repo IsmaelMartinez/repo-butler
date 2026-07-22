@@ -747,3 +747,40 @@ describe('observe — prs_merged_days config wiring', () => {
     assert.equal(merged[0].number, 10);
   });
 });
+
+describe('observe — Dependabot autofix state (ADR-012 Phase 3)', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const ok = (body) => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  const err = (status) => ({ ok: false, status, headers: new Map(), json: async () => ({}), text: async () => 'error' });
+
+  function run(autofixResponder) {
+    globalThis.fetch = mock.fn(async (url) => {
+      const p = new URL(url).pathname;
+      if (p === '/repos/owner/repo/automated-security-fixes') return autofixResponder();
+      if (p === '/repos/owner/repo') return ok({ stargazers_count: 0, forks_count: 0, open_issues_count: 0 });
+      if (p.startsWith('/repos/owner/repo/contents/')) return err(404);
+      return ok([]);
+    });
+    return import('./observe.js').then(({ observe }) => observe({ owner: 'owner', repo: 'repo', token: 'fake', config: {} }));
+  }
+
+  it('records the state on the snapshot and derives the active summary flag when enabled and not paused', async () => {
+    const snapshot = await run(() => ok({ enabled: true, paused: false }));
+    assert.deepEqual(snapshot.automated_security_fixes, { enabled: true, paused: false });
+    assert.equal(snapshot.summary.automated_security_fixes_active, true);
+  });
+
+  it('reports active=false when paused', async () => {
+    const snapshot = await run(() => ok({ enabled: true, paused: true }));
+    assert.equal(snapshot.summary.automated_security_fixes_active, false);
+  });
+
+  it('degrades to null (state unreadable) on error, never annotating false', async () => {
+    const snapshot = await run(() => err(403));
+    assert.equal(snapshot.automated_security_fixes, null);
+    assert.equal(snapshot.summary.automated_security_fixes_active, null);
+  });
+});

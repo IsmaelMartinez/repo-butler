@@ -881,6 +881,18 @@ export async function applyDependabotSecurityUpdates(gh, owner, findings, config
   const targets = selectDependabotSecurityTargets(findings, maxPerRun);
   const live = dryRun === false; // Gate 2: dry-run fail-closed — only literal false writes.
 
+  // Snapshot annotation (ADR-012 Phase 3): the finding now carries autofixEnabled,
+  // the state governance read at OBSERVE time. We still trust the LIVE read below
+  // for the actual write decision (the snapshot can be up to 6h stale), but we note
+  // when the two disagree so the dry-run preview flags a stale snapshot rather than
+  // silently diverging from the finding the operator is looking at.
+  const snapshotAutofix = {};
+  for (const f of Array.isArray(findings) ? findings : []) {
+    if (f?.type === 'open-vulnerability' && Array.isArray(f.sources) && f.sources.includes('dependabot') && f.repo) {
+      snapshotAutofix[f.repo] = f.autofixEnabled ?? null;
+    }
+  }
+
   // Sequential canary, one repo at a time — a settings write, so no parallel fan-out.
   // The LIVE idempotency read runs in BOTH dry-run and live so the dry-run preview is
   // an accurate audit record (it stands in for the absent PR diff): it lists the repos
@@ -903,13 +915,21 @@ export async function applyDependabotSecurityUpdates(gh, owner, findings, config
         results.push({ repo, status: 'skipped', reason: 'state unreadable' });
         continue;
       }
+      // Stale-snapshot detection: the finding's autofixEnabled annotation (OBSERVE
+      // snapshot) said ON, but the live read says OFF/paused. Note it so the preview
+      // and audit log show the divergence; the LIVE read always wins the decision.
+      const liveActive = state.enabled === true && state.paused !== true;
+      const snapshotStale = snapshotAutofix[repo] === true && !liveActive;
+      if (snapshotStale) {
+        console.log(`dependabot-security: ${owner}/${repo} — stale snapshot: finding said autofix ON, live read says ${state.paused ? 'paused' : 'OFF'} (trusting live read)`);
+      }
       if (state.enabled || state.paused) {
         console.log(`dependabot-security: ${owner}/${repo} already ${state.paused ? 'paused' : 'enabled'}, skipping`);
-        results.push({ repo, status: 'skipped', reason: state.paused ? 'paused' : 'already enabled' });
+        results.push({ repo, status: 'skipped', reason: state.paused ? 'paused' : 'already enabled', ...(snapshotStale ? { snapshotStale: true } : {}) });
         continue;
       }
       if (!live) {
-        results.push({ repo, status: 'would-enable' });
+        results.push({ repo, status: 'would-enable', ...(snapshotStale ? { snapshotStale: true } : {}) });
         continue;
       }
       // vulnerability-alerts is the prerequisite for automated-security-fixes:
@@ -962,6 +982,68 @@ export async function removeDependabotSecurityUpdates(gh, owner, repo) {
     console.error(`dependabot-security: error disabling on ${repo}: ${err.message}`);
     return { repo, status: 'error', error: err.message };
   }
+}
+
+// Operator entry point for the reversibility affordance (ADR-012). Disables
+// Dependabot automated security fixes across the same dependabot-sourced
+// open-vulnerability targets the enable path acts on, behind the SAME fences —
+// so `tools=dependabot-security-off` is the mirror of `tools=dependabot-security`.
+// It rides the identical gate stack (ADR-012):
+//   • require_approval master switch (Gate 3),
+//   • dry-run fail-closed — only literal `false` performs the DELETE (Gate 2),
+//   • manual-dispatch only / OFF the apply-schedule path BY CONSTRUCTION — a
+//     scheduled run ALWAYS skips (never allow-listable, exactly like the enable
+//     class), so autonomous runs can never toggle an ADR-012 setting,
+//   • per-run cap + repo-name validation via selectDependabotSecurityTargets
+//     (Gates 4 & 5).
+// Reversal is PARTIAL by design: DELETE reverts the *setting* only — it does NOT
+// close any bump PR GitHub already opened while autofix was on, and it leaves
+// vulnerability-alerts enabled (read-only surfacing is never harmful). Per-repo
+// errors are isolated (removeDependabotSecurityUpdates returns a structured result
+// rather than throwing), so a bulk rollback continues past one failure.
+export async function disableDependabotSecurityUpdates(gh, owner, findings, config, options = {}) {
+  const { dryRun, maxPerRun = 5, scheduled } = options;
+
+  // Gate 3: require_approval master switch.
+  if (!config?.limits?.require_approval) {
+    console.error('dependabot-security-off: config.limits.require_approval is not true — refusing to run');
+    return { status: 'refused', reason: 'require_approval not set' };
+  }
+
+  // ADR-012 fence: reversal of an ADR-012 write inherits the same manual-only
+  // fence as the enable path — a scheduled (no-human) run must NEVER toggle this
+  // setting in either direction. Skips by construction; not allow-listable.
+  if (scheduled) {
+    console.log('dependabot-security-off [scheduled]: fenced off the no-human path by construction (ADR-012) — skipping');
+    return { status: 'skipped-unscheduled', targets: [] };
+  }
+
+  // Gate 5 (repo-name validation) + gate 4 (per-run cap) — same target selection
+  // as the enable path.
+  const targets = selectDependabotSecurityTargets(findings, maxPerRun);
+  const live = dryRun === false; // Gate 2: dry-run fail-closed — only literal false writes.
+
+  if (!live) {
+    console.log(`dependabot-security-off [DRY RUN]: would disable automated security fixes on ${targets.length} repo(s)`);
+    for (const repo of targets) console.log(`  - ${owner}/${repo}`);
+    return {
+      status: 'dry-run',
+      targets,
+      results: targets.map(repo => ({ repo, status: 'would-remove' })),
+      summary: { removed: 0, errors: 0, wouldRemove: targets.length },
+    };
+  }
+
+  // Sequential, one repo at a time — a settings write, so no parallel fan-out.
+  const results = [];
+  for (const repo of targets) {
+    results.push(await removeDependabotSecurityUpdates(gh, owner, repo));
+  }
+
+  const removed = results.filter(r => r.status === 'removed').length;
+  const errors = results.filter(r => r.status === 'error').length;
+  console.log(`dependabot-security-off: done — ${removed} disabled, ${errors} errors`);
+  return { status: 'completed', results, summary: { removed, errors } };
 }
 
 // --- Selective auto-merge (ADR-007 stage 5) ----------------------------------

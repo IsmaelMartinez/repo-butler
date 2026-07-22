@@ -7,7 +7,7 @@ on:
         description: 'Dry run (log only, no PRs)'
         default: 'true'
       tools:
-        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration: write to go live). Both settings writes are dry-run by default.'
+        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration: write to go live; "dependabot-security-off" = the reversal — DELETE the setting on the same targets (reverts the setting only, NOT any bump PR GitHub already opened; explicit dispatch only, never fires on a blank run). All settings writes are dry-run by default.'
         required: false
       max-apply-per-run:
         description: 'Per-run cap: max PRs opened AND max repos acted on by a settings write (Copilot review / dependabot-security) per run (default 5)'
@@ -61,6 +61,7 @@ jobs:
           NUDGE: ${{ steps.apply.outputs.nudge }}
           COPILOT_REVIEW: ${{ steps.apply.outputs.copilotReview }}
           DEPENDABOT_SECURITY: ${{ steps.apply.outputs.dependabotSecurity }}
+          DEPENDABOT_SECURITY_OFF: ${{ steps.apply.outputs.dependabotSecurityOff }}
           DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
         run: |
           mode="dry-run"
@@ -74,7 +75,10 @@ jobs:
             echo "- Nudge summary: \`${NUDGE:-(none — dry-run or nothing actionable)}\`"
             echo "- Copilot-review (settings write) summary: \`${COPILOT_REVIEW:-(none — not requested or nothing actionable)}\`"
             # ADR-012: manual-dispatch only — this is the ONLY workflow that runs
-            # the Dependabot security-updates settings write.
+            # the Dependabot security-updates settings write, and its reversal.
             echo "- Dependabot-security (settings write) summary: \`${DEPENDABOT_SECURITY:-(none — not requested or nothing actionable)}\`"
+            # ADR-012 reversal (tools=dependabot-security-off): the DELETE reverts
+            # the setting only, never a bump PR GitHub already opened.
+            echo "- Dependabot-security-off (reversal) summary: \`${DEPENDABOT_SECURITY_OFF:-(none — not requested)}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Governance apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=${DEPENDABOT_SECURITY:-none}"
+          echo "::notice title=Governance apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=${DEPENDABOT_SECURITY:-none} dependabotSecurityOff=${DEPENDABOT_SECURITY_OFF:-none}"

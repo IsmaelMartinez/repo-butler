@@ -185,6 +185,28 @@ describe('computeHealthTier', () => {
     assert.ok(checks.every(c => c.passed), 'all checks should pass for gold');
   });
 
+  it('ignores the Dependabot autofix state — an open high alert still drops the tier (ADR-012 Phase 3)', () => {
+    // "In flight" is a governance annotation, NOT a tier reprieve: whether or not
+    // autofix is opening bump PRs, the alert is still open, so the Gold security
+    // check must fail identically with autofix on, off, or unknown.
+    const base = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, vulns: { count: 1, high: 1, max_severity: 'high' }, commits: 50,
+    };
+    const withOn = computeHealthTier({ ...base, autofix: { enabled: true, paused: false } });
+    const withOff = computeHealthTier({ ...base, autofix: { enabled: false, paused: false } });
+    const withNone = computeHealthTier(base);
+    assert.notEqual(withNone.tier, 'gold', 'an open high alert blocks gold');
+    assert.equal(withOn.tier, withNone.tier, 'autofix ON must not change the tier');
+    assert.equal(withOff.tier, withNone.tier, 'autofix OFF must not change the tier');
+    const secCheck = c => c.name.toLowerCase().includes('security');
+    assert.deepEqual(
+      withOn.checks.filter(secCheck).map(c => c.passed),
+      withNone.checks.filter(secCheck).map(c => c.passed),
+      'the security check outcome is identical regardless of autofix state',
+    );
+  });
+
   it('assigns silver when gold criteria fail but silver pass', () => {
     const r = {
       ci: 1, license: 'MIT', open_issues: 15, pushed_at: now,
@@ -1403,14 +1425,23 @@ describe('report cache invalidation includes report.js', () => {
 });
 
 describe('fetchPortfolioDetails incremental cache', () => {
-  it('uses cached details when pushed_at and open_issues_count match', async () => {
+  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix setting)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // Mock GitHub client — should NOT be called for cached repos.
-    let apiCalled = false;
+    // The only permitted call on a cache hit is the single autofix GET (ADR-012
+    // Phase 3): the setting can flip without a push, so it is refreshed while every
+    // push-invariant field comes from cache. No paginate / getFileContent / full
+    // re-fetch should occur.
+    const requestPaths = [];
+    let paginateCalled = false;
+    let getFileContentCalled = false;
     const gh = {
-      request: () => { apiCalled = true; return Promise.resolve({}); },
-      paginate: () => { apiCalled = true; return Promise.resolve([]); },
-      getFileContent: () => { apiCalled = true; return Promise.resolve(null); },
+      request: (path) => {
+        requestPaths.push(path);
+        if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+        return Promise.resolve({});
+      },
+      paginate: () => { paginateCalled = true; return Promise.resolve([]); },
+      getFileContent: () => { getFileContentCalled = true; return Promise.resolve(null); },
     };
     const repos = [
       { name: 'cached-repo', pushed_at: '2026-04-01T00:00:00Z', open_issues: 5, archived: false, fork: false, stars: 10 },
@@ -1421,13 +1452,16 @@ describe('fetchPortfolioDetails incremental cache', () => {
           schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: '2026-04-01T00:00:00Z',
           open_issues_count: 5,
-          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null },
+          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null, autofix: null },
         },
       },
     };
     const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
-    assert.equal(apiCalled, false, 'should not call API for cached repo');
+    assert.deepEqual(requestPaths, ['/repos/owner/cached-repo/automated-security-fixes'], 'only the autofix GET runs on a cache hit');
+    assert.equal(paginateCalled, false, 'no paginate on a cache hit');
+    assert.equal(getFileContentCalled, false, 'no getFileContent on a cache hit');
     assert.equal(details['cached-repo'].commits, 42, 'should use cached commits');
+    assert.deepEqual(details['cached-repo'].autofix, { enabled: true, paused: false }, 'refreshes the stale autofix state from the live GET');
     assert.ok(details._cachedRepos.includes('cached-repo'), 'should mark as cached');
   });
 
@@ -1696,6 +1730,35 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const details = await fetchPortfolioDetails(gh, 'owner', repos);
     assert.equal(details['cr-repo'].hasCopilotReview, true);
   });
+
+  it('threads the Dependabot autofix state onto details (ADR-012 Phase 3)', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const mk = (autofixResponse) => ({
+      paginate: () => Promise.resolve([]),
+      request: (path) => {
+        if (path.endsWith('/automated-security-fixes')) return autofixResponse();
+        if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 0, workflows: [] });
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        if (path.match(/\/rulesets/)) return Promise.resolve({});
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      getFileContent: () => Promise.resolve(null),
+    });
+    const repos = [{ name: 'af-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 }];
+
+    const on = await fetchPortfolioDetails(mk(() => Promise.resolve({ enabled: true, paused: false })), 'owner', repos);
+    assert.deepEqual(on['af-repo'].autofix, { enabled: true, paused: false });
+
+    // Unavailable endpoint → getAutomatedSecurityFixesState returns null → details.autofix null.
+    const off = await fetchPortfolioDetails(mk(() => Promise.reject(new Error('404'))), 'owner', repos);
+    assert.equal(off['af-repo'].autofix, null);
+  });
 });
 
 describe('buildGovernanceSection', () => {
@@ -1738,6 +1801,20 @@ describe('buildGovernanceSection', () => {
     assert.ok(html.includes('dependabot'), 'should show the alert source');
     // High-priority (critical) row sorts before the medium row.
     assert.ok(html.indexOf('repo-a.html') < html.indexOf('repo-b.html'), 'critical repo sorts first');
+  });
+
+  it('surfaces the Dependabot autofix state on dependabot-sourced findings (ADR-012 Phase 3)', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'inflight', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'medium', autofixEnabled: true, remediation: { executor: 'manual' } },
+      { type: 'open-vulnerability', repo: 'notdriven', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: false, remediation: { executor: 'manual' } },
+      { type: 'open-vulnerability', repo: 'unknownstate', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: null, remediation: { executor: 'manual' } },
+      { type: 'open-vulnerability', repo: 'codeonly', critical: 1, high: 0, secretScanning: 0, sources: ['code-scanning'], priority: 'high', remediation: { executor: 'manual' } },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Dependabot autofix'), 'adds the autofix column header');
+    assert.ok(html.includes('in flight'), 'shows in-flight state for autofixEnabled=true');
+    assert.ok(html.includes('not driven'), 'shows not-driven state for autofixEnabled=false');
+    assert.ok(html.includes('unknown'), 'shows unknown for autofixEnabled=null');
   });
 
   it('shows a per-executor remediation breakdown when findings carry executor hints', () => {
@@ -1998,6 +2075,7 @@ describe('buildRepoSnapshot', () => {
       dependabot_alerts: { count: 2, max_severity: 'high' },
       code_scanning_alerts: { count: 1, max_severity: 'medium' },
       secret_scanning_alerts: { count: 0 },
+      automated_security_fixes: null,
       ci_pass_rate: { pass_rate: 0.92, total_runs: 0, passed: 0, failed: 0 },
       sbom: { count: 50, packages: [] },
       summary: {
@@ -2005,6 +2083,7 @@ describe('buildRepoSnapshot', () => {
         recently_merged_prs: 8, human_prs: 3, bot_prs: 5,
         releases: 2, latest_release: 'v1.2.0', ci_workflows: 4,
         bus_factor: 2, time_to_close_median: 4.5,
+        automated_security_fixes_active: null,
       },
     };
     assert.deepEqual(snap, expected);
@@ -2019,6 +2098,26 @@ describe('buildRepoSnapshot', () => {
     assert.deepEqual(snap.meta, { stars: 12, forks: 3, homepage: null });
     assert.equal(snap.license, 'Apache-2.0');
     assert.equal(snap.pushed_at, '2026-04-01T00:00:00Z');
+  });
+
+  it('threads the Dependabot autofix state from details (ADR-012 Phase 3)', () => {
+    // enabled + not paused → active true; state object passed through verbatim.
+    const on = buildRepoSnapshot({ owner: 'o', repo: 'r', details: { autofix: { enabled: true, paused: false } } });
+    assert.deepEqual(on.automated_security_fixes, { enabled: true, paused: false });
+    assert.equal(on.summary.automated_security_fixes_active, true);
+
+    // paused → not actively opening PRs → active false.
+    const paused = buildRepoSnapshot({ owner: 'o', repo: 'r', details: { autofix: { enabled: true, paused: true } } });
+    assert.equal(paused.summary.automated_security_fixes_active, false);
+
+    // off → active false.
+    const off = buildRepoSnapshot({ owner: 'o', repo: 'r', details: { autofix: { enabled: false, paused: false } } });
+    assert.equal(off.summary.automated_security_fixes_active, false);
+
+    // unreadable/absent → null (unknown), never annotated as false.
+    const unknown = buildRepoSnapshot({ owner: 'o', repo: 'r', details: { autofix: null } });
+    assert.equal(unknown.automated_security_fixes, null);
+    assert.equal(unknown.summary.automated_security_fixes_active, null);
   });
 
   it('produces the minimal shape used by buildPortfolioAttentionSection', () => {
