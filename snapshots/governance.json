@@ -72,6 +72,10 @@
       {
         "name": "Fewer than 10 open bugs",
         "required_for": "gold"
+      },
+      {
+        "name": "Zero critical/high security findings",
+        "required_for": "gold"
       }
     ],
     "priority": "high",
@@ -79,9 +83,10 @@
       "executor": "agent",
       "targetFiles": [],
       "intent": "Uplift teams-for-linux from silver to gold",
-      "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
+      "rationale": "2 check(s) block gold: Fewer than 10 open bugs, Zero critical/high security findings.",
       "acceptanceCriteria": [
-        "Check \"Fewer than 10 open bugs\" passes"
+        "Check \"Fewer than 10 open bugs\" passes",
+        "Check \"Zero critical/high security findings\" passes"
       ]
     }
   },
@@ -170,6 +175,111 @@
       "rationale": "1 check(s) block gold: Zero critical/high security findings.",
       "acceptanceCriteria": [
         "Check \"Zero critical/high security findings\" passes"
+      ]
+    }
+  },
+  {
+    "type": "open-vulnerability",
+    "repo": "yourear",
+    "critical": 0,
+    "high": 1,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "high",
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in yourear",
+      "rationale": "0 critical / 1 high open alert(s) from dependabot.",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+      ]
+    }
+  },
+  {
+    "type": "open-vulnerability",
+    "repo": "teams-for-linux",
+    "critical": 0,
+    "high": 3,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "high",
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in teams-for-linux",
+      "rationale": "0 critical / 3 high open alert(s) from dependabot.",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+      ]
+    }
+  },
+  {
+    "type": "open-vulnerability",
+    "repo": "ismaelmartinez.me.uk",
+    "critical": 0,
+    "high": 3,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "high",
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
+      "rationale": "0 critical / 3 high open alert(s) from dependabot.",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+      ]
+    }
+  },
+  {
+    "type": "open-vulnerability",
+    "repo": "ai-model-advisor",
+    "critical": 0,
+    "high": 1,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "high",
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in ai-model-advisor",
+      "rationale": "0 critical / 1 high open alert(s) from dependabot.",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+      ]
+    }
+  },
+  {
+    "type": "open-vulnerability",
+    "repo": "wifisentinel",
+    "critical": 0,
+    "high": 1,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "high",
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in wifisentinel",
+      "rationale": "0 critical / 1 high open alert(s) from dependabot.",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
     }
   }
