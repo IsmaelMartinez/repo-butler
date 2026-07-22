@@ -1286,6 +1286,23 @@ describe('applyDependabotSecurityUpdates', () => {
     assert.deepEqual(result.summary, { enabled: 1, skipped: 0, errors: 1 });
   });
 
+  it('fails closed (skips, no PUT) when the live state is unreadable', async () => {
+    // getAutomatedSecurityFixesState returns null on any GET error (no scope,
+    // transient, feature unavailable). We cannot confirm the repo is not paused,
+    // so we must never write blind — skip rather than risk overriding a pause.
+    const puts = [];
+    const gh = {
+      request: async (path, opts) => {
+        if (opts?.method === 'PUT') { puts.push(path); return null; }
+        throw new Error('403 no admin scope'); // GET fails → state null
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { enabled: 0, skipped: 1, errors: 0 });
+    assert.equal(result.results[0].reason, 'state unreadable');
+    assert.equal(puts.length, 0, 'must not PUT when it cannot confirm current state');
+  });
+
   it('scheduled run ALWAYS skips — fenced off the no-human path by construction (ADR-012)', async () => {
     const gh = { request: async () => ({}) };
     const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false, scheduled: true });

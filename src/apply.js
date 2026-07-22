@@ -894,7 +894,16 @@ export async function applyDependabotSecurityUpdates(gh, owner, findings, config
       // paused is the ADR-012 answer to the un-name-guardable flag — a paused repo
       // is a deliberate human/GitHub state, and re-enabling would override it.
       const state = await getAutomatedSecurityFixesState(gh, owner, repo);
-      if (state && (state.enabled || state.paused)) {
+      // Fail closed on an unreadable state (null = no scope, transient error, or
+      // feature unavailable): we cannot confirm the repo is not already enabled or
+      // deliberately paused, and the flag is un-name-guardable, so never write
+      // blind — skip rather than risk overriding a paused decision (ADR-012).
+      if (state === null) {
+        console.log(`dependabot-security: ${owner}/${repo} state unreadable, skipping (fail-closed)`);
+        results.push({ repo, status: 'skipped', reason: 'state unreadable' });
+        continue;
+      }
+      if (state.enabled || state.paused) {
         console.log(`dependabot-security: ${owner}/${repo} already ${state.paused ? 'paused' : 'enabled'}, skipping`);
         results.push({ repo, status: 'skipped', reason: state.paused ? 'paused' : 'already enabled' });
         continue;
