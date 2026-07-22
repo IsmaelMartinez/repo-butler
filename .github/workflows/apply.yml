@@ -10,7 +10,7 @@ on:
         description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration: write to go live). Both settings writes are dry-run by default.'
         required: false
       max-apply-per-run:
-        description: 'Max PRs to open (default 5)'
+        description: 'Per-run cap: max PRs opened AND max repos acted on by a settings write (Copilot review / dependabot-security) per run (default 5)'
         required: false
         default: '5'
 

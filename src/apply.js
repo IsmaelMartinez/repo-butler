@@ -931,8 +931,9 @@ export async function applyDependabotSecurityUpdates(gh, owner, findings, config
     const wouldEnable = results.filter(r => r.status === 'would-enable').map(r => r.repo);
     console.log(`dependabot-security [DRY RUN]: would enable ${wouldEnable.length} repo(s), skipping ${skipped} (already enabled, paused, or state unreadable)`);
     for (const repo of wouldEnable) console.log(`  - ${owner}/${repo}`);
-    // `targets` is the would-enable set (already-enabled/paused repos are filtered
-    // out), so the preview reflects exactly what a live run would write.
+    // `wouldEnable` drops the repos filtered out by the live idempotency guard
+    // (already enabled/paused, or state unreadable), so the returned `targets`
+    // reflect exactly what a live run would write.
     return {
       status: 'dry-run',
       targets: wouldEnable,
