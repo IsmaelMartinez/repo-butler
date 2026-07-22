@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, hasActiveCopilotReviewRuleset } from './github.js';
+import { createClient, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, hasAutomatedSecurityFixesEnabled } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -326,6 +326,57 @@ describe('hasActiveCopilotReviewRuleset', () => {
   it('returns false when listing rulesets throws (no access / no scope)', async () => {
     const gh = { paginate: async () => { throw new Error('403'); }, request: async () => ({}) };
     assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
+  });
+});
+
+describe('createClient — request 204 No Content', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('returns null (not a JSON parse error) on a 204 write', async () => {
+    // A 204 has an empty body; calling res.json() would throw. The settings
+    // writes (PUT/DELETE automated-security-fixes, PUT vulnerability-alerts)
+    // answer 204, so the client must return null rather than choke.
+    globalThis.fetch = mock.fn(async () => ({
+      ok: true,
+      status: 204,
+      headers: new Map(),
+      json: async () => { throw new Error('Unexpected end of JSON input'); },
+      text: async () => '',
+    }));
+    const gh = createClient('tok');
+    const result = await gh.request('/repos/o/r/automated-security-fixes', { method: 'PUT' });
+    assert.equal(result, null);
+  });
+});
+
+describe('getAutomatedSecurityFixesState / hasAutomatedSecurityFixesEnabled', () => {
+  it('returns the { enabled, paused } pair from the API', async () => {
+    const gh = { request: async () => ({ enabled: true, paused: false }) };
+    assert.deepEqual(await getAutomatedSecurityFixesState(gh, 'o', 'r'), { enabled: true, paused: false });
+  });
+
+  it('coerces missing/non-boolean fields to false', async () => {
+    const gh = { request: async () => ({ enabled: true }) };
+    assert.deepEqual(await getAutomatedSecurityFixesState(gh, 'o', 'r'), { enabled: true, paused: false });
+  });
+
+  it('returns null on a non-object response', async () => {
+    const gh = { request: async () => null };
+    assert.equal(await getAutomatedSecurityFixesState(gh, 'o', 'r'), null);
+  });
+
+  it('returns null when the request throws (no access / no scope)', async () => {
+    const gh = { request: async () => { throw new Error('403'); } };
+    assert.equal(await getAutomatedSecurityFixesState(gh, 'o', 'r'), null);
+  });
+
+  it('hasAutomatedSecurityFixesEnabled is true only when enabled AND not paused', async () => {
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: true, paused: false }) }, 'o', 'r'), true);
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: true, paused: true }) }, 'o', 'r'), false, 'paused → not fully active');
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: false, paused: false }) }, 'o', 'r'), false);
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => { throw new Error('403'); } }, 'o', 'r'), false);
   });
 });
 

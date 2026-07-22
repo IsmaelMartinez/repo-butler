@@ -249,6 +249,19 @@ a secret-leak grep on every push and PR, `codeql.yml` is the standard CodeQL sca
 `CLAUDE.md`) on any repo that lacks the marker, both on dispatch and via the
 GitHub App installation webhook.
 
+Alongside the templated-PR path, `apply` carries two **PR-less settings writes** —
+a modality with no reviewable diff, so each has its own trust ADR. Enabling the
+Copilot review ruleset (ADR-009) is *promotable* onto the scheduled path via the
+`apply-schedule` allow-list. Enabling GitHub's Dependabot automated security fixes
+(ADR-012) is fenced far tighter: because flipping it on delegates autonomous PR
+generation to GitHub (a bump burst outside the per-run cap, on an un-name-guardable
+flag), it is **manual-dispatch only and off the `apply-schedule` allow-list by
+construction** — `applyDependabotSecurityUpdates` skips unconditionally on a
+scheduled run and is never promotable — plus auto-merge-ineligible by construction,
+and it skips any repo already enabled *or paused*. It acts only on the
+`dependabot`-sourced `open-vulnerability` findings; dispatch it with
+`tools=dependabot-security`, dry-run by default.
+
 Note that `apply` lives in the dispatcher's `PHASE_RUNNERS` map but is
 intentionally absent from the `PHASES` list, so it never runs as part of
 `--phase=all` — it can only be invoked explicitly.

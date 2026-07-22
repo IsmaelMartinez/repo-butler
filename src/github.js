@@ -63,6 +63,11 @@ export function createClient(token) {
         throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
       }
 
+      // Settings writes such as PUT/DELETE automated-security-fixes and
+      // vulnerability-alerts (and DELETE rulesets) answer 204 No Content — an
+      // empty body that res.json() would choke on. Return null for those rather
+      // than throwing a spurious parse error on a successful write.
+      if (res.status === 204) return null;
       return res.json();
     }
 
@@ -271,6 +276,33 @@ export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
   } catch {
     return false;
   }
+}
+
+// Read a repo's automated-security-fixes state (ADR-012). GitHub's
+// GET /repos/{owner}/{repo}/automated-security-fixes returns `{ enabled, paused }`.
+// Returns those two booleans, or null on any error (feature unavailable, or the
+// token lacks `administration: write`). The apply path's idempotency guard uses
+// the full pair so it can skip a repo that is enabled OR paused — a paused repo
+// is a state a human (or GitHub, on an inactive repo) set deliberately, and the
+// flag is un-name-guardable, so re-enabling it would override that decision.
+export async function getAutomatedSecurityFixesState(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/automated-security-fixes`);
+    if (!data || typeof data !== 'object') return null;
+    return { enabled: data.enabled === true, paused: data.paused === true };
+  } catch {
+    return null;
+  }
+}
+
+// True only when Dependabot automated security fixes are enabled AND not paused —
+// i.e. the feature is live and actively opening fix PRs. Mirrors
+// hasActiveCopilotReviewRuleset; the public predicate for "already fully active".
+// false on any error. (The apply idempotency guard reads the fuller state above so
+// it also treats a *paused* repo as hands-off — see getAutomatedSecurityFixesState.)
+export async function hasAutomatedSecurityFixesEnabled(gh, owner, repo) {
+  const state = await getAutomatedSecurityFixesState(gh, owner, repo);
+  return state !== null && state.enabled && !state.paused;
 }
 
 // Paginate /repos/{owner}/{repo}/issues and filter out PRs (which the GitHub
