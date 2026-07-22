@@ -231,7 +231,9 @@ B4. Render one closing panel summarising the PRs opened (and any that failed), w
 
 ## Section C — Manual tray (for your own hand)
 
-If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them; they are licence choices, policy drift, and stale-Dependabot queues that Reginald will not presume to settle.
+If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them; they are licence choices, policy drift, stale-Dependabot queues, and open-vulnerability states that Reginald will not presume to settle.
+
+One manual finding has a settings-write remediation the owner may run deliberately, but Reginald never triggers it from this skill. For an `open-vulnerability` finding whose `sources` includes `dependabot`, GitHub can open the fix PRs itself once **automated security updates** are enabled. That is the ADR-012 settings write — manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default. Mention it as an option ("this one can be remediated by enabling Dependabot security updates: dispatch Governance Apply with `tools=dependabot-security dry-run=false`"), but leave the decision — and the dispatch — to the owner. Code-scanning and secret-scanning open-vulnerability findings have no such switch (they need a code change or a secret rotation) and stay purely manual.
 
 ## Tone
 

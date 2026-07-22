@@ -7,10 +7,10 @@ on:
         description: 'Dry run (log only, no PRs)'
         default: 'true'
       tools:
-        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only, needs App administration:write to go live)'
+        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration: write to go live). Both settings writes are dry-run by default.'
         required: false
       max-apply-per-run:
-        description: 'Max PRs to open (default 5)'
+        description: 'Per-run cap: max PRs opened AND max repos acted on by a settings write (Copilot review / dependabot-security) per run (default 5)'
         required: false
         default: '5'
 
@@ -40,6 +40,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Run apply phase
+        id: apply
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           INPUT_PHASE: apply
@@ -48,3 +49,32 @@ jobs:
           INPUT_TOOLS: ${{ github.event.inputs.tools || '' }}
           INPUT_MAX_APPLY_PER_RUN: ${{ github.event.inputs.max-apply-per-run || '5' }}
         run: node src/index.js
+
+      - name: Run summary
+        # The ADR-009 / ADR-012 settings writes (Copilot review, Dependabot
+        # security updates) open no PR, so this summary IS their audit record —
+        # the "see what it did" moment a PR diff would otherwise provide. Emitted
+        # for every manual dispatch, dry-run or live.
+        if: always()
+        env:
+          APPLY: ${{ steps.apply.outputs.apply }}
+          NUDGE: ${{ steps.apply.outputs.nudge }}
+          COPILOT_REVIEW: ${{ steps.apply.outputs.copilotReview }}
+          DEPENDABOT_SECURITY: ${{ steps.apply.outputs.dependabotSecurity }}
+          DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
+        run: |
+          mode="dry-run"
+          [ "$DRY_RUN" = "false" ] && mode="LIVE"
+          {
+            echo "## Governance Apply ($mode)"
+            echo ""
+            echo "Manual dispatch (ADR-005 gate 1). The two settings writes below open no PR, so this line is their audit record."
+            echo ""
+            echo "- Apply summary: \`${APPLY:-(none — dry-run or nothing actionable)}\`"
+            echo "- Nudge summary: \`${NUDGE:-(none — dry-run or nothing actionable)}\`"
+            echo "- Copilot-review (settings write) summary: \`${COPILOT_REVIEW:-(none — not requested or nothing actionable)}\`"
+            # ADR-012: manual-dispatch only — this is the ONLY workflow that runs
+            # the Dependabot security-updates settings write.
+            echo "- Dependabot-security (settings write) summary: \`${DEPENDABOT_SECURITY:-(none — not requested or nothing actionable)}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Governance apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=${DEPENDABOT_SECURITY:-none}"

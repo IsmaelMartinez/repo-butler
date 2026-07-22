@@ -30,9 +30,9 @@ async function runApply(context) {
   // Stage 4 (ADR-007): set by the scheduled apply workflow only. On the no-human
   // path, apply.js gates each finding class behind the apply-schedule allow-list.
   const scheduled = process.env.INPUT_SCHEDULED === 'true';
-  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, autoMergeGovernancePRs;
+  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, autoMergeGovernancePRs;
   try {
-    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, autoMergeGovernancePRs } = await import('./apply.js'));
+    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, autoMergeGovernancePRs } = await import('./apply.js'));
   } catch {
     console.error('Apply module not available yet (src/apply.js). Skipping.');
     return;
@@ -86,6 +86,25 @@ async function runApply(context) {
     );
   }
 
+  // Dependabot security-updates enablement (ADR-012 settings write) rides the same
+  // dispatch and gates, but is fenced OFF the no-human scheduled path BY
+  // CONSTRUCTION: enabling GitHub's automated security fixes delegates autonomous PR
+  // generation to GitHub, so a scheduled run must never trigger it. It is never
+  // dispatched here on a scheduled run, and (unlike the Copilot settings write) is
+  // never promotable via apply-schedule. Manual dispatch only: it runs on a blank
+  // `tools` (all actionable) or when `tools` explicitly names `dependabot-security`.
+  // Live writes need the App's `administration: write` scope.
+  const depSecRequested = !scheduled && (tools.length === 0 || tools.includes('dependabot-security'));
+  const depSecResult = depSecRequested
+    ? await applyDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
+    : null;
+  if (depSecResult?.summary && process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `dependabotSecurity=${JSON.stringify(depSecResult.summary)}\n`,
+    );
+  }
+
   // Selective auto-merge reconcile pass (ADR-007 stage 5). Squash-merges the
   // butler's own green templated apply PRs for `apply-automerge`-allow-listed
   // classes (default empty → no-op). Deliberately NOT triggered by a blank-tools
@@ -134,6 +153,15 @@ async function runApply(context) {
       .join(', ');
     errParts.push(
       `copilot-review: ${copilotResult.summary.errors} error(s) [${failed}]; ${copilotResult.summary.created} created, ${copilotResult.summary.skipped} skipped`,
+    );
+  }
+  if (depSecResult?.summary?.errors > 0) {
+    const failed = depSecResult.results
+      .filter(r => r.status === 'error')
+      .map(r => r.repo)
+      .join(', ');
+    errParts.push(
+      `dependabot-security: ${depSecResult.summary.errors} error(s) [${failed}]; ${depSecResult.summary.enabled} enabled, ${depSecResult.summary.skipped} skipped`,
     );
   }
   if (autoMergeResult?.summary?.errors > 0) {
