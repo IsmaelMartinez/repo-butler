@@ -79,7 +79,8 @@ snapshot against the previous run, computes weekly trends (growing, shrinking, o
 stable), and can summarise the change with Gemini Flash. `UPDATE` generates a
 fresh roadmap document and opens a PR for it. `GOVERNANCE` runs deterministic
 detectors across the portfolio — standards gaps, policy drift, tier-uplift
-opportunities, and stale Dependabot PRs — and persists the findings. `IDEATE`
+opportunities, open vulnerabilities, and stale Dependabot PRs — and persists the
+findings. `IDEATE`
 generates improvement ideas with the deep model, feeding off freshly-detected
 governance findings, then convenes the agent council to deliberate. `PROPOSE`
 runs the approved ideas through the safety layer and files them as GitHub issues,

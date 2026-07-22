@@ -3,7 +3,7 @@
 // Pure functions that receive portfolio data and return governance findings.
 
 import { detectEcosystem } from './safety.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
@@ -33,8 +33,9 @@ export async function runGovernance(context) {
   const gaps = detectStandardsGaps(standards, portfolio.repos, context.repoDetails);
   const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
   const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
-  context.governanceFindings = [...gaps.findings, ...drift, ...uplift];
-  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift)`);
+  const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails);
+  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns];
+  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln)`);
 
   const stale = await auditDependabot(gh, owner, portfolio.repos);
   if (stale.length > 0) {
@@ -344,6 +345,74 @@ export function generateUpliftProposals(repos, details, config = null) {
   return proposals;
 }
 
+/**
+ * Detect eligible repos carrying open security alerts that the portfolio is not
+ * driving to resolution. A per-repo STATE finding (like dependabot-stale), not a
+ * cross-repo statistic — so it routes to executor 'manual' and is never wired to
+ * the templated-PR path or cross-repo PROPOSE (ADR-002/ADR-011 lane boundary).
+ *
+ * Fires on the same signals the Gold "Zero critical/high security findings" check
+ * uses (report-shared.js), so the finding and the tier drop stay consistent:
+ * a critical/high Dependabot OR code-scanning alert, or ANY secret-scanning hit.
+ * Repos whose `vulns` is null (scanning off, or the token lacks the alerts scope)
+ * are skipped for that source rather than flagged — an unknown is not a finding.
+ *
+ * `sources` records which scanner(s) fired so consumers can route remediation:
+ * only `dependabot`-sourced findings are fixable by enabling Dependabot security
+ * updates (the Phase-2 apply action); code-scanning/secret-scanning need a code
+ * change or a secret rotation, which stay manual.
+ *
+ * @param {Array} repos — portfolio repos from observePortfolio()
+ * @param {Object} details — enriched details from fetchPortfolioDetails()
+ * @returns {Array} open-vulnerability findings
+ */
+export function detectOpenVulnerabilities(repos, details) {
+  const eligible = eligibleRepos(repos);
+  const findings = [];
+
+  for (const r of eligible) {
+    const d = details?.[r.name];
+    if (!d) continue;
+
+    const sources = [];
+    let critical = 0;
+    let high = 0;
+
+    if (isHighSeverity(d.vulns)) {
+      sources.push('dependabot');
+      critical += d.vulns.critical || 0;
+      high += d.vulns.high || 0;
+    }
+    if (isHighSeverity(d.codeScanning)) {
+      sources.push('code-scanning');
+      critical += d.codeScanning.critical || 0;
+      high += d.codeScanning.high || 0;
+    }
+    const secretCount = d.secretScanning?.count || 0;
+    if (secretCount > 0) sources.push('secret-scanning');
+
+    if (sources.length === 0) continue;
+
+    // A leaked secret or any critical alert is the most urgent state (high
+    // priority); a high-but-not-critical alert with no secret leak is medium —
+    // mirroring adoptionPriority's high/medium banding so the dashboard's
+    // high-priority governance banner is not flooded by every high alert.
+    const urgent = critical > 0 || secretCount > 0;
+    findings.push({
+      type: 'open-vulnerability',
+      repo: r.name,
+      critical,
+      high,
+      secretScanning: secretCount,
+      sources,
+      max_severity: urgent ? 'critical' : 'high',
+      priority: urgent ? 'high' : 'medium',
+    });
+  }
+
+  return findings;
+}
+
 // --- Remediation plan contract (ADR-007, Track B stage 1) ---
 //
 // Every finding carries a portable remediation plan: an `executor` routing hint
@@ -456,6 +525,24 @@ export function buildRemediationPlan(finding) {
         intent: `Review ${prs.length} stale Dependabot PR(s) in ${finding.repo}`,
         rationale: `${prs.length} Dependabot PR(s) open beyond the staleness threshold (oldest ${oldest} days).`,
         acceptanceCriteria: ['Each stale Dependabot PR is merged or closed'],
+      };
+    }
+    case 'open-vulnerability': {
+      const sources = finding.sources || [];
+      const secret = finding.secretScanning || 0;
+      // executor 'manual': surfacing this is deterministic, but resolving it is
+      // per-repo work (a dependency bump, a code fix, a secret rotation) outside
+      // the templated-PR lane. The Phase-2 apply action that enables Dependabot
+      // security updates consumes dependabot-sourced findings directly, exactly
+      // as nudgeStaleDependabotPRs consumes the (also 'manual') dependabot-stale
+      // findings — 'manual' keeps it off the generic template PR path and out of
+      // cross-repo PROPOSE, not out of every apply action.
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Remediate open security alerts in ${finding.repo}`,
+        rationale: `${finding.critical || 0} critical / ${finding.high || 0} high open alert(s)${secret ? ` + ${secret} secret-scanning hit(s)` : ''} from ${sources.join(', ') || 'unknown source'}.`,
+        acceptanceCriteria: ['No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain'],
       };
     }
     default:

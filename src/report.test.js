@@ -1726,6 +1726,20 @@ describe('buildGovernanceSection', () => {
     assert.ok(html.includes('high'), 'should show priority');
   });
 
+  it('renders open-vulnerability findings with repo link, source, and alert counts', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'repo-a', critical: 2, high: 1, secretScanning: 0, sources: ['dependabot'], priority: 'high', remediation: { executor: 'manual' } },
+      { type: 'open-vulnerability', repo: 'repo-b', critical: 0, high: 1, secretScanning: 0, sources: ['dependabot'], priority: 'medium', remediation: { executor: 'manual' } },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Open Vulnerabilities'), 'should have open vulnerabilities heading');
+    assert.ok(html.includes('href="repo-a.html"'), 'should link the affected repo');
+    assert.ok(html.includes('2 critical'), 'should show critical count');
+    assert.ok(html.includes('dependabot'), 'should show the alert source');
+    // High-priority (critical) row sorts before the medium row.
+    assert.ok(html.indexOf('repo-a.html') < html.indexOf('repo-b.html'), 'critical repo sorts first');
+  });
+
   it('shows a per-executor remediation breakdown when findings carry executor hints', () => {
     const findings = [
       { type: 'standards-gap', tool: 'code-scanning', scope: { type: 'universal' }, compliant: [], nonCompliant: ['repo-a'], adoptionRate: 0, priority: 'high', remediation: { executor: 'template' } },

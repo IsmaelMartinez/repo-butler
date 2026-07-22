@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/governance-finding.v1.schema.json",
   "title": "GovernanceFinding",
-  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift) and src/dependabot-audit.js (dependabot-stale). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
+  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, open-vulnerability) and src/dependabot-audit.js (dependabot-stale). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
   "type": "object",
   "required": ["type", "priority", "remediation"],
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["standards-gap", "policy-drift", "tier-uplift", "dependabot-stale"],
+      "enum": ["standards-gap", "policy-drift", "tier-uplift", "dependabot-stale", "open-vulnerability"],
       "description": "The finding category, which determines the remaining fields."
     },
     "priority": {
@@ -22,12 +22,37 @@
     },
     "repo": {
       "type": "string",
-      "description": "policy-drift, tier-uplift, dependabot-stale: the affected repository name."
+      "description": "policy-drift, tier-uplift, dependabot-stale, open-vulnerability: the affected repository name."
     },
     "nonCompliant": {
       "type": "array",
       "items": { "type": "string" },
       "description": "standards-gap only: repos missing the standard."
+    },
+    "sources": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["dependabot", "code-scanning", "secret-scanning"] },
+      "description": "open-vulnerability only: which scanner(s) fired. Only `dependabot`-sourced findings are fixable by enabling Dependabot security updates; code-scanning/secret-scanning need a code change or secret rotation."
+    },
+    "critical": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "open-vulnerability only: count of open critical Dependabot + code-scanning alerts."
+    },
+    "high": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "open-vulnerability only: count of open high Dependabot + code-scanning alerts."
+    },
+    "secretScanning": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "open-vulnerability only: count of open secret-scanning alerts."
+    },
+    "max_severity": {
+      "type": "string",
+      "enum": ["critical", "high"],
+      "description": "open-vulnerability only: peak urgency of the finding — `critical` when an open critical alert or any secret-scanning hit is present (secrets are treated as critical-urgency), else `high`."
     },
     "remediation": { "$ref": "#/$defs/RemediationPlan" }
   },

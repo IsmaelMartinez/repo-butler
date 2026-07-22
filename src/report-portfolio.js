@@ -52,7 +52,7 @@ const ABOUT_SECTION = `<details>
 <li><strong>OBSERVE</strong> — gathers project state via the GitHub API (issues, PRs, releases, labels, workflows, roadmap content) and classifies all portfolio repos by activity level. No LLM needed.</li>
 <li><strong>ASSESS</strong> — diffs the current snapshot against the previous run, computes weekly trends (growing/shrinking/stable), and optionally summarises changes with Gemini Flash.</li>
 <li><strong>UPDATE</strong> — generates an updated roadmap document, validates it through a safety layer, and opens a PR.</li>
-<li><strong>GOVERNANCE</strong> — runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.</li>
+<li><strong>GOVERNANCE</strong> — runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, open vulnerabilities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.</li>
 <li><strong>IDEATE</strong> — generates improvement ideas using an LLM (Claude for deeper reasoning, Gemini Flash as default), feeding off the fresh governance findings.</li>
 <li><strong>PROPOSE</strong> — safety-filters ideas (URL allowlist, @mention blocking, secret detection), then creates GitHub issues capped at <code>max_issues_per_run</code>, sorted by priority, labelled for human review.</li>
 <li><strong>REPORT</strong> — generates HTML dashboards for every active repo in the portfolio, deployed to GitHub Pages.</li>
@@ -501,6 +501,7 @@ export function buildGovernanceSection(findings) {
   const gaps = findings.filter(f => f.type === 'standards-gap');
   const drift = findings.filter(f => f.type === 'policy-drift');
   const uplift = findings.filter(f => f.type === 'tier-uplift');
+  const openVulns = findings.filter(f => f.type === 'open-vulnerability');
 
   const parts = [];
 
@@ -520,6 +521,38 @@ export function buildGovernanceSection(findings) {
   if (byExecutor.manual) executorBits.push(`${byExecutor.manual} manual (your hand)`);
   if (executorBits.length > 0) {
     parts.push(`<p class="muted">By remediation: ${executorBits.join(' &middot; ')}</p>`);
+  }
+
+  // Open vulnerabilities lead the section — it is the most urgent governance
+  // state. Each row lists the affected repo, which scanner(s) fired, and the
+  // open critical/high counts (+ secret-scanning hits).
+  if (openVulns.length > 0) {
+    const rows = openVulns
+      .slice()
+      .sort((a, b) => {
+        const pa = a.priority === 'high' ? 0 : 1;
+        const pb = b.priority === 'high' ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return (b.critical + b.high) - (a.critical + a.high);
+      })
+      .map(v => {
+        const counts = [];
+        if (v.critical) counts.push(`${v.critical} critical`);
+        if (v.high) counts.push(`${v.high} high`);
+        if (v.secretScanning) counts.push(`${v.secretScanning} secret-scanning`);
+        return `<tr>
+  <td><a href="${escHtml(v.repo)}.html">${escHtml(v.repo)}</a></td>
+  <td><span style="color:${PRIORITY_COLOR[v.priority] || 'var(--muted)'}">${escHtml(v.priority)}</span></td>
+  <td>${escHtml((v.sources || []).join(', '))}</td>
+  <td>${escHtml(counts.join(', ') || 'open alerts')}</td>
+</tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Open Vulnerabilities</h3>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>Priority</th><th>Source</th><th>Open alerts</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
   }
 
   if (gaps.length > 0) {

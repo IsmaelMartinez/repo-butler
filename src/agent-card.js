@@ -25,8 +25,8 @@ const SKILLS = [
     id: 'governance-findings',
     name: 'Portfolio Governance Findings',
     description:
-      'Detects standards gaps (which repos lack declared tooling), policy drift (repos diverging from the portfolio majority), and tier-uplift opportunities (specific checks a repo needs to close to reach the next tier).',
-    tags: ['governance', 'standards', 'drift', 'uplift'],
+      'Detects standards gaps (which repos lack declared tooling), policy drift (repos diverging from the portfolio majority), tier-uplift opportunities (specific checks a repo needs to close to reach the next tier), and open vulnerabilities (repos carrying open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit).',
+    tags: ['governance', 'standards', 'drift', 'uplift', 'security', 'vulnerabilities'],
     examples: [
       'Which repos are missing Dependabot?',
       'Are any repos drifting from the license majority?',
