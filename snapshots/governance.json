@@ -189,11 +189,12 @@
     ],
     "max_severity": "high",
     "priority": "medium",
+    "autofixEnabled": true,
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in yourear",
-      "rationale": "0 critical / 1 high open alert(s) from dependabot.",
+      "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
@@ -210,11 +211,12 @@
     ],
     "max_severity": "high",
     "priority": "medium",
+    "autofixEnabled": true,
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in teams-for-linux",
-      "rationale": "0 critical / 3 high open alert(s) from dependabot.",
+      "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
@@ -231,11 +233,12 @@
     ],
     "max_severity": "high",
     "priority": "medium",
+    "autofixEnabled": true,
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-      "rationale": "0 critical / 3 high open alert(s) from dependabot.",
+      "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
@@ -252,11 +255,12 @@
     ],
     "max_severity": "high",
     "priority": "medium",
+    "autofixEnabled": true,
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in ai-model-advisor",
-      "rationale": "0 critical / 1 high open alert(s) from dependabot.",
+      "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
@@ -273,11 +277,12 @@
     ],
     "max_severity": "high",
     "priority": "medium",
+    "autofixEnabled": true,
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in wifisentinel",
-      "rationale": "0 critical / 1 high open alert(s) from dependabot.",
+      "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
