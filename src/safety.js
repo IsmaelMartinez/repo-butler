@@ -352,7 +352,7 @@ export function wrapPrompt({
 
 // Multi-signal ecosystem detection. Requires 2-of-3 signals to confirm.
 // Prevents gaming via vendored files skewing the GitHub language field.
-const ECOSYSTEM_MAP = {
+export const ECOSYSTEM_MAP = {
   JavaScript: { files: ['package.json'], topics: ['nodejs', 'npm', 'javascript', 'typescript'] },
   TypeScript: { files: ['package.json', 'tsconfig.json'], topics: ['nodejs', 'npm', 'typescript'] },
   Go: { files: ['go.mod'], topics: ['golang', 'go'] },
@@ -371,7 +371,7 @@ const ECOSYSTEM_MAP = {
 // that scans no matching source on those repos. Identifiers track the
 // codeql-action v3 merged language set (java+kotlin → java-kotlin,
 // javascript+typescript → javascript-typescript; Rust reached GA as `rust`).
-const ECOSYSTEM_TOOLS = {
+export const ECOSYSTEM_TOOLS = {
   JavaScript: { codeqlLanguage: 'javascript-typescript' },
   TypeScript: { codeqlLanguage: 'javascript-typescript' },
   Go: { codeqlLanguage: 'go' },
