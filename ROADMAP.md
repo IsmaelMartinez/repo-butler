@@ -88,9 +88,7 @@ Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). Thi
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-CodeQL language mapping accuracy fix shipped 2026-07-22 (PR #332). Resolved a key edge-case bug by ensuring CodeQL languages are mapped accurately per ecosystem rather than defaulting to JavaScript/TypeScript, improving the precision of the repository's automated security configuration.
-
-Dependabot vulnerability scoping shipped 2026-07-22 (PR #333). Progressed Phase 2 of the ADR-012 architectural roadmap by enabling targeted Dependabot security updates on repositories with open vulnerabilities.
+Phase 3 of ADR-012 shipped 2026-07-22 (PR #334). Upgraded the core governance and vulnerability detection mechanisms by introducing automated detection of Dependabot autofix states on open-vulnerability findings, advancing the project's systematic security compliance capabilities.
 ---
 
 ## Roadmap
