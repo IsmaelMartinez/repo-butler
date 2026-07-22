@@ -7,7 +7,7 @@ on:
         description: 'Dry run (log only, no PRs)'
         default: 'true'
       tools:
-        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration:write to go live). Both settings writes are dry-run by default.'
+        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration: write to go live). Both settings writes are dry-run by default.'
         required: false
       max-apply-per-run:
         description: 'Max PRs to open (default 5)'
