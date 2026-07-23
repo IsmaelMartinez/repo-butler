@@ -33,7 +33,7 @@ import {
 // Re-export everything that tests and other modules need from report.js
 export { generateHealthBadge, computeHealthTier } from './report-shared.js';
 export { buildActionItems, computeContributorStats } from './report-repo.js';
-export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection, buildGovernanceSection } from './report-portfolio.js';
+export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection, buildGovernanceSection, buildAutofixNudge } from './report-portfolio.js';
 
 // Thin orchestration wrapper used by the index dispatcher.
 export async function runReport(context) {

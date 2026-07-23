@@ -12,6 +12,7 @@ import {
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
   CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
+  isAutofixNotDriven,
 } from './report-shared.js';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
@@ -852,6 +853,20 @@ export function buildCriticalBanner(atRisk) {
   return `<div class="alert-banner alert-critical"><strong>Security needs you.</strong> ${shown}${more} ${verb} open security alerts.</div>`;
 }
 
+// A quiet nudge (ADR-012 Phase 3) for dependabot-sourced open-vulnerability
+// findings whose autofix isn't actively driving remediation — otherwise this
+// signal is buried row-by-row in the Open Vulnerabilities table. Presentation
+// only: reads findings already computed by governance.js, no detection logic
+// here. Renders nothing when the count is 0, matching the dashboard's
+// calm-by-design philosophy (see buildSinceLastSection).
+export function buildAutofixNudge(findings) {
+  if (!findings || findings.length === 0) return '';
+  const count = findings.filter(isAutofixNotDriven).length;
+  if (count === 0) return '';
+  const noun = count === 1 ? 'repo has' : 'repos have';
+  return `<div class="alert-banner"><strong>Dependabot autofix off.</strong> ${count} ${noun} Dependabot autofix off despite open vulnerabilities — enable via the <code>dependabot-security</code> apply action.</div>`;
+}
+
 // The calm headline block: a status dot, a state-aware headline in the butler's
 // voice, the tier mix, the portfolio's vulnerability posture, and a
 // week-over-week Gold trend when a prior snapshot exists.
@@ -1004,6 +1019,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
 
   const criticalBanner = buildCriticalBanner(atRisk);
+  const autofixNudge = buildAutofixNudge(governanceFindings);
   const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount);
   const sinceSection = buildSinceLastSection(classified, priorPortfolio);
 
@@ -1084,6 +1100,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const body = `<h1><a href="https://github.com/${owner}" class="repo-link">@${owner} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
 <div class="subtitle">Portfolio health · ${now} · click any repo for detail · <a href="digest.html">weekly digest</a></div>
 ${criticalBanner}
+${autofixNudge}
 ${statusHero}
 ${sinceSection}
 ${buildPortfolioAttentionSection(classified, details, owner, config)}
