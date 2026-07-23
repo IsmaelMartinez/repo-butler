@@ -480,7 +480,7 @@ export function buildStatCard({ title, value, color, label, available = true }) 
 function dependabotAutofixState(active) {
   if (active === true) return { short: 'In flight', text: 'in flight', color: COLOR_SUCCESS, detail: 'GitHub is opening the bump PRs' };
   if (active === false) return { short: 'Not driven', text: 'not driven', color: COLOR_DANGER, detail: 'not being driven to resolution' };
-  return { short: 'Unknown', text: 'unknown', color: 'var(--muted)', detail: 'state unreadable' };
+  return { short: 'Unknown', text: 'unknown', color: 'var(--muted)', detail: 'state unavailable' };
 }
 
 export function buildDependabotAutofixCard(active) {
