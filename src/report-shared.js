@@ -44,15 +44,17 @@ export function isExcludedRepo(name) {
 // v5: added hasCopilotReview to details (code-review-bot standard).
 // v6: added hasReleaseWorkflow to details (release-cadence standard).
 //
-// `autofix` (ADR-012 Phase 3) and `hasCopilotReview` do NOT have a version bump
-// of their own: both are repo-settings toggles that can flip without a push or
-// an open-issue-count change, so a cache-key match can never guarantee they're
-// still current. Instead of a version bump (which only recomputes once, then
-// goes stale again), fetchPortfolioDetails's cache-hit path in
+// `autofix` (ADR-012 Phase 3) and `hasCopilotReview` are both repo-settings
+// toggles that can flip without a push or an open-issue-count change, so a
+// cache-key match can never guarantee either is still current. hasCopilotReview
+// still needed its one-time v5 bump above — that backfilled cache entries that
+// predated the field entirely — but neither field needs a bump on every
+// subsequent GitHub-side change: fetchPortfolioDetails's cache-hit path in
 // report-portfolio.js re-reads both live on every hit and merges the result
-// into a copy of the cached details. This is the cache-refresh convention: a
-// settings-toggle field that a schema version can't protect gets a live read
-// on every cache hit instead.
+// into a copy of the cached details, so they never go stale between bumps.
+// This is the cache-refresh convention: a settings-toggle field gets a live
+// read on every cache hit instead of a fresh version bump each time the
+// underlying GitHub setting can change.
 export const REPO_CACHE_SCHEMA_VERSION = 6;
 
 // True for releases that are actually published. GitHub returns drafts (with
