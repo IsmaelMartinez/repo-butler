@@ -1476,10 +1476,13 @@ describe('report cache invalidation includes report.js', () => {
 describe('fetchPortfolioDetails incremental cache', () => {
   it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix + copilot-review settings)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // The only permitted calls on a cache hit are the autofix GET and the copilot
-    // ruleset list read (ADR-012 Phase 3 / ADR-009): both settings can flip without
-    // a push, so they're refreshed while every push-invariant field comes from
-    // cache. No getFileContent / full re-fetch should occur.
+    // On a cache hit, only the autofix GET and the copilot ruleset-list paginate
+    // should run (ADR-012 Phase 3 / ADR-009): both settings can flip without a
+    // push, so they're refreshed while every push-invariant field comes from
+    // cache. This mock's ruleset list is empty, so hasActiveCopilotReviewRuleset
+    // never needs a per-ruleset detail GET here — with active rulesets present
+    // it would also issue /rulesets/{id} GETs, which is expected and not a full
+    // re-fetch. No getFileContent / other network calls should occur either way.
     const requestPaths = [];
     const paginatePaths = [];
     let getFileContentCalled = false;
