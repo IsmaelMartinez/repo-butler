@@ -90,7 +90,7 @@ Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `stand
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
+Dependabot autofix dashboard widgets and Copilot-review cache optimization shipped 2026-07-23 (PR #337). This update surfaces active Dependabot autofixes directly on per-repository dashboards to enhance security automation visibility, while optimizing overall pipeline performance by refreshing the GitHub Copilot Review cache during runs.
 ---
 
 ## Roadmap
