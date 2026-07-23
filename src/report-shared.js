@@ -43,6 +43,16 @@ export function isExcludedRepo(name) {
 // v4: added hasCodeowners + hasSecurityPolicy to details (codeowners + security-md standards).
 // v5: added hasCopilotReview to details (code-review-bot standard).
 // v6: added hasReleaseWorkflow to details (release-cadence standard).
+//
+// `autofix` (ADR-012 Phase 3) and `hasCopilotReview` do NOT have a version bump
+// of their own: both are repo-settings toggles that can flip without a push or
+// an open-issue-count change, so a cache-key match can never guarantee they're
+// still current. Instead of a version bump (which only recomputes once, then
+// goes stale again), fetchPortfolioDetails's cache-hit path in
+// report-portfolio.js re-reads both live on every hit and merges the result
+// into a copy of the cached details. This is the cache-refresh convention: a
+// settings-toggle field that a schema version can't protect gets a live read
+// on every cache hit instead.
 export const REPO_CACHE_SCHEMA_VERSION = 6;
 
 // True for releases that are actually published. GitHub returns drafts (with

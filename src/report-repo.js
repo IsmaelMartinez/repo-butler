@@ -438,9 +438,16 @@ ${failedForNext.map(c => `<div class="text-danger" style="font-size:0.85rem;marg
 </div>`
     : tier === 'gold' ? '<div class="text-success" style="margin-top:1rem;font-size:0.85rem">All criteria met. This repo has achieved Gold tier.</div>' : '';
 
+  // Dependabot autofix is a governance annotation, not a tier check (ADR-012 —
+  // an open critical/high alert still drops the tier regardless of autofix
+  // state), so it renders as a small line under the tier badge rather than a
+  // row in the criteria table above.
+  const autofixLine = buildDependabotAutofixLine(snapshot.summary?.automated_security_fixes_active);
+
   return `<h2>Health Tier</h2>
 <div class="chart-container" style="text-align:center;padding-bottom:0.5rem">
 <div style="font-size:3rem;font-weight:700;color:${color}">${display}</div>
+${autofixLine}
 <table style="margin-top:1rem;text-align:left"><thead><tr><th></th><th>Criteria</th><th>Required</th><th>Detail</th></tr></thead>
 <tbody>${checkRows}</tbody></table>
 ${nextTierHtml}
@@ -460,6 +467,32 @@ export function buildStatCard({ title, value, color, label, available = true }) 
   return `<div class="card"><h3>${title}</h3>
 <div class="stat" style="color:${displayColor}">${displayValue}</div>
 <div class="stat-label">${displayLabel}</div></div>`;
+}
+
+// Dependabot automated-security-fixes tri-state (ADR-012 Phase 3) mapped to
+// display text/colour, shared by the lightweight-card stat card and the Health
+// Tier section's inline indicator so both per-repo render paths agree —
+// consistent with the portfolio governance column's autofix cell
+// (report-portfolio.js buildGovernanceSection). `active` is
+// summary.automated_security_fixes_active: true = GitHub is opening the bump
+// PRs, false = the setting is off/paused, null = unreadable or never fetched
+// (e.g. lightweight cards for quiet repos).
+function dependabotAutofixState(active) {
+  if (active === true) return { short: 'In flight', text: 'in flight', color: COLOR_SUCCESS, detail: 'GitHub is opening the bump PRs' };
+  if (active === false) return { short: 'Not driven', text: 'not driven', color: COLOR_DANGER, detail: 'not being driven to resolution' };
+  return { short: 'Unknown', text: 'unknown', color: 'var(--muted)', detail: 'state unreadable' };
+}
+
+export function buildDependabotAutofixCard(active) {
+  const s = dependabotAutofixState(active);
+  return `<div class="card"><h3>Dependabot Autofix</h3>
+<div class="stat" style="color:${s.color}">${s.short}</div>
+<div class="stat-label">${s.detail}</div></div>`;
+}
+
+function buildDependabotAutofixLine(active) {
+  const s = dependabotAutofixState(active);
+  return `<div class="muted" style="font-size:0.85rem;margin-top:0.25rem">Dependabot autofix: <span style="color:${s.color}">${s.text}</span></div>`;
 }
 
 export function buildHealthSection(snapshot, depSummary = null, libyear = null) {
@@ -826,6 +859,10 @@ export function generateLightRepoReport(owner, repo, details) {
   const commits = details?.commits || 0;
   const ci = details?.ci || 0;
   const license = details?.license || 'None';
+  // details.autofix is the raw { enabled, paused } | null state (fetchPortfolioDetails);
+  // derive the same tri-state buildRepoSnapshot computes for the full-dashboard path.
+  const autofix = details?.autofix;
+  const autofixActive = autofix == null ? null : (autofix.enabled === true && autofix.paused !== true);
 
   const liveSite = deployedLink(repo.homepage, 'live site ↗');
   const body = `<h1>${escHtml(repo.name)}</h1>
@@ -837,6 +874,7 @@ export function generateLightRepoReport(owner, repo, details) {
   <div class="card"><h3>Commits (6mo)</h3><div class="stat">${commits}</div></div>
   <div class="card"><h3>CI Workflows</h3><div class="stat">${ci}</div></div>
   <div class="card"><h3>Last Push</h3><div class="stat stat-sm">${pushed}</div></div>
+  ${buildDependabotAutofixCard(autofixActive)}
 </div>
 <div class="chart-container muted" style="text-align:center;padding:3rem">
   This repo has fewer than 10 commits in the last 6 months.<br>

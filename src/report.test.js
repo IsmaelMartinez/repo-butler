@@ -1412,6 +1412,55 @@ describe('dashboard inspiration polish', () => {
   });
 });
 
+describe('Dependabot autofix indicator on the per-repo report (ADR-012 Phase 4)', () => {
+  it('buildDependabotAutofixCard renders the three tri-state values with matching colours', async () => {
+    const { buildDependabotAutofixCard } = await import('./report-repo.js');
+    assert.match(buildDependabotAutofixCard(true), /color:var\(--color-success\)">In flight</);
+    assert.match(buildDependabotAutofixCard(false), /color:var\(--color-danger\)">Not driven</);
+    assert.match(buildDependabotAutofixCard(null), /color:var\(--muted\)">Unknown</);
+  });
+
+  it('full-dashboard Health Tier section shows in flight / not driven / unknown', async () => {
+    const { generateRepoReport } = await import('./report-repo.js');
+    const base = {
+      repository: 'owner/test', meta: { stars: 0, forks: 0, watchers: 0 },
+      issues: { open: [] }, releases: [],
+      community_profile: null, dependabot_alerts: null,
+      code_scanning_alerts: null, secret_scanning_alerts: null, ci_pass_rate: null,
+      pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
+    };
+    const summaryBase = { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 0, human_prs: 0, bot_prs: 0, releases: 0, latest_release: 'none', ci_workflows: 0, bus_factor: 0, time_to_close_median: null };
+
+    const inFlight = { ...base, summary: { ...summaryBase, automated_security_fixes_active: true } };
+    const notDriven = { ...base, summary: { ...summaryBase, automated_security_fixes_active: false } };
+    const unknown = { ...base, summary: { ...summaryBase, automated_security_fixes_active: null } };
+
+    const htmlOn = generateRepoReport(inFlight, [], [], [], null, [], null, [], null, null, {});
+    const htmlOff = generateRepoReport(notDriven, [], [], [], null, [], null, [], null, null, {});
+    const htmlUnknown = generateRepoReport(unknown, [], [], [], null, [], null, [], null, null, {});
+
+    assert.ok(htmlOn.includes('Dependabot autofix: <span style="color:var(--color-success)">in flight</span>'), 'shows in-flight state');
+    assert.ok(htmlOff.includes('Dependabot autofix: <span style="color:var(--color-danger)">not driven</span>'), 'shows not-driven state');
+    assert.ok(htmlUnknown.includes('Dependabot autofix: <span style="color:var(--muted)">unknown</span>'), 'shows unknown state');
+  });
+
+  it('lightweight per-repo card shows a Dependabot Autofix card for all states', async () => {
+    const { generateLightRepoReport } = await import('./report-repo.js');
+    const repo = { name: 'quiet', description: '', stars: 0, forks: 0, open_issues: 0, language: 'JS', pushed_at: new Date().toISOString() };
+
+    const htmlOn = generateLightRepoReport('owner', repo, { commits: 1, ci: 0, license: 'MIT', autofix: { enabled: true, paused: false } });
+    const htmlOff = generateLightRepoReport('owner', repo, { commits: 1, ci: 0, license: 'MIT', autofix: { enabled: false, paused: false } });
+    const htmlPaused = generateLightRepoReport('owner', repo, { commits: 1, ci: 0, license: 'MIT', autofix: { enabled: true, paused: true } });
+    const htmlUnknown = generateLightRepoReport('owner', repo, { commits: 1, ci: 0, license: 'MIT', autofix: null });
+
+    assert.ok(htmlOn.includes('<h3>Dependabot Autofix</h3>'), 'renders the autofix card');
+    assert.ok(htmlOn.includes('In flight'), 'in-flight state shown when enabled and not paused');
+    assert.ok(htmlOff.includes('Not driven'), 'not-driven state shown when disabled');
+    assert.ok(htmlPaused.includes('Not driven'), 'paused autofix also reads as not driven');
+    assert.ok(htmlUnknown.includes('Unknown'), 'unknown state shown when autofix data is absent');
+  });
+});
+
 describe('report cache invalidation includes report.js', () => {
   it('templateFiles array includes src/report.js', async () => {
     const { readFile } = await import('node:fs/promises');
@@ -1425,14 +1474,14 @@ describe('report cache invalidation includes report.js', () => {
 });
 
 describe('fetchPortfolioDetails incremental cache', () => {
-  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix setting)', async () => {
+  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix + copilot-review settings)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // The only permitted call on a cache hit is the single autofix GET (ADR-012
-    // Phase 3): the setting can flip without a push, so it is refreshed while every
-    // push-invariant field comes from cache. No paginate / getFileContent / full
-    // re-fetch should occur.
+    // The only permitted calls on a cache hit are the autofix GET and the copilot
+    // ruleset list read (ADR-012 Phase 3 / ADR-009): both settings can flip without
+    // a push, so they're refreshed while every push-invariant field comes from
+    // cache. No getFileContent / full re-fetch should occur.
     const requestPaths = [];
-    let paginateCalled = false;
+    const paginatePaths = [];
     let getFileContentCalled = false;
     const gh = {
       request: (path) => {
@@ -1440,7 +1489,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
         if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
         return Promise.resolve({});
       },
-      paginate: () => { paginateCalled = true; return Promise.resolve([]); },
+      paginate: (path) => { paginatePaths.push(path); return Promise.resolve([]); },
       getFileContent: () => { getFileContentCalled = true; return Promise.resolve(null); },
     };
     const repos = [
@@ -1452,16 +1501,19 @@ describe('fetchPortfolioDetails incremental cache', () => {
           schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: '2026-04-01T00:00:00Z',
           open_issues_count: 5,
-          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null, autofix: null },
+          // hasCopilotReview stale-true; the ruleset list mock below returns no
+          // active rulesets, so the live read should flip it to false.
+          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null, autofix: null, hasCopilotReview: true },
         },
       },
     };
     const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
     assert.deepEqual(requestPaths, ['/repos/owner/cached-repo/automated-security-fixes'], 'only the autofix GET runs on a cache hit');
-    assert.equal(paginateCalled, false, 'no paginate on a cache hit');
+    assert.deepEqual(paginatePaths, ['/repos/owner/cached-repo/rulesets'], 'only the copilot ruleset list paginate runs on a cache hit');
     assert.equal(getFileContentCalled, false, 'no getFileContent on a cache hit');
     assert.equal(details['cached-repo'].commits, 42, 'should use cached commits');
     assert.deepEqual(details['cached-repo'].autofix, { enabled: true, paused: false }, 'refreshes the stale autofix state from the live GET');
+    assert.equal(details['cached-repo'].hasCopilotReview, false, 'refreshes the stale copilot-review state from the live read');
     assert.ok(details._cachedRepos.includes('cached-repo'), 'should mark as cached');
   });
 
