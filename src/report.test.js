@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection, reportCacheHit } from './report.js';
+import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection, buildAutofixNudge, reportCacheHit } from './report.js';
 import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink } from './report-shared.js';
 
 describe('jsStr', () => {
@@ -1131,6 +1131,35 @@ describe('generatePortfolioReport restructure', () => {
     assert.ok(!html.includes('id="commitChart"'), 'should not have commit totals chart');
   });
 
+  it('surfaces the autofix not-driven nudge near the top when governance findings have it', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const owner = 'test';
+    const portfolio = { repos: [
+      { name: 'a', stars: 5, forks: 1, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ]};
+    const details = { a: { commits: 20, weekly: [1,2], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const governanceFindings = [
+      { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'], autofixEnabled: false, priority: 'high', critical: 1, high: 0, secretScanning: 0, remediation: { executor: 'manual' } },
+    ];
+    const html = generatePortfolioReport(owner, portfolio, details, null, null, {}, governanceFindings);
+    assert.ok(html.includes('Dependabot autofix off'), 'nudge is present when a not-driven finding exists');
+    assert.ok(html.indexOf('Dependabot autofix off') < html.indexOf('Open Vulnerabilities'), 'nudge appears above the buried per-row table');
+  });
+
+  it('omits the autofix not-driven nudge when no finding is not-driven', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const owner = 'test';
+    const portfolio = { repos: [
+      { name: 'a', stars: 5, forks: 1, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ]};
+    const details = { a: { commits: 20, weekly: [1,2], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const governanceFindings = [
+      { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'], autofixEnabled: true, priority: 'medium', critical: 1, high: 0, secretScanning: 0, remediation: { executor: 'manual' } },
+    ];
+    const html = generatePortfolioReport(owner, portfolio, details, null, null, {}, governanceFindings);
+    assert.ok(!html.includes('Dependabot autofix off'), 'nudge is absent when no finding is not-driven');
+  });
+
   it('has simplified health table with 6 columns and full view toggle', async () => {
     const { generatePortfolioReport } = await import('./report-portfolio.js');
     const portfolio = { repos: [
@@ -2021,6 +2050,48 @@ describe('buildGovernanceSection', () => {
     ];
     const html = buildGovernanceSection(findings);
     assert.ok(html.startsWith('<h2>Governance (2)</h2>'), 'should start with h2 carrying the count');
+  });
+});
+
+describe('buildAutofixNudge (ADR-012 Phase 3 not-driven callout)', () => {
+  it('renders nothing when there are no findings', () => {
+    assert.equal(buildAutofixNudge(null), '');
+    assert.equal(buildAutofixNudge(undefined), '');
+    assert.equal(buildAutofixNudge([]), '');
+  });
+
+  it('renders nothing when no finding has autofixEnabled === false', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'inflight', sources: ['dependabot'], autofixEnabled: true },
+      { type: 'open-vulnerability', repo: 'unknownstate', sources: ['dependabot'], autofixEnabled: null },
+      { type: 'open-vulnerability', repo: 'codeonly', sources: ['code-scanning'] },
+      { type: 'standards-gap', tool: 'license' },
+    ];
+    assert.equal(buildAutofixNudge(findings), '');
+  });
+
+  it('renders a singular-noun callout for exactly one not-driven repo', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'notdriven', sources: ['dependabot'], autofixEnabled: false },
+      { type: 'open-vulnerability', repo: 'inflight', sources: ['dependabot'], autofixEnabled: true },
+    ];
+    const html = buildAutofixNudge(findings);
+    assert.ok(html.includes('1 repo has'), 'uses singular noun for count 1');
+    assert.ok(html.includes('Dependabot autofix off'));
+    assert.ok(html.includes('dependabot-security'), 'points at the apply action that fixes it');
+  });
+
+  it('renders a plural-noun callout counting only dependabot-sourced not-driven findings', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'notdriven-a', sources: ['dependabot'], autofixEnabled: false },
+      { type: 'open-vulnerability', repo: 'notdriven-b', sources: ['dependabot'], autofixEnabled: false },
+      { type: 'open-vulnerability', repo: 'inflight', sources: ['dependabot'], autofixEnabled: true },
+      { type: 'open-vulnerability', repo: 'unknownstate', sources: ['dependabot'], autofixEnabled: null },
+      { type: 'open-vulnerability', repo: 'codeonly', sources: ['code-scanning'] },
+      { type: 'standards-gap', tool: 'license' },
+    ];
+    const html = buildAutofixNudge(findings);
+    assert.ok(html.includes('2 repos have'), 'uses plural noun and counts only the not-driven repos');
   });
 });
 

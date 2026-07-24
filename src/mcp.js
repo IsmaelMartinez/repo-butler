@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier, isAutofixNotDriven } from './report-shared.js';
 import { PERSONAS } from './council.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -336,7 +336,7 @@ function toolGetGovernanceFindings() {
         // vs OFF (not being driven to resolution). Each finding also carries the
         // per-repo `autofixEnabled` tri-state (true/false/null) for detail.
         autofixInFlight: findings.filter(f => f.type === 'open-vulnerability' && f.autofixEnabled === true).length,
-        autofixNotDriven: findings.filter(f => f.type === 'open-vulnerability' && f.autofixEnabled === false).length,
+        autofixNotDriven: findings.filter(isAutofixNotDriven).length,
         // ADR-007 remediation contract: route findings by executor hint.
         byExecutor: {
           template: findings.filter(f => f.remediation?.executor === 'template').length,
