@@ -526,3 +526,74 @@ describe('createClient — prCiGreen', () => {
     assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
   });
 });
+
+describe('createClient — prCiHistory', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const run = (sha, name, conclusion, created_at, run_attempt = 1) => ({
+    head_sha: sha, name, conclusion, created_at, run_attempt,
+  });
+
+  it('groups the completed runs of one revision into a single attempt, newest first', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({
+      workflow_runs: [
+        run('bbb', 'CI', 'failure', '2026-07-20T08:30:00Z'),
+        run('bbb', 'CodeQL', 'success', '2026-07-20T08:30:00Z'),
+        run('aaa', 'Lint', 'failure', '2026-07-13T08:30:00Z'),
+        run('aaa', 'CI', 'failure', '2026-07-13T08:30:00Z'),
+      ],
+    }));
+    const gh = createClient('tok');
+    const history = await gh.prCiHistory('o', 'r', 'dependabot/npm_and_yarn/linting-e7dfb5ad69');
+    assert.deepEqual(history, [
+      { sha: 'bbb', attempt: 1, failing: ['CI'] },
+      { sha: 'aaa', attempt: 1, failing: ['CI', 'Lint'] },
+    ]);
+  });
+
+  it('separates re-run attempts of the same SHA and orders by created_at, not response order', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({
+      workflow_runs: [
+        run('aaa', 'CI', 'failure', '2026-07-01T08:00:00Z', 1),
+        run('aaa', 'CI', 'failure', '2026-07-03T08:00:00Z', 3),
+        run('aaa', 'CI', 'failure', '2026-07-02T08:00:00Z', 2),
+      ],
+    }));
+    const gh = createClient('tok');
+    const history = await gh.prCiHistory('o', 'r', 'branch');
+    assert.deepEqual(history.map(a => a.attempt), [3, 2, 1]);
+  });
+
+  it('queries the branch-scoped completed runs and caps the history at `attempts`', async () => {
+    const urls = [];
+    globalThis.fetch = mock.fn(async (url) => {
+      urls.push(url.toString());
+      return jsonResponse({
+        workflow_runs: ['e', 'd', 'c', 'b', 'a'].map((s, i) =>
+          run(s, 'CI', 'failure', `2026-07-0${5 - i}T08:00:00Z`)),
+      });
+    });
+    const gh = createClient('tok');
+    const history = await gh.prCiHistory('o', 'r', 'dependabot/npm_and_yarn/lint', { attempts: 3 });
+    assert.deepEqual(history.map(a => a.sha), ['e', 'd', 'c']);
+    assert.ok(urls[0].includes('/repos/o/r/actions/runs'));
+    assert.ok(urls[0].includes('branch=dependabot%2Fnpm_and_yarn%2Flint'));
+    assert.ok(urls[0].includes('status=completed'));
+  });
+
+  it('empty when the branch has no completed runs', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({ workflow_runs: [] }));
+    const gh = createClient('tok');
+    assert.deepEqual(await gh.prCiHistory('o', 'r', 'branch'), []);
+  });
+
+  // Opposite polarity to prCiGreen: this signal only suppresses a comment, so an
+  // unreadable history must return "no evidence" rather than block the caller.
+  it('empty (fails OPEN) on error', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
+    const gh = createClient('tok');
+    assert.deepEqual(await gh.prCiHistory('o', 'r', 'branch'), []);
+  });
+});
