@@ -12,7 +12,7 @@ import {
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
   CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
-  isAutofixNotDriven,
+  isAutofixNotDriven, computeCountTrend,
 } from './report-shared.js';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
@@ -859,12 +859,29 @@ export function buildCriticalBanner(atRisk) {
 // only: reads findings already computed by governance.js, no detection logic
 // here. Renders nothing when the count is 0, matching the dashboard's
 // calm-by-design philosophy (see buildSinceLastSection).
-export function buildAutofixNudge(findings) {
+//
+// priorCount (governance.js's priorAutofixNotDrivenCount, from the prior
+// governance-weekly snapshot) drives an optional trend badge — null/undefined
+// (no prior snapshot yet, or the REPORT phase ran without GOVERNANCE first)
+// or an unchanged count renders no badge, same as buildStatusHero's Gold
+// trend. Unlike that Gold trend, a rising count here is a regression (more
+// repos left undriven), so the arrow direction and the up/down colour class
+// are inverted: fewer not-driven repos (an improvement) gets the green "up"
+// class, more gets the red "down" class.
+export function buildAutofixNudge(findings, priorCount = null) {
   if (!findings || findings.length === 0) return '';
   const count = findings.filter(isAutofixNotDriven).length;
   if (count === 0) return '';
   const noun = count === 1 ? 'repo has' : 'repos have';
-  return `<div class="alert-banner"><strong>Dependabot autofix off.</strong> ${count} ${noun} Dependabot autofix off despite open vulnerabilities — enable via the <code>dependabot-security</code> apply action.</div>`;
+  const nudgeTrend = computeCountTrend(count, priorCount, { invert: true });
+  let trend = '';
+  if (nudgeTrend && nudgeTrend.direction !== 'unchanged') {
+    const { delta, direction } = nudgeTrend;
+    const arrow = delta > 0 ? '▲' : '▼';
+    const cls = direction === 'improving' ? 'up' : 'down';
+    trend = ` <span class="status-trend ${cls}" title="vs the prior governance snapshot">${arrow} ${delta > 0 ? '+' : ''}${Math.abs(delta)}</span>`;
+  }
+  return `<div class="alert-banner"><strong>Dependabot autofix off.</strong> ${count} ${noun} Dependabot autofix off despite open vulnerabilities${trend} — enable via the <code>dependabot-security</code> apply action.</div>`;
 }
 
 // The calm headline block: a status dot, a state-aware headline in the butler's
@@ -948,7 +965,7 @@ export function buildSinceLastSection(classified, priorPortfolio) {
 
 // --- Portfolio report ---
 
-export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null, governanceFindings = null, priorPortfolio = null) {
+export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null, governanceFindings = null, priorPortfolio = null, priorAutofixNotDrivenCount = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived && !r.fork)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
@@ -1019,7 +1036,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
 
   const criticalBanner = buildCriticalBanner(atRisk);
-  const autofixNudge = buildAutofixNudge(governanceFindings);
+  const autofixNudge = buildAutofixNudge(governanceFindings, priorAutofixNotDrivenCount);
   const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount);
   const sinceSection = buildSinceLastSection(classified, priorPortfolio);
 

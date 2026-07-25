@@ -3,7 +3,7 @@
 // Pure functions that receive portfolio data and return governance findings.
 
 import { detectEcosystem } from './safety.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
@@ -49,11 +49,34 @@ export async function runGovernance(context) {
   context.governanceFindings = attachRemediationPlans(context.governanceFindings);
 
   if (store) {
+    // Read the prior weekly governance snapshot BEFORE writeGovernanceWeekly
+    // (below) overwrites this week's file — mirrors store.readLatestPortfolioWeekly's
+    // read-before-write ordering, so the count reflects the previous run/week
+    // rather than the findings just computed above. Presentation-only trend
+    // input for the dashboard's autofix-not-driven nudge (report-portfolio.js
+    // buildAutofixNudge) — detection above stays pure per ADR-012.
+    const priorWeekly = await store.readLatestGovernanceWeekly();
+    context.priorAutofixNotDrivenCount = priorAutofixNotDrivenCount(priorWeekly);
+    await store.writeGovernanceWeekly(context.governanceFindings);
+
     // Always persist — even an empty array — so the data branch reflects
     // the current portfolio state. Otherwise stale findings linger after
     // remediation and the dashboard/MCP/apply read out-of-date data.
     await store.writeGovernanceFindings(context.governanceFindings);
   }
+}
+
+/**
+ * Count of dependabot-sourced open-vulnerability findings with autofix off in
+ * a governance-weekly snapshot (from store.readLatestGovernanceWeekly()).
+ * Pure — no I/O — so the trend math is testable without a store/gh fixture.
+ * @param {{ findings: Array }|null} priorWeekly
+ * @returns {number|null} null when there is no prior snapshot to compare against
+ */
+export function priorAutofixNotDrivenCount(priorWeekly) {
+  return Array.isArray(priorWeekly?.findings)
+    ? priorWeekly.findings.filter(isAutofixNotDriven).length
+    : null;
 }
 
 // Built-in detectors map standard tool names to compliance checks.

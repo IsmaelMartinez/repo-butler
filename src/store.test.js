@@ -338,6 +338,62 @@ describe('pruneDir (via writePortfolioWeekly)', () => {
   });
 });
 
+describe('writeGovernanceWeekly / readLatestGovernanceWeekly', () => {
+  it('writes findings wrapped as { findings } to the current week file', async () => {
+    const gh = makeFakeGh();
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+    const findings = [{ type: 'open-vulnerability', repo: 'a', autofixEnabled: false }];
+
+    await store.writeGovernanceWeekly(findings);
+
+    assert.equal(gh.calls.put.length, 1);
+    assert.match(gh.calls.put[0], /^snapshots\/governance-weekly\/\d{4}-W\d{2}\.json$/);
+  });
+
+  it('does nothing for non-array input', async () => {
+    const gh = makeFakeGh();
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writeGovernanceWeekly(null);
+
+    assert.equal(gh.calls.put.length, 0);
+  });
+
+  it('returns null when no weekly snapshots exist yet', async () => {
+    const gh = makeFakeGh();
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    assert.equal(await store.readLatestGovernanceWeekly(), null);
+  });
+
+  it('reads the lexicographically-last file and tags it with _week', async () => {
+    const latestFindings = [{ type: 'open-vulnerability', repo: 'x', autofixEnabled: false }];
+    const gh = makeFakeGh({ existing: ['2025-W01.json', '2025-W02.json'] });
+    gh.getFileContent = async (_o, _r, path) => {
+      if (path.endsWith('2025-W02.json')) return JSON.stringify({ findings: latestFindings });
+      if (path.endsWith('2025-W01.json')) return JSON.stringify({ findings: [] });
+      return null;
+    };
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    const result = await store.readLatestGovernanceWeekly();
+
+    assert.equal(result._week, '2025-W02');
+    assert.deepEqual(result.findings, latestFindings);
+  });
+
+  it('prunes old governance-weekly snapshots beyond MAX_WEEKLY_SNAPSHOTS', async () => {
+    const existing = Array.from({ length: 14 }, (_, i) => `2025-W${String(i + 1).padStart(2, '0')}.json`);
+    const gh = makeFakeGh({ existing });
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writeGovernanceWeekly([{ type: 'open-vulnerability', repo: 'a' }]);
+
+    assert.equal(gh.calls.delete.length, 3);
+    assert.match(gh.calls.delete[0].message, /^chore: prune old governance snapshot /);
+  });
+});
+
 describe('buildPortfolioSnapshot — repo ID propagation', () => {
   it('includes repo id in snapshot data when present', async () => {
     const { buildPortfolioSnapshot } = await import('./store.js');
