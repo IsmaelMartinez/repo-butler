@@ -341,6 +341,7 @@ describe('MCP server', async () => {
           assert.equal(typeof trend.previous, 'number');
           assert.equal(typeof trend.delta, 'number');
           assert.ok(['improving', 'worsening', 'unchanged'].includes(trend.direction));
+          assert.equal(typeof trend.previousWeek, 'string', 'previousWeek must be set alongside the trend');
         }
       }
     });
