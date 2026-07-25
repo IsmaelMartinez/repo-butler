@@ -90,7 +90,7 @@ Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `stand
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-Dashboard week-over-week trend nudges optimized 2026-07-25 (PR #340). Refined the user experience on the dashboard by adding a week-over-week trend to the "autofix-not-driven" dashboard nudge, enhancing data visibility and providing actionable insights on automated fix trends over time.
+Model Context Protocol (MCP) parity for week-over-week trends shipped 2026-07-25 (PR #341). This update matures the project's analytical depth and reporting capabilities by adding trend tracking for specific metrics, specifically `autofixNotDriven`, ensuring users have access to historical insights via MCP integrations.
 ---
 
 ## Roadmap
