@@ -73,6 +73,62 @@ function listPortfolioWeeklyFiles() {
   }
 }
 
+// List governance-weekly files (basenames like "2026-W18.json"), sorted oldest→newest.
+function listGovernanceWeeklyFiles() {
+  try {
+    const listing = runGitOnDataBranch(ref => ['ls-tree', '--name-only', ref, 'snapshots/governance-weekly/']).trim();
+    if (!listing) return [];
+    return listing.split('\n')
+      .map(p => p.replace(/^snapshots\/governance-weekly\//, ''))
+      .filter(f => f.endsWith('.json'))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+// Load the "prior" governance-weekly snapshot for the trend the MCP tool
+// exposes. This is NOT the same "prior" governance.js computes at write time
+// (store.readLatestGovernanceWeekly, read before that run's write). Governance
+// runs 4x/day (self-test.yml) and the weekly file is bucketed by ISO week and
+// overwritten on every run, so by the time this read-only tool queries the
+// data branch, the lexicographically-last file already holds the *current*
+// run's findings (the same data as snapshots/governance.json) — any
+// earlier-that-day run's findings were already overwritten and are gone.
+// The only genuinely prior data point still on disk is the previous distinct
+// weekly file, i.e. the second-most-recent entry in the sorted listing. That
+// makes this a week-over-week comparison rather than governance.js's
+// run-over-run one — the correct analogue for a consumer with no access to
+// the in-process context.priorAutofixNotDrivenCount.
+function loadPriorGovernanceWeekly() {
+  try {
+    const files = listGovernanceWeeklyFiles();
+    if (files.length < 2) return null;
+    const prior = files[files.length - 2];
+    const raw = loadFromDataBranch(`snapshots/governance-weekly/${prior}`);
+    if (!raw) return null;
+    return { week: prior.match(/(\d{4}-W\d{2})/)?.[1], data: JSON.parse(raw) };
+  } catch {
+    return null;
+  }
+}
+
+// Pure: derive the autofixNotDriven trend object from the current count and a
+// prior governance-weekly snapshot's parsed data (or null/malformed → no
+// trend). Kept separate from loadPriorGovernanceWeekly's git I/O so the trend
+// math is unit-testable without a data branch, mirroring
+// governance.js's priorAutofixNotDrivenCount.
+function computeAutofixNotDrivenTrend(currentCount, priorWeeklyData) {
+  if (!Array.isArray(priorWeeklyData?.findings)) return null;
+  const previous = priorWeeklyData.findings.filter(isAutofixNotDriven).length;
+  return {
+    current: currentCount,
+    previous,
+    delta: currentCount - previous,
+    direction: currentCount === previous ? 'unchanged' : currentCount < previous ? 'improving' : 'worsening',
+  };
+}
+
 // Normalize a parsed weekly snapshot to a flat { repoName: data } map.
 // Supports both v1 envelope ({ schema_version, repos }) and legacy flat format.
 function unwrapWeeklyRepos(parsed) {
@@ -167,7 +223,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven.',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven, plus an autofixNotDrivenTrend (week-over-week current/previous/delta/direction, null if no prior snapshot).',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -323,6 +379,10 @@ function toolGetGovernanceFindings() {
   if (!raw) return { findings: [], message: 'No governance findings available — run the full pipeline first' };
   try {
     const findings = JSON.parse(raw);
+    const autofixNotDriven = findings.filter(isAutofixNotDriven).length;
+    const prior = loadPriorGovernanceWeekly();
+    const autofixNotDrivenTrend = computeAutofixNotDrivenTrend(autofixNotDriven, prior?.data);
+    if (autofixNotDrivenTrend && prior?.week) autofixNotDrivenTrend.previousWeek = prior.week;
     return {
       findings,
       summary: {
@@ -336,7 +396,12 @@ function toolGetGovernanceFindings() {
         // vs OFF (not being driven to resolution). Each finding also carries the
         // per-repo `autofixEnabled` tri-state (true/false/null) for detail.
         autofixInFlight: findings.filter(f => f.type === 'open-vulnerability' && f.autofixEnabled === true).length,
-        autofixNotDriven: findings.filter(isAutofixNotDriven).length,
+        autofixNotDriven,
+        // Week-over-week trend for autofixNotDriven, from the governance-weekly
+        // history stream (see loadPriorGovernanceWeekly for why this is a
+        // week-over-week rather than run-over-run comparison). null when no
+        // prior weekly snapshot exists yet.
+        autofixNotDrivenTrend,
         // ADR-007 remediation contract: route findings by executor hint.
         byExecutor: {
           template: findings.filter(f => f.remediation?.executor === 'template').length,
@@ -777,4 +842,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, callTool, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, callTool, TOOLS, RESOURCES };
