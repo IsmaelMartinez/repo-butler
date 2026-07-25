@@ -327,7 +327,7 @@ export async function report(context) {
     // store without the method, or a fresh data branch, simply yields null and
     // the dashboard renders its first-run calm state.
     const priorPortfolio = await store?.readLatestPortfolioWeekly?.() ?? null;
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings, priorPortfolio);
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings, priorPortfolio, context.priorAutofixNotDrivenCount);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 
