@@ -22,7 +22,7 @@ The honest postscript: four factual errors in this plan's own first draft traced
 
 Six repos fail exactly one Gold check, "Zero critical/high security findings". Eleven open high-severity Dependabot alerts, zero critical, zero secret-scanning. Packages: `fast-uri`, `brace-expansion`, `svgo`, `postcss`, `js-yaml`, `adm-zip`, every one with a published patched version.
 
-Two repos carry a second blocker. teams-for-linux sits at ten open bugs against a strict `open_bugs < 10` gate — one issue away, not five; the widely-quoted fourteen was the W29 figure. generator-atlassian-compass-event-catalog last released 2026-04-20, about 96 days against a 90-day threshold, with 28 unreleased commits and a working `release.yml`.
+Two repos carry a second blocker. teams-for-linux sits at ten open bugs against a strict `open_bugs < 10` gate — one issue away, not five; the widely-quoted fourteen was the W29 figure. generator-atlassian-compass-event-catalog last released 2026-04-20, about 95 days against a 90-day threshold, with 28 unreleased commits and a working `release.yml`.
 
 A near-miss worth recording: teams-for-linux also carries 27 open code-scanning alerts, but all 27 are medium and the gate trips only on critical or high, so they do not block Gold.
 
@@ -205,7 +205,7 @@ The honesty constraint overrides the metric. Closing a real defect to move a num
 
 ### G3 — generator release cadence
 
-Cut a release on generator-atlassian-compass-event-catalog: 28 unreleased commits, a working `release.yml`, last release about 96 days old.
+Cut a release on generator-atlassian-compass-event-catalog: 28 unreleased commits, a working `release.yml`, last release about 95 days old.
 
 Acceptance: the latest release is under ninety days old.
 
