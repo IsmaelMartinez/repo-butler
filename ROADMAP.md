@@ -90,7 +90,9 @@ Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `stand
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-Model Context Protocol (MCP) parity for week-over-week trends shipped 2026-07-25 (PR #341). This update matures the project's analytical depth and reporting capabilities by adding trend tracking for specific metrics, specifically `autofixNotDriven`, ensuring users have access to historical insights via MCP integrations.
+Dependabot and monitor workflow optimizations shipped 2026-07-25 (PRs #342 and #343). Refined the automated CI/CD pipeline by skipping monitor jobs for Dependabot-triggered events and skipping Dependabot nudges entirely on deterministically failing pull requests to significantly reduce CI noise and optimize bot interactions.
+
+Configuration maintenance updates shipped 2026-07-25 (PR #344). Marked a specific generator as release-exempt within the configuration to maintain pristine release automation behavior across the portfolio.
 ---
 
 ## Roadmap
