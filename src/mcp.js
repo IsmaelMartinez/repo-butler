@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier, isAutofixNotDriven } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend } from './report-shared.js';
 import { PERSONAS } from './council.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -73,6 +73,13 @@ function listPortfolioWeeklyFiles() {
   }
 }
 
+// Matches exactly the isoWeekKey format store.js writes ("2026-W18.json") —
+// strict, not just *.json, so a stray non-week file dropped into the
+// directory (or a future naming change) can't be mistaken for a weekly
+// snapshot. loadPriorGovernanceWeekly relies on file[length-2] being a real
+// ISO-week snapshot with an extractable week label.
+const GOVERNANCE_WEEKLY_FILE_PATTERN = /^\d{4}-W\d{2}\.json$/;
+
 // List governance-weekly files (basenames like "2026-W18.json"), sorted oldest→newest.
 function listGovernanceWeeklyFiles() {
   try {
@@ -80,14 +87,14 @@ function listGovernanceWeeklyFiles() {
     if (!listing) return [];
     return listing.split('\n')
       .map(p => p.replace(/^snapshots\/governance-weekly\//, ''))
-      .filter(f => f.endsWith('.json'))
+      .filter(f => GOVERNANCE_WEEKLY_FILE_PATTERN.test(f))
       .sort();
   } catch {
     return [];
   }
 }
 
-// Load the "prior" governance-weekly snapshot for the trend the MCP tool
+// Load the "prior" governance-weekly snapshot for the trends the MCP tool
 // exposes. This is NOT the same "prior" governance.js computes at write time
 // (store.readLatestGovernanceWeekly, read before that run's write). Governance
 // runs 4x/day (self-test.yml) and the weekly file is bucketed by ISO week and
@@ -113,20 +120,28 @@ function loadPriorGovernanceWeekly() {
   }
 }
 
-// Pure: derive the autofixNotDriven trend object from the current count and a
-// prior governance-weekly snapshot's parsed data (or null/malformed → no
-// trend). Kept separate from loadPriorGovernanceWeekly's git I/O so the trend
-// math is unit-testable without a data branch, mirroring
-// governance.js's priorAutofixNotDrivenCount.
-function computeAutofixNotDrivenTrend(currentCount, priorWeeklyData) {
+// Pure: derive a week-over-week trend for a governance finding count from the
+// current count and a prior governance-weekly snapshot's parsed data (or
+// null/malformed → no trend). `predicate` selects which findings count toward
+// the metric (e.g. isAutofixNotDriven, or a `type === 'open-vulnerability'`
+// check) — shared math via report-shared.js's computeCountTrend so this and
+// the dashboard's buildAutofixNudge never drift on direction semantics. Kept
+// separate from loadPriorGovernanceWeekly's git I/O so it's unit-testable
+// without a data branch, mirroring governance.js's priorAutofixNotDrivenCount.
+// Every governance count trend reads as a regression when it rises (more
+// repos in a bad state is worse), hence the fixed invert: true.
+function computeGovernanceCountTrend(currentCount, priorWeeklyData, predicate) {
   if (!Array.isArray(priorWeeklyData?.findings)) return null;
-  const previous = priorWeeklyData.findings.filter(isAutofixNotDriven).length;
-  return {
-    current: currentCount,
-    previous,
-    delta: currentCount - previous,
-    direction: currentCount === previous ? 'unchanged' : currentCount < previous ? 'improving' : 'worsening',
-  };
+  const previous = priorWeeklyData.findings.filter(predicate).length;
+  return computeCountTrend(currentCount, previous, { invert: true });
+}
+
+function computeAutofixNotDrivenTrend(currentCount, priorWeeklyData) {
+  return computeGovernanceCountTrend(currentCount, priorWeeklyData, isAutofixNotDriven);
+}
+
+function computeOpenVulnerabilitiesTrend(currentCount, priorWeeklyData) {
+  return computeGovernanceCountTrend(currentCount, priorWeeklyData, f => f.type === 'open-vulnerability');
 }
 
 // Normalize a parsed weekly snapshot to a flat { repoName: data } map.
@@ -223,7 +238,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven, plus an autofixNotDrivenTrend (week-over-week current/previous/delta/direction, null if no prior snapshot).',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven and openVulnerabilities, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -374,15 +389,24 @@ function toolGetSnapshotDiff() {
   };
 }
 
+// Stamp `previousWeek` onto a trend object when both are present, so a
+// non-null trend is always fully shaped (never missing the label for what
+// it's being compared against).
+function withPreviousWeek(trend, week) {
+  if (trend && week) trend.previousWeek = week;
+  return trend;
+}
+
 function toolGetGovernanceFindings() {
   const raw = loadFromDataBranch('snapshots/governance.json');
   if (!raw) return { findings: [], message: 'No governance findings available — run the full pipeline first' };
   try {
     const findings = JSON.parse(raw);
+    const openVulnerabilities = findings.filter(f => f.type === 'open-vulnerability').length;
     const autofixNotDriven = findings.filter(isAutofixNotDriven).length;
     const prior = loadPriorGovernanceWeekly();
-    const autofixNotDrivenTrend = computeAutofixNotDrivenTrend(autofixNotDriven, prior?.data);
-    if (autofixNotDrivenTrend && prior?.week) autofixNotDrivenTrend.previousWeek = prior.week;
+    const autofixNotDrivenTrend = withPreviousWeek(computeAutofixNotDrivenTrend(autofixNotDriven, prior?.data), prior?.week);
+    const openVulnerabilitiesTrend = withPreviousWeek(computeOpenVulnerabilitiesTrend(openVulnerabilities, prior?.data), prior?.week);
     return {
       findings,
       summary: {
@@ -390,17 +414,18 @@ function toolGetGovernanceFindings() {
         gaps: findings.filter(f => f.type === 'standards-gap').length,
         drift: findings.filter(f => f.type === 'policy-drift').length,
         uplift: findings.filter(f => f.type === 'tier-uplift').length,
-        openVulnerabilities: findings.filter(f => f.type === 'open-vulnerability').length,
+        openVulnerabilities,
+        // Week-over-week trend for openVulnerabilities, from the same
+        // governance-weekly history stream as autofixNotDrivenTrend below (see
+        // loadPriorGovernanceWeekly for why this is week-over-week rather than
+        // run-over-run). null when no prior weekly snapshot exists yet.
+        openVulnerabilitiesTrend,
         // ADR-012 Phase 3: how many dependabot-sourced open-vulnerability findings
         // have autofix ON (remediation in flight — GitHub is opening the bump PRs)
         // vs OFF (not being driven to resolution). Each finding also carries the
         // per-repo `autofixEnabled` tri-state (true/false/null) for detail.
         autofixInFlight: findings.filter(f => f.type === 'open-vulnerability' && f.autofixEnabled === true).length,
         autofixNotDriven,
-        // Week-over-week trend for autofixNotDriven, from the governance-weekly
-        // history stream (see loadPriorGovernanceWeekly for why this is a
-        // week-over-week rather than run-over-run comparison). null when no
-        // prior weekly snapshot exists yet.
         autofixNotDrivenTrend,
         // ADR-007 remediation contract: route findings by executor hint.
         byExecutor: {
@@ -842,4 +867,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, callTool, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, TOOLS, RESOURCES };

@@ -109,6 +109,24 @@ export function isAutofixNotDriven(finding) {
   return finding.type === 'open-vulnerability' && finding.autofixEnabled === false;
 }
 
+// Week-over-week trend for a governance count, derived from `current` vs
+// `previous`. `invert` controls which direction reads as an improvement:
+// false (default) means a rising count is good (e.g. Gold %), true means a
+// rising count is a regression (e.g. an open-findings count — more repos in a
+// bad state is worse, not better). Returns null when there is no `previous`
+// value to compare against, so callers can suppress trend UI/API fields on a
+// first run. Single source of truth for both the dashboard's trend badges
+// (report-portfolio.js buildAutofixNudge) and the MCP get_governance_findings
+// summary trends (mcp.js), so the two never drift on direction semantics.
+export function computeCountTrend(current, previous, { invert = false } = {}) {
+  if (previous == null) return null;
+  const delta = current - previous;
+  if (delta === 0) return { current, previous, delta: 0, direction: 'unchanged' };
+  const rose = delta > 0;
+  const direction = (rose === !invert) ? 'improving' : 'worsening';
+  return { current, previous, delta, direction };
+}
+
 // Tally an alert array into { count, critical, high, medium, low, max_severity }.
 // `getSeverity(alert)` returns one of 'critical' | 'high' | 'medium' | 'low' (or
 // anything else / falsy, which is ignored). Single source of truth for both the
