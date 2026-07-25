@@ -1,10 +1,28 @@
 # The Autonomous Garden — plan of record
 
 Date: 2026-07-25
-Status: DRAFT, awaiting maintainer approval
+Status: EXECUTED the same day. Portfolio went 7 Gold / 6 Silver to 12 Gold / 1 Silver. Read the Outcome section next — several premises below were disproved by executing them, and are corrected in place rather than deleted.
 Portfolio: IsmaelMartinez, 13 active repos
 Baseline: origin/main @ 4c52c007 (PR #338); data branch head 50fe782d (2026-07-24)
-Review: six adversarially-crosschecked investigators, one local-model claim audit (discarded, see Review trail), one third-party final check (Fable, APPROVE WITH CHANGES — all nine changes applied)
+Review: six adversarially-crosschecked investigators, one local-model claim audit (discarded, see Review trail), one third-party final check (Fable, APPROVE WITH CHANGES — all nine changes applied), then execution, which was by some distance the most effective reviewer of the three.
+
+## Outcome
+
+Twenty-three security advisories cleared across the portfolio. Eleven were fixed by hand in the first pass; twelve more surfaced when those merges triggered Dependabot rescans, and ten of those twelve were cleared by the portfolio's own armed `dependabot-auto-merge` standard without intervention. Zero open critical or high alerts across all thirteen repos, verified against the live GitHub API rather than the butler's snapshot.
+
+Goal status at close of day:
+
+- G0 — SHIPPED (repo-butler #343). The deterministic-failure guard landed roughly fifteen hours before the Sunday cron it was racing.
+- G1 — COMPLETE. Eleven PRs merged across six repositories.
+- G2 — OPEN, and the only remaining Gold blocker. teams-for-linux sits at 11 counted bugs against a strict `< 10` gate.
+- G3 — RESOLVED, but not as written. See the correction below; the answer was `release_exempt` (repo-butler #344), not a release.
+- G4 — 12 of 13. The one exception is G2, with a written reason, which the goal's own text admits as success.
+- G5, G6 — DEFERRED and rescoped. See the correction below.
+- G7, G8, G9 — NOT STARTED. G7 is the recommended next task.
+- G10 — PARTIALLY DONE. Two of the three alleged drifts were themselves wrong and are withdrawn below.
+- G11 — PARTIALLY SHIPPED (repo-butler #342 removed 15 of repo-butler's 16 CI failures). Its postcss item was wrong and is withdrawn.
+
+One goal is missing from the original list and was discovered only by executing: nothing watches the butler's own remediation PRs. `github-issue-triage-bot` #169, opened by the apply phase on 2026-07-13, sat BLOCKED with failing CI for twelve days and nothing reported it. It merged today only because someone went looking. That is the same class of blindness as G7, and it belongs alongside it — see G12.
 
 ## Why this plan exists
 
@@ -31,6 +49,14 @@ So the highest-value automation is not the lockfile-transforming trimmer this pl
 **G11's postcss item is wrong and must not be actioned.** The CI section below reports bonnie-wee-plot's `overrides: {"postcss": "^8.5.10"}` as redundant with an identical direct devDependency, and G11 proposes removing it. A controlled experiment refutes this. The devDependency governs only the root's own postcss, while the override rewrites *transitive* pins, and `next` depends on postcss at exactly 8.4.31. Removing the override takes the tree from 916 to 917 packages by introducing a second, older, still-vulnerable `next/node_modules/postcss@8.4.31`. The override is load-bearing. The better candidate for the Dependabot-updater retry symptom is that the override's own resolution is stale — pinned such that it resolves to 8.5.13, which is itself below the 8.5.18 patch floor.
 
 That item survived a six-investigator survey, adversarial crosschecks, a local-model pass and a third-party review, and would have shipped a vulnerability. It was caught only by the refusal gate written into the executing agent's brief: if removing the override changes the resolved version, stop and report. Gates that force a measurement beat reviews that read prose.
+
+**G3's rationale was wrong too, and the error is worth generalising.** Having been told a release would be metric-gaming, this plan's author then argued the opposite — that cutting a release for `generator-atlassian-compass-event-catalog` was justified because it would ship the js-yaml security fix merged earlier that day. That is false. PRs #250 and #251 modified only `pnpm-lock.yaml`, and a lockfile never reaches consumers of a published package: the tarball ships only `dist/`, `package.json`, `README.md` and `LICENSE`, the 414-byte build imports its dependencies externally rather than inlining them, and the declared `js-yaml: ^4.1.1` range was unchanged since v0.5.0 and already floated to the patched 4.3.0. Verified empirically — a clean production install of the already-published v0.5.0 resolves `js-yaml@4.3.0`, `brace-expansion@5.0.8` and `js-yaml@3.15.0`, all patched. Consumers were never exposed, so v0.5.1 would have been dependency-identical and existed solely to reset a clock.
+
+The package had also been deliberately wound down in c234fd4 (#217), with a README instructing users to pin the current version. The correct answer was `release_exempt`, which already existed at `report-shared.js:160` and had an existing precedent in `sound3fy`; it shipped as repo-butler #344.
+
+The general rule, which applies to every published package in this portfolio: a lockfile-only dependency bump fixes the repository's own CI tree and its Dependabot alert state, but never changes what a consumer resolves. Only a `package.json` range change, a bundled or inlined build, or a shipped shrinkwrap reaches consumers. Any future "ship the security fix" argument must be checked against the package's `files` list, the actual tarball contents, and whether a declared range moved.
+
+**On the replacement for G6, be honest about the uncertainty.** The correction above proposes rescan-nudging as the cheaper, higher-value automation. That recommendation rests on an assumption that has not been tested: there is no public API to force a Dependabot security scan on demand. What demonstrably worked today was pushing to the default branch, and a bot pushing commits to provoke scans would be a poor design. Before rescan-nudging becomes an implementation goal it needs a spike to find a legitimate mechanism. Given that this document has already been wrong three times in one day about dependency-management mechanics, that spike should precede any commitment.
 
 ## What is actually broken, with evidence
 
@@ -63,6 +89,8 @@ Fifteen of repo-butler's sixteen recorded failures are one misconfiguration: the
 Almost nothing is genuinely flaky; it is deterministic rot. lounge-tv's IPTV link-checker has failed 15 of 15 lifetime runs and never once succeeded, probing thousands of remote streams for one to two hours before exit 143. github-issue-triage-bot has three independent defects: a job referencing a secret that does not exist, a job POSTing to a Cloud Run endpoint 404-ing for eight consecutive weeks, and an unpinned `govulncheck@latest` gate that goes red on its own as advisories publish. One true flake was found, a single `node:test` IPC crash that passed on the next five runs.
 
 ## An armed automation is about to do something useless
+
+RESOLVED the same day by repo-butler #343, roughly fifteen hours before the cron described below would have fired. The section is kept as written because it records why the guard exists, and because the reasoning generalises: an armed automation whose action cannot possibly help is worse than no automation, since it manufactures weekly noise that trains you to ignore it.
 
 This needs attention before the next scheduled run regardless of the rest of this plan.
 
@@ -293,6 +321,22 @@ Acceptance: portfolio average CI pass rate above 95% in a subsequent weekly snap
 
 The measurement change must be flagged in the snapshot schema notes, since it shifts historical comparability. Demotion applies only to a workflow that has never once passed — doing it to one that used to pass masks a regression rather than cleaning noise.
 
+### G12 — Watch the butler's own remediation PRs
+
+Added after execution, because this gap was invisible until someone went looking.
+
+The apply phase opens remediation PRs on target repos and then forgets them. `github-issue-triage-bot` #169 was opened by the butler on 2026-07-13 to remediate a `release-cadence` standards gap. It sat BLOCKED for twelve days with a failing `test` check, and nothing surfaced it — not the dashboard, not the governance findings, not the MCP tools. The `standards-gap` finding stayed open the whole time, correctly reporting the gap, while the fix for that very gap sat rotting three feet away. The two facts were never connected.
+
+Worse, the blocker had nothing to do with the PR. The repo's `test` job ran unpinned `go install golang.org/x/vuln/cmd/govulncheck@latest` as a required gate, so a newly-published Go advisory turned every PR in the repo red. All three open PRs were blocked identically. A watcher would have caught this in a day.
+
+Acceptance: a finding is emitted when a PR on a `repo-butler/apply-*` branch, carrying the apply identity marker, has been open beyond a threshold with CI not green; surfaced through the dashboard and the MCP `get_governance_findings` summary. It should distinguish "blocked by its own content" from "blocked by a repo-wide CI failure", because the remedies differ entirely.
+
+```bash
+cd <repo-butler> && node --test --test-name-pattern 'stale-apply-pr' src/governance.test.js
+```
+
+This is the same blindness as G7 seen from another angle. G7 notices a repo losing tier; G12 notices the butler's own action failing to land. Both are instances of a single missing property: the butler acts, and nothing checks afterwards whether the action worked. If only one thing is built from this document, build that property — G7 is the cheapest slice of it, G12 the second.
+
 ## What this plan deliberately does not do
 
 It does not put the trimmer on a schedule, or auto-merge anything it produces.
@@ -330,3 +374,9 @@ The local-model pass is recorded as a failure. DeepSeek-R1-Distill-Qwen-32B via 
 The third-party review returned APPROVE WITH CHANGES with nine specific changes, all applied above. It caught four factual errors sourced from the stale local checkout, five verifiers that failed this plan's own contract, and a dependency claim that contradicted the plan's own goal descriptions. It also made the sharpest argument in the review — that the general agent runtime was speculative architecture for a deterministic problem — which reshaped G5 and G6.
 
 The pattern worth carrying forward: the corrections came from execution and from reading the fresh source, not from review of prose. Four verifier defects were found by running the verifiers. Four factual errors were found by re-reading origin/main. The local model, which only read prose, found nothing.
+
+Executing the plan then reviewed it harder than any of the three review layers had. Three load-bearing claims fell: that Dependabot could not fix transitive dependencies, that bonnie-wee-plot's postcss override was redundant, and that a release would ship generator's security fix. Each had survived six investigators, adversarial crosschecks, a local-model audit and a third-party final check. Each was refuted within minutes of someone actually running the thing.
+
+Two mechanisms did the refuting, and both are worth building into how this portfolio is worked. The first is the refusal gate: an instruction of the form "if X changes when you do Y, stop and report" forces a measurement before an action, and it is what stopped the postcss change from shipping a vulnerability. Reviews that read prose cannot do this, because the defect is not visible in the prose — it is visible only in a package count. The second is asking an executing agent to verify a premise rather than carry it out. Every one of the three refutations came from an agent told to check whether the task was justified, not from one told to complete it. A brief that says "if the justification does not hold, report NO_ACTION_NEEDED" buys more correctness than another reviewer.
+
+The uncomfortable corollary, recorded deliberately: the elaborate review apparatus at the top of this document — six investigators, crosschecks, a local model, a third-party final check — caught real problems but missed every one of the three biggest errors. The cheapest interventions won. Scale the gates, not the reviewers.
