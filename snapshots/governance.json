@@ -322,7 +322,7 @@
       {
         "number": 429,
         "title": "chore(deps-dev): bump the linting group across 1 directory with 2 updates",
-        "age": 32
+        "age": 33
       }
     ],
     "priority": "medium",
@@ -330,7 +330,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 32 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 33 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
