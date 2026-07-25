@@ -64,7 +64,19 @@ standards:
 standards-exclude:
   release-cadence: sound3fy
 
-release_exempt: sound3fy
+# generator-atlassian-compass-event-catalog added 2026-07-25. The package was
+# deliberately wound down in c234fd4 (#217, 2026-04-23): the README tells users
+# to pin the current version and says no non-critical fixes will ship, and
+# src/index.ts emits a runtime deprecation warning. Its 30 unreleased commits
+# are Dependabot chores that touch only pnpm-lock.yaml, which never reaches
+# consumers — the published tarball ships no lockfile, the build imports its
+# deps externally, and the declared `js-yaml: ^4.1.1` range is unchanged since
+# v0.5.0 and already floats to the patched 4.3.0. A clean production install of
+# the published v0.5.0 resolves js-yaml@4.3.0, brace-expansion@5.0.8 and
+# js-yaml@3.15.0 — all patched. So the 90-day clock is measuring release
+# cadence for a package with nothing to release; publishing to reset it would
+# ship a dependency-identical version purely to move a metric.
+release_exempt: sound3fy,generator-atlassian-compass-event-catalog
 
 # By-design divergences from the portfolio policy. Each key is a drift
 # category (license, ci-reliability, community-health) and the value is a
