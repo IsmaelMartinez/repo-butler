@@ -621,6 +621,59 @@ async function alreadyNudged(gh, owner, repo, number) {
   );
 }
 
+// --- Deterministic-failure guard --------------------------------------------
+// `@dependabot rebase` refreshes a PR onto the latest base and re-runs CI, so it
+// only ever helps a PR whose red CI depends on the base having moved. When the
+// SAME job set has failed the last DETERMINISTIC_ATTEMPTS CI attempts and the
+// head SHA never moved between them, the failure is a property of the change
+// itself (a major-version bump the code cannot satisfy, say), not of the base —
+// a rebase regenerates a byte-identical red run, every week, forever. Such a PR
+// needs a human decision (fix, pin or close), so the nudge stands down and
+// records it as `escalated` instead.
+const DETERMINISTIC_ATTEMPTS = 3;
+
+// Pure predicate over prCiHistory() output (newest attempt first). True only on
+// positive evidence: DETERMINISTIC_ATTEMPTS attempts available, each with at
+// least one failing job, an identical failing job set, and one unchanged head
+// SHA throughout. Fewer attempts, a clean attempt, a differing failing set or a
+// moved head → false (nudge as before).
+export function isDeterministicFailure(history, attempts = DETERMINISTIC_ATTEMPTS) {
+  if (!Array.isArray(history) || history.length < attempts) return false;
+  const recent = history.slice(0, attempts);
+  const [first] = recent;
+  if (!Array.isArray(first?.failing) || first.failing.length === 0) return false;
+  const signature = first.failing.join('|');
+  return recent.every(a =>
+    a && a.sha === first.sha
+    && Array.isArray(a.failing) && a.failing.length > 0
+    && a.failing.join('|') === signature,
+  );
+}
+
+// Resolve the PR's head branch, read its recent CI history and report whether the
+// PR is deterministically failing. Fails OPEN (nudges) whenever the evidence is
+// missing — unreadable PR, no head branch, or no CI signal at all. The guard
+// exists to suppress a provably-useless comment; absent proof it must not
+// suppress the nudge, or one 403 would quietly disable the whole feature. The
+// polarity matches alreadyNudged() above and is the reverse of the auto-merge
+// path's fail-closed prCiGreen, which authorises an irreversible write.
+async function deterministicFailure(gh, owner, repo, number) {
+  let branch;
+  try {
+    const pr = await gh.request(`/repos/${owner}/${repo}/pulls/${number}`);
+    branch = pr?.head?.ref;
+  } catch (err) {
+    console.log(`nudge: cannot read ${owner}/${repo}#${number} head branch (${err.message.slice(0, 80)}) — nudging anyway`);
+    return { deterministic: false, failing: [] };
+  }
+  if (!branch) return { deterministic: false, failing: [] };
+  const history = await gh.prCiHistory(owner, repo, branch, { attempts: DETERMINISTIC_ATTEMPTS });
+  return {
+    deterministic: isDeterministicFailure(history),
+    failing: history[0]?.failing || [],
+  };
+}
+
 export async function nudgeStaleDependabotPRs(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
@@ -660,6 +713,20 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
         results.push({ repo: t.repo, number: t.number, status: 'skipped', reason: 'recent nudge' });
         continue;
       }
+      // Deterministic-failure guard: checked after the cheaper dedup so an
+      // already-nudged PR costs no extra API calls.
+      const { deterministic, failing } = await deterministicFailure(gh, owner, t.repo, t.number);
+      if (deterministic) {
+        console.log(`nudge: ${owner}/${t.repo}#${t.number} failed the last ${DETERMINISTIC_ATTEMPTS} CI attempts identically on an unchanged head (${failing.join(', ')}) — a rebase cannot fix it; escalating instead of nudging`);
+        results.push({
+          repo: t.repo,
+          number: t.number,
+          status: 'escalated',
+          reason: 'deterministic CI failure',
+          failing,
+        });
+        continue;
+      }
       await gh.request(`/repos/${owner}/${t.repo}/issues/${t.number}/comments`, {
         method: 'POST',
         body: { body: NUDGE_BODY },
@@ -674,9 +741,10 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
 
   const nudged = results.filter(r => r.status === 'nudged').length;
   const skipped = results.filter(r => r.status === 'skipped').length;
+  const escalated = results.filter(r => r.status === 'escalated').length;
   const errors = results.filter(r => r.status === 'error').length;
-  console.log(`nudge: done — ${nudged} rebased, ${skipped} skipped, ${errors} errors`);
-  return { status: 'completed', results, summary: { nudged, skipped, errors } };
+  console.log(`nudge: done — ${nudged} rebased, ${skipped} skipped, ${escalated} escalated (deterministic failure), ${errors} errors`);
+  return { status: 'completed', results, summary: { nudged, skipped, escalated, errors } };
 }
 
 // --- Copilot code review enablement (settings write, ADR-009) ----------------

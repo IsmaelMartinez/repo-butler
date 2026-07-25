@@ -243,7 +243,53 @@ export function createClient(token) {
     }
   }
 
-  return { request, paginate, getFileContent, listDir, putFile, deleteFile, mergePR, prCiGreen };
+  // Recent CI history for a PR head branch, newest attempt first, capped at
+  // `attempts`. One element is one CI *attempt*: every completed workflow run
+  // sharing a head SHA and re-run number, shaped
+  // `{ sha, attempt, failing }` where `failing` is the sorted set of run names
+  // that concluded failure (empty for a clean attempt). Callers compare
+  // consecutive attempts to spot a PR that fails identically every time.
+  //
+  // Deliberately the OPPOSITE polarity to prCiGreen: that one authorises a merge,
+  // so an unreadable signal must fail closed. This one can only ever *suppress* a
+  // comment, so an unreadable signal fails OPEN — it returns `[]` ("no signal")
+  // and the caller keeps its default behaviour instead of a transient API error
+  // silently switching the feature off portfolio-wide.
+  async function prCiHistory(owner, repo, branch, { attempts = 3 } = {}) {
+    try {
+      // Branch-scoped so the history spans previous head SHAs, which the
+      // per-commit check-runs endpoint cannot express. `status: completed` drops
+      // in-flight runs: a pending run is not yet evidence of anything.
+      const res = await request(`/repos/${owner}/${repo}/actions/runs`, {
+        params: { branch, status: 'completed', per_page: 100 },
+      });
+      const runs = Array.isArray(res?.workflow_runs) ? res.workflow_runs : [];
+      // Group by head SHA + re-run number: the several workflows triggered for one
+      // revision (CI, CodeQL, …) are a single attempt, not several. The API already
+      // returns newest-first; sort defensively so the grouping order is not
+      // load-bearing on response ordering.
+      const byAttempt = new Map();
+      const ordered = [...runs].sort(
+        (a, b) => (Date.parse(b?.created_at) || 0) - (Date.parse(a?.created_at) || 0),
+      );
+      for (const r of ordered) {
+        if (!r?.head_sha) continue;
+        const key = `${r.head_sha}#${Number(r.run_attempt) || 1}`;
+        if (!byAttempt.has(key)) {
+          byAttempt.set(key, { sha: r.head_sha, attempt: Number(r.run_attempt) || 1, failing: [] });
+        }
+        if (r.conclusion === 'failure') byAttempt.get(key).failing.push(String(r.name ?? ''));
+      }
+      return [...byAttempt.values()]
+        .slice(0, attempts)
+        .map(a => ({ ...a, failing: a.failing.sort() }));
+    } catch (err) {
+      console.log(`prCiHistory: cannot read CI history for ${owner}/${repo}@${branch} (${err.message.slice(0, 80)})`);
+      return [];
+    }
+  }
+
+  return { request, paginate, getFileContent, listDir, putFile, deleteFile, mergePR, prCiGreen, prCiHistory };
 }
 
 // True if the repo has an ACTIVE repository ruleset carrying a `copilot_code_review`
