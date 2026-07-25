@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-24
+**Last Updated:** 2026-07-25
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -90,7 +90,7 @@ Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `stand
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-Dependabot autofix visibility elevated 2026-07-24 (PR #338). Refined the dashboard layout to elevate the visibility of the Dependabot autofix "not driven" signal to the very top of the interface, ensuring that actionable security and dependency insights are immediately obvious to users for improved triage efficiency.
+Dashboard week-over-week trend nudges optimized 2026-07-25 (PR #340). Refined the user experience on the dashboard by adding a week-over-week trend to the "autofix-not-driven" dashboard nudge, enhancing data visibility and providing actionable insights on automated fix trends over time.
 ---
 
 ## Roadmap
