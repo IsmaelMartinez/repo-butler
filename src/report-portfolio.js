@@ -12,7 +12,7 @@ import {
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
   CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
-  isAutofixNotDriven,
+  isAutofixNotDriven, computeCountTrend,
 } from './report-shared.js';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
@@ -873,12 +873,13 @@ export function buildAutofixNudge(findings, priorCount = null) {
   const count = findings.filter(isAutofixNotDriven).length;
   if (count === 0) return '';
   const noun = count === 1 ? 'repo has' : 'repos have';
+  const nudgeTrend = computeCountTrend(count, priorCount, { invert: true });
   let trend = '';
-  if (priorCount != null && priorCount !== count) {
-    const diff = count - priorCount;
-    const arrow = diff > 0 ? '▲' : '▼';
-    const cls = diff < 0 ? 'up' : 'down';
-    trend = ` <span class="status-trend ${cls}" title="vs the prior governance snapshot">${arrow} ${diff > 0 ? '+' : ''}${Math.abs(diff)}</span>`;
+  if (nudgeTrend && nudgeTrend.direction !== 'unchanged') {
+    const { delta, direction } = nudgeTrend;
+    const arrow = delta > 0 ? '▲' : '▼';
+    const cls = direction === 'improving' ? 'up' : 'down';
+    trend = ` <span class="status-trend ${cls}" title="vs the prior governance snapshot">${arrow} ${delta > 0 ? '+' : ''}${Math.abs(delta)}</span>`;
   }
   return `<div class="alert-banner"><strong>Dependabot autofix off.</strong> ${count} ${noun} Dependabot autofix off despite open vulnerabilities${trend} — enable via the <code>dependabot-security</code> apply action.</div>`;
 }

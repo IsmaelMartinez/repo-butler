@@ -31,6 +31,9 @@ describe('MCP server', async () => {
   RESOURCES = mod.RESOURCES;
   callTool = mod.callTool;
   const unwrapWeeklyRepos = mod.unwrapWeeklyRepos;
+  const computeAutofixNotDrivenTrend = mod.computeAutofixNotDrivenTrend;
+  const computeOpenVulnerabilitiesTrend = mod.computeOpenVulnerabilitiesTrend;
+  const GOVERNANCE_WEEKLY_FILE_PATTERN = mod.GOVERNANCE_WEEKLY_FILE_PATTERN;
 
   beforeEach(() => captureResponses());
 
@@ -54,6 +57,95 @@ describe('MCP server', async () => {
     it('returns an empty object for null/undefined', () => {
       assert.deepEqual(unwrapWeeklyRepos(null), {});
       assert.deepEqual(unwrapWeeklyRepos(undefined), {});
+    });
+  });
+
+  describe('computeAutofixNotDrivenTrend', () => {
+    it('returns null when there is no prior weekly snapshot', () => {
+      assert.equal(computeAutofixNotDrivenTrend(2, null), null);
+      assert.equal(computeAutofixNotDrivenTrend(2, undefined), null);
+    });
+
+    it('returns null when the prior snapshot has no findings array', () => {
+      assert.equal(computeAutofixNotDrivenTrend(2, { week: '2026-W29' }), null);
+    });
+
+    it('reports "improving" when the current count is lower than the prior one', () => {
+      const prior = {
+        findings: [
+          { type: 'open-vulnerability', repo: 'a', autofixEnabled: false },
+          { type: 'open-vulnerability', repo: 'b', autofixEnabled: false },
+        ],
+      };
+      const trend = computeAutofixNotDrivenTrend(1, prior);
+      assert.deepEqual(trend, { current: 1, previous: 2, delta: -1, direction: 'improving' });
+    });
+
+    it('reports "worsening" when the current count is higher than the prior one', () => {
+      const prior = { findings: [{ type: 'open-vulnerability', repo: 'a', autofixEnabled: false }] };
+      const trend = computeAutofixNotDrivenTrend(3, prior);
+      assert.deepEqual(trend, { current: 3, previous: 1, delta: 2, direction: 'worsening' });
+    });
+
+    it('reports "unchanged" when the counts match, including 0 vs 0', () => {
+      assert.deepEqual(
+        computeAutofixNotDrivenTrend(0, { findings: [] }),
+        { current: 0, previous: 0, delta: 0, direction: 'unchanged' }
+      );
+    });
+
+    it('only counts dependabot-sourced not-driven findings in the prior snapshot', () => {
+      const prior = {
+        findings: [
+          { type: 'open-vulnerability', repo: 'a', autofixEnabled: false },
+          { type: 'open-vulnerability', repo: 'b', autofixEnabled: true },
+          { type: 'open-vulnerability', repo: 'c', autofixEnabled: null },
+          { type: 'standards-gap', tool: 'license' },
+        ],
+      };
+      const trend = computeAutofixNotDrivenTrend(1, prior);
+      assert.equal(trend.previous, 1);
+      assert.equal(trend.direction, 'unchanged');
+    });
+  });
+
+  describe('computeOpenVulnerabilitiesTrend', () => {
+    it('returns null when there is no prior weekly snapshot', () => {
+      assert.equal(computeOpenVulnerabilitiesTrend(3, null), null);
+    });
+
+    it('counts only open-vulnerability findings, regardless of source or autofix state', () => {
+      const prior = {
+        findings: [
+          { type: 'open-vulnerability', repo: 'a', autofixEnabled: false },
+          { type: 'open-vulnerability', repo: 'b', autofixEnabled: true },
+          { type: 'open-vulnerability', repo: 'c' },
+          { type: 'standards-gap', tool: 'license' },
+          { type: 'tier-uplift', repo: 'd' },
+        ],
+      };
+      const trend = computeOpenVulnerabilitiesTrend(1, prior);
+      assert.deepEqual(trend, { current: 1, previous: 3, delta: -2, direction: 'improving' });
+    });
+
+    it('reports "worsening" when the open-vulnerability count rises', () => {
+      const prior = { findings: [{ type: 'open-vulnerability', repo: 'a' }] };
+      const trend = computeOpenVulnerabilitiesTrend(4, prior);
+      assert.deepEqual(trend, { current: 4, previous: 1, delta: 3, direction: 'worsening' });
+    });
+  });
+
+  describe('GOVERNANCE_WEEKLY_FILE_PATTERN', () => {
+    it('matches ISO-week filenames written by store.js writeGovernanceWeekly', () => {
+      assert.ok(GOVERNANCE_WEEKLY_FILE_PATTERN.test('2026-W18.json'));
+      assert.ok(GOVERNANCE_WEEKLY_FILE_PATTERN.test('2025-W01.json'));
+    });
+
+    it('rejects non-week JSON files so a stray file cannot be read as a weekly snapshot', () => {
+      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('governance.json'), false);
+      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('init.json'), false);
+      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('2026-W18.json.bak'), false);
+      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('notes/2026-W18.json'), false);
     });
   });
 
@@ -282,6 +374,19 @@ describe('MCP server', async () => {
       assert.ok(r.result?.content);
       const data = JSON.parse(r.result.content[0].text);
       assert.ok(Array.isArray(data.findings));
+      if (data.summary) {
+        // Either no prior governance-weekly snapshot exists yet (null) or a
+        // fully-shaped trend object — never a bare number or partial object.
+        for (const trend of [data.summary.autofixNotDrivenTrend, data.summary.openVulnerabilitiesTrend]) {
+          if (trend !== null) {
+            assert.equal(typeof trend.current, 'number');
+            assert.equal(typeof trend.previous, 'number');
+            assert.equal(typeof trend.delta, 'number');
+            assert.ok(['improving', 'worsening', 'unchanged'].includes(trend.direction));
+            assert.equal(typeof trend.previousWeek, 'string', 'previousWeek must be set alongside the trend');
+          }
+        }
+      }
     });
 
     it('get_weekly_trend returns a series for an aggregate query', () => {
