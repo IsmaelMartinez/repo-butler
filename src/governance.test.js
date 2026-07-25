@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
+import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, buildRemediationPlan, attachRemediationPlans } from './governance.js';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
 
 // --- Test helpers ---
 
@@ -774,5 +774,94 @@ describe('attachRemediationPlans', () => {
 
   it('returns an empty array for non-array input', () => {
     assert.deepEqual(attachRemediationPlans(null), []);
+  });
+});
+
+// --- priorAutofixNotDrivenCount (ADR-012 dashboard trend) ---
+
+describe('priorAutofixNotDrivenCount', () => {
+  it('counts dependabot-sourced not-driven findings in a prior weekly snapshot', () => {
+    const priorWeekly = {
+      _week: '2026-W29',
+      findings: [
+        { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'], autofixEnabled: false },
+        { type: 'open-vulnerability', repo: 'b', sources: ['dependabot'], autofixEnabled: false },
+        { type: 'open-vulnerability', repo: 'c', sources: ['dependabot'], autofixEnabled: true },
+        { type: 'open-vulnerability', repo: 'd', sources: ['code-scanning'] },
+        { type: 'standards-gap', tool: 'license' },
+      ],
+    };
+    assert.equal(priorAutofixNotDrivenCount(priorWeekly), 2);
+  });
+
+  it('returns null when there is no prior snapshot', () => {
+    assert.equal(priorAutofixNotDrivenCount(null), null);
+    assert.equal(priorAutofixNotDrivenCount(undefined), null);
+  });
+
+  it('returns null when the prior snapshot has no findings array', () => {
+    assert.equal(priorAutofixNotDrivenCount({ _week: '2026-W29' }), null);
+  });
+
+  it('returns 0 (not null) when the prior snapshot had findings but none were not-driven', () => {
+    const priorWeekly = { findings: [{ type: 'open-vulnerability', repo: 'a', sources: ['dependabot'], autofixEnabled: true }] };
+    assert.equal(priorAutofixNotDrivenCount(priorWeekly), 0);
+  });
+});
+
+// --- runGovernance — autofix-not-driven trend wiring ---
+
+describe('runGovernance — governance-weekly trend persistence', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('reads the prior governance-weekly snapshot before writing this run\'s, and stashes the prior not-driven count on context', async () => {
+    // auditDependabot's gh.paginate('/pulls') is the only network call runGovernance
+    // makes once context.repoDetails is pre-supplied (skips fetchPortfolioDetails).
+    // An empty page ends pagination immediately with no stale Dependabot PRs.
+    globalThis.fetch = async () => ({
+      ok: true, status: 200, headers: new Map(),
+      json: async () => [], text: async () => '[]',
+    });
+
+    const repos = [makeRepo('repo-a')];
+    const repoDetails = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' }, autofix: { enabled: false, paused: false } },
+    });
+
+    const priorWeekly = {
+      _week: '2026-W29',
+      findings: [
+        { type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'], autofixEnabled: false },
+        { type: 'open-vulnerability', repo: 'repo-b', sources: ['dependabot'], autofixEnabled: false },
+      ],
+    };
+    const calls = [];
+    const store = {
+      readRepoCache: async () => null,
+      readLatestGovernanceWeekly: async () => { calls.push('read'); return priorWeekly; },
+      writeGovernanceWeekly: async (findings) => { calls.push('writeWeekly'); return findings; },
+      writeGovernanceFindings: async (findings) => { calls.push('writeLatest'); return findings; },
+    };
+
+    const context = { owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store, repoDetails };
+    await runGovernance(context);
+
+    assert.equal(context.priorAutofixNotDrivenCount, 2, 'both prior findings were dependabot-sourced and not-driven');
+    assert.deepEqual(calls, ['read', 'writeWeekly', 'writeLatest'], 'reads the prior snapshot before either write, mirroring readLatestPortfolioWeekly ordering');
+  });
+
+  it('leaves priorAutofixNotDrivenCount null on the first run (no prior snapshot, no store)', async () => {
+    globalThis.fetch = async () => ({
+      ok: true, status: 200, headers: new Map(),
+      json: async () => [], text: async () => '[]',
+    });
+    const repos = [makeRepo('repo-a')];
+    const repoDetails = makeDetails(repos);
+    const context = { owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store: null, repoDetails };
+
+    await runGovernance(context);
+
+    assert.equal(context.priorAutofixNotDrivenCount, undefined, 'no store means no persistence pass runs at all');
   });
 });

@@ -22,6 +22,7 @@ const SNAPSHOT_PATH = 'snapshots/latest.json';
 const PREVIOUS_PATH = 'snapshots/previous.json';
 const WEEKLY_DIR = 'snapshots/weekly';
 const PORTFOLIO_WEEKLY_DIR = 'snapshots/portfolio-weekly';
+const GOVERNANCE_WEEKLY_DIR = 'snapshots/governance-weekly';
 const MAX_WEEKLY_SNAPSHOTS = 12;
 
 export function enrichPortfolioSummary(summary, repoName, config) {
@@ -296,6 +297,41 @@ export function createStore(context) {
     }
   }
 
+  // Store a weekly-bucketed snapshot of governance findings, mirroring
+  // writePortfolioWeekly's isoWeekKey bucketing/pruning. Drives the dashboard's
+  // autofix-not-driven trend (report-portfolio.js buildAutofixNudge) — separate
+  // from GOVERNANCE_PATH, which always holds only the single latest run's
+  // findings and has no history to diff against.
+  async function writeGovernanceWeekly(findings) {
+    if (!Array.isArray(findings)) return;
+    await ensureDataBranch();
+    const weekKey = isoWeekKey(new Date());
+    await writeFile(`${GOVERNANCE_WEEKLY_DIR}/${weekKey}.json`, JSON.stringify({ findings }, null, 2));
+    console.log(`Governance weekly snapshot saved as ${weekKey} (${findings.length} findings).`);
+    await pruneDir(GOVERNANCE_WEEKLY_DIR, MAX_WEEKLY_SNAPSHOTS, 'prune old governance snapshot');
+  }
+
+  // Read the most recent governance-weekly snapshot (or null if none exist
+  // yet). Mirrors readLatestPortfolioWeekly — call before writeGovernanceWeekly
+  // overwrites the current-week file so the result reflects the prior run's
+  // state, not the one just computed. Best-effort: any failure (missing dir,
+  // parse error) returns null so the dashboard renders its first-run calm state.
+  async function readLatestGovernanceWeekly() {
+    try {
+      const files = await listBranchDir(GOVERNANCE_WEEKLY_DIR);
+      const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+      if (jsonFiles.length === 0) return null;
+      const latest = jsonFiles[jsonFiles.length - 1];
+      const content = await readFile(`${GOVERNANCE_WEEKLY_DIR}/${latest}`);
+      if (!content) return null;
+      const parsed = JSON.parse(content);
+      parsed._week = latest.replace('.json', '');
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
   async function readRepoCache() {
     try {
       const content = await readFile(REPO_CACHE_PATH);
@@ -333,6 +369,7 @@ export function createStore(context) {
     readWeeklyHistory, writePortfolioWeekly, readRepoWeeklyHistory, readLatestPortfolioWeekly,
     readLastHash, writeHash,
     writeGovernanceFindings, readGovernanceFindings,
+    writeGovernanceWeekly, readLatestGovernanceWeekly,
     readRepoCache, writeRepoCache,
     readJSON, writeJSON,
   };

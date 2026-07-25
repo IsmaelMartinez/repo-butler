@@ -1160,6 +1160,20 @@ describe('generatePortfolioReport restructure', () => {
     assert.ok(!html.includes('Dependabot autofix off'), 'nudge is absent when no finding is not-driven');
   });
 
+  it('forwards priorAutofixNotDrivenCount into the nudge as a trend badge', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const owner = 'test';
+    const portfolio = { repos: [
+      { name: 'a', stars: 5, forks: 1, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ]};
+    const details = { a: { commits: 20, weekly: [1,2], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const governanceFindings = [
+      { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'], autofixEnabled: false, priority: 'high', critical: 1, high: 0, secretScanning: 0, remediation: { executor: 'manual' } },
+    ];
+    const html = generatePortfolioReport(owner, portfolio, details, null, null, {}, governanceFindings, null, 0);
+    assert.ok(html.includes('status-trend down'), 'the 9th param reaches buildAutofixNudge as priorCount (0 → 1 is a regression)');
+  });
+
   it('has simplified health table with 6 columns and full view toggle', async () => {
     const { generatePortfolioReport } = await import('./report-portfolio.js');
     const portfolio = { repos: [
@@ -2092,6 +2106,42 @@ describe('buildAutofixNudge (ADR-012 Phase 3 not-driven callout)', () => {
     ];
     const html = buildAutofixNudge(findings);
     assert.ok(html.includes('2 repos have'), 'uses plural noun and counts only the not-driven repos');
+  });
+
+  const TWO_NOT_DRIVEN = [
+    { type: 'open-vulnerability', repo: 'notdriven-a', sources: ['dependabot'], autofixEnabled: false },
+    { type: 'open-vulnerability', repo: 'notdriven-b', sources: ['dependabot'], autofixEnabled: false },
+  ];
+
+  it('renders no trend badge when priorCount is not supplied (first run / no prior snapshot)', () => {
+    const html = buildAutofixNudge(TWO_NOT_DRIVEN);
+    assert.ok(!html.includes('status-trend'), 'no prior count means nothing to compare against');
+  });
+
+  it('renders no trend badge when the count is unchanged from the prior snapshot', () => {
+    const html = buildAutofixNudge(TWO_NOT_DRIVEN, 2);
+    assert.ok(!html.includes('status-trend'), 'an unchanged count stays calm, matching buildStatusHero');
+  });
+
+  it('renders a red "down"-classed badge with an up arrow when the count rose (a regression)', () => {
+    const html = buildAutofixNudge(TWO_NOT_DRIVEN, 1);
+    assert.ok(html.includes('status-trend down'), 'a rising not-driven count is a regression, styled red');
+    assert.ok(html.includes('▲'), 'arrow reflects the actual increase');
+    assert.ok(html.includes('+1'));
+  });
+
+  it('renders a green "up"-classed badge with a down arrow when the count fell (an improvement)', () => {
+    const html = buildAutofixNudge(TWO_NOT_DRIVEN, 5);
+    assert.ok(html.includes('status-trend up'), 'a falling not-driven count is progress, styled green');
+    assert.ok(html.includes('▼'), 'arrow reflects the actual decrease');
+    // No leading minus sign — mirrors buildStatusHero's Math.abs handling.
+    assert.ok(html.includes('>▼ 3<'), 'magnitude only, no double-negative sign');
+    assert.ok(!html.includes('-3'));
+  });
+
+  it('renders nothing (including no trend) when the current count is 0, even with a prior count', () => {
+    const findings = [{ type: 'open-vulnerability', repo: 'inflight', sources: ['dependabot'], autofixEnabled: true }];
+    assert.equal(buildAutofixNudge(findings, 3), '');
   });
 });
 
