@@ -624,19 +624,26 @@ async function alreadyNudged(gh, owner, repo, number) {
 // --- Deterministic-failure guard --------------------------------------------
 // `@dependabot rebase` refreshes a PR onto the latest base and re-runs CI, so it
 // only ever helps a PR whose red CI depends on the base having moved. When the
-// SAME job set has failed the last DETERMINISTIC_ATTEMPTS CI attempts and the
-// head SHA never moved between them, the failure is a property of the change
-// itself (a major-version bump the code cannot satisfy, say), not of the base —
-// a rebase regenerates a byte-identical red run, every week, forever. Such a PR
-// needs a human decision (fix, pin or close), so the nudge stands down and
-// records it as `escalated` instead.
+// SAME workflow set has failed the last DETERMINISTIC_ATTEMPTS CI attempts, the
+// failure is a property of the change itself (a major-version bump the code
+// cannot satisfy, say), not of the base — a rebase regenerates a byte-identical
+// red run, every week, forever. Such a PR needs a human decision (fix, pin or
+// close), so the nudge stands down and records it as `escalated` instead.
+//
+// The head SHA deliberately does NOT have to stay put across those attempts. A
+// rebase changes the head SHA precisely BECAUSE the base moved, so an identical
+// failing workflow set across several DIFFERENT head SHAs is the strongest evidence
+// available that rebasing does not help: it has already been tried, repeatedly,
+// and changed nothing. Requiring an unchanged SHA threw that evidence away and
+// left the guard firing only on the rarer, weaker case of repeated re-runs of
+// one identical commit — which is why it never fired in production.
 const DETERMINISTIC_ATTEMPTS = 3;
 
 // Pure predicate over prCiHistory() output (newest attempt first). True only on
-// positive evidence: DETERMINISTIC_ATTEMPTS attempts available, each with at
-// least one failing job, an identical failing job set, and one unchanged head
-// SHA throughout. Fewer attempts, a clean attempt, a differing failing set or a
-// moved head → false (nudge as before).
+// positive evidence: DETERMINISTIC_ATTEMPTS consecutive attempts available, each
+// with at least one failing workflow, and an identical failing workflow set throughout.
+// Fewer attempts, a clean attempt or a differing failing set → false (nudge as
+// before). The head SHA is not compared; see above.
 export function isDeterministicFailure(history, attempts = DETERMINISTIC_ATTEMPTS) {
   if (!Array.isArray(history) || history.length < attempts) return false;
   const recent = history.slice(0, attempts);
@@ -644,9 +651,7 @@ export function isDeterministicFailure(history, attempts = DETERMINISTIC_ATTEMPT
   if (!Array.isArray(first?.failing) || first.failing.length === 0) return false;
   const signature = first.failing.join('|');
   return recent.every(a =>
-    a && a.sha === first.sha
-    && Array.isArray(a.failing) && a.failing.length > 0
-    && a.failing.join('|') === signature,
+    Array.isArray(a?.failing) && a.failing.length > 0 && a.failing.join('|') === signature,
   );
 }
 
@@ -657,6 +662,11 @@ export function isDeterministicFailure(history, attempts = DETERMINISTIC_ATTEMPT
 // suppress the nudge, or one 403 would quietly disable the whole feature. The
 // polarity matches alreadyNudged() above and is the reverse of the auto-merge
 // path's fail-closed prCiGreen, which authorises an irreversible write.
+//
+// `rebased` distinguishes the two shapes of proof so the operator can tell them
+// apart in the log: several distinct head SHAs means a rebase was already tried
+// and failed identically (strong), one constant SHA means the same commit was
+// merely re-run (weaker, but still deterministic).
 async function deterministicFailure(gh, owner, repo, number) {
   let branch;
   try {
@@ -664,12 +674,15 @@ async function deterministicFailure(gh, owner, repo, number) {
     branch = pr?.head?.ref;
   } catch (err) {
     console.log(`nudge: cannot read ${owner}/${repo}#${number} head branch (${err.message.slice(0, 80)}) — nudging anyway`);
-    return { deterministic: false, failing: [] };
+    return { deterministic: false, rebased: false, failing: [] };
   }
-  if (!branch) return { deterministic: false, failing: [] };
+  if (!branch) return { deterministic: false, rebased: false, failing: [] };
   const history = await gh.prCiHistory(owner, repo, branch, { attempts: DETERMINISTIC_ATTEMPTS });
+  const deterministic = isDeterministicFailure(history);
+  const shas = new Set(history.slice(0, DETERMINISTIC_ATTEMPTS).map(a => a?.sha));
   return {
-    deterministic: isDeterministicFailure(history),
+    deterministic,
+    rebased: deterministic && shas.size > 1,
     failing: history[0]?.failing || [],
   };
 }
@@ -715,14 +728,18 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
       }
       // Deterministic-failure guard: checked after the cheaper dedup so an
       // already-nudged PR costs no extra API calls.
-      const { deterministic, failing } = await deterministicFailure(gh, owner, t.repo, t.number);
+      const { deterministic, rebased, failing } = await deterministicFailure(gh, owner, t.repo, t.number);
       if (deterministic) {
-        console.log(`nudge: ${owner}/${t.repo}#${t.number} failed the last ${DETERMINISTIC_ATTEMPTS} CI attempts identically on an unchanged head (${failing.join(', ')}) — a rebase cannot fix it; escalating instead of nudging`);
+        const evidence = rebased
+          ? 'across distinct head SHAs — a rebase has already been tried and changed nothing'
+          : 'on an unchanged head';
+        console.log(`nudge: ${owner}/${t.repo}#${t.number} failed the last ${DETERMINISTIC_ATTEMPTS} CI attempts identically ${evidence} (${failing.join(', ')}) — a rebase cannot fix it; escalating instead of nudging`);
         results.push({
           repo: t.repo,
           number: t.number,
           status: 'escalated',
           reason: 'deterministic CI failure',
+          rebased,
           failing,
         });
         continue;
