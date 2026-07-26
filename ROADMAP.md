@@ -94,7 +94,7 @@ Dependabot and monitor workflow optimizations shipped 2026-07-25 (PRs #342 and #
 
 Configuration maintenance updates shipped 2026-07-25 (PR #344). Marked a specific generator as release-exempt within the configuration to maintain pristine release automation behavior across the portfolio.
 
-Automated workflow dependency maintenance shipped 2026-07-26 (PR #329). Upgraded the core actions/checkout GitHub Action from v4 to v7 to ensure the repository's automated CI/CD pipeline and dependency health remain fully up to date.
+Deterministic failure SHA verification logic corrected 2026-07-26 (PR #345). Refined the state engine to treat a moved head SHA as deterministic evidence of failure rather than evidence against it, resolving a subtle edge case in application state verification.
 ---
 
 ## Roadmap
