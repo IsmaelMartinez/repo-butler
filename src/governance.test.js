@@ -865,3 +865,99 @@ describe('runGovernance — governance-weekly trend persistence', () => {
     assert.equal(context.priorAutofixNotDrivenCount, undefined, 'no store means no persistence pass runs at all');
   });
 });
+
+// Regression guard for a real mistake, not a hypothetical one.
+//
+// An earlier attempt (PR #347, abandoned) fed `[...portfolio.repos,
+// ...portfolio.privateRepos]` into these detectors and tagged the resulting
+// findings `private: true`. An adversarial review found 14 live disclosure
+// paths, because `context.governanceFindings` and `context.repoDetails` are
+// shared across phases and reach GitHub Pages, the LLM prompt and the propose
+// soak ledger without passing any filter. Worse, `detectStandardsGaps` emits
+// ONE finding per standard carrying `nonCompliant`/`compliant` ARRAYS of repo
+// names — so a finding "about" a public standard silently contained the private
+// name, and per-finding tagging could never have caught it.
+//
+// The fix was to keep private repos out of governance entirely (they are handled
+// by private-watch.js). This test fails if anyone wires them back in.
+describe('runGovernance — private repos must never enter the governance pipeline', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('produces no finding referencing a private repo, in any field', async () => {
+    // Return a long-stale Dependabot PR for every repo, so auditDependabot also
+    // produces a finding. With an empty page it emits nothing and this guard
+    // would not cover the audit path at all.
+    const stalePR = [{
+      number: 1,
+      title: 'chore(deps): bump something',
+      user: { login: 'dependabot[bot]' },
+      created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
+    }];
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      const body = u.includes('/pulls') ? stalePR : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+    };
+
+    const CANARY = 'ZZLEAKCANARYZZ';
+    // Three compliant public repos, so a 3-of-4 majority (>= the 0.6 threshold)
+    // exists for detectPolicyDrift to infer an implicit standard from.
+    const repos = [makeRepo('repo-a'), makeRepo('repo-b'), makeRepo('repo-c')];
+    const privateRepos = [makeRepo(CANARY)];
+
+    // Details ARE supplied for the private repo, and it is made non-compliant on
+    // every axis each detector reads — missing license, no CI, no issue template,
+    // low community health, AND open high-severity vulns. Any detector that
+    // reaches it is then guaranteed to emit its name. Withholding details, or
+    // making it compliant, would let this guard pass for the wrong reason —
+    // which an earlier version of this test did.
+    const repoDetails = makeDetails([...repos, ...privateRepos], {
+      [CANARY]: {
+        license: null,
+        ci: 0,
+        communityHealth: 10,
+        hasIssueTemplate: false,
+        ciPassRate: 0.1,
+        vulns: { count: 3, critical: 0, high: 3, max_severity: 'high' },
+      },
+    });
+
+    const written = [];
+    const store = {
+      readRepoCache: async () => null,
+      readLatestGovernanceWeekly: async () => null,
+      writeGovernanceWeekly: async (f) => { written.push(f); },
+      writeGovernanceFindings: async (f) => { written.push(f); },
+    };
+
+    // A real standards config, so detectStandardsGaps actually runs. With an
+    // empty config no standards are parsed, no findings are produced, and the
+    // guard would pass vacuously.
+    const config = {
+      standards: {
+        license: 'universal',
+        'ci-workflows': 'universal',
+        'issue-form-templates': 'universal',
+      },
+    };
+
+    const context = {
+      owner: 'acme', token: 'tok',
+      portfolio: { repos, privateRepos },
+      config, store, repoDetails,
+    };
+    await runGovernance(context);
+
+    // Serialised, so the canary is caught wherever it hides — `repo`, a
+    // `nonCompliant`/`compliant` array, a remediation plan, a rationale string.
+    const serialised = JSON.stringify(context.governanceFindings);
+    assert.ok(!serialised.includes(CANARY),
+      `private repo name reached context.governanceFindings:\n${serialised}`);
+
+    for (const batch of written) {
+      assert.ok(!JSON.stringify(batch).includes(CANARY),
+        'private repo name reached a data-branch write');
+    }
+  });
+});

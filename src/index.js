@@ -1,6 +1,7 @@
 import { appendFileSync } from 'node:fs';
 import { loadConfig } from './config.js';
 import { runObserve } from './observe.js';
+import { runPrivateWatch } from './private-watch.js';
 import { runAssess } from './assess.js';
 import { runUpdate } from './update.js';
 import { runIdeate } from './ideate.js';
@@ -467,7 +468,28 @@ async function main() {
     }
   }
 
-  // Output summary for GitHub Actions.
+  // Private-repo security watch. Deliberately a separate pass rather than part
+  // of GOVERNANCE: private repos must never enter the shared `context` carriers
+  // (repoDetails, governanceFindings), because those reach GitHub Pages, the
+  // repo-butler-data branch, the LLM prompt and the propose soak ledger — all of
+  // which are public, since repo-butler is a public repo. Findings go only to
+  // the private repo itself. See private-watch.js.
+  //
+  // Runs even in dry-run (where it writes nothing but reports counts), and only
+  // when OBSERVE populated the portfolio.
+  if (context.portfolio?.privateRepos?.length) {
+    console.log(`\n=== PRIVATE WATCH ===\n`);
+    try {
+      await runPrivateWatch(context);
+    } catch (err) {
+      // Never let the private watch fail the pipeline, and never log the error
+      // text — it can carry a repo path.
+      console.log(`Private watch: failed (${err.constructor?.name || 'Error'}); continuing.`);
+    }
+  }
+
+  // Output summary for GitHub Actions. Note this reads portfolio.classification,
+  // which observePortfolio computes from PUBLIC repos only.
   if (process.env.GITHUB_OUTPUT) {
     const summary = {
       snapshot_summary: context.snapshot?.summary,

@@ -3,7 +3,34 @@
 
 const API_BASE = 'https://api.github.com';
 
-export function createClient(token) {
+/**
+ * Replace the repo segment of an API path with a placeholder.
+ *
+ * `/repos/alice/secret-thing/pulls` -> `/repos/alice/<redacted>/pulls`
+ *
+ * Needed because repo-butler is itself a PUBLIC repo, so its Actions logs are
+ * world-readable. Any log line or error message carrying a private repo's API
+ * path discloses that repo's existence and name permanently.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+export function redactRepoPath(path) {
+  return String(path).replace(/^(\/repos\/[^/]+\/)[^/?#]+/, '$1<redacted>');
+}
+
+/**
+ * @param {string} token
+ * @param {{redactPaths?: boolean}} [options] `redactPaths` strips the repo name
+ *   from retry logs and thrown error messages, and suppresses the response body
+ *   (GitHub error bodies echo the repo path back). Pass it for clients that talk
+ *   to PRIVATE repos — see private-watch.js. Public callers should leave it off
+ *   so logs stay debuggable; there is no reason to blunt them for the 13 repos
+ *   whose names are already public.
+ */
+export function createClient(token, options = {}) {
+  const redactPaths = !!options.redactPaths;
+  const safePath = p => (redactPaths ? redactRepoPath(p) : p);
   const headers = {
     'Accept': 'application/vnd.github+json',
     'Authorization': `Bearer ${token}`,
@@ -40,7 +67,12 @@ export function createClient(token) {
           const isRateLimit = remaining === '0' || retryAfter;
           if (!isRateLimit) {
             const text = await res.text();
-            throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+            // 403-permission is the LIKELIEST error against a private repo (a
+            // token missing vulnerability_alerts scope, say), so this throw is
+            // the one that most needs redacting.
+            throw new Error(redactPaths
+              ? `GitHub API ${method} ${safePath(path)}: ${res.status}`
+              : `GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
           }
         }
 
@@ -53,14 +85,19 @@ export function createClient(token) {
           waitMs = (attempt + 1) * 10000;
         }
         const waitSec = Math.min(Math.ceil(waitMs / 1000), 120);
-        console.log(`Rate limited on ${path}, waiting ${waitSec}s (attempt ${attempt + 1}/3)...`);
+        console.log(`Rate limited on ${safePath(path)}, waiting ${waitSec}s (attempt ${attempt + 1}/3)...`);
         await new Promise(r => setTimeout(r, waitSec * 1000));
         continue;
       }
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+        // The response body is dropped when redacting: GitHub error bodies echo
+        // the requested path (and sometimes the repo's full_name) back, so
+        // including it would defeat the path redaction above.
+        throw new Error(redactPaths
+          ? `GitHub API ${method} ${safePath(path)}: ${res.status}`
+          : `GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
       }
 
       // Settings writes such as PUT/DELETE automated-security-fixes and
@@ -71,7 +108,7 @@ export function createClient(token) {
       return res.json();
     }
 
-    throw new Error(`GitHub API ${method} ${path}: rate limited after 3 retries`);
+    throw new Error(`GitHub API ${method} ${safePath(path)}: rate limited after 3 retries`);
   }
 
   async function paginate(path, { params = {}, max = 500 } = {}) {

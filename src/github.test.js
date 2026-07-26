@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, hasAutomatedSecurityFixesEnabled } from './github.js';
+import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, hasAutomatedSecurityFixesEnabled } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -615,5 +615,104 @@ describe('createClient — prCiHistory', () => {
     globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
     const gh = createClient('tok');
     assert.deepEqual(await gh.prCiHistory('o', 'r', 'branch'), []);
+  });
+});
+
+// repo-butler is itself a PUBLIC repo, so its Actions logs are world-readable.
+// A private repo's API path appearing in a retry log or a thrown error message
+// discloses that repo permanently. `redactPaths` is opt-in per client so public
+// callers keep fully debuggable logs — see private-watch.js for the only user.
+describe('redactRepoPath', () => {
+  it('replaces the repo segment and keeps the rest of the path', () => {
+    assert.equal(redactRepoPath('/repos/alice/secret-thing/pulls'), '/repos/alice/<redacted>/pulls');
+    assert.equal(redactRepoPath('/repos/alice/secret-thing'), '/repos/alice/<redacted>');
+    assert.equal(
+      redactRepoPath('/repos/alice/secret-thing/dependabot/alerts'),
+      '/repos/alice/<redacted>/dependabot/alerts',
+    );
+  });
+
+  it('stops at a query string or fragment rather than swallowing it', () => {
+    assert.equal(redactRepoPath('/repos/alice/secret?state=open'), '/repos/alice/<redacted>?state=open');
+  });
+
+  it('leaves non-repo paths untouched', () => {
+    for (const p of ['/installation/repositories', '/user/repos', '/orgs/alice/repos', '/rate_limit']) {
+      assert.equal(redactRepoPath(p), p);
+    }
+  });
+
+  it('tolerates non-string input', () => {
+    assert.equal(redactRepoPath(undefined), 'undefined');
+    assert.equal(redactRepoPath(null), 'null');
+  });
+});
+
+describe('createClient — redactPaths', () => {
+  let originalFetch, originalLog, logs;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    originalLog = console.log;
+    logs = [];
+    console.log = (...a) => { logs.push(a.join(' ')); };
+  });
+  afterEach(() => { globalThis.fetch = originalFetch; console.log = originalLog; });
+
+  const CANARY = 'ZZLEAKCANARYZZ';
+
+  it('keeps the repo name out of the rate-limit retry log', async () => {
+    let call = 0;
+    globalThis.fetch = mock.fn(async () => {
+      call++;
+      if (call === 1) {
+        return jsonResponse({}, {
+          status: 429,
+          headers: new Map([['retry-after', '1'], ['x-ratelimit-remaining', '0']]),
+        });
+      }
+      return jsonResponse({ ok: true });
+    });
+
+    const gh = createClient('tok', { redactPaths: true });
+    await gh.request(`/repos/alice/${CANARY}/dependabot/alerts`);
+
+    const all = logs.join('\n');
+    assert.match(all, /Rate limited on/, 'expected a retry log, or this proves nothing');
+    assert.ok(!all.includes(CANARY), `repo name leaked into retry log:\n${all}`);
+    assert.match(all, /<redacted>/);
+  });
+
+  it('keeps the repo name and the response body out of thrown errors', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse(
+      { message: `Must have admin rights to /repos/alice/${CANARY}` },
+      { status: 403 },
+    ));
+
+    const gh = createClient('tok', { redactPaths: true });
+    await assert.rejects(
+      () => gh.request(`/repos/alice/${CANARY}/dependabot/alerts`),
+      (err) => {
+        assert.ok(!err.message.includes(CANARY), `repo name leaked into error: ${err.message}`);
+        assert.match(err.message, /<redacted>/);
+        assert.ok(!err.message.includes('admin rights'),
+          'response body must be dropped when redacting — GitHub echoes the path back in it');
+        return true;
+      },
+    );
+  });
+
+  it('leaves paths and bodies intact by default, so public logs stay debuggable', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({ message: 'Not Found' }, { status: 404 }));
+
+    const gh = createClient('tok');
+    await assert.rejects(
+      () => gh.request('/repos/alice/public-repo/pulls'),
+      (err) => {
+        assert.match(err.message, /public-repo/);
+        assert.match(err.message, /Not Found/);
+        return true;
+      },
+    );
   });
 });
