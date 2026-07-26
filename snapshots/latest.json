@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-26T16:52:33.676Z",
+  "timestamp": "2026-07-26T20:51:16.104Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-26T12:53:05Z",
+    "pushed_at": "2026-07-26T20:34:21Z",
     "archived": false
   },
   "issues": {
@@ -102,6 +102,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 345,
+        "title": "fix(apply): a moved head SHA is evidence FOR deterministic failure, not against it",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-26T17:04:38Z"
+      },
       {
         "number": 329,
         "title": "chore(deps): bump actions/checkout from 4 to 7",
@@ -1431,13 +1438,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-28T15:43:47Z"
-      },
-      {
-        "number": 138,
-        "title": "refactor: fetchMergedPRs via /pulls paginate (Code Health T3.5)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-28T15:43:43Z"
       }
     ]
   },
