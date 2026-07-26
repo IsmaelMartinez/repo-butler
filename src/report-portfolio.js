@@ -3,7 +3,7 @@
 import { CSS, SITE_FOOTER, htmlPage, THEME_INIT, THEME_TOGGLE, THEME_TOGGLE_JS } from './report-styles.js';
 import { computeLibyearWithTimeout } from './libyear.js';
 import { buildActionItems } from './report-repo.js';
-import { hasActiveCopilotReviewRuleset } from './github.js';
+import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState } from './github.js';
 import { detectTierChanges } from './tier-change.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
@@ -12,6 +12,7 @@ import {
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
   CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
+  isAutofixNotDriven, computeCountTrend,
 } from './report-shared.js';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
@@ -52,7 +53,7 @@ const ABOUT_SECTION = `<details>
 <li><strong>OBSERVE</strong> — gathers project state via the GitHub API (issues, PRs, releases, labels, workflows, roadmap content) and classifies all portfolio repos by activity level. No LLM needed.</li>
 <li><strong>ASSESS</strong> — diffs the current snapshot against the previous run, computes weekly trends (growing/shrinking/stable), and optionally summarises changes with Gemini Flash.</li>
 <li><strong>UPDATE</strong> — generates an updated roadmap document, validates it through a safety layer, and opens a PR.</li>
-<li><strong>GOVERNANCE</strong> — runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.</li>
+<li><strong>GOVERNANCE</strong> — runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, open vulnerabilities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.</li>
 <li><strong>IDEATE</strong> — generates improvement ideas using an LLM (Claude for deeper reasoning, Gemini Flash as default), feeding off the fresh governance findings.</li>
 <li><strong>PROPOSE</strong> — safety-filters ideas (URL allowlist, @mention blocking, secret detection), then creates GitHub issues capped at <code>max_issues_per_run</code>, sorted by priority, labelled for human review.</li>
 <li><strong>REPORT</strong> — generates HTML dashboards for every active repo in the portfolio, deployed to GitHub Pages.</li>
@@ -227,12 +228,26 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       && cached.pushed_at === r.pushed_at
       && cached.open_issues_count === (r.open_issues || 0)
     ) {
-      details[r.name] = cached.details;
+      // The Dependabot autofix setting (ADR-012 Phase 3) and the Copilot review
+      // ruleset (ADR-009) are both repo-settings toggles that can flip without a
+      // push or an open-issue-count change, so the cache key does not capture
+      // either. Every other cached field is genuinely push-invariant; these two
+      // are not, and leaving them stale would let a quiet repo's "in flight /
+      // not driven" and code-review-bot annotations drift indefinitely. Refresh
+      // both with live reads on the cache-hit path and merge into a COPY — never
+      // mutate the cache. This is the cache-refresh convention: a settings-toggle
+      // field that can't be tied to a cache key gets a live read on every cache
+      // hit rather than a schema-version bump (which would only recompute once).
+      const [autofix, hasCopilotReview] = await Promise.all([
+        getAutomatedSecurityFixesState(gh, owner, r.name),
+        hasActiveCopilotReviewRuleset(gh, owner, r.name),
+      ]);
+      details[r.name] = { ...cached.details, autofix, hasCopilotReview };
       cachedRepos.add(r.name);
-      console.log(`  ↩ ${r.name} — unchanged, using cache`);
+      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review refreshed)`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -353,12 +368,22 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // with the settings-apply idempotency guard (apply.js) via github.js so both
       // agree on what "already enabled" means. Drives the code-review-bot standard.
       hasActiveCopilotReviewRuleset(gh, owner, r.name).then(hasCopilotReview => ({ hasCopilotReview })),
+      // GitHub's Dependabot automated security fixes state (ADR-012 Phase 3):
+      // { enabled, paused } | null. Feeds the deterministic open-vulnerability
+      // detector (governance.js) so a dependabot-sourced finding can distinguish
+      // "remediation in flight" (autofix ON — GitHub is already opening bump PRs)
+      // from "not being driven to resolution" (OFF). Detection stays pure (no gh
+      // client); the state is fetched here and threaded into details[repo], exactly
+      // as hasActiveCopilotReviewRuleset feeds code-review-bot detection. Returns
+      // null on any error (feature unavailable, or the App lacks administration:
+      // write) → governance reads it as "unknown" and does not annotate.
+      getAutomatedSecurityFixesState(gh, owner, r.name),
     ]);
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
     const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, libyear: null, codeScanning, secretScanning, traffic };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -501,6 +526,7 @@ export function buildGovernanceSection(findings) {
   const gaps = findings.filter(f => f.type === 'standards-gap');
   const drift = findings.filter(f => f.type === 'policy-drift');
   const uplift = findings.filter(f => f.type === 'tier-uplift');
+  const openVulns = findings.filter(f => f.type === 'open-vulnerability');
 
   const parts = [];
 
@@ -520,6 +546,48 @@ export function buildGovernanceSection(findings) {
   if (byExecutor.manual) executorBits.push(`${byExecutor.manual} manual (your hand)`);
   if (executorBits.length > 0) {
     parts.push(`<p class="muted">By remediation: ${executorBits.join(' &middot; ')}</p>`);
+  }
+
+  // Open vulnerabilities lead the section — it is the most urgent governance
+  // state. Each row lists the affected repo, which scanner(s) fired, and the
+  // open critical/high counts (+ secret-scanning hits).
+  if (openVulns.length > 0) {
+    const rows = openVulns
+      .slice()
+      .sort((a, b) => {
+        const pa = a.priority === 'high' ? 0 : 1;
+        const pb = b.priority === 'high' ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return (b.critical + b.high) - (a.critical + a.high);
+      })
+      .map(v => {
+        const counts = [];
+        if (v.critical) counts.push(`${v.critical} critical`);
+        if (v.high) counts.push(`${v.high} high`);
+        if (v.secretScanning) counts.push(`${v.secretScanning} secret-scanning`);
+        // Dependabot autofix state (ADR-012 Phase 3): only meaningful for
+        // dependabot-sourced findings (autofixEnabled is present). "in flight" =
+        // GitHub is opening the bump PRs; "not driven" = the alerts are unattended;
+        // "unknown" = state unreadable. A code/secret-only finding shows "—".
+        let autofixCell = '<span class="muted">—</span>';
+        if (v.autofixEnabled === true) autofixCell = `<span style="color:${COLOR_SUCCESS}">✓ in flight</span>`;
+        else if (v.autofixEnabled === false) autofixCell = `<span style="color:${COLOR_DANGER}">✗ not driven</span>`;
+        else if (v.autofixEnabled === null) autofixCell = '<span class="muted">unknown</span>';
+        return `<tr>
+  <td><a href="${escHtml(v.repo)}.html">${escHtml(v.repo)}</a></td>
+  <td><span style="color:${PRIORITY_COLOR[v.priority] || 'var(--muted)'}">${escHtml(v.priority)}</span></td>
+  <td>${escHtml((v.sources || []).join(', '))}</td>
+  <td>${escHtml(counts.join(', ') || 'open alerts')}</td>
+  <td>${autofixCell}</td>
+</tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Open Vulnerabilities</h3>
+<p class="muted">Dependabot autofix: <em>in flight</em> = GitHub's automated security fixes are opening the bump PRs; <em>not driven</em> = enable them via the <code>dependabot-security</code> apply action.</p>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>Priority</th><th>Source</th><th>Open alerts</th><th>Dependabot autofix</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
   }
 
   if (gaps.length > 0) {
@@ -785,6 +853,37 @@ export function buildCriticalBanner(atRisk) {
   return `<div class="alert-banner alert-critical"><strong>Security needs you.</strong> ${shown}${more} ${verb} open security alerts.</div>`;
 }
 
+// A quiet nudge (ADR-012 Phase 3) for dependabot-sourced open-vulnerability
+// findings whose autofix isn't actively driving remediation — otherwise this
+// signal is buried row-by-row in the Open Vulnerabilities table. Presentation
+// only: reads findings already computed by governance.js, no detection logic
+// here. Renders nothing when the count is 0, matching the dashboard's
+// calm-by-design philosophy (see buildSinceLastSection).
+//
+// priorCount (governance.js's priorAutofixNotDrivenCount, from the prior
+// governance-weekly snapshot) drives an optional trend badge — null/undefined
+// (no prior snapshot yet, or the REPORT phase ran without GOVERNANCE first)
+// or an unchanged count renders no badge, same as buildStatusHero's Gold
+// trend. Unlike that Gold trend, a rising count here is a regression (more
+// repos left undriven), so the arrow direction and the up/down colour class
+// are inverted: fewer not-driven repos (an improvement) gets the green "up"
+// class, more gets the red "down" class.
+export function buildAutofixNudge(findings, priorCount = null) {
+  if (!findings || findings.length === 0) return '';
+  const count = findings.filter(isAutofixNotDriven).length;
+  if (count === 0) return '';
+  const noun = count === 1 ? 'repo has' : 'repos have';
+  const nudgeTrend = computeCountTrend(count, priorCount, { invert: true });
+  let trend = '';
+  if (nudgeTrend && nudgeTrend.direction !== 'unchanged') {
+    const { delta, direction } = nudgeTrend;
+    const arrow = delta > 0 ? '▲' : '▼';
+    const cls = direction === 'improving' ? 'up' : 'down';
+    trend = ` <span class="status-trend ${cls}" title="vs the prior governance snapshot">${arrow} ${delta > 0 ? '+' : ''}${Math.abs(delta)}</span>`;
+  }
+  return `<div class="alert-banner"><strong>Dependabot autofix off.</strong> ${count} ${noun} Dependabot autofix off despite open vulnerabilities${trend} — enable via the <code>dependabot-security</code> apply action.</div>`;
+}
+
 // The calm headline block: a status dot, a state-aware headline in the butler's
 // voice, the tier mix, the portfolio's vulnerability posture, and a
 // week-over-week Gold trend when a prior snapshot exists.
@@ -866,7 +965,7 @@ export function buildSinceLastSection(classified, priorPortfolio) {
 
 // --- Portfolio report ---
 
-export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null, governanceFindings = null, priorPortfolio = null) {
+export function generatePortfolioReport(owner, portfolio, details, mainWeekly, depInventory = null, config = null, governanceFindings = null, priorPortfolio = null, priorAutofixNotDrivenCount = null) {
   const repos = portfolio.repos
     .filter(r => !r.archived && !r.fork)
     .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
@@ -937,6 +1036,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
 
   const criticalBanner = buildCriticalBanner(atRisk);
+  const autofixNudge = buildAutofixNudge(governanceFindings, priorAutofixNotDrivenCount);
   const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount);
   const sinceSection = buildSinceLastSection(classified, priorPortfolio);
 
@@ -1017,6 +1117,7 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
   const body = `<h1><a href="https://github.com/${owner}" class="repo-link">@${owner} <svg height="24" width="24" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></h1>
 <div class="subtitle">Portfolio health · ${now} · click any repo for detail · <a href="digest.html">weekly digest</a></div>
 ${criticalBanner}
+${autofixNudge}
 ${statusHero}
 ${sinceSection}
 ${buildPortfolioAttentionSection(classified, details, owner, config)}

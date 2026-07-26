@@ -63,6 +63,11 @@ export function createClient(token) {
         throw new Error(`GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
       }
 
+      // Settings writes such as PUT/DELETE automated-security-fixes and
+      // vulnerability-alerts (and DELETE rulesets) answer 204 No Content — an
+      // empty body that res.json() would choke on. Return null for those rather
+      // than throwing a spurious parse error on a successful write.
+      if (res.status === 204) return null;
       return res.json();
     }
 
@@ -238,7 +243,53 @@ export function createClient(token) {
     }
   }
 
-  return { request, paginate, getFileContent, listDir, putFile, deleteFile, mergePR, prCiGreen };
+  // Recent CI history for a PR head branch, newest attempt first, capped at
+  // `attempts`. One element is one CI *attempt*: every completed workflow run
+  // sharing a head SHA and re-run number, shaped
+  // `{ sha, attempt, failing }` where `failing` is the sorted set of run names
+  // that concluded failure (empty for a clean attempt). Callers compare
+  // consecutive attempts to spot a PR that fails identically every time.
+  //
+  // Deliberately the OPPOSITE polarity to prCiGreen: that one authorises a merge,
+  // so an unreadable signal must fail closed. This one can only ever *suppress* a
+  // comment, so an unreadable signal fails OPEN — it returns `[]` ("no signal")
+  // and the caller keeps its default behaviour instead of a transient API error
+  // silently switching the feature off portfolio-wide.
+  async function prCiHistory(owner, repo, branch, { attempts = 3 } = {}) {
+    try {
+      // Branch-scoped so the history spans previous head SHAs, which the
+      // per-commit check-runs endpoint cannot express. `status: completed` drops
+      // in-flight runs: a pending run is not yet evidence of anything.
+      const res = await request(`/repos/${owner}/${repo}/actions/runs`, {
+        params: { branch, status: 'completed', per_page: 100 },
+      });
+      const runs = Array.isArray(res?.workflow_runs) ? res.workflow_runs : [];
+      // Group by head SHA + re-run number: the several workflows triggered for one
+      // revision (CI, CodeQL, …) are a single attempt, not several. The API already
+      // returns newest-first; sort defensively so the grouping order is not
+      // load-bearing on response ordering.
+      const byAttempt = new Map();
+      const ordered = [...runs].sort(
+        (a, b) => (Date.parse(b?.created_at) || 0) - (Date.parse(a?.created_at) || 0),
+      );
+      for (const r of ordered) {
+        if (!r?.head_sha) continue;
+        const key = `${r.head_sha}#${Number(r.run_attempt) || 1}`;
+        if (!byAttempt.has(key)) {
+          byAttempt.set(key, { sha: r.head_sha, attempt: Number(r.run_attempt) || 1, failing: [] });
+        }
+        if (r.conclusion === 'failure') byAttempt.get(key).failing.push(String(r.name ?? ''));
+      }
+      return [...byAttempt.values()]
+        .slice(0, attempts)
+        .map(a => ({ ...a, failing: a.failing.sort() }));
+    } catch (err) {
+      console.log(`prCiHistory: cannot read CI history for ${owner}/${repo}@${branch} (${err.message.slice(0, 80)})`);
+      return [];
+    }
+  }
+
+  return { request, paginate, getFileContent, listDir, putFile, deleteFile, mergePR, prCiGreen, prCiHistory };
 }
 
 // True if the repo has an ACTIVE repository ruleset carrying a `copilot_code_review`
@@ -271,6 +322,33 @@ export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
   } catch {
     return false;
   }
+}
+
+// Read a repo's automated-security-fixes state (ADR-012). GitHub's
+// GET /repos/{owner}/{repo}/automated-security-fixes returns `{ enabled, paused }`.
+// Returns those two booleans, or null on any error (feature unavailable, or the
+// token lacks `administration: write`). The apply path's idempotency guard uses
+// the full pair so it can skip a repo that is enabled OR paused — a paused repo
+// is a state a human (or GitHub, on an inactive repo) set deliberately, and the
+// flag is un-name-guardable, so re-enabling it would override that decision.
+export async function getAutomatedSecurityFixesState(gh, owner, repo) {
+  try {
+    const data = await gh.request(`/repos/${owner}/${repo}/automated-security-fixes`);
+    if (!data || typeof data !== 'object') return null;
+    return { enabled: data.enabled === true, paused: data.paused === true };
+  } catch {
+    return null;
+  }
+}
+
+// True only when Dependabot automated security fixes are enabled AND not paused —
+// i.e. the feature is live and actively opening fix PRs. Mirrors
+// hasActiveCopilotReviewRuleset; the public predicate for "already fully active".
+// false on any error. (The apply idempotency guard reads the fuller state above so
+// it also treats a *paused* repo as hands-off — see getAutomatedSecurityFixesState.)
+export async function hasAutomatedSecurityFixesEnabled(gh, owner, repo) {
+  const state = await getAutomatedSecurityFixesState(gh, owner, repo);
+  return state !== null && state.enabled && !state.paused;
 }
 
 // Paginate /repos/{owner}/{repo}/issues and filter out PRs (which the GitHub

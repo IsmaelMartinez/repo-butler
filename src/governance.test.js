@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
+import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, buildRemediationPlan, attachRemediationPlans } from './governance.js';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
 
 // --- Test helpers ---
 
@@ -470,6 +470,194 @@ describe('generateUpliftProposals', () => {
 
 // --- Remediation plan contract (ADR-007 Track B stage 1) ---
 
+describe('detectOpenVulnerabilities', () => {
+  it('returns no findings when every repo is clean', () => {
+    const repos = [makeRepo('repo-a'), makeRepo('repo-b')];
+    const details = makeDetails(repos); // default vulns { count: 0, max_severity: null }
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('flags a repo with an open high Dependabot alert as medium priority', () => {
+    const repos = [makeRepo('repo-a'), makeRepo('repo-b')];
+    const details = makeDetails(repos, {
+      'repo-b': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' } },
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    assert.equal(findings.length, 1);
+    const f = findings[0];
+    assert.equal(f.type, 'open-vulnerability');
+    assert.equal(f.repo, 'repo-b');
+    assert.deepEqual(f.sources, ['dependabot']);
+    assert.equal(f.high, 1);
+    assert.equal(f.critical, 0);
+    assert.equal(f.priority, 'medium');
+    assert.equal(f.max_severity, 'high');
+  });
+
+  it('raises a critical Dependabot alert to high priority', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'high');
+    assert.equal(f.max_severity, 'critical');
+    assert.equal(f.critical, 1);
+  });
+
+  it('treats any secret-scanning hit as high priority', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 0, max_severity: null }, secretScanning: { count: 2 } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.deepEqual(f.sources, ['secret-scanning']);
+    assert.equal(f.secretScanning, 2);
+    assert.equal(f.priority, 'high');
+  });
+
+  it('aggregates counts and sources across Dependabot and code scanning', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': {
+        vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' },
+        codeScanning: { count: 2, critical: 1, high: 1, max_severity: 'critical' },
+      },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.deepEqual(f.sources, ['dependabot', 'code-scanning']);
+    assert.equal(f.critical, 1);
+    assert.equal(f.high, 2);
+    assert.equal(f.priority, 'high');
+  });
+
+  it('skips repos whose alert data is null (scanning off / token lacks scope) rather than flagging unknowns', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, { 'repo-a': { vulns: null, codeScanning: null, secretScanning: null } });
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('ignores medium/low-only alerts (consistent with the Gold security check)', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 3, critical: 0, high: 0, medium: 2, low: 1, max_severity: 'medium' } },
+    });
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('excludes archived, fork, and test/shadow repos (eligibleRepos)', () => {
+    const repos = [
+      makeRepo('repo-archived', { archived: true }),
+      makeRepo('repo-fork', { fork: true }),
+      makeRepo('repo-shadow'),
+    ];
+    const details = makeDetails(repos, {
+      'repo-archived': { vulns: { count: 1, high: 1, max_severity: 'high' } },
+      'repo-fork': { vulns: { count: 1, high: 1, max_severity: 'high' } },
+      'repo-shadow': { vulns: { count: 1, high: 1, max_severity: 'high' } },
+    });
+    assert.deepEqual(detectOpenVulnerabilities(repos, details), []);
+  });
+
+  it('skips a repo entirely absent from the details map', () => {
+    const repos = [makeRepo('repo-a')];
+    assert.deepEqual(detectOpenVulnerabilities(repos, {}), []);
+  });
+
+  // --- ADR-012 Phase 3: Dependabot autofix "in flight" annotation ---
+
+  it('carries autofixEnabled=true from details.autofix (enabled, not paused) on a dependabot finding', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.autofixEnabled, true);
+  });
+
+  it('carries autofixEnabled=false when autofix is off, and false when paused', () => {
+    const repos = [makeRepo('off'), makeRepo('paused')];
+    const details = makeDetails(repos, {
+      off: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: false, paused: false } },
+      paused: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: true } },
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    assert.equal(findings.find(f => f.repo === 'off').autofixEnabled, false);
+    assert.equal(findings.find(f => f.repo === 'paused').autofixEnabled, false, 'paused → not actively driving → false');
+  });
+
+  it('carries autofixEnabled=null when the autofix state is unreadable/absent', () => {
+    const repos = [makeRepo('nullstate'), makeRepo('nofield')];
+    const details = makeDetails(repos, {
+      nullstate: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: null },
+      nofield: { vulns: { count: 1, high: 1, max_severity: 'high' } }, // no autofix key at all
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    assert.equal(findings.find(f => f.repo === 'nullstate').autofixEnabled, null);
+    assert.equal(findings.find(f => f.repo === 'nofield').autofixEnabled, null);
+  });
+
+  it('downgrades a dependabot-ONLY critical finding high→medium when autofix is in flight', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'medium', 'in-flight remediation lowers the banner priority');
+    assert.equal(f.max_severity, 'critical', 'max_severity is NOT touched — the alert is still open');
+    assert.equal(f.autofixEnabled, true);
+  });
+
+  it('does NOT downgrade when autofix is off (stays high)', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' }, autofix: { enabled: false, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'high');
+  });
+
+  it('does NOT downgrade a multi-source finding even with autofix in flight (code-scanning still needs manual work)', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': {
+        vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        codeScanning: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        autofix: { enabled: true, paused: false },
+      },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.deepEqual(f.sources, ['dependabot', 'code-scanning']);
+    assert.equal(f.priority, 'high', 'a code-scanning source keeps priority — autofix cannot fix it');
+  });
+
+  it('does not attach autofixEnabled to code-scanning / secret-scanning-only findings', () => {
+    const repos = [makeRepo('cs'), makeRepo('secret')];
+    const details = makeDetails(repos, {
+      cs: { vulns: { count: 0, max_severity: null }, codeScanning: { count: 1, critical: 1, high: 0, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
+      secret: { vulns: { count: 0, max_severity: null }, secretScanning: { count: 1 }, autofix: { enabled: true, paused: false } },
+    });
+    const findings = detectOpenVulnerabilities(repos, details);
+    const cs = findings.find(f => f.repo === 'cs');
+    const secret = findings.find(f => f.repo === 'secret');
+    assert.ok(!('autofixEnabled' in cs), 'code-scanning-only finding has no autofixEnabled field');
+    assert.ok(!('autofixEnabled' in secret), 'secret-scanning-only finding has no autofixEnabled field');
+    assert.equal(cs.priority, 'high');
+    assert.equal(secret.priority, 'high');
+  });
+
+  it('records the in-flight distinction in the remediation rationale', () => {
+    const repos = [makeRepo('on'), makeRepo('off')];
+    const details = makeDetails(repos, {
+      on: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: false } },
+      off: { vulns: { count: 1, high: 1, max_severity: 'high' }, autofix: { enabled: false, paused: false } },
+    });
+    const findings = attachRemediationPlans(detectOpenVulnerabilities(repos, details));
+    assert.match(findings.find(f => f.repo === 'on').remediation.rationale, /in flight/i);
+    assert.match(findings.find(f => f.repo === 'off').remediation.rationale, /not being driven|OFF/i);
+  });
+});
+
 describe('buildRemediationPlan', () => {
   it('routes a templatable standards tool to the template executor', () => {
     const plan = buildRemediationPlan({
@@ -554,6 +742,17 @@ describe('buildRemediationPlan', () => {
     assert.match(plan.rationale, /70 days/);
   });
 
+  it('routes open-vulnerability to manual and reports counts + sources', () => {
+    const plan = buildRemediationPlan({
+      type: 'open-vulnerability', repo: 'r', critical: 2, high: 1, secretScanning: 3, sources: ['dependabot', 'secret-scanning'],
+    });
+    assert.equal(plan.executor, 'manual');
+    assert.deepEqual(plan.targetFiles, []);
+    assert.match(plan.rationale, /2 critical/);
+    assert.match(plan.rationale, /3 secret-scanning/);
+    assert.match(plan.rationale, /dependabot/);
+  });
+
   it('falls back to manual for an unknown finding type', () => {
     const plan = buildRemediationPlan({ type: 'something-new' });
     assert.equal(plan.executor, 'manual');
@@ -575,5 +774,94 @@ describe('attachRemediationPlans', () => {
 
   it('returns an empty array for non-array input', () => {
     assert.deepEqual(attachRemediationPlans(null), []);
+  });
+});
+
+// --- priorAutofixNotDrivenCount (ADR-012 dashboard trend) ---
+
+describe('priorAutofixNotDrivenCount', () => {
+  it('counts dependabot-sourced not-driven findings in a prior weekly snapshot', () => {
+    const priorWeekly = {
+      _week: '2026-W29',
+      findings: [
+        { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'], autofixEnabled: false },
+        { type: 'open-vulnerability', repo: 'b', sources: ['dependabot'], autofixEnabled: false },
+        { type: 'open-vulnerability', repo: 'c', sources: ['dependabot'], autofixEnabled: true },
+        { type: 'open-vulnerability', repo: 'd', sources: ['code-scanning'] },
+        { type: 'standards-gap', tool: 'license' },
+      ],
+    };
+    assert.equal(priorAutofixNotDrivenCount(priorWeekly), 2);
+  });
+
+  it('returns null when there is no prior snapshot', () => {
+    assert.equal(priorAutofixNotDrivenCount(null), null);
+    assert.equal(priorAutofixNotDrivenCount(undefined), null);
+  });
+
+  it('returns null when the prior snapshot has no findings array', () => {
+    assert.equal(priorAutofixNotDrivenCount({ _week: '2026-W29' }), null);
+  });
+
+  it('returns 0 (not null) when the prior snapshot had findings but none were not-driven', () => {
+    const priorWeekly = { findings: [{ type: 'open-vulnerability', repo: 'a', sources: ['dependabot'], autofixEnabled: true }] };
+    assert.equal(priorAutofixNotDrivenCount(priorWeekly), 0);
+  });
+});
+
+// --- runGovernance — autofix-not-driven trend wiring ---
+
+describe('runGovernance — governance-weekly trend persistence', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('reads the prior governance-weekly snapshot before writing this run\'s, and stashes the prior not-driven count on context', async () => {
+    // auditDependabot's gh.paginate('/pulls') is the only network call runGovernance
+    // makes once context.repoDetails is pre-supplied (skips fetchPortfolioDetails).
+    // An empty page ends pagination immediately with no stale Dependabot PRs.
+    globalThis.fetch = async () => ({
+      ok: true, status: 200, headers: new Map(),
+      json: async () => [], text: async () => '[]',
+    });
+
+    const repos = [makeRepo('repo-a')];
+    const repoDetails = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' }, autofix: { enabled: false, paused: false } },
+    });
+
+    const priorWeekly = {
+      _week: '2026-W29',
+      findings: [
+        { type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'], autofixEnabled: false },
+        { type: 'open-vulnerability', repo: 'repo-b', sources: ['dependabot'], autofixEnabled: false },
+      ],
+    };
+    const calls = [];
+    const store = {
+      readRepoCache: async () => null,
+      readLatestGovernanceWeekly: async () => { calls.push('read'); return priorWeekly; },
+      writeGovernanceWeekly: async (findings) => { calls.push('writeWeekly'); return findings; },
+      writeGovernanceFindings: async (findings) => { calls.push('writeLatest'); return findings; },
+    };
+
+    const context = { owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store, repoDetails };
+    await runGovernance(context);
+
+    assert.equal(context.priorAutofixNotDrivenCount, 2, 'both prior findings were dependabot-sourced and not-driven');
+    assert.deepEqual(calls, ['read', 'writeWeekly', 'writeLatest'], 'reads the prior snapshot before either write, mirroring readLatestPortfolioWeekly ordering');
+  });
+
+  it('leaves priorAutofixNotDrivenCount null on the first run (no prior snapshot, no store)', async () => {
+    globalThis.fetch = async () => ({
+      ok: true, status: 200, headers: new Map(),
+      json: async () => [], text: async () => '[]',
+    });
+    const repos = [makeRepo('repo-a')];
+    const repoDetails = makeDetails(repos);
+    const context = { owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store: null, repoDetails };
+
+    await runGovernance(context);
+
+    assert.equal(context.priorAutofixNotDrivenCount, undefined, 'no store means no persistence pass runs at all');
   });
 });

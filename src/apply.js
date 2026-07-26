@@ -2,8 +2,8 @@
 // Manual-dispatch only — never on cron. Reads findings from the data branch,
 // validates shape, generates templated config files, and opens PRs.
 
-import { REPO_NAME_PATTERN } from './safety.js';
-import { hasActiveCopilotReviewRuleset } from './github.js';
+import { REPO_NAME_PATTERN, codeqlLanguageFor } from './safety.js';
+import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState } from './github.js';
 // Re-export for backwards compat with existing onboard.js import.
 // Canonical home is safety.js (the security boundary).
 export { REPO_NAME_PATTERN };
@@ -30,7 +30,7 @@ const TEMPLATES = {
   'code-scanning': {
     path: '.github/workflows/codeql-analysis.yml',
     content: (eco) => {
-      const lang = eco === 'Go' ? 'go' : eco === 'Python' ? 'python' : 'javascript-typescript';
+      const lang = codeqlLanguageFor(eco);
       return `name: CodeQL
 
 on:
@@ -621,6 +621,59 @@ async function alreadyNudged(gh, owner, repo, number) {
   );
 }
 
+// --- Deterministic-failure guard --------------------------------------------
+// `@dependabot rebase` refreshes a PR onto the latest base and re-runs CI, so it
+// only ever helps a PR whose red CI depends on the base having moved. When the
+// SAME job set has failed the last DETERMINISTIC_ATTEMPTS CI attempts and the
+// head SHA never moved between them, the failure is a property of the change
+// itself (a major-version bump the code cannot satisfy, say), not of the base —
+// a rebase regenerates a byte-identical red run, every week, forever. Such a PR
+// needs a human decision (fix, pin or close), so the nudge stands down and
+// records it as `escalated` instead.
+const DETERMINISTIC_ATTEMPTS = 3;
+
+// Pure predicate over prCiHistory() output (newest attempt first). True only on
+// positive evidence: DETERMINISTIC_ATTEMPTS attempts available, each with at
+// least one failing job, an identical failing job set, and one unchanged head
+// SHA throughout. Fewer attempts, a clean attempt, a differing failing set or a
+// moved head → false (nudge as before).
+export function isDeterministicFailure(history, attempts = DETERMINISTIC_ATTEMPTS) {
+  if (!Array.isArray(history) || history.length < attempts) return false;
+  const recent = history.slice(0, attempts);
+  const [first] = recent;
+  if (!Array.isArray(first?.failing) || first.failing.length === 0) return false;
+  const signature = first.failing.join('|');
+  return recent.every(a =>
+    a && a.sha === first.sha
+    && Array.isArray(a.failing) && a.failing.length > 0
+    && a.failing.join('|') === signature,
+  );
+}
+
+// Resolve the PR's head branch, read its recent CI history and report whether the
+// PR is deterministically failing. Fails OPEN (nudges) whenever the evidence is
+// missing — unreadable PR, no head branch, or no CI signal at all. The guard
+// exists to suppress a provably-useless comment; absent proof it must not
+// suppress the nudge, or one 403 would quietly disable the whole feature. The
+// polarity matches alreadyNudged() above and is the reverse of the auto-merge
+// path's fail-closed prCiGreen, which authorises an irreversible write.
+async function deterministicFailure(gh, owner, repo, number) {
+  let branch;
+  try {
+    const pr = await gh.request(`/repos/${owner}/${repo}/pulls/${number}`);
+    branch = pr?.head?.ref;
+  } catch (err) {
+    console.log(`nudge: cannot read ${owner}/${repo}#${number} head branch (${err.message.slice(0, 80)}) — nudging anyway`);
+    return { deterministic: false, failing: [] };
+  }
+  if (!branch) return { deterministic: false, failing: [] };
+  const history = await gh.prCiHistory(owner, repo, branch, { attempts: DETERMINISTIC_ATTEMPTS });
+  return {
+    deterministic: isDeterministicFailure(history),
+    failing: history[0]?.failing || [],
+  };
+}
+
 export async function nudgeStaleDependabotPRs(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
@@ -660,6 +713,20 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
         results.push({ repo: t.repo, number: t.number, status: 'skipped', reason: 'recent nudge' });
         continue;
       }
+      // Deterministic-failure guard: checked after the cheaper dedup so an
+      // already-nudged PR costs no extra API calls.
+      const { deterministic, failing } = await deterministicFailure(gh, owner, t.repo, t.number);
+      if (deterministic) {
+        console.log(`nudge: ${owner}/${t.repo}#${t.number} failed the last ${DETERMINISTIC_ATTEMPTS} CI attempts identically on an unchanged head (${failing.join(', ')}) — a rebase cannot fix it; escalating instead of nudging`);
+        results.push({
+          repo: t.repo,
+          number: t.number,
+          status: 'escalated',
+          reason: 'deterministic CI failure',
+          failing,
+        });
+        continue;
+      }
       await gh.request(`/repos/${owner}/${t.repo}/issues/${t.number}/comments`, {
         method: 'POST',
         body: { body: NUDGE_BODY },
@@ -674,9 +741,10 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
 
   const nudged = results.filter(r => r.status === 'nudged').length;
   const skipped = results.filter(r => r.status === 'skipped').length;
+  const escalated = results.filter(r => r.status === 'escalated').length;
   const errors = results.filter(r => r.status === 'error').length;
-  console.log(`nudge: done — ${nudged} rebased, ${skipped} skipped, ${errors} errors`);
-  return { status: 'completed', results, summary: { nudged, skipped, errors } };
+  console.log(`nudge: done — ${nudged} rebased, ${skipped} skipped, ${escalated} escalated (deterministic failure), ${errors} errors`);
+  return { status: 'completed', results, summary: { nudged, skipped, escalated, errors } };
 }
 
 // --- Copilot code review enablement (settings write, ADR-009) ----------------
@@ -824,6 +892,226 @@ export async function removeCopilotReviewRuleset(gh, owner, repo) {
     console.error(`copilot-review: error removing ruleset on ${repo}: ${err.message}`);
     return { repo, status: 'error', error: err.message };
   }
+}
+
+// --- Dependabot security updates enablement (settings write, ADR-012) --------
+// A PR-less settings write like the Copilot ruleset (ADR-009), but it does NOT
+// pass ADR-009's benign-worst-case test: enabling GitHub's automated security
+// fixes delegates autonomous PR generation to GitHub (a burst outside the per-run
+// cap), a bump can break CI, the boolean flag is un-name-guardable, and toggling
+// it off does not revert already-opened PRs. So it rides the same gate stack AND
+// is fenced tighter (ADR-012): manual-dispatch only and OFF the apply-schedule
+// allow-list BY CONSTRUCTION (never allow-listable — unlike the Copilot class),
+// auto-merge-ineligible by construction (no TEMPLATES entry, so isAutoMergeAllowed
+// is always false), dry-run fail-closed, require_approval, per-run cap, repo-name
+// validation, and a LIVE idempotency guard that skips a repo enabled OR paused.
+// Acts on the `dependabot`-sourced `open-vulnerability` findings only.
+
+// From open-vulnerability findings whose `sources` includes 'dependabot', collect
+// the repos, validate names (gate 5), dedup, and cap (gate 4). Pure function.
+// Code-scanning / secret-scanning sources are excluded — enabling Dependabot
+// security updates cannot fix those (they need a code change or a secret rotation),
+// so only dependabot-sourced findings are actionable here.
+export function selectDependabotSecurityTargets(findings, maxPerRun = 5) {
+  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const repos = [];
+  for (const f of Array.isArray(findings) ? findings : []) {
+    if (!f || f.type !== 'open-vulnerability') continue;
+    if (!Array.isArray(f.sources) || !f.sources.includes('dependabot')) continue;
+    if (!f.repo || !REPO_NAME_PATTERN.test(f.repo)) {
+      if (f.repo) console.warn(`dependabot-security: skipping repo with invalid name: ${f.repo}`);
+      continue;
+    }
+    if (!repos.includes(f.repo)) repos.push(f.repo);
+  }
+  return repos.slice(0, cap);
+}
+
+export async function applyDependabotSecurityUpdates(gh, owner, findings, config, options = {}) {
+  const { dryRun, maxPerRun = 5, scheduled } = options;
+
+  // Gate 3: require_approval master switch.
+  if (!config?.limits?.require_approval) {
+    console.error('dependabot-security: config.limits.require_approval is not true — refusing to run');
+    return { status: 'refused', reason: 'require_approval not set' };
+  }
+
+  // ADR-012 fence: this class delegates autonomous PR generation to GitHub, so it
+  // must NEVER run on the no-human scheduled path. Unlike the ADR-009 Copilot
+  // class it is not allow-listable — the `apply-schedule` config is ignored here
+  // entirely; a scheduled dispatch ALWAYS skips by construction.
+  if (scheduled) {
+    console.log('dependabot-security [scheduled]: fenced off the no-human path by construction (ADR-012) — skipping');
+    return { status: 'skipped-unscheduled', targets: [] };
+  }
+
+  // Gate 5 (repo-name validation) + gate 4 (per-run cap).
+  const targets = selectDependabotSecurityTargets(findings, maxPerRun);
+  const live = dryRun === false; // Gate 2: dry-run fail-closed — only literal false writes.
+
+  // Snapshot annotation (ADR-012 Phase 3): the finding now carries autofixEnabled,
+  // the state governance read at OBSERVE time. We still trust the LIVE read below
+  // for the actual write decision (the snapshot can be up to 6h stale), but we note
+  // when the two disagree so the dry-run preview flags a stale snapshot rather than
+  // silently diverging from the finding the operator is looking at.
+  const snapshotAutofix = {};
+  for (const f of Array.isArray(findings) ? findings : []) {
+    if (f?.type === 'open-vulnerability' && Array.isArray(f.sources) && f.sources.includes('dependabot') && f.repo) {
+      snapshotAutofix[f.repo] = f.autofixEnabled ?? null;
+    }
+  }
+
+  // Sequential canary, one repo at a time — a settings write, so no parallel fan-out.
+  // The LIVE idempotency read runs in BOTH dry-run and live so the dry-run preview is
+  // an accurate audit record (it stands in for the absent PR diff): it lists the repos
+  // that would actually be enabled and reports which are skipped. Reads are inert — a
+  // dry-run performs GETs but never a PUT.
+  const results = [];
+  for (const repo of targets) {
+    try {
+      // Idempotency + human-intent guard, LIVE at apply time (not the stale OBSERVE
+      // snapshot): skip if the feature is already enabled OR paused. Skipping on
+      // paused is the ADR-012 answer to the un-name-guardable flag — a paused repo
+      // is a deliberate human/GitHub state, and re-enabling would override it.
+      const state = await getAutomatedSecurityFixesState(gh, owner, repo);
+      // Fail closed on an unreadable state (null = no scope, transient error, or
+      // feature unavailable): we cannot confirm the repo is not already enabled or
+      // deliberately paused, and the flag is un-name-guardable, so never write
+      // blind — skip rather than risk overriding a paused decision (ADR-012).
+      if (state === null) {
+        console.log(`dependabot-security: ${owner}/${repo} state unreadable, skipping (fail-closed)`);
+        results.push({ repo, status: 'skipped', reason: 'state unreadable' });
+        continue;
+      }
+      // Stale-snapshot detection: the finding's autofixEnabled annotation (OBSERVE
+      // snapshot) said ON, but the live read says OFF/paused. Note it so the preview
+      // and audit log show the divergence; the LIVE read always wins the decision.
+      const liveActive = state.enabled === true && state.paused !== true;
+      const snapshotStale = snapshotAutofix[repo] === true && !liveActive;
+      if (snapshotStale) {
+        console.log(`dependabot-security: ${owner}/${repo} — stale snapshot: finding said autofix ON, live read says ${state.paused ? 'paused' : 'OFF'} (trusting live read)`);
+      }
+      if (state.enabled || state.paused) {
+        console.log(`dependabot-security: ${owner}/${repo} already ${state.paused ? 'paused' : 'enabled'}, skipping`);
+        results.push({ repo, status: 'skipped', reason: state.paused ? 'paused' : 'already enabled', ...(snapshotStale ? { snapshotStale: true } : {}) });
+        continue;
+      }
+      if (!live) {
+        results.push({ repo, status: 'would-enable', ...(snapshotStale ? { snapshotStale: true } : {}) });
+        continue;
+      }
+      // vulnerability-alerts is the prerequisite for automated-security-fixes:
+      // enable it first (idempotent), then enable the fixes. Both are 204 writes.
+      await gh.request(`/repos/${owner}/${repo}/vulnerability-alerts`, { method: 'PUT' });
+      await gh.request(`/repos/${owner}/${repo}/automated-security-fixes`, { method: 'PUT' });
+      console.log(`dependabot-security: ${owner}/${repo} — Dependabot security updates enabled`);
+      results.push({ repo, status: 'enabled' });
+    } catch (err) {
+      console.error(`dependabot-security: error on ${repo}: ${err.message}`);
+      results.push({ repo, status: 'error', error: err.message });
+    }
+  }
+
+  const skipped = results.filter(r => r.status === 'skipped').length;
+  const errors = results.filter(r => r.status === 'error').length;
+
+  if (!live) {
+    const wouldEnable = results.filter(r => r.status === 'would-enable').map(r => r.repo);
+    console.log(`dependabot-security [DRY RUN]: would enable ${wouldEnable.length} repo(s), skipping ${skipped} (already enabled, paused, or state unreadable)`);
+    for (const repo of wouldEnable) console.log(`  - ${owner}/${repo}`);
+    // `wouldEnable` drops the repos filtered out by the live idempotency guard
+    // (already enabled/paused, or state unreadable), so the returned `targets`
+    // reflect exactly what a live run would write.
+    return {
+      status: 'dry-run',
+      targets: wouldEnable,
+      results,
+      summary: { enabled: 0, skipped, errors, wouldEnable: wouldEnable.length },
+    };
+  }
+
+  const enabled = results.filter(r => r.status === 'enabled').length;
+  console.log(`dependabot-security: done — ${enabled} enabled, ${skipped} skipped, ${errors} errors`);
+  return { status: 'completed', results, summary: { enabled, skipped, errors } };
+}
+
+// Reversibility affordance (ADR-012): disable Dependabot automated security fixes
+// on a repo via DELETE. Partial by design — it reverts the setting, NOT any PR
+// GitHub already opened while it was on, and it deliberately leaves
+// vulnerability-alerts enabled (read-only surfacing is never harmful). Returns a
+// structured per-repo result rather than throwing, so a bulk rollback isolates one
+// failure and continues (mirrors removeCopilotReviewRuleset).
+export async function removeDependabotSecurityUpdates(gh, owner, repo) {
+  try {
+    await gh.request(`/repos/${owner}/${repo}/automated-security-fixes`, { method: 'DELETE' });
+    console.log(`dependabot-security: ${owner}/${repo} — automated security fixes disabled`);
+    return { repo, status: 'removed' };
+  } catch (err) {
+    console.error(`dependabot-security: error disabling on ${repo}: ${err.message}`);
+    return { repo, status: 'error', error: err.message };
+  }
+}
+
+// Operator entry point for the reversibility affordance (ADR-012). Disables
+// Dependabot automated security fixes across the same dependabot-sourced
+// open-vulnerability targets the enable path acts on, behind the SAME fences —
+// so `tools=dependabot-security-off` is the mirror of `tools=dependabot-security`.
+// It rides the identical gate stack (ADR-012):
+//   • require_approval master switch (Gate 3),
+//   • dry-run fail-closed — only literal `false` performs the DELETE (Gate 2),
+//   • manual-dispatch only / OFF the apply-schedule path BY CONSTRUCTION — a
+//     scheduled run ALWAYS skips (never allow-listable, exactly like the enable
+//     class), so autonomous runs can never toggle an ADR-012 setting,
+//   • per-run cap + repo-name validation via selectDependabotSecurityTargets
+//     (Gates 4 & 5).
+// Reversal is PARTIAL by design: DELETE reverts the *setting* only — it does NOT
+// close any bump PR GitHub already opened while autofix was on, and it leaves
+// vulnerability-alerts enabled (read-only surfacing is never harmful). Per-repo
+// errors are isolated (removeDependabotSecurityUpdates returns a structured result
+// rather than throwing), so a bulk rollback continues past one failure.
+export async function disableDependabotSecurityUpdates(gh, owner, findings, config, options = {}) {
+  const { dryRun, maxPerRun = 5, scheduled } = options;
+
+  // Gate 3: require_approval master switch.
+  if (!config?.limits?.require_approval) {
+    console.error('dependabot-security-off: config.limits.require_approval is not true — refusing to run');
+    return { status: 'refused', reason: 'require_approval not set' };
+  }
+
+  // ADR-012 fence: reversal of an ADR-012 write inherits the same manual-only
+  // fence as the enable path — a scheduled (no-human) run must NEVER toggle this
+  // setting in either direction. Skips by construction; not allow-listable.
+  if (scheduled) {
+    console.log('dependabot-security-off [scheduled]: fenced off the no-human path by construction (ADR-012) — skipping');
+    return { status: 'skipped-unscheduled', targets: [] };
+  }
+
+  // Gate 5 (repo-name validation) + gate 4 (per-run cap) — same target selection
+  // as the enable path.
+  const targets = selectDependabotSecurityTargets(findings, maxPerRun);
+  const live = dryRun === false; // Gate 2: dry-run fail-closed — only literal false writes.
+
+  if (!live) {
+    console.log(`dependabot-security-off [DRY RUN]: would disable automated security fixes on ${targets.length} repo(s)`);
+    for (const repo of targets) console.log(`  - ${owner}/${repo}`);
+    return {
+      status: 'dry-run',
+      targets,
+      results: targets.map(repo => ({ repo, status: 'would-remove' })),
+      summary: { removed: 0, errors: 0, wouldRemove: targets.length },
+    };
+  }
+
+  // Sequential, one repo at a time — a settings write, so no parallel fan-out.
+  const results = [];
+  for (const repo of targets) {
+    results.push(await removeDependabotSecurityUpdates(gh, owner, repo));
+  }
+
+  const removed = results.filter(r => r.status === 'removed').length;
+  const errors = results.filter(r => r.status === 'error').length;
+  console.log(`dependabot-security-off: done — ${removed} disabled, ${errors} errors`);
+  return { status: 'completed', results, summary: { removed, errors } };
 }
 
 // --- Selective auto-merge (ADR-007 stage 5) ----------------------------------

@@ -33,7 +33,7 @@ import {
 // Re-export everything that tests and other modules need from report.js
 export { generateHealthBadge, computeHealthTier } from './report-shared.js';
 export { buildActionItems, computeContributorStats } from './report-repo.js';
-export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection, buildGovernanceSection } from './report-portfolio.js';
+export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection, buildGovernanceSection, buildAutofixNudge } from './report-portfolio.js';
 
 // Thin orchestration wrapper used by the index dispatcher.
 export async function runReport(context) {
@@ -327,7 +327,7 @@ export async function report(context) {
     // store without the method, or a fresh data branch, simply yields null and
     // the dashboard renders its first-run calm state.
     const priorPortfolio = await store?.readLatestPortfolioWeekly?.() ?? null;
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings, priorPortfolio);
+    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings, priorPortfolio, context.priorAutofixNotDrivenCount);
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 

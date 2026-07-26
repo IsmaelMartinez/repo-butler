@@ -182,6 +182,9 @@ function appendGovernanceContext(parts, findings) {
     } else if (f.type === 'dependabot-stale') {
       const oldest = Math.max(...f.stalePRs.map(p => p.age));
       parts.push(`Stale Dependabot PRs: ${f.repo} has ${f.stalePRs.length} PRs older than 30d (oldest: ${oldest}d)`);
+    } else if (f.type === 'open-vulnerability') {
+      const secret = f.secretScanning ? ` + ${f.secretScanning} secret-scanning hit(s)` : '';
+      parts.push(`Open vulnerabilities: ${f.repo} has ${f.critical || 0} critical / ${f.high || 0} high open alert(s)${secret} [${(f.sources || []).join(', ')}]`);
     }
   }
 

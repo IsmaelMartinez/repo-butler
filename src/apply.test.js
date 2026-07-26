@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -97,8 +97,24 @@ describe('generateTemplate', () => {
     assert.ok(result.content.includes('languages: go'));
   });
 
-  it('generates code-scanning template with default language for unknown ecosystem', () => {
-    const result = generateTemplate('code-scanning', 'Rust');
+  // Each ecosystem maps to its own codeql-action language identifier. Rust and
+  // Java previously fell through to javascript-typescript, emitting a JS/TS
+  // analysis that scanned no matching source on those repos.
+  for (const [eco, lang] of [
+    ['TypeScript', 'javascript-typescript'],
+    ['Python', 'python'],
+    ['Rust', 'rust'],
+    ['Java', 'java-kotlin'],
+  ]) {
+    it(`generates code-scanning template with ${lang} for ${eco}`, () => {
+      const result = generateTemplate('code-scanning', eco);
+      assert.equal(result.path, '.github/workflows/codeql-analysis.yml');
+      assert.ok(result.content.includes(`languages: ${lang}`));
+    });
+  }
+
+  it('generates code-scanning template with the javascript-typescript fallback for an unmapped ecosystem', () => {
+    const result = generateTemplate('code-scanning', 'Cobol');
     assert.ok(result.content.includes('languages: javascript-typescript'));
   });
 
@@ -806,11 +822,18 @@ describe('nudgeStaleDependabotPRs', () => {
     { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [{ number: 7, title: 'bump lodash', age: 45 }] },
   ];
 
-  function mkGh(comments = []) {
+  // `history` is the prCiHistory() shape (newest CI attempt first) the
+  // deterministic-failure guard reads; the default `[]` is "no CI signal", which
+  // fails open to a nudge.
+  function mkGh(comments = [], { history = [], branch = 'dependabot/npm_and_yarn/lodash-1.0.0' } = {}) {
     const calls = [];
     const gh = {
-      request: async (path, opts) => { calls.push({ path, opts }); return {}; },
+      request: async (path, opts) => {
+        calls.push({ path, opts });
+        return /\/pulls\/\d+$/.test(path) ? { head: { ref: branch } } : {};
+      },
       paginate: async (path) => { calls.push({ path }); return comments; },
+      prCiHistory: async (owner, repo, ref) => { calls.push({ path: `ci-history:${repo}@${ref}` }); return history; },
     };
     return { gh, calls };
   }
@@ -840,7 +863,7 @@ describe('nudgeStaleDependabotPRs', () => {
     const { gh, calls } = mkGh();
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
     assert.equal(result.status, 'completed');
-    assert.deepEqual(result.summary, { nudged: 1, skipped: 0, errors: 0 });
+    assert.deepEqual(result.summary, { nudged: 1, skipped: 0, escalated: 0, errors: 0 });
     const posted = calls.find(c => c.opts?.method === 'POST');
     assert.ok(posted.path.includes('/repos/owner/repo-a/issues/7/comments'));
     assert.equal(posted.opts.body.body, '@dependabot rebase');
@@ -893,7 +916,7 @@ describe('nudgeStaleDependabotPRs', () => {
     const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-rebase': true } };
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
     assert.equal(result.status, 'completed');
-    assert.deepEqual(result.summary, { nudged: 1, skipped: 0, errors: 0 });
+    assert.deepEqual(result.summary, { nudged: 1, skipped: 0, escalated: 0, errors: 0 });
   });
 
   it('manual dispatch ignores apply-schedule for the nudge (regression guard)', async () => {
@@ -911,6 +934,123 @@ describe('nudgeStaleDependabotPRs', () => {
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.targets.length, 1);
+  });
+
+  // --- Deterministic-failure guard: never rebase a PR a rebase cannot fix ---
+
+  const attempt = (sha, jobs = ['CI'], n = 1) => ({ sha, attempt: n, failing: jobs });
+  const posts = calls => calls.filter(c => c.opts?.method === 'POST');
+
+  it('escalates instead of nudging when the last 3 attempts failed identically on an unchanged head', async () => {
+    const history = [attempt('aaa', ['CI'], 3), attempt('aaa', ['CI'], 2), attempt('aaa', ['CI'], 1)];
+    const { gh, calls } = mkGh([], { history });
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'escalated');
+    assert.equal(result.results[0].reason, 'deterministic CI failure');
+    assert.deepEqual(result.results[0].failing, ['CI']);
+    assert.deepEqual(result.summary, { nudged: 0, skipped: 0, escalated: 1, errors: 0 });
+    assert.equal(posts(calls).length, 0);
+  });
+
+  it('nudges when the head SHA moved between the three failures (not a controlled comparison)', async () => {
+    const history = [attempt('ccc'), attempt('bbb'), attempt('aaa')];
+    const { gh, calls } = mkGh([], { history });
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'nudged');
+    assert.equal(posts(calls).length, 1);
+  });
+
+  it('nudges on only two failing attempts (below the 3-attempt evidence bar)', async () => {
+    const { gh, calls } = mkGh([], { history: [attempt('aaa', ['CI'], 2), attempt('aaa', ['CI'], 1)] });
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'nudged');
+    assert.equal(posts(calls).length, 1);
+  });
+
+  it('nudges on mixed pass/fail history — one clean attempt breaks determinism', async () => {
+    const history = [attempt('aaa', ['CI'], 3), { sha: 'aaa', attempt: 2, failing: [] }, attempt('aaa', ['CI'], 1)];
+    const { gh, calls } = mkGh([], { history });
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'nudged');
+    assert.equal(posts(calls).length, 1);
+  });
+
+  it('nudges when the failing job set differs between attempts (flaky, not deterministic)', async () => {
+    const history = [attempt('aaa', ['Lint'], 3), attempt('aaa', ['CI'], 2), attempt('aaa', ['Lint'], 1)];
+    const { gh, calls } = mkGh([], { history });
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'nudged');
+    assert.equal(posts(calls).length, 1);
+  });
+
+  // Fail OPEN on missing evidence: the guard only ever suppresses an action, so no
+  // signal must leave the pre-existing behaviour intact rather than let one API
+  // failure quietly disable the nudge for the whole portfolio.
+  it('nudges when there is no CI signal at all (guard fails open)', async () => {
+    const { gh, calls } = mkGh([], { history: [] });
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'nudged');
+    assert.equal(posts(calls).length, 1);
+  });
+
+  it('nudges when the PR head branch cannot be read (guard fails open)', async () => {
+    const calls = [];
+    const gh = {
+      request: async (path, opts) => {
+        calls.push({ path, opts });
+        if (/\/pulls\/\d+$/.test(path)) throw new Error('GitHub API GET /pulls/7: 404 not found');
+        return {};
+      },
+      paginate: async () => [],
+      prCiHistory: async () => { throw new Error('must not be reached without a head branch'); },
+    };
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'nudged');
+    assert.equal(posts(calls).length, 1);
+  });
+
+  it('reads CI history for the PR head branch, after the cheaper dedup check', async () => {
+    const recent = new Date(Date.now() - 2 * 86400000).toISOString();
+    const { gh, calls } = mkGh([{ body: '@dependabot rebase', created_at: recent }]);
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'skipped');
+    // Already nudged → the guard's PR + history reads never happen.
+    assert.equal(calls.some(c => c.path.startsWith('ci-history:')), false);
+  });
+});
+
+describe('isDeterministicFailure', () => {
+  const attempt = (sha, jobs = ['CI'], n = 1) => ({ sha, attempt: n, failing: jobs });
+
+  it('true for three identical failing attempts on one head SHA', () => {
+    assert.equal(isDeterministicFailure([attempt('a', ['CI'], 3), attempt('a', ['CI'], 2), attempt('a', ['CI'], 1)]), true);
+  });
+
+  it('compares the whole failing job set, not just its size', () => {
+    const same = [attempt('a', ['CI', 'Lint'], 3), attempt('a', ['CI', 'Lint'], 2), attempt('a', ['CI', 'Lint'], 1)];
+    const differing = [attempt('a', ['CI', 'Lint'], 3), attempt('a', ['CI', 'E2E'], 2), attempt('a', ['CI', 'Lint'], 1)];
+    assert.equal(isDeterministicFailure(same), true);
+    assert.equal(isDeterministicFailure(differing), false);
+  });
+
+  it('false on a moved head, too few attempts, a clean attempt, or no history', () => {
+    assert.equal(isDeterministicFailure([attempt('c'), attempt('b'), attempt('a')]), false);
+    assert.equal(isDeterministicFailure([attempt('a', ['CI'], 2), attempt('a', ['CI'], 1)]), false);
+    assert.equal(isDeterministicFailure([attempt('a', ['CI'], 3), { sha: 'a', attempt: 2, failing: [] }, attempt('a', ['CI'], 1)]), false);
+    assert.equal(isDeterministicFailure([]), false);
+  });
+
+  it('false for three CLEAN attempts — a green PR is never a deterministic failure', () => {
+    const clean = n => ({ sha: 'a', attempt: n, failing: [] });
+    assert.equal(isDeterministicFailure([clean(3), clean(2), clean(1)]), false);
+  });
+
+  it('tolerates a malformed history without throwing', () => {
+    assert.equal(isDeterministicFailure(null), false);
+    assert.equal(isDeterministicFailure(undefined), false);
+    assert.equal(isDeterministicFailure([null, null, null]), false);
+    assert.equal(isDeterministicFailure([attempt('a'), null, attempt('a')]), false);
+    assert.equal(isDeterministicFailure([{ sha: 'a' }, { sha: 'a' }, { sha: 'a' }]), false);
   });
 });
 
@@ -1095,6 +1235,336 @@ describe('findButlerCopilotRuleset / removeCopilotReviewRuleset', () => {
     const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
     assert.equal(result.status, 'skipped');
     assert.equal(deletes.length, 0, 'never DELETEs a non-butler-named ruleset');
+  });
+});
+
+describe('selectDependabotSecurityTargets', () => {
+  it('collects repos from dependabot-sourced open-vulnerability findings, dedups', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'b', sources: ['dependabot', 'code-scanning'] },
+      { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'] },
+    ];
+    assert.deepEqual(selectDependabotSecurityTargets(findings, 5), ['a', 'b']);
+  });
+
+  it('excludes findings not sourced from dependabot (code-scanning / secret-scanning only)', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'code', sources: ['code-scanning'] },
+      { type: 'open-vulnerability', repo: 'secret', sources: ['secret-scanning'] },
+      { type: 'open-vulnerability', repo: 'dep', sources: ['dependabot'] },
+    ];
+    assert.deepEqual(selectDependabotSecurityTargets(findings, 5), ['dep']);
+  });
+
+  it('ignores other finding types', () => {
+    const findings = [
+      { type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['x'] },
+      { type: 'dependabot-stale', repo: 'y' },
+      { type: 'open-vulnerability', repo: 'z', sources: ['dependabot'] },
+    ];
+    assert.deepEqual(selectDependabotSecurityTargets(findings, 5), ['z']);
+  });
+
+  it('drops invalid repo names', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'ok', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'bad name!', sources: ['dependabot'] },
+    ];
+    assert.deepEqual(selectDependabotSecurityTargets(findings, 5), ['ok']);
+  });
+
+  it('caps at maxPerRun', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'a', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'b', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'c', sources: ['dependabot'] },
+    ];
+    assert.deepEqual(selectDependabotSecurityTargets(findings, 2), ['a', 'b']);
+  });
+
+  it('handles missing/malformed sources gracefully', () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'nosrc' },
+      { type: 'open-vulnerability', repo: 'nullsrc', sources: null },
+      { type: 'open-vulnerability', repo: 'ok', sources: ['dependabot'] },
+    ];
+    assert.deepEqual(selectDependabotSecurityTargets(findings, 5), ['ok']);
+  });
+});
+
+describe('applyDependabotSecurityUpdates', () => {
+  const baseConfig = { limits: { require_approval: true } };
+  const baseFindings = [{ type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'] }];
+
+  it('refuses to run when require_approval is not set', async () => {
+    const calls = [];
+    const gh = { request: async (p, o) => { calls.push({ p, o }); return {}; } };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
+    assert.equal(result.status, 'refused');
+    assert.equal(calls.length, 0);
+  });
+
+  it('dry-run previews the would-enable targets and makes no writes (GET reads only)', async () => {
+    const writes = [];
+    const gh = {
+      request: async (path, opts) => {
+        if (opts?.method === 'PUT' || opts?.method === 'DELETE') writes.push(path);
+        if (!opts?.method || opts.method === 'GET') return { enabled: false, paused: false };
+        return null;
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.deepEqual(result.targets, ['repo-a']);
+    assert.equal(writes.length, 0, 'a dry-run performs no PUT/DELETE writes');
+  });
+
+  it('dry-run preview skips an already-enabled repo (accurate audit record)', async () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'off', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'on', sources: ['dependabot'] },
+    ];
+    const gh = {
+      request: async (path, opts) => {
+        if (!opts?.method || opts.method === 'GET') {
+          return { enabled: path.includes('/on/'), paused: false };
+        }
+        return null;
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.deepEqual(result.targets, ['off'], 'preview lists only the repo that would actually be enabled');
+    assert.equal(result.summary.skipped, 1);
+    assert.equal(result.summary.wouldEnable, 1);
+  });
+
+  it('dry-run fail-closed: undefined dryRun stays dry-run', async () => {
+    const gh = { request: async (p, o) => ((!o?.method || o.method === 'GET') ? { enabled: false, paused: false } : null) };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, {});
+    assert.equal(result.status, 'dry-run');
+  });
+
+  it('enables (PUTs alerts then fixes) when live and not already enabled', async () => {
+    const calls = [];
+    const gh = {
+      request: async (path, opts) => {
+        calls.push({ path, method: opts?.method });
+        // GET state: not enabled, not paused.
+        if (!opts?.method || opts.method === 'GET') return { enabled: false, paused: false };
+        return null; // 204 writes
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { enabled: 1, skipped: 0, errors: 0 });
+    const puts = calls.filter(c => c.method === 'PUT').map(c => c.path);
+    assert.deepEqual(puts, [
+      '/repos/owner/repo-a/vulnerability-alerts',
+      '/repos/owner/repo-a/automated-security-fixes',
+    ], 'PUTs vulnerability-alerts before automated-security-fixes');
+  });
+
+  it('idempotency: skips (no PUT) when already enabled', async () => {
+    const puts = [];
+    const gh = {
+      request: async (path, opts) => {
+        if (opts?.method === 'PUT') puts.push(path);
+        if (!opts?.method || opts.method === 'GET') return { enabled: true, paused: false };
+        return null;
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { enabled: 0, skipped: 1, errors: 0 });
+    assert.equal(puts.length, 0, 'must not PUT when already enabled');
+  });
+
+  it('idempotency: skips (no PUT) when paused — respects a deliberate human/GitHub state', async () => {
+    const puts = [];
+    const gh = {
+      request: async (path, opts) => {
+        if (opts?.method === 'PUT') puts.push(path);
+        if (!opts?.method || opts.method === 'GET') return { enabled: false, paused: true };
+        return null;
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { enabled: 0, skipped: 1, errors: 0 });
+    assert.equal(result.results[0].reason, 'paused');
+    assert.equal(puts.length, 0, 'must not re-enable a paused repo');
+  });
+
+  it('isolates a per-repo write error and continues to the next repo', async () => {
+    const findings = [
+      { type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'repo-b', sources: ['dependabot'] },
+    ];
+    const gh = {
+      request: async (path, opts) => {
+        if (!opts?.method || opts.method === 'GET') return { enabled: false, paused: false };
+        if (opts.method === 'PUT' && path.includes('/repo-a/')) throw new Error('403 administration: write required');
+        return null;
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { enabled: 1, skipped: 0, errors: 1 });
+  });
+
+  it('fails closed (skips, no PUT) when the live state is unreadable', async () => {
+    // getAutomatedSecurityFixesState returns null on any GET error (no scope,
+    // transient, feature unavailable). We cannot confirm the repo is not paused,
+    // so we must never write blind — skip rather than risk overriding a pause.
+    const puts = [];
+    const gh = {
+      request: async (path, opts) => {
+        if (opts?.method === 'PUT') { puts.push(path); return null; }
+        throw new Error('403 no admin scope'); // GET fails → state null
+      },
+    };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { enabled: 0, skipped: 1, errors: 0 });
+    assert.equal(result.results[0].reason, 'state unreadable');
+    assert.equal(puts.length, 0, 'must not PUT when it cannot confirm current state');
+  });
+
+  it('scheduled run ALWAYS skips — fenced off the no-human path by construction (ADR-012)', async () => {
+    const gh = { request: async () => ({}) };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+  });
+
+  it('scheduled run skips even when someone puts it on the apply-schedule allow-list (never allow-listable)', async () => {
+    const gh = { request: async () => ({}) };
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-security': true } };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled', 'the allow-list must NOT be able to promote this class');
+  });
+
+  it('is auto-merge-ineligible by construction (no TEMPLATES entry)', () => {
+    // Even if mistakenly allow-listed for auto-merge, the settings write can never
+    // enter the auto-merge path — isAutoMergeAllowed requires a TEMPLATES entry.
+    assert.equal(isAutoMergeAllowed({ 'dependabot-security': true }, 'dependabot-security'), false);
+  });
+
+  it('flags a stale snapshot in the preview: finding said autofix ON but the live read says OFF (ADR-012 Phase 3)', async () => {
+    // The finding's autofixEnabled annotation (OBSERVE snapshot) claims the repo is
+    // already enabled, but the live read disagrees — the LIVE read wins the write
+    // decision (repo still gets enabled) and the divergence is surfaced.
+    const findings = [{ type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'], autofixEnabled: true }];
+    const gh = { request: async (path, opts) => ((!opts?.method || opts.method === 'GET') ? { enabled: false, paused: false } : null) };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.deepEqual(result.targets, ['repo-a'], 'live read wins: repo still previews as would-enable');
+    assert.equal(result.results[0].snapshotStale, true, 'the snapshot/live divergence is flagged');
+  });
+
+  it('does not flag a stale snapshot when snapshot and live read agree', async () => {
+    const findings = [{ type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'], autofixEnabled: false }];
+    const gh = { request: async (path, opts) => ((!opts?.method || opts.method === 'GET') ? { enabled: false, paused: false } : null) };
+    const result = await applyDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: true });
+    assert.ok(!('snapshotStale' in result.results[0]), 'no stale flag when snapshot matches live');
+  });
+});
+
+describe('removeDependabotSecurityUpdates', () => {
+  it('DELETEs automated-security-fixes and reports removed', async () => {
+    const calls = [];
+    const gh = { request: async (path, opts) => { calls.push({ path, method: opts?.method }); return null; } };
+    const result = await removeDependabotSecurityUpdates(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'removed');
+    assert.ok(calls.some(c => c.method === 'DELETE' && c.path === '/repos/owner/repo-a/automated-security-fixes'));
+  });
+
+  it('returns a structured error (does not throw) when the DELETE fails', async () => {
+    const gh = { request: async () => { throw new Error('500 server error'); } };
+    const result = await removeDependabotSecurityUpdates(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'error');
+    assert.match(result.error, /500/);
+  });
+});
+
+describe('disableDependabotSecurityUpdates (dependabot-security-off reversibility dispatch)', () => {
+  const baseConfig = { limits: { require_approval: true } };
+  const baseFindings = [
+    { type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'] },
+    { type: 'open-vulnerability', repo: 'repo-b', sources: ['dependabot'] },
+  ];
+
+  it('refuses to run when require_approval is not set (Gate 3)', async () => {
+    const calls = [];
+    const gh = { request: async (p, o) => { calls.push({ p, o }); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
+    assert.equal(result.status, 'refused');
+    assert.equal(calls.length, 0, 'no DELETE when refused');
+  });
+
+  it('dry-run previews the would-remove targets and makes no DELETE (Gate 2 fail-closed)', async () => {
+    const writes = [];
+    const gh = { request: async (path, opts) => { if (opts?.method === 'DELETE') writes.push(path); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: true });
+    assert.equal(result.status, 'dry-run');
+    assert.deepEqual(result.targets, ['repo-a', 'repo-b']);
+    assert.equal(result.summary.wouldRemove, 2);
+    assert.equal(writes.length, 0, 'a dry-run performs no DELETE');
+  });
+
+  it('undefined dryRun stays dry-run (fail-closed)', async () => {
+    const writes = [];
+    const gh = { request: async (path, opts) => { if (opts?.method === 'DELETE') writes.push(path); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, {});
+    assert.equal(result.status, 'dry-run');
+    assert.equal(writes.length, 0);
+  });
+
+  it('DELETEs automated-security-fixes on every target when live', async () => {
+    const deletes = [];
+    const gh = { request: async (path, opts) => { if (opts?.method === 'DELETE') deletes.push(path); return null; } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { removed: 2, errors: 0 });
+    assert.deepEqual(deletes, [
+      '/repos/owner/repo-a/automated-security-fixes',
+      '/repos/owner/repo-b/automated-security-fixes',
+    ]);
+  });
+
+  it('isolates a per-repo DELETE error and continues to the next repo', async () => {
+    const gh = {
+      request: async (path, opts) => {
+        if (opts?.method === 'DELETE' && path.includes('/repo-a/')) throw new Error('403 administration: write required');
+        return null;
+      },
+    };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.deepEqual(result.summary, { removed: 1, errors: 1 });
+  });
+
+  it('scheduled run ALWAYS skips — fenced off the no-human path by construction (ADR-012)', async () => {
+    const gh = { request: async () => { throw new Error('should never be called'); } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, baseConfig, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+  });
+
+  it('scheduled run skips even when someone allow-lists it (never allow-listable — the reversal inherits the enable fence)', async () => {
+    const gh = { request: async () => { throw new Error('should never be called'); } };
+    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-security-off': true } };
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
+    assert.equal(result.status, 'skipped-unscheduled');
+  });
+
+  it('is auto-merge-ineligible by construction (no TEMPLATES entry)', () => {
+    assert.equal(isAutoMergeAllowed({ 'dependabot-security-off': true }, 'dependabot-security-off'), false);
+  });
+
+  it('honours the per-run cap and repo-name validation via the shared target selection', async () => {
+    const gh = { request: async () => null };
+    const findings = [
+      { type: 'open-vulnerability', repo: 'valid-a', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'bad name!', sources: ['dependabot'] }, // invalid → dropped
+      { type: 'open-vulnerability', repo: 'valid-b', sources: ['dependabot'] },
+      { type: 'open-vulnerability', repo: 'valid-c', sources: ['dependabot'] },
+    ];
+    const result = await disableDependabotSecurityUpdates(gh, 'owner', findings, baseConfig, { dryRun: true, maxPerRun: 2 });
+    assert.deepEqual(result.targets, ['valid-a', 'valid-b'], 'invalid name dropped, capped at 2');
   });
 });
 

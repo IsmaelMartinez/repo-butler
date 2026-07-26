@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, hasActiveCopilotReviewRuleset } from './github.js';
+import { createClient, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, hasAutomatedSecurityFixesEnabled } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -329,6 +329,57 @@ describe('hasActiveCopilotReviewRuleset', () => {
   });
 });
 
+describe('createClient — request 204 No Content', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('returns null (not a JSON parse error) on a 204 write', async () => {
+    // A 204 has an empty body; calling res.json() would throw. The settings
+    // writes (PUT/DELETE automated-security-fixes, PUT vulnerability-alerts)
+    // answer 204, so the client must return null rather than choke.
+    globalThis.fetch = mock.fn(async () => ({
+      ok: true,
+      status: 204,
+      headers: new Map(),
+      json: async () => { throw new Error('Unexpected end of JSON input'); },
+      text: async () => '',
+    }));
+    const gh = createClient('tok');
+    const result = await gh.request('/repos/o/r/automated-security-fixes', { method: 'PUT' });
+    assert.equal(result, null);
+  });
+});
+
+describe('getAutomatedSecurityFixesState / hasAutomatedSecurityFixesEnabled', () => {
+  it('returns the { enabled, paused } pair from the API', async () => {
+    const gh = { request: async () => ({ enabled: true, paused: false }) };
+    assert.deepEqual(await getAutomatedSecurityFixesState(gh, 'o', 'r'), { enabled: true, paused: false });
+  });
+
+  it('coerces missing/non-boolean fields to false', async () => {
+    const gh = { request: async () => ({ enabled: true }) };
+    assert.deepEqual(await getAutomatedSecurityFixesState(gh, 'o', 'r'), { enabled: true, paused: false });
+  });
+
+  it('returns null on a non-object response', async () => {
+    const gh = { request: async () => null };
+    assert.equal(await getAutomatedSecurityFixesState(gh, 'o', 'r'), null);
+  });
+
+  it('returns null when the request throws (no access / no scope)', async () => {
+    const gh = { request: async () => { throw new Error('403'); } };
+    assert.equal(await getAutomatedSecurityFixesState(gh, 'o', 'r'), null);
+  });
+
+  it('hasAutomatedSecurityFixesEnabled is true only when enabled AND not paused', async () => {
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: true, paused: false }) }, 'o', 'r'), true);
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: true, paused: true }) }, 'o', 'r'), false, 'paused → not fully active');
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: false, paused: false }) }, 'o', 'r'), false);
+    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => { throw new Error('403'); } }, 'o', 'r'), false);
+  });
+});
+
 describe('createClient — mergePR', () => {
   let originalFetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });
@@ -473,5 +524,76 @@ describe('createClient — prCiGreen', () => {
     globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
     const gh = createClient('tok');
     assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+  });
+});
+
+describe('createClient — prCiHistory', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const run = (sha, name, conclusion, created_at, run_attempt = 1) => ({
+    head_sha: sha, name, conclusion, created_at, run_attempt,
+  });
+
+  it('groups the completed runs of one revision into a single attempt, newest first', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({
+      workflow_runs: [
+        run('bbb', 'CI', 'failure', '2026-07-20T08:30:00Z'),
+        run('bbb', 'CodeQL', 'success', '2026-07-20T08:30:00Z'),
+        run('aaa', 'Lint', 'failure', '2026-07-13T08:30:00Z'),
+        run('aaa', 'CI', 'failure', '2026-07-13T08:30:00Z'),
+      ],
+    }));
+    const gh = createClient('tok');
+    const history = await gh.prCiHistory('o', 'r', 'dependabot/npm_and_yarn/linting-e7dfb5ad69');
+    assert.deepEqual(history, [
+      { sha: 'bbb', attempt: 1, failing: ['CI'] },
+      { sha: 'aaa', attempt: 1, failing: ['CI', 'Lint'] },
+    ]);
+  });
+
+  it('separates re-run attempts of the same SHA and orders by created_at, not response order', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({
+      workflow_runs: [
+        run('aaa', 'CI', 'failure', '2026-07-01T08:00:00Z', 1),
+        run('aaa', 'CI', 'failure', '2026-07-03T08:00:00Z', 3),
+        run('aaa', 'CI', 'failure', '2026-07-02T08:00:00Z', 2),
+      ],
+    }));
+    const gh = createClient('tok');
+    const history = await gh.prCiHistory('o', 'r', 'branch');
+    assert.deepEqual(history.map(a => a.attempt), [3, 2, 1]);
+  });
+
+  it('queries the branch-scoped completed runs and caps the history at `attempts`', async () => {
+    const urls = [];
+    globalThis.fetch = mock.fn(async (url) => {
+      urls.push(url.toString());
+      return jsonResponse({
+        workflow_runs: ['e', 'd', 'c', 'b', 'a'].map((s, i) =>
+          run(s, 'CI', 'failure', `2026-07-0${5 - i}T08:00:00Z`)),
+      });
+    });
+    const gh = createClient('tok');
+    const history = await gh.prCiHistory('o', 'r', 'dependabot/npm_and_yarn/lint', { attempts: 3 });
+    assert.deepEqual(history.map(a => a.sha), ['e', 'd', 'c']);
+    assert.ok(urls[0].includes('/repos/o/r/actions/runs'));
+    assert.ok(urls[0].includes('branch=dependabot%2Fnpm_and_yarn%2Flint'));
+    assert.ok(urls[0].includes('status=completed'));
+  });
+
+  it('empty when the branch has no completed runs', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({ workflow_runs: [] }));
+    const gh = createClient('tok');
+    assert.deepEqual(await gh.prCiHistory('o', 'r', 'branch'), []);
+  });
+
+  // Opposite polarity to prCiGreen: this signal only suppresses a comment, so an
+  // unreadable history must return "no evidence" rather than block the caller.
+  it('empty (fails OPEN) on error', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(500, 'boom'));
+    const gh = createClient('tok');
+    assert.deepEqual(await gh.prCiHistory('o', 'r', 'branch'), []);
   });
 });

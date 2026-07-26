@@ -26,6 +26,11 @@ permissions:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    # Dependabot-triggered runs get Dependabot's secret store, not the Actions one,
+    # so secrets.APP_ID resolves empty and the App-token step always fails. The
+    # monitor loses nothing by skipping: detection is cursor-based polling that
+    # never reads the webhook payload, so the next scheduled run picks the PR up.
+    if: github.actor != 'dependabot[bot]'
     # Limit concurrency so only one monitor runs at a time.
     concurrency:
       group: repo-butler-monitor
