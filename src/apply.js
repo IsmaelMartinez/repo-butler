@@ -624,7 +624,7 @@ async function alreadyNudged(gh, owner, repo, number) {
 // --- Deterministic-failure guard --------------------------------------------
 // `@dependabot rebase` refreshes a PR onto the latest base and re-runs CI, so it
 // only ever helps a PR whose red CI depends on the base having moved. When the
-// SAME job set has failed the last DETERMINISTIC_ATTEMPTS CI attempts, the
+// SAME workflow set has failed the last DETERMINISTIC_ATTEMPTS CI attempts, the
 // failure is a property of the change itself (a major-version bump the code
 // cannot satisfy, say), not of the base — a rebase regenerates a byte-identical
 // red run, every week, forever. Such a PR needs a human decision (fix, pin or
@@ -632,7 +632,7 @@ async function alreadyNudged(gh, owner, repo, number) {
 //
 // The head SHA deliberately does NOT have to stay put across those attempts. A
 // rebase changes the head SHA precisely BECAUSE the base moved, so an identical
-// failing job set across several DIFFERENT head SHAs is the strongest evidence
+// failing workflow set across several DIFFERENT head SHAs is the strongest evidence
 // available that rebasing does not help: it has already been tried, repeatedly,
 // and changed nothing. Requiring an unchanged SHA threw that evidence away and
 // left the guard firing only on the rarer, weaker case of repeated re-runs of
@@ -641,7 +641,7 @@ const DETERMINISTIC_ATTEMPTS = 3;
 
 // Pure predicate over prCiHistory() output (newest attempt first). True only on
 // positive evidence: DETERMINISTIC_ATTEMPTS consecutive attempts available, each
-// with at least one failing job, and an identical failing job set throughout.
+// with at least one failing workflow, and an identical failing workflow set throughout.
 // Fewer attempts, a clean attempt or a differing failing set → false (nudge as
 // before). The head SHA is not compared; see above.
 export function isDeterministicFailure(history, attempts = DETERMINISTIC_ATTEMPTS) {

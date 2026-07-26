@@ -1001,7 +1001,7 @@ describe('nudgeStaleDependabotPRs', () => {
     assert.equal(posts(calls).length, 1);
   });
 
-  it('nudges when the failing job set differs between attempts (flaky, not deterministic)', async () => {
+  it('nudges when the failing workflow set differs between attempts (flaky, not deterministic)', async () => {
     const history = [attempt('aaa', ['Lint'], 3), attempt('aaa', ['CI'], 2), attempt('aaa', ['Lint'], 1)];
     const { gh, calls } = mkGh([], { history });
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
@@ -1065,7 +1065,7 @@ describe('isDeterministicFailure', () => {
     assert.equal(isDeterministicFailure(history), true);
   });
 
-  it('compares the whole failing job set, not just its size', () => {
+  it('compares the whole failing workflow set, not just its size', () => {
     const same = [attempt('a', ['CI', 'Lint'], 3), attempt('a', ['CI', 'Lint'], 2), attempt('a', ['CI', 'Lint'], 1)];
     const differing = [attempt('a', ['CI', 'Lint'], 3), attempt('a', ['CI', 'E2E'], 2), attempt('a', ['CI', 'Lint'], 1)];
     assert.equal(isDeterministicFailure(same), true);
@@ -1074,7 +1074,7 @@ describe('isDeterministicFailure', () => {
 
   // A differing failing set still breaks determinism even across distinct SHAs:
   // that is a flaky suite, not a change CI provably cannot satisfy.
-  it('false when the failing job set differs across distinct SHAs (flaky, not deterministic)', () => {
+  it('false when the failing workflow set differs across distinct SHAs (flaky, not deterministic)', () => {
     assert.equal(isDeterministicFailure([attempt('c', ['Lint']), attempt('b', ['CI']), attempt('a', ['Lint'])]), false);
   });
 
