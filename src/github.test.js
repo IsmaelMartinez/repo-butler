@@ -583,6 +583,26 @@ describe('createClient — prCiHistory', () => {
     assert.ok(urls[0].includes('status=completed'));
   });
 
+  // Real response shape for bonnie-wee-plot#429's branch: six Dependabot rebases
+  // on 2026-07-20, each firing three workflows, of which only `CI` concluded
+  // failure. The deterministic-failure predicate compares these `failing` sets, so
+  // the two consistently-green workflows must be absent from every one of them —
+  // otherwise the signature would match for reasons unrelated to the failure.
+  it('records only the failing workflows per attempt, excluding the green ones', async () => {
+    const shas = ['504b0a0f', '98f11007', '5507e492', 'ce89c0f3', '6cef23a5', '3e2fd15e'];
+    const times = ['08:33:46', '08:28:52', '08:24:13', '08:19:54', '08:15:00', '08:09:59'];
+    globalThis.fetch = mock.fn(async () => jsonResponse({
+      workflow_runs: shas.flatMap((sha, i) => [
+        run(sha, 'CI', 'failure', `2026-07-20T${times[i]}Z`),
+        run(sha, 'CodeQL', 'success', `2026-07-20T${times[i]}Z`),
+        run(sha, 'Dependabot auto-merge', 'success', `2026-07-20T${times[i]}Z`),
+      ]),
+    }));
+    const gh = createClient('tok');
+    const history = await gh.prCiHistory('o', 'r', 'dependabot/npm_and_yarn/linting-e7dfb5ad69');
+    assert.deepEqual(history, shas.slice(0, 3).map(sha => ({ sha, attempt: 1, failing: ['CI'] })));
+  });
+
   it('empty when the branch has no completed runs', async () => {
     globalThis.fetch = mock.fn(async () => jsonResponse({ workflow_runs: [] }));
     const gh = createClient('tok');

@@ -948,16 +948,42 @@ describe('nudgeStaleDependabotPRs', () => {
     assert.equal(result.results[0].status, 'escalated');
     assert.equal(result.results[0].reason, 'deterministic CI failure');
     assert.deepEqual(result.results[0].failing, ['CI']);
+    // Same commit re-run: deterministic, but no rebase has been attempted.
+    assert.equal(result.results[0].rebased, false);
     assert.deepEqual(result.summary, { nudged: 0, skipped: 0, escalated: 1, errors: 0 });
     assert.equal(posts(calls).length, 0);
   });
 
-  it('nudges when the head SHA moved between the three failures (not a controlled comparison)', async () => {
+  // Inverted from the shipped behaviour (PR #343), which nudged here and so made
+  // the guard a no-op in production. A moved head SHA is what a rebase *does*, so
+  // an identical failing set across distinct SHAs proves rebasing already failed.
+  it('escalates when the head SHA moved between the three identical failures (a rebase already failed)', async () => {
     const history = [attempt('ccc'), attempt('bbb'), attempt('aaa')];
     const { gh, calls } = mkGh([], { history });
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
-    assert.equal(result.results[0].status, 'nudged');
-    assert.equal(posts(calls).length, 1);
+    assert.equal(result.results[0].status, 'escalated');
+    assert.equal(result.results[0].reason, 'deterministic CI failure');
+    assert.equal(result.results[0].rebased, true);
+    assert.deepEqual(result.summary, { nudged: 0, skipped: 0, escalated: 1, errors: 0 });
+    assert.equal(posts(calls).length, 0);
+  });
+
+  // The production regression: bonnie-wee-plot#429, nudged live at 2026-07-26T07:29Z
+  // ("1 rebased, 0 skipped, 0 escalated") because the shipped predicate demanded an
+  // unchanged head. Real shape — Dependabot rebased the branch six times on
+  // 2026-07-20 between 08:09 and 08:33, `CI` failed on every one of the six SHAs
+  // while `CodeQL` and `Dependabot auto-merge` passed on every one, so each
+  // attempt's failing set is exactly ['CI'].
+  it('escalates the real bonnie-wee-plot#429 history (six distinct SHAs, CI red on all)', async () => {
+    const history = ['504b0a0f', '98f11007', '5507e492', 'ce89c0f3', '6cef23a5', '3e2fd15e']
+      .map(sha => ({ sha, attempt: 1, failing: ['CI'] }));
+    const { gh, calls } = mkGh([], { history, branch: 'dependabot/npm_and_yarn/linting-e7dfb5ad69' });
+    const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'escalated');
+    assert.equal(result.results[0].rebased, true);
+    assert.deepEqual(result.results[0].failing, ['CI']);
+    assert.deepEqual(result.summary, { nudged: 0, skipped: 0, escalated: 1, errors: 0 });
+    assert.equal(posts(calls).length, 0);
   });
 
   it('nudges on only two failing attempts (below the 3-attempt evidence bar)', async () => {
@@ -1026,6 +1052,19 @@ describe('isDeterministicFailure', () => {
     assert.equal(isDeterministicFailure([attempt('a', ['CI'], 3), attempt('a', ['CI'], 2), attempt('a', ['CI'], 1)]), true);
   });
 
+  // Inverted from PR #343, which returned false here. A moved head is what a
+  // rebase produces, so an identical failing set across distinct SHAs is the
+  // strongest available proof that another rebase is futile — not a disqualifier.
+  it('true when the head SHA moved between the identical failures (rebase already tried)', () => {
+    assert.equal(isDeterministicFailure([attempt('c'), attempt('b'), attempt('a')]), true);
+  });
+
+  it('true for the real bonnie-wee-plot#429 shape — six distinct SHAs, CI red on all', () => {
+    const history = ['504b0a0f', '98f11007', '5507e492', 'ce89c0f3', '6cef23a5', '3e2fd15e']
+      .map(sha => ({ sha, attempt: 1, failing: ['CI'] }));
+    assert.equal(isDeterministicFailure(history), true);
+  });
+
   it('compares the whole failing job set, not just its size', () => {
     const same = [attempt('a', ['CI', 'Lint'], 3), attempt('a', ['CI', 'Lint'], 2), attempt('a', ['CI', 'Lint'], 1)];
     const differing = [attempt('a', ['CI', 'Lint'], 3), attempt('a', ['CI', 'E2E'], 2), attempt('a', ['CI', 'Lint'], 1)];
@@ -1033,16 +1072,27 @@ describe('isDeterministicFailure', () => {
     assert.equal(isDeterministicFailure(differing), false);
   });
 
-  it('false on a moved head, too few attempts, a clean attempt, or no history', () => {
-    assert.equal(isDeterministicFailure([attempt('c'), attempt('b'), attempt('a')]), false);
+  // A differing failing set still breaks determinism even across distinct SHAs:
+  // that is a flaky suite, not a change CI provably cannot satisfy.
+  it('false when the failing job set differs across distinct SHAs (flaky, not deterministic)', () => {
+    assert.equal(isDeterministicFailure([attempt('c', ['Lint']), attempt('b', ['CI']), attempt('a', ['Lint'])]), false);
+  });
+
+  it('false on too few attempts, a clean attempt, or no history', () => {
     assert.equal(isDeterministicFailure([attempt('a', ['CI'], 2), attempt('a', ['CI'], 1)]), false);
+    assert.equal(isDeterministicFailure([attempt('c'), attempt('b')]), false);
     assert.equal(isDeterministicFailure([attempt('a', ['CI'], 3), { sha: 'a', attempt: 2, failing: [] }, attempt('a', ['CI'], 1)]), false);
+    assert.equal(isDeterministicFailure([attempt('c'), { sha: 'b', attempt: 1, failing: [] }, attempt('a')]), false);
     assert.equal(isDeterministicFailure([]), false);
   });
 
   it('false for three CLEAN attempts — a green PR is never a deterministic failure', () => {
     const clean = n => ({ sha: 'a', attempt: n, failing: [] });
     assert.equal(isDeterministicFailure([clean(3), clean(2), clean(1)]), false);
+    // Green across rebases must stay green now that the SHA is not compared:
+    // matching *empty* failing sets are not a matching failure signature.
+    const cleanAt = sha => ({ sha, attempt: 1, failing: [] });
+    assert.equal(isDeterministicFailure([cleanAt('c'), cleanAt('b'), cleanAt('a')]), false);
   });
 
   it('tolerates a malformed history without throwing', () => {
