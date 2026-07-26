@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-25
+**Last Updated:** 2026-07-26
 **Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
@@ -93,6 +93,8 @@ Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `stand
 Dependabot and monitor workflow optimizations shipped 2026-07-25 (PRs #342 and #343). Refined the automated CI/CD pipeline by skipping monitor jobs for Dependabot-triggered events and skipping Dependabot nudges entirely on deterministically failing pull requests to significantly reduce CI noise and optimize bot interactions.
 
 Configuration maintenance updates shipped 2026-07-25 (PR #344). Marked a specific generator as release-exempt within the configuration to maintain pristine release automation behavior across the portfolio.
+
+Dependabot action version bumps and routine CI maintenance shipped 2026-07-26. Upgraded actions/setup-node from v6.4.0 to v7.0.0 to ensure long-term pipeline stability and keep automated workflows up-to-date with minimal manual intervention.
 ---
 
 ## Roadmap
