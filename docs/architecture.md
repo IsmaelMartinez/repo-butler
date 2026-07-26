@@ -79,7 +79,8 @@ snapshot against the previous run, computes weekly trends (growing, shrinking, o
 stable), and can summarise the change with Gemini Flash. `UPDATE` generates a
 fresh roadmap document and opens a PR for it. `GOVERNANCE` runs deterministic
 detectors across the portfolio — standards gaps, policy drift, tier-uplift
-opportunities, and stale Dependabot PRs — and persists the findings. `IDEATE`
+opportunities, open vulnerabilities, and stale Dependabot PRs — and persists the
+findings. `IDEATE`
 generates improvement ideas with the deep model, feeding off freshly-detected
 governance findings, then convenes the agent council to deliberate. `PROPOSE`
 runs the approved ideas through the safety layer and files them as GitHub issues,
@@ -247,6 +248,32 @@ a secret-leak grep on every push and PR, `codeql.yml` is the standard CodeQL sca
 `onboard.yml` opens onboarding PRs (adding the consumer-guide section to
 `CLAUDE.md`) on any repo that lacks the marker, both on dispatch and via the
 GitHub App installation webhook.
+
+Alongside the templated-PR path, `apply` carries two **PR-less settings writes** —
+a modality with no reviewable diff, so each has its own trust ADR. Enabling the
+Copilot review ruleset (ADR-009) is *promotable* onto the scheduled path via the
+`apply-schedule` allow-list. Enabling GitHub's Dependabot automated security fixes
+(ADR-012) is fenced far tighter: because flipping it on delegates autonomous PR
+generation to GitHub (a bump burst outside the per-run cap, on an un-name-guardable
+flag), it is **manual-dispatch only and off the `apply-schedule` allow-list by
+construction** — `applyDependabotSecurityUpdates` skips unconditionally on a
+scheduled run and is never promotable — plus auto-merge-ineligible by construction,
+and it skips any repo already enabled *or paused*. It acts only on the
+`dependabot`-sourced `open-vulnerability` findings; dispatch it with
+`tools=dependabot-security`, dry-run by default.
+
+The reversal shares that fence stack. `disableDependabotSecurityUpdates`
+(`tools=dependabot-security-off`) wraps the per-repo `removeDependabotSecurityUpdates`
+DELETE over the same target selection behind the identical gates — manual-dispatch
+only, off the scheduled path by construction, dry-run fail-closed, per-run cap,
+repo-name validation — and is an *explicit* dispatch only, so it never rides a blank
+`tools` run. Reversal is **partial by design**: the DELETE reverts the *setting only*,
+never closing any bump PR GitHub already opened, and it leaves vulnerability-alerts
+enabled. Detection now consumes the enabled state (ADR-012 Phase 3): a
+dependabot-sourced `open-vulnerability` finding carries `autofixEnabled`
+(`true`/`false`/`null`), fetched read-only in the OBSERVE/portfolio-details layer and
+surfaced on the dashboard and via `get_governance_findings`, so "remediation in flight"
+is visible without a new trust boundary — the read is inert.
 
 Note that `apply` lives in the dispatcher's `PHASE_RUNNERS` map but is
 intentionally absent from the `PHASES` list, so it never runs as part of

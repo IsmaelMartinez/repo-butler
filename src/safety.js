@@ -352,7 +352,7 @@ export function wrapPrompt({
 
 // Multi-signal ecosystem detection. Requires 2-of-3 signals to confirm.
 // Prevents gaming via vendored files skewing the GitHub language field.
-const ECOSYSTEM_MAP = {
+export const ECOSYSTEM_MAP = {
   JavaScript: { files: ['package.json'], topics: ['nodejs', 'npm', 'javascript', 'typescript'] },
   TypeScript: { files: ['package.json', 'tsconfig.json'], topics: ['nodejs', 'npm', 'typescript'] },
   Go: { files: ['go.mod'], topics: ['golang', 'go'] },
@@ -360,6 +360,34 @@ const ECOSYSTEM_MAP = {
   Rust: { files: ['Cargo.toml'], topics: ['rust', 'cargo'] },
   Java: { files: ['pom.xml', 'build.gradle'], topics: ['java', 'maven', 'gradle'] },
 };
+
+// Per-ecosystem tool metadata, keyed by the same ecosystem names ECOSYSTEM_MAP
+// (and therefore detectEcosystem) produce — keys must track ECOSYSTEM_MAP.
+// Consumed by apply.js's template generators so tool-specific identifiers are
+// looked up per ecosystem rather than hard-coded at the call site. `codeqlLanguage`
+// is the codeql-action `languages:` identifier: the previous inline ternary in
+// apply.js mapped only Go and Python and defaulted everything else — including
+// Rust and Java — to javascript-typescript, silently emitting a JS/TS analysis
+// that scans no matching source on those repos. Identifiers track the
+// codeql-action v3 merged language set (java+kotlin → java-kotlin,
+// javascript+typescript → javascript-typescript; Rust reached GA as `rust`).
+export const ECOSYSTEM_TOOLS = {
+  JavaScript: { codeqlLanguage: 'javascript-typescript' },
+  TypeScript: { codeqlLanguage: 'javascript-typescript' },
+  Go: { codeqlLanguage: 'go' },
+  Python: { codeqlLanguage: 'python' },
+  Rust: { codeqlLanguage: 'rust' },
+  Java: { codeqlLanguage: 'java-kotlin' },
+};
+
+// CodeQL `languages:` identifier for a detected ecosystem. Findings only ever
+// carry ECOSYSTEM_MAP keys, so the javascript-typescript fallback is defensive —
+// it preserves the historical default for an unmapped ecosystem. Object.hasOwn
+// guards against a prototype key (e.g. 'constructor') resolving to a function.
+export function codeqlLanguageFor(eco) {
+  return (Object.hasOwn(ECOSYSTEM_TOOLS, eco) && ECOSYSTEM_TOOLS[eco].codeqlLanguage)
+    || 'javascript-typescript';
+}
 
 // Minimum bytes in the languages map to count as a language signal. Distinguishes
 // real code from a stray vendored file. Roughly 50 LOC in any language.

@@ -271,6 +271,7 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
       { type: 'tier-uplift', repo: 'repo-b', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'security trifecta' }] },
       { type: 'policy-drift', category: 'license', repo: 'repo-c', expected: 'MIT', actual: 'GPL-3.0' },
       { type: 'dependabot-stale', repo: 'repo-d', stalePRs: [{ number: 1, title: 'bump', age: 45 }] },
+      { type: 'open-vulnerability', repo: 'repo-e', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'] },
     ];
 
     for (const finding of sampleFindings) {
@@ -301,5 +302,10 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
 
     const drift = buildRemediationPlan({ type: 'policy-drift', category: 'ci-reliability', repo: 'r', expected: '90%', actual: '60%' });
     assert.equal(drift.executor, 'manual');
+
+    // open-vulnerability is a per-repo STATE finding — it must never acquire a
+    // template/settings write path via the remediation plan (ADR-002/011 lane).
+    const openVuln = buildRemediationPlan({ type: 'open-vulnerability', repo: 'r', critical: 0, high: 1, secretScanning: 0, sources: ['dependabot'] });
+    assert.equal(openVuln.executor, 'manual');
   });
 });

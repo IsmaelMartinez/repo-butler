@@ -96,5 +96,10 @@ jobs:
             # The ADR-009 settings write has no PR to point at afterwards, so this
             # line IS its audit record — it must never be dropped from the summary.
             echo "- Copilot-review (settings write) summary: \`${COPILOT_REVIEW:-(none — not allow-listed or nothing actionable)}\`"
+            # ADR-012: the Dependabot security-updates settings write is fenced OFF
+            # this no-human scheduled path BY CONSTRUCTION — it delegates autonomous
+            # PR generation to GitHub, so it is never dispatched here and is not
+            # allow-listable. It runs on the manual apply.yml only.
+            echo "- Dependabot-security (settings write): not run here — manual-dispatch only by construction (ADR-012)."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none} copilotReview=${COPILOT_REVIEW:-none}"
+          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=off-by-construction"

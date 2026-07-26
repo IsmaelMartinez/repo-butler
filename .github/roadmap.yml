@@ -64,7 +64,19 @@ standards:
 standards-exclude:
   release-cadence: sound3fy
 
-release_exempt: sound3fy
+# generator-atlassian-compass-event-catalog added 2026-07-25. The package was
+# deliberately wound down in c234fd4 (#217, 2026-04-23): the README tells users
+# to pin the current version and says no non-critical fixes will ship, and
+# src/index.ts emits a runtime deprecation warning. Its 30 unreleased commits
+# are Dependabot chores that touch only pnpm-lock.yaml, which never reaches
+# consumers — the published tarball ships no lockfile, the build imports its
+# deps externally, and the declared `js-yaml: ^4.1.1` range is unchanged since
+# v0.5.0 and already floats to the patched 4.3.0. A clean production install of
+# the published v0.5.0 resolves js-yaml@4.3.0, brace-expansion@5.0.8 and
+# js-yaml@3.15.0 — all patched. So the 90-day clock is measuring release
+# cadence for a package with nothing to release; publishing to reset it would
+# ship a dependency-identical version purely to move a metric.
+release_exempt: sound3fy,generator-atlassian-compass-event-catalog
 
 # By-design divergences from the portfolio policy. Each key is a drift
 # category (license, ci-reliability, community-health) and the value is a
@@ -156,3 +168,34 @@ apply-automerge:
   # PR itself and the CI-green precondition validates it before any merge. Strongest
   # track record of all classes (the 2026-05-01 13/13-repo code-scanning rollout).
   code-scanning: true
+
+# Cross-repo PROPOSE allow-lists (ADR-010 / ADR-011, G10). Two independent
+# key-presence maps: an idea files an issue on another repo ONLY when the
+# deterministic routing gate (resolveCrossRepoDestination, safety.js) admits it
+# AND its anchoring finding class is enabled in propose-classes AND its target
+# repo short-name is in propose-targets. Both were empty for the month-long
+# dry-run soak (ledger: snapshots/propose-soak.json on the data branch).
+#
+# Populating these maps does NOT by itself file anything anywhere: the weekly
+# ideate run stays dry-run and limits.require_approval stays true, so a live
+# cross-repo write still requires two further separately-reviewed flips
+# (require_approval: false AND INPUT_DRY_RUN: false — see the three-flips note
+# in .github/workflows/weekly-ideate.yml). With the maps populated, the weekly
+# soak ledger starts recording the admitted `cross-repo` route end-to-end, still
+# without writing. Demotion is the usual one-line revert: remove the key.
+propose-classes:
+  # Graduated 2026-07-20: standards-gap, the first cross-repo class. ADR-011
+  # originally slated tier-uplift first, but the completed soak's evidence
+  # anchored here — standards-gap produced gate-admitted candidates in two
+  # separate runs (2026-07-13 yourear, 2026-07-20 github-issue-triage-bot),
+  # while tier-uplift's first admitted candidate only arrived on the final run.
+  # Gate analysis in ADR-010 ("G10 graduation" note) and the ADR-011 amendment.
+  standards-gap: true
+
+propose-targets:
+  # github-issue-triage-bot: the graduation canary — the repo named by the
+  # soak's current admitted standards-gap candidate (2026-07-20 release-cadence
+  # nudge), onboarded (CLAUDE.md marker). The earlier candidate repo (yourear,
+  # 2026-07-13) had its gap remediated on 2026-07-15, closing its candidacy,
+  # so the allow-list follows the live evidence.
+  github-issue-triage-bot: true

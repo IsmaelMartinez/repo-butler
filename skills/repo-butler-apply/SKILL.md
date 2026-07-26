@@ -1,6 +1,6 @@
 ---
 name: repo-butler-apply
-description: Use when the user wants to act on governance findings, open remediation PRs, fix standards gaps, or apply tier-uplift / policy-drift / stale-Dependabot fixes across the portfolio. Routes findings by their executor hint — dispatching the cloud workflow for templatable gaps and drafting local PRs for findings that need tailored content.
+description: Use when the user wants to act on governance findings, open remediation PRs, fix standards gaps, or apply tier-uplift / policy-drift / stale-Dependabot / open-vulnerability fixes across the portfolio. Routes findings by their executor hint — dispatching the cloud workflow for templatable gaps and drafting local PRs for findings that need tailored content.
 ---
 
 # Repo Butler Apply
@@ -231,7 +231,11 @@ B4. Render one closing panel summarising the PRs opened (and any that failed), w
 
 ## Section C — Manual tray (for your own hand)
 
-If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them; they are licence choices, policy drift, and stale-Dependabot queues that Reginald will not presume to settle.
+If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them; they are licence choices, policy drift, stale-Dependabot queues, and open-vulnerability states that Reginald will not presume to settle.
+
+One manual finding has a settings-write remediation the owner may run deliberately, but Reginald never triggers it from this skill. For an `open-vulnerability` finding whose `sources` includes `dependabot`, GitHub can open the fix PRs itself once **automated security updates** are enabled. That is the ADR-012 settings write — manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default. Mention it as an option ("this one can be remediated by enabling Dependabot security updates: dispatch Governance Apply with `tools=dependabot-security dry-run=false`"), but leave the decision — and the dispatch — to the owner. Code-scanning and secret-scanning open-vulnerability findings have no such switch (they need a code change or a secret rotation) and stay purely manual.
+
+Such a finding now carries an `autofixEnabled` field (ADR-012 Phase 3, dependabot-sourced only): `true` means GitHub's automated security fixes are already opening the bump PRs — the remediation is **in flight**, so there is nothing to dispatch; `false` means they are **not driven** and the `dependabot-security` dispatch above is the lever; `null` means the state was unreadable. When it is already `true`, say so and do not offer the enable dispatch. The reversal is `tools=dependabot-security-off dry-run=false` — it issues the ADR-012 `DELETE`, disabling the setting on the same dependabot-sourced targets. Reversal is **partial**: it reverts the *setting only*, never closing any bump PR GitHub already opened, and it leaves vulnerability-alerts on. Like the enable path it is manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default — offer it only if the owner asks to turn autofix back off, and leave the dispatch to them.
 
 ## Tone
 
