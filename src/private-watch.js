@@ -38,6 +38,12 @@ const SEVERITIES = ['critical', 'high', 'medium', 'low'];
  */
 export function summariseAlerts(alerts, severityOf, nameOf) {
   const list = Array.isArray(alerts) ? alerts : [];
+  // `bySeverity` is keyed by a string from the GitHub API. Left as a plain
+  // object deliberately: the values are numbers (so `__proto__` assignment is
+  // silently ignored rather than polluting) and every read uses a fixed severity
+  // name, so an unexpected key cannot reach the output. Object.create(null)
+  // would be marginally tighter but changes the returned object's prototype,
+  // which callers compare against literals.
   const bySeverity = {};
   const packages = new Set();
   for (const a of list) {
