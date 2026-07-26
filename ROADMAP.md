@@ -94,7 +94,7 @@ Dependabot and monitor workflow optimizations shipped 2026-07-25 (PRs #342 and #
 
 Configuration maintenance updates shipped 2026-07-25 (PR #344). Marked a specific generator as release-exempt within the configuration to maintain pristine release automation behavior across the portfolio.
 
-GitHub Actions checkout version upgrade shipped 2026-07-26 (PR #329). Upgraded the `actions/checkout` dependency from version 4 to 7 to maintain secure, modern, and up-to-date CI/CD pipeline runs.
+Automated workflow dependency maintenance shipped 2026-07-26 (PR #329). Upgraded the core actions/checkout GitHub Action from v4 to v7 to ensure the repository's automated CI/CD pipeline and dependency health remain fully up to date.
 ---
 
 ## Roadmap
