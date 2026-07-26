@@ -1,46 +1,439 @@
 {
   "findings": [
     {
-      "type": "tier-uplift",
-      "repo": "betis-escocia",
-      "currentTier": "silver",
-      "targetTier": "gold",
-      "failingChecks": [
-        {
-          "name": "Zero critical/high security findings",
-          "required_for": "gold"
-        }
+      "type": "standards-gap",
+      "tool": "issue-form-templates",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
       ],
-      "priority": "high",
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
       "remediation": {
-        "executor": "agent",
-        "targetFiles": [],
-        "intent": "Uplift betis-escocia from silver to gold",
-        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+        "executor": "template",
+        "targetFiles": [
+          ".github/ISSUE_TEMPLATE/bug_report.yml"
+        ],
+        "intent": "Add issue-form-templates to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: issue-form-templates adopted by 93% of in-scope repos; missing in skill-sources.",
         "acceptanceCriteria": [
-          "Check \"Zero critical/high security findings\" passes"
+          "Every non-compliant repo passes the issue-form-templates standard check"
         ]
       }
     },
     {
-      "type": "open-vulnerability",
-      "repo": "betis-escocia",
-      "critical": 0,
-      "high": 3,
-      "secretScanning": 0,
-      "sources": [
-        "dependabot"
+      "type": "standards-gap",
+      "tool": "contributing-guide",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
       ],
-      "max_severity": "high",
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [
+          "CONTRIBUTING.md"
+        ],
+        "intent": "Add contributing-guide to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: contributing-guide adopted by 93% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the contributing-guide standard check"
+        ]
+      }
+    },
+    {
+      "type": "standards-gap",
+      "tool": "ci-workflows",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
+      ],
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [
+          ".github/workflows/ci.yml"
+        ],
+        "intent": "Add ci-workflows to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: ci-workflows adopted by 93% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the ci-workflows standard check"
+        ]
+      }
+    },
+    {
+      "type": "standards-gap",
+      "tool": "code-scanning",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
+      ],
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
+      "remediation": {
+        "executor": "template",
+        "targetFiles": [
+          ".github/workflows/codeql-analysis.yml"
+        ],
+        "intent": "Add code-scanning to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: code-scanning adopted by 93% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the code-scanning standard check"
+        ]
+      }
+    },
+    {
+      "type": "standards-gap",
+      "tool": "dependabot-auto-merge",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
+      ],
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
+      "remediation": {
+        "executor": "template",
+        "targetFiles": [
+          ".github/workflows/dependabot-auto-merge.yml"
+        ],
+        "intent": "Add dependabot-auto-merge to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: dependabot-auto-merge adopted by 93% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the dependabot-auto-merge standard check"
+        ]
+      }
+    },
+    {
+      "type": "standards-gap",
+      "tool": "codeowners",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
+      ],
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
+      "remediation": {
+        "executor": "template",
+        "targetFiles": [
+          ".github/CODEOWNERS"
+        ],
+        "intent": "Add codeowners to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: codeowners adopted by 93% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the codeowners standard check"
+        ]
+      }
+    },
+    {
+      "type": "standards-gap",
+      "tool": "security-md",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
+      ],
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
+      "remediation": {
+        "executor": "template",
+        "targetFiles": [
+          ".github/SECURITY.md"
+        ],
+        "intent": "Add security-md to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: security-md adopted by 93% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the security-md standard check"
+        ]
+      }
+    },
+    {
+      "type": "standards-gap",
+      "tool": "code-review-bot",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "sound3fy",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
+      ],
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9285714285714286,
+      "priority": "low",
+      "remediation": {
+        "executor": "settings",
+        "targetFiles": [],
+        "intent": "Add code-review-bot to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: code-review-bot adopted by 93% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the code-review-bot standard check"
+        ]
+      }
+    },
+    {
+      "type": "standards-gap",
+      "tool": "release-cadence",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [
+        "yourear",
+        "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "bonnie-wee-plot",
+        "betis-escocia",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "repo-butler",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local"
+      ],
+      "nonCompliant": [
+        "skill-sources"
+      ],
+      "repoEcosystems": {
+        "skill-sources": null
+      },
+      "repoAutoMerge": {
+        "skill-sources": false
+      },
+      "adoptionRate": 0.9230769230769231,
+      "priority": "low",
+      "remediation": {
+        "executor": "template",
+        "targetFiles": [
+          ".github/workflows/release.yml"
+        ],
+        "intent": "Add release-cadence to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: release-cadence adopted by 92% of in-scope repos; missing in skill-sources.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the release-cadence standard check"
+        ]
+      }
+    },
+    {
+      "type": "policy-drift",
+      "category": "community-health",
+      "repo": "skill-sources",
+      "expected": "100%",
+      "actual": "42%",
       "priority": "medium",
-      "autofixEnabled": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
-        "intent": "Remediate open security alerts in betis-escocia",
-        "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "intent": "Align skill-sources community-health with the portfolio norm",
+        "rationale": "Expected 100%, found 42%.",
         "acceptanceCriteria": [
-          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+          "skill-sources community-health matches 100%"
+        ]
+      }
+    },
+    {
+      "type": "tier-uplift",
+      "repo": "skill-sources",
+      "currentTier": "bronze",
+      "targetTier": "silver",
+      "failingChecks": [
+        {
+          "name": "Has CI workflows",
+          "required_for": "silver"
+        },
+        {
+          "name": "Community health above 50%",
+          "required_for": "silver"
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [],
+        "intent": "Uplift skill-sources from bronze to silver",
+        "rationale": "2 check(s) block silver: Has CI workflows, Community health above 50%.",
+        "acceptanceCriteria": [
+          "Check \"Has CI workflows\" passes",
+          "Check \"Community health above 50%\" passes"
         ]
       }
     }
