@@ -25,6 +25,38 @@ const PORTFOLIO_WEEKLY_DIR = 'snapshots/portfolio-weekly';
 const GOVERNANCE_WEEKLY_DIR = 'snapshots/governance-weekly';
 const MAX_WEEKLY_SNAPSHOTS = 12;
 
+/**
+ * Drop findings belonging to private repos before anything is written to the
+ * data branch.
+ *
+ * This is the SINK-level defence, deliberately duplicating the caller-level
+ * split in observePortfolio (which keeps private repos out of
+ * `portfolio.repos` entirely). repo-butler is itself a public repo, so the
+ * repo-butler-data branch is world-readable — a private repo name reaching it
+ * is a permanent disclosure, not a bug that can be fixed by a later commit.
+ *
+ * Enforcing it here means a future caller that forgets to filter still cannot
+ * leak: the only way to publish a private finding is to strip the `private`
+ * flag, which is a deliberate act rather than an omission.
+ *
+ * Fails CLOSED on anything it cannot classify — a finding whose `private` field
+ * is a non-boolean truthy value is withheld rather than published.
+ *
+ * @param {Array} findings
+ * @returns {Array} findings safe to publish
+ */
+export function publishableFindings(findings) {
+  if (!Array.isArray(findings)) return [];
+  return findings.filter(f => !f?.private);
+}
+
+// Log suffix naming the count withheld, never the repos. Empty string when
+// nothing was withheld, so the common all-public case reads exactly as before.
+function logWithheld(all, publishable) {
+  const n = all.length - publishable.length;
+  return n > 0 ? `, ${n} private withheld` : '';
+}
+
 export function enrichPortfolioSummary(summary, repoName, config) {
   const { tier, checks } = computeHealthTier(summary, { releaseExempt: isReleaseExempt(repoName, config) });
   const next = nextTier(tier);
@@ -284,8 +316,9 @@ export function createStore(context) {
   async function writeGovernanceFindings(findings) {
     if (!Array.isArray(findings)) return;
     await ensureDataBranch();
-    await writeFile(GOVERNANCE_PATH, JSON.stringify(findings, null, 2));
-    console.log(`Governance findings saved (${findings.length} findings).`);
+    const publishable = publishableFindings(findings);
+    await writeFile(GOVERNANCE_PATH, JSON.stringify(publishable, null, 2));
+    console.log(`Governance findings saved (${publishable.length} findings${logWithheld(findings, publishable)}).`);
   }
 
   async function readGovernanceFindings() {
@@ -306,8 +339,9 @@ export function createStore(context) {
     if (!Array.isArray(findings)) return;
     await ensureDataBranch();
     const weekKey = isoWeekKey(new Date());
-    await writeFile(`${GOVERNANCE_WEEKLY_DIR}/${weekKey}.json`, JSON.stringify({ findings }, null, 2));
-    console.log(`Governance weekly snapshot saved as ${weekKey} (${findings.length} findings).`);
+    const publishable = publishableFindings(findings);
+    await writeFile(`${GOVERNANCE_WEEKLY_DIR}/${weekKey}.json`, JSON.stringify({ findings: publishable }, null, 2));
+    console.log(`Governance weekly snapshot saved as ${weekKey} (${publishable.length} findings${logWithheld(findings, publishable)}).`);
     await pruneDir(GOVERNANCE_WEEKLY_DIR, MAX_WEEKLY_SNAPSHOTS, 'prune old governance snapshot');
   }
 

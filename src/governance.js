@@ -8,6 +8,7 @@ import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
+import { notifyPrivateFindings, closeResolvedPrivateIssues } from './private-notify.js';
 
 // Thin orchestration wrapper: enriches portfolio details, runs all detectors,
 // runs the dependabot audit, and persists findings to the data branch.
@@ -23,21 +24,38 @@ export async function runGovernance(context) {
 
   const gh = createClient(token);
 
+  // Governance is one of only two consumers that opts in to private repos
+  // (observePortfolio keeps them out of `portfolio.repos` so no publisher can
+  // leak one by accident). Detection runs over both sets; markPrivate() below
+  // then tags every private-repo finding, store.publishableFindings withholds
+  // those from the data branch, and notifyPrivateFindings delivers them to the
+  // private repo itself — the only channel that is not world-readable, since
+  // repo-butler's own Pages site, data branch and Actions logs all are.
+  const privateRepos = portfolio.privateRepos || [];
+  const governedRepos = [...portfolio.repos, ...privateRepos];
+  const privateNames = new Set(privateRepos.map(r => r.name));
+
   if (!context.repoDetails) {
     const repoCache = store ? await store.readRepoCache() : null;
-    context.repoDetails = await fetchPortfolioDetails(gh, owner, portfolio.repos, { cache: repoCache });
-    console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance.`);
+    context.repoDetails = await fetchPortfolioDetails(gh, owner, governedRepos, { cache: repoCache });
+    console.log(`Enriched ${Object.keys(context.repoDetails).length} repos for governance (${privateNames.size} private).`);
   }
 
+  // Tag findings that belong to a private repo. Every downstream publisher
+  // treats a truthy `private` as "withhold", so this flag is the single carrier
+  // of the redaction decision.
+  const markPrivate = findings => findings.map(f =>
+    privateNames.has(f.repo) ? { ...f, private: true } : f);
+
   const standards = parseStandardsConfig(config);
-  const gaps = detectStandardsGaps(standards, portfolio.repos, context.repoDetails);
-  const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
-  const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
-  const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails);
-  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns];
+  const gaps = detectStandardsGaps(standards, governedRepos, context.repoDetails);
+  const drift = detectPolicyDrift(governedRepos, context.repoDetails, config);
+  const uplift = generateUpliftProposals(governedRepos, context.repoDetails, config);
+  const openVulns = detectOpenVulnerabilities(governedRepos, context.repoDetails);
+  context.governanceFindings = markPrivate([...gaps.findings, ...drift, ...uplift, ...openVulns]);
   console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln)`);
 
-  const stale = await auditDependabot(gh, owner, portfolio.repos);
+  const stale = markPrivate(await auditDependabot(gh, owner, governedRepos));
   if (stale.length > 0) {
     context.governanceFindings.push(...stale);
     console.log(`Dependabot audit: ${stale.length} repos with stale PRs.`);
@@ -62,7 +80,16 @@ export async function runGovernance(context) {
     // Always persist — even an empty array — so the data branch reflects
     // the current portfolio state. Otherwise stale findings linger after
     // remediation and the dashboard/MCP/apply read out-of-date data.
+    // Both writers withhold private findings at the sink.
     await store.writeGovernanceFindings(context.governanceFindings);
+  }
+
+  // The findings just withheld from every public sink still have to reach a
+  // human, or private repos are monitored in name only. Deliver them to the
+  // private repo itself, and close the tracking issue once a repo comes clean.
+  if (privateNames.size > 0) {
+    await notifyPrivateFindings(gh, owner, context.governanceFindings, { dryRun: context.dryRun });
+    await closeResolvedPrivateIssues(gh, owner, [...privateNames], context.governanceFindings, { dryRun: context.dryRun });
   }
 }
 

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeSnapshotHash, createStore } from './store.js';
+import { computeSnapshotHash, createStore, publishableFindings } from './store.js';
 
 // Minimal fake gh client for exercising prune behaviour through the public
 // writePortfolioWeekly entry point. Records putFile/deleteFile calls so tests
@@ -335,6 +335,114 @@ describe('pruneDir (via writePortfolioWeekly)', () => {
     // Should not throw despite every delete throwing.
     await store.writePortfolioWeekly(PORTFOLIO, REPO_DETAILS, {});
     assert.equal(gh.calls.delete.length, 3);
+  });
+});
+
+// The sink-level redaction guard. repo-butler is a public repo, so the
+// repo-butler-data branch is world-readable and a private repo name reaching it
+// is a permanent disclosure. These tests exist so the protection is an
+// assertion rather than a convention someone has to remember.
+describe('publishableFindings — private-repo redaction at the sink', () => {
+  it('withholds findings flagged private and keeps the rest', () => {
+    const findings = [
+      { type: 'standards-gap', repo: 'public-a' },
+      { type: 'open-vulnerability', repo: 'value-punter', private: true },
+      { type: 'policy-drift', repo: 'public-b', private: false },
+    ];
+
+    assert.deepEqual(
+      publishableFindings(findings).map(f => f.repo),
+      ['public-a', 'public-b'],
+    );
+  });
+
+  it('fails CLOSED on a non-boolean truthy private flag', () => {
+    // A future caller might set private: 'true' or private: 1. Withholding is
+    // the only safe reading of an unrecognised value — publishing is not
+    // reversible, withholding is.
+    assert.deepEqual(publishableFindings([{ repo: 'x', private: 'yes' }]), []);
+    assert.deepEqual(publishableFindings([{ repo: 'x', private: 1 }]), []);
+    assert.deepEqual(publishableFindings([{ repo: 'x', private: {} }]), []);
+  });
+
+  it('treats absent, false, null and undefined as publishable', () => {
+    const findings = [
+      { repo: 'a' },
+      { repo: 'b', private: false },
+      { repo: 'c', private: null },
+      { repo: 'd', private: undefined },
+    ];
+    assert.equal(publishableFindings(findings).length, 4);
+  });
+
+  it('returns an empty array for non-array input rather than throwing', () => {
+    assert.deepEqual(publishableFindings(null), []);
+    assert.deepEqual(publishableFindings(undefined), []);
+    assert.deepEqual(publishableFindings('nope'), []);
+  });
+});
+
+describe('governance writers withhold private findings from the data branch', () => {
+  // makeFakeGh above records paths but not contents; these need the body.
+  function makeCapturingGh() {
+    const put = [];
+    return {
+      put,
+      request: async (path) => {
+        if (path.includes('/branches/repo-butler-data')) return { name: 'repo-butler-data' };
+        throw new Error(`unexpected request ${path}`);
+      },
+      getFileContent: async () => null,
+      putFile: async (_o, _r, path, content) => { put.push({ path, content }); },
+      listDir: async () => [],
+      deleteFile: async () => {},
+    };
+  }
+
+  const mixed = [
+    { type: 'standards-gap', repo: 'public-repo', detail: 'no LICENSE' },
+    { type: 'open-vulnerability', repo: 'value-punter', private: true, detail: 'pillow 12.2.0 vulnerable' },
+  ];
+
+  it('writeGovernanceFindings persists only the public findings', async () => {
+    const gh = makeCapturingGh();
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writeGovernanceFindings(mixed);
+
+    const written = gh.put.find(p => p.path === 'snapshots/governance.json');
+    assert.ok(written, 'governance.json should have been written');
+    const parsed = JSON.parse(written.content);
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0].repo, 'public-repo');
+    assert.ok(!written.content.includes('value-punter'), 'private repo name reached the data branch');
+    assert.ok(!written.content.includes('pillow'), 'private repo finding detail reached the data branch');
+  });
+
+  it('writeGovernanceWeekly persists only the public findings', async () => {
+    const gh = makeCapturingGh();
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writeGovernanceWeekly(mixed);
+
+    const written = gh.put.find(p => /governance-weekly/.test(p.path));
+    assert.ok(written, 'weekly snapshot should have been written');
+    assert.deepEqual(JSON.parse(written.content).findings.map(f => f.repo), ['public-repo']);
+    assert.ok(!written.content.includes('value-punter'), 'private repo name reached the weekly snapshot');
+  });
+
+  it('still writes an empty array when every finding is private', async () => {
+    // The file must be written even so — an absent write would leave the
+    // previous run's findings on the branch, which is the staleness bug
+    // writeGovernanceFindings' "always persist" comment guards against.
+    const gh = makeCapturingGh();
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writeGovernanceFindings([{ repo: 'value-punter', private: true }]);
+
+    const written = gh.put.find(p => p.path === 'snapshots/governance.json');
+    assert.ok(written, 'governance.json should still be written');
+    assert.deepEqual(JSON.parse(written.content), []);
   });
 });
 
