@@ -513,6 +513,47 @@ describe('applyEditOps', () => {
     assert.equal(applied.length, 2);
   });
 
+  // Regression: an appended entry used to land flush against the following
+  // `---`, and in CommonMark a paragraph followed directly by `---` is a setext
+  // heading underline — so the last entry in a section rendered as an <h2> and
+  // the rule vanished. Invisible in a diff; only in the rendered file. Live on
+  // every roadmap update from at least #330 until this was fixed.
+  it('never leaves an appended entry flush against the section rule', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Feature B shipped 2026-05-26 (PR #99).' }];
+    const { result } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(!/\n[^\n]+\n---/.test(result),
+      'a non-blank line directly above `---` makes it a setext heading underline');
+    assert.ok(result.includes('Feature B shipped 2026-05-26 (PR #99).\n\n---'),
+      'entry should be separated from the rule by exactly one blank line');
+  });
+
+  it('separates an appended entry with exactly one blank line on each side', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Feature B shipped 2026-05-26 (PR #99).' }];
+    const { result } = applyEditOps(roadmap, ops, '2026-05-26');
+    assert.ok(result.includes('Feature A shipped.\n\nFeature B shipped 2026-05-26 (PR #99).'),
+      'no stray double blank line above the entry');
+    assert.ok(!result.includes('\n\n\n'), 'no triple newline anywhere');
+  });
+
+  it('normalises spacing however the surrounding whitespace is laid out', () => {
+    // Section body with no blank line before the rule at all.
+    const tight = '## Implemented\n\nPara A.\n---\n\n## Next Up\n\nx';
+    const { result } = applyEditOps(tight, [{ action: 'append', section: 'Implemented', text: 'New.' }], '2026-05-26');
+    assert.equal(result, '## Implemented\n\nPara A.\n\nNew.\n\n---\n\n## Next Up\n\nx');
+  });
+
+  it('appends cleanly to a trailing section with no following boundary', () => {
+    const last = '## Future\n\nPara A.';
+    const { result } = applyEditOps(last, [{ action: 'append', section: 'Future', text: 'New.' }], '2026-05-26');
+    assert.equal(result, '## Future\n\nPara A.\n\nNew.\n', 'single trailing newline, no blank-line padding at EOF');
+  });
+
+  it('appends to an empty section without eating its heading', () => {
+    const empty = '## Future\n\n## Next\n\nx';
+    const { result } = applyEditOps(empty, [{ action: 'append', section: 'Future', text: 'New.' }], '2026-05-26');
+    assert.equal(result, '## Future\n\nNew.\n\n## Next\n\nx');
+  });
+
   it('appends to the Next Up section', () => {
     const ops = [{ action: 'append', section: 'Next Up', text: 'New task.' }];
     const { result } = applyEditOps(roadmap, ops, '2026-05-26');
