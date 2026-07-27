@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
 **Last Updated:** 2026-07-27
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio as of 2026-07-27: 14 active public repos plus 1 private, with 2 open medium advisories (`ai-model-advisor`, `teams-for-linux`) and zero critical or high; current tiers are on the dashboard rather than restated here, since the previous hardcoded count sat two months stale. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos are discovered via the installation-scoped endpoint but deliberately **excluded** from the published portfolio — the Pages site, the `repo-butler-data` branch and the Actions logs are all world-readable because this repo is public. A separate security watch covering them is proposed in PR #348. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio 2026-07-27: 14 public repos plus 1 private; 2 open mediums, zero critical/high. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos are discovered but **excluded** from the published portfolio; watch proposed in #348. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
 
@@ -55,7 +55,7 @@ Node runtime compatibility fixed 2026-04-05 (PRs #87–#88). Resolved `'using: n
 
 Dashboard narrative restructure spec added 2026-04-07 (PR #91). Multi-persona review identified the dashboards as data dumps lacking narrative flow. The restructure shipped across PRs #93–#100, reframing both portfolio and per-repo pages around a situation-problem-action arc.
 
-Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so the App sees every repo the installation can reach. Portfolio entries carry `private` and `visibility` fields. Note the discovered private repos are then deliberately **excluded** from the portfolio before classification — this repo is public, so its Pages site, data branch and Actions logs are all world-readable. This paragraph previously named a private repo as an example; that has been removed, though it remains in git history.
+Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so the App sees every repo the installation can reach. Entries carry `private` and `visibility`. Discovered private repos are then **excluded** before classification, this repo being public.
 
 The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 711 tests and secret-leak checks on every PR.
 
@@ -94,9 +94,7 @@ Configuration maintenance updates shipped 2026-07-25 (PR #344). Marked a specifi
 
 Deterministic failure SHA verification logic corrected 2026-07-26 (PR #345). Refined the state engine to treat a moved head SHA as deterministic evidence of failure rather than evidence against it, resolving a subtle edge case in application state verification.
 
-GitHub Actions majors bumped 2026-07-26 (PRs #328 and #329). Moved `actions/checkout` from v4 to v7 and `actions/setup-node` from v6 to v7 across all nine workflows. #328 had been red for ten days on a `monitor` failure that #342 had already fixed on main; a base update was all it needed.
-
-Portfolio Dependabot backlog cleared 2026-07-26. Twenty of the twenty-two open Dependabot pull requests across eleven repositories were merged, the oldest having sat for thirty-four days. Seven needed a root-cause fix first rather than a rebase: a Tailwind v4 PostCSS plugin move, an ESLint 10 / `eslint-plugin-react` incompatibility, a js-yaml 5 export-shape change, and an Astro 7 / `@astrojs/mdx` 7 peer pair that could only go green combined. The single survivor is a `typescript` 6 to 7 bump, which is not fixable today: no published version of `typescript-eslint` supports TypeScript 7, and forcing the install past that hits a deliberate upstream runtime guard (typescript-eslint#10940).
+Dependency sweep 2026-07-26 (PRs #328, #329). Actions majors bumped across all nine workflows. Portfolio-wide, 20 of 22 open Dependabot PRs merged (oldest 34 days); 7 needed a root-cause fix. The survivor is a `typescript` 6→7 bump, blocked on `typescript-eslint` TS 7 support (#10940).
 
 ---
 
