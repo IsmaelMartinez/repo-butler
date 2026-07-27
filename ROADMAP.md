@@ -1,7 +1,7 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-25
-**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio at 14 Gold (14 repos) as of W22; `teams-for-linux` re-graduated to Gold at 9 open bugs. Zero portfolio vulnerabilities. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos included via the installation-scoped discovery endpoint. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
+**Last Updated:** 2026-07-27
+**Status:** All phases implemented, reports live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/). Portfolio 2026-07-27: 14 public repos plus 1 private; 2 open mediums, zero critical/high. UPDATE phase live with section-edit mode (Gemini 3.5 Flash). Private repos are discovered but **excluded** from the published portfolio; watch proposed in #348. ADR-007 Track B stages 1–2 shipped: every governance finding carries a remediation plan (executor hint + change spec) and the apply phase plus the repo-butler-apply skill route findings by that executor.
 
 ---
 
@@ -55,7 +55,7 @@ Node runtime compatibility fixed 2026-04-05 (PRs #87–#88). Resolved `'using: n
 
 Dashboard narrative restructure spec added 2026-04-07 (PR #91). Multi-persona review identified the dashboards as data dumps lacking narrative flow. The restructure shipped across PRs #93–#100, reframing both portfolio and per-repo pages around a situation-problem-action arc.
 
-Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so private repos such as `value-punter` appear in the portfolio when the workflow token can see them. Portfolio entries now carry `private` and `visibility` fields.
+Private repo discovery fixed 2026-04-14. `observePortfolio()` now tries `/installation/repositories` (GitHub App token) and `/user/repos` (PAT) before falling back to the public-only `/users/{owner}/repos` endpoint, so the App sees every repo the installation can reach. Entries carry `private` and `visibility`. Discovered private repos are then **excluded** before classification, this repo being public.
 
 The GitHub API client handles rate limiting with automatic retry/backoff. Branch protection is enabled on main. CI runs 711 tests and secret-leak checks on every PR.
 
@@ -88,11 +88,14 @@ Cross-repo routing gates G5 through G8 shipped 2026-06-23 (PRs #300–#303). Thi
 
 Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
 
-Cross-repo PROPOSE capabilities graduated 2026-07-21 (PR #326). Graduated `standards-gap` as the first cross-repository PROPOSE class, consolidating and maturing the multi-repository orchestration architecture to handle standardized workflow capabilities seamlessly across target repositories.
-
 Dependabot and monitor workflow optimizations shipped 2026-07-25 (PRs #342 and #343). Refined the automated CI/CD pipeline by skipping monitor jobs for Dependabot-triggered events and skipping Dependabot nudges entirely on deterministically failing pull requests to significantly reduce CI noise and optimize bot interactions.
 
 Configuration maintenance updates shipped 2026-07-25 (PR #344). Marked a specific generator as release-exempt within the configuration to maintain pristine release automation behavior across the portfolio.
+
+Deterministic failure SHA verification logic corrected 2026-07-26 (PR #345). Refined the state engine to treat a moved head SHA as deterministic evidence of failure rather than evidence against it, resolving a subtle edge case in application state verification.
+
+Dependency sweep 2026-07-26 (PRs #328, #329). Actions majors bumped across all nine workflows. Portfolio-wide, 20 of 22 open Dependabot PRs merged (oldest 34 days); 7 needed a root-cause fix. The survivor is a `typescript` 6→7 bump, blocked on `typescript-eslint` TS 7 support (#10940).
+
 ---
 
 ## Roadmap
