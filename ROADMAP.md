@@ -75,6 +75,10 @@ Deterministic-failure SHA verification corrected 2026-07-26 (PR #345). A moved h
 
 Dependency sweep 2026-07-26 (PRs #328, #329). Actions majors bumped across all nine workflows. Portfolio-wide, 20 of 22 open Dependabot PRs merged (oldest 34 days); 7 needed a root-cause fix. The survivor is a `typescript` 6→7 bump, blocked on `typescript-eslint` TS 7 support (upstream #10940).
 
+Roadmap restructured and the shipped log compacted 2026-07-27 (PR #349). The document is now organised around what has been built and what is in flight, with older work rolled up to one line per month. `compactShippedLog` closes the gap that let it reach the 60,000-character `validateRoadmap` ceiling with 272 characters to spare: UPDATE appends to `## Implemented` on every run, but `compactRoadmap` only ever reached struck-through `###` subsections — so the one part of the document that grew was the one part compaction could not touch. Undated paragraphs pass through untouched, which is what keeps the evergreen prose and the hand-written month summaries safe. 60,000 → 21,224 characters.
+
+Roadmap append spacing fixed 2026-07-27 (PR #352). Appended entries landed flush against the following `---`, which CommonMark reads as a setext heading underline, so the last entry in a section rendered as an `<h2>` and the horizontal rule vanished. Live since at least #330 and invisible in a diff — it showed only in the rendered file.
+
 ---
 
 ## Next Up
