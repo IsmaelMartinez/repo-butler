@@ -664,14 +664,14 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
 // instead of minting a second line for the same month.
 const SHIPPED_ROLLUP_RE = /^\*\*(\d{4}-\d{2})\*\* — (\d+) entr(?:y|ies) \(([^)]*)\)\. Full details in git history\.$/;
 
-// Render the reference span for a rolled-up month. A handful of refs are listed
-// in full; beyond that they collapse to a first–last span, because the point of
-// a rollup is the shape of the month, not its inventory.
-function renderRefSpan(refs) {
-  const sorted = [...refs].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
-  if (sorted.length === 0) return '';
-  if (sorted.length <= 6) return sorted.join(', ');
-  return `${sorted[0]}–${sorted.at(-1)}`;
+// Render a rolled-up month's references, ascending. Listed in full rather than
+// collapsed to a first–last span: roadmap prose cites upstream issue numbers
+// too (`typescript-eslint` #10940 sits in the 2026-07 entries), and one foreign
+// number would turn an honest `#326–#331` into a fabricated `#326–#10940`. A
+// full list stays truthful at any length and matches what compactRoadmap
+// already writes, at a cost of a few dozen characters per month.
+function renderRefList(refs) {
+  return [...refs].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))).join(', ');
 }
 
 // Roll up aged entries in the free-prose shipped log so the living document
@@ -760,7 +760,7 @@ export function compactShippedLog(roadmap, today, { maxAgeDays = 60, section = '
     // byte, so a quiet tick produces no diff and therefore no roadmap PR.
     if (!bucket.changed) return bucket.original;
     rolled.push(entry.rollup);
-    const refPart = renderRefSpan(bucket.refs);
+    const refPart = renderRefList(bucket.refs);
     const entries = `${bucket.count} ${bucket.count === 1 ? 'entry' : 'entries'}`;
     return `**${entry.rollup}** — ${entries} (${refPart}). Full details in git history.`;
   });

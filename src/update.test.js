@@ -918,12 +918,31 @@ describe('compactShippedLog', () => {
     assert.ok(!result.match(/\*\*2026-04\*\*[\s\S]*\*\*2026-04\*\*/), 'must not mint a second line for the month');
   });
 
-  it('collapses a long reference list to a first-last span', () => {
+  it('lists every reference in ascending order rather than a first-last span', () => {
     const many = ['## Implemented', ''];
     for (let n = 1; n <= 9; n++) many.push(`Thing ${n} shipped 2026-03-0${n} (PR #${n * 10}).`, '');
     many.push('## Next Up', '', 'x');
     const { result } = compactShippedLog(many.join('\n'), today);
-    assert.ok(result.includes('**2026-03** — 9 entries (#10–#90). Full details in git history.'));
+    assert.ok(result.includes('**2026-03** — 9 entries (#10, #20, #30, #40, #50, #60, #70, #80, #90). Full details in git history.'));
+  });
+
+  it('does not fabricate a range when prose cites an upstream issue number', () => {
+    // A far-out-of-range foreign ref (typescript-eslint #10940 appears in the
+    // real roadmap) must not become the top of an invented span.
+    const roadmap = [
+      '## Implemented',
+      '',
+      'Thing shipped 2026-03-01 (PR #326). Blocked on upstream #10940.',
+      '',
+      'Other thing shipped 2026-03-02 (PR #331).',
+      '',
+      '## Next Up',
+      '',
+      'x',
+    ].join('\n');
+    const { result } = compactShippedLog(roadmap, today);
+    assert.ok(result.includes('(#326, #331, #10940)'), 'every ref listed, none invented');
+    assert.ok(!result.includes('#326–#10940'), 'must not fabricate a span across a foreign ref');
   });
 
   it('returns the input untouched when the section is absent', () => {
