@@ -279,13 +279,22 @@ export async function update(context) {
   // this the roadmap only ever grows.
   const compactAfterDays = config.roadmap?.compact_after_days ?? 60;
   const { result: compactedRoadmap, compacted } = compactRoadmap(currentRoadmap, today, { maxAgeDays: compactAfterDays });
+  // compactRoadmap only reaches struck-through `###` subsections, but the
+  // section the LLM appends to every run is free prose — so the one part of the
+  // document that grows without bound was the one part compaction could not
+  // touch. compactShippedLog rolls those aged entries up by month.
+  const { result: rolledRoadmap, rolled } = compactShippedLog(compactedRoadmap, today, { maxAgeDays: compactAfterDays });
   // Compaction is itself an edit, so freshen the date when it changes anything
   // (applyEditOps only bumps on an LLM content op, which a compaction-only tick
   // has none of — without this the PR would ship trimmed bodies under a stale
   // "Last Updated" date).
-  const baseRoadmap = compacted.length > 0 ? bumpLastUpdated(compactedRoadmap, today) : compactedRoadmap;
+  const changedByCompaction = compacted.length > 0 || rolled.length > 0;
+  const baseRoadmap = changedByCompaction ? bumpLastUpdated(rolledRoadmap, today) : rolledRoadmap;
   if (compacted.length > 0) {
     console.log(`SECTION-EDIT: compacted ${compacted.length} long-completed subsection(s): ${compacted.join(' | ')}`);
+  }
+  if (rolled.length > 0) {
+    console.log(`SECTION-EDIT: rolled up ${rolled.length} month(s) of the shipped log: ${rolled.join(', ')}`);
   }
 
   const prompt = buildSectionEditPrompt(baseRoadmap, snapshot, assessment, config.context);
@@ -648,6 +657,118 @@ export function compactRoadmap(roadmap, today, { maxAgeDays = 60, minBodyChars =
   }
 
   return { result: lines.join('\n'), compacted: compacted.reverse() };
+}
+
+// The machine-managed shape a rolled-up month takes. Recognised on the way back
+// in, so a later run merges newly-aged entries into the month's existing line
+// instead of minting a second line for the same month.
+const SHIPPED_ROLLUP_RE = /^\*\*(\d{4}-\d{2})\*\* — (\d+) entr(?:y|ies) \(([^)]*)\)\. Full details in git history\.$/;
+
+// Render the reference span for a rolled-up month. A handful of refs are listed
+// in full; beyond that they collapse to a first–last span, because the point of
+// a rollup is the shape of the month, not its inventory.
+function renderRefSpan(refs) {
+  const sorted = [...refs].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  if (sorted.length === 0) return '';
+  if (sorted.length <= 6) return sorted.join(', ');
+  return `${sorted[0]}–${sorted.at(-1)}`;
+}
+
+// Roll up aged entries in the free-prose shipped log so the living document
+// keeps recent detail and only a one-line-per-month trace of older work.
+//
+// This is the companion to compactRoadmap, which only reaches struck-through
+// `###` subsections. The section the LLM appends to on every run is free prose,
+// so the one part of the document that grew without bound was the one part
+// compaction could not touch — which is how ROADMAP.md reached the 60,000-char
+// validateRoadmap ceiling on 2026-07-26 with 272 characters to spare.
+//
+// A paragraph is eligible only when it carries a `YYYY-MM-DD` date at least
+// `maxAgeDays` old. Undated paragraphs are passed through untouched, which is
+// what keeps the section's evergreen capability description — and any
+// hand-written month summary — safe from the roll-up. Each month's first
+// eligible paragraph is replaced in place by that month's line, so document
+// order is preserved; later paragraphs from the same month are absorbed into
+// it. Idempotent: an existing rollup line is parsed back into its bucket and
+// re-emitted verbatim when nothing new joined it. Pure function. Exported for
+// testing.
+export function compactShippedLog(roadmap, today, { maxAgeDays = 60, section = 'Implemented' } = {}) {
+  if (!roadmap) return { result: roadmap, rolled: [] };
+
+  const headingRe = new RegExp(`^## ${section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b.*$`, 'm');
+  const headingMatch = roadmap.match(headingRe);
+  if (!headingMatch) return { result: roadmap, rolled: [] };
+
+  const bodyStart = headingMatch.index + headingMatch[0].length;
+  const rest = roadmap.slice(bodyStart);
+  const boundary = rest.match(/\n(?=---\s*\n|## )/);
+  const bodyEnd = boundary ? bodyStart + boundary.index : roadmap.length;
+  const body = roadmap.slice(bodyStart, bodyEnd);
+
+  const paragraphs = body.split(/\n{2,}/);
+  const buckets = new Map();   // 'YYYY-MM' → { refs:Set, count, changed, original }
+  const output = [];
+
+  for (const para of paragraphs) {
+    const text = para.trim();
+    if (!text) continue;
+
+    const existing = text.match(SHIPPED_ROLLUP_RE);
+    if (existing) {
+      const [, month, count, refs] = existing;
+      const bucket = buckets.get(month);
+      if (bucket) {
+        // A second rollup line for a month already seen: fold it in rather than
+        // keep both.
+        for (const r of extractIssueRefs(refs)) bucket.refs.add(r);
+        bucket.count += Number(count);
+        bucket.changed = true;
+      } else {
+        buckets.set(month, { refs: extractIssueRefs(refs), count: Number(count), changed: false, original: text });
+        output.push({ rollup: month });
+      }
+      continue;
+    }
+
+    const newest = newestDate(text);
+    const age = newest ? daysBetween(newest, today) : NaN;
+    // Fail safe: an undatable paragraph, or one whose age cannot be computed,
+    // is left exactly as written. NaN comparisons are false, so this also
+    // covers a malformed date winning the sort or an invalid `today`.
+    if (!Number.isFinite(age) || age < maxAgeDays) {
+      output.push({ text });
+      continue;
+    }
+
+    const month = newest.slice(0, 7);
+    const bucket = buckets.get(month);
+    if (bucket) {
+      for (const r of extractIssueRefs(text)) bucket.refs.add(r);
+      bucket.count += 1;
+      bucket.changed = true;
+    } else {
+      buckets.set(month, { refs: extractIssueRefs(text), count: 1, changed: true, original: null });
+      output.push({ rollup: month });
+    }
+  }
+
+  const rolled = [];
+  const rendered = output.map(entry => {
+    if (!entry.rollup) return entry.text;
+    const bucket = buckets.get(entry.rollup);
+    // Nothing new joined an already-rolled month — re-emit its line byte for
+    // byte, so a quiet tick produces no diff and therefore no roadmap PR.
+    if (!bucket.changed) return bucket.original;
+    rolled.push(entry.rollup);
+    const refPart = renderRefSpan(bucket.refs);
+    const entries = `${bucket.count} ${bucket.count === 1 ? 'entry' : 'entries'}`;
+    return `**${entry.rollup}** — ${entries} (${refPart}). Full details in git history.`;
+  });
+
+  if (rolled.length === 0) return { result: roadmap, rolled: [] };
+
+  const newBody = `\n\n${rendered.join('\n\n')}\n`;
+  return { result: roadmap.slice(0, bodyStart) + newBody + roadmap.slice(bodyEnd), rolled: rolled.sort() };
 }
 
 export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, projectContext, now = new Date()) {
