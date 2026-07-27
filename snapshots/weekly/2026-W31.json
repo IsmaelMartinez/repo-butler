@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-27T10:36:48.139Z",
+  "timestamp": "2026-07-27T13:20:55.713Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,26 +7,26 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 4,
+    "open_issues_count": 3,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-27T09:54:05Z",
+    "pushed_at": "2026-07-27T13:20:33Z",
     "archived": false
   },
   "issues": {
     "open": [
       {
         "number": 350,
-        "title": "Skills run from an installed copy no merge updates — add an installer and drift check",
+        "title": "Live skills and MCP server are bound to a working tree, with no staleness signal",
         "author": "IsmaelMartinez",
         "labels": [],
         "reactions": 0,
-        "comments": 0,
+        "comments": 1,
         "created_at": "2026-07-27T08:02:56Z",
-        "updated_at": "2026-07-27T08:02:56Z",
+        "updated_at": "2026-07-27T13:11:46Z",
         "assignees": [],
         "milestone": null
       },
@@ -114,6 +114,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 348,
+        "title": "feat(private-watch): watch private repos without touching the shared pipeline",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-27T13:20:31Z"
+      },
       {
         "number": 346,
         "title": "chore: update roadmap (repo-butler)",
@@ -1436,13 +1443,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-04-28T19:22:07Z"
-      },
-      {
-        "number": 141,
-        "title": "refactor: import PERSONAS from council.js (Code Health T3.2)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-04-28T19:22:03Z"
       }
     ]
   },
