@@ -537,7 +537,19 @@ export function applyEditOps(roadmap, ops, today) {
         skipped.push(`append: every ref (${head}${overflow}) is already documented as shipped — duplicate entry`);
         continue;
       }
-      result = result.slice(0, insertAt) + '\n\n' + text + result.slice(insertAt);
+      // Separate the entry from its neighbours with exactly one blank line on
+      // each side. The naive `slice + '\n\n' + text + slice` left the text
+      // flush against the following `---`, and in CommonMark a paragraph
+      // followed directly by `---` is a setext heading underline — so the last
+      // entry in a section rendered as a large <h2> and the horizontal rule
+      // disappeared. Every roadmap update did this silently from at least #330
+      // (it is invisible in a diff, only in the rendered file). Normalising
+      // both sides also collapses the stray double blank line the old form
+      // left above the entry, and keeps the result stable however the
+      // surrounding whitespace happens to be laid out.
+      const before = result.slice(0, insertAt).replace(/\s*$/, '');
+      const after = result.slice(insertAt).replace(/^\s*/, '');
+      result = `${before}\n\n${text}${after ? `\n\n${after}` : '\n'}`;
       applied.push(`append to "${section}" (${text.length} chars)`);
       // An applied entry's refs now count as documented, so a second op in
       // the same response restating the same work is caught intra-run too.
