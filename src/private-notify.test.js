@@ -32,14 +32,14 @@ const patches = calls => calls.filter(c => c.method === 'PATCH');
 
 describe('buildPrivateFindingsBody', () => {
   const findings = [
-    { type: 'open-vulnerability', repo: 'value-punter', severity: 'high', detail: 'pillow 12.2.0 → 12.3.0' },
-    { type: 'open-vulnerability', repo: 'value-punter', severity: 'medium', detail: 'setuptools 82.0.1 → 83.0.0' },
-    { type: 'standards-gap', repo: 'value-punter', detail: 'no SECURITY.md' },
+    { type: 'open-vulnerability', repo: 'sekrit-thing', severity: 'high', detail: 'pillow 12.2.0 → 12.3.0' },
+    { type: 'open-vulnerability', repo: 'sekrit-thing', severity: 'medium', detail: 'setuptools 82.0.1 → 83.0.0' },
+    { type: 'standards-gap', repo: 'sekrit-thing', detail: 'no SECURITY.md' },
   ];
 
   it('names the repo and states the finding count', () => {
-    const body = buildPrivateFindingsBody('value-punter', findings, '2026-07-26T18:00:00Z');
-    assert.match(body, /`value-punter` is private/);
+    const body = buildPrivateFindingsBody('sekrit-thing', findings, '2026-07-26T18:00:00Z');
+    assert.match(body, /`sekrit-thing` is private/);
     assert.match(body, /\*\*3 open findings\*\*/);
     assert.match(body, /2026-07-26T18:00:00Z/);
   });
@@ -51,7 +51,7 @@ describe('buildPrivateFindingsBody', () => {
   });
 
   it('groups by type and orders severities worst-first within a group', () => {
-    const body = buildPrivateFindingsBody('value-punter', findings, 'now');
+    const body = buildPrivateFindingsBody('sekrit-thing', findings, 'now');
     assert.match(body, /## open-vulnerability \(2\)/);
     assert.match(body, /## standards-gap \(1\)/);
     assert.ok(body.indexOf('pillow') < body.indexOf('setuptools'),
@@ -76,7 +76,7 @@ describe('buildPrivateFindingsBody', () => {
 });
 
 describe('notifyPrivateFindings', () => {
-  const priv = [{ type: 'open-vulnerability', repo: 'value-punter', private: true, severity: 'high', detail: 'pillow' }];
+  const priv = [{ type: 'open-vulnerability', repo: 'sekrit-thing', private: true, severity: 'high', detail: 'pillow' }];
 
   it('writes nothing at all when there are no private findings', async () => {
     const gh = makeGh();
@@ -94,7 +94,7 @@ describe('notifyPrivateFindings', () => {
 
     const created = posts(gh.calls);
     assert.equal(created.length, 1);
-    assert.equal(created[0].path, '/repos/alice/value-punter/issues');
+    assert.equal(created[0].path, '/repos/alice/sekrit-thing/issues');
     assert.equal(created[0].body.title, TRACKING_TITLE);
     assert.match(created[0].body.body, /pillow/);
     assert.equal(result.created, 1);
@@ -108,7 +108,7 @@ describe('notifyPrivateFindings', () => {
     assert.equal(posts(gh.calls).length, 0, 'must not create a duplicate');
     const patched = patches(gh.calls);
     assert.equal(patched.length, 1);
-    assert.equal(patched[0].path, '/repos/alice/value-punter/issues/7');
+    assert.equal(patched[0].path, '/repos/alice/sekrit-thing/issues/7');
     assert.equal(result.updated, 1);
     assert.equal(result.created, 0);
   });
@@ -181,18 +181,18 @@ describe('notifyPrivateFindings', () => {
 describe('closeResolvedPrivateIssues', () => {
   it('closes the tracking issue for a private repo that now has no findings', async () => {
     const gh = makeGh({ existingIssues: [{ number: 12, title: TRACKING_TITLE }] });
-    const closed = await closeResolvedPrivateIssues(gh, 'alice', ['value-punter'], [], { dryRun: false });
+    const closed = await closeResolvedPrivateIssues(gh, 'alice', ['sekrit-thing'], [], { dryRun: false });
 
     assert.equal(closed, 1);
     const patched = patches(gh.calls);
-    assert.equal(patched[0].path, '/repos/alice/value-punter/issues/12');
+    assert.equal(patched[0].path, '/repos/alice/sekrit-thing/issues/12');
     assert.equal(patched[0].body.state, 'closed');
   });
 
   it('leaves the issue open while the repo still has findings', async () => {
     const gh = makeGh({ existingIssues: [{ number: 12, title: TRACKING_TITLE }] });
-    const closed = await closeResolvedPrivateIssues(gh, 'alice', ['value-punter'], [
-      { repo: 'value-punter', private: true, type: 'x' },
+    const closed = await closeResolvedPrivateIssues(gh, 'alice', ['sekrit-thing'], [
+      { repo: 'sekrit-thing', private: true, type: 'x' },
     ], { dryRun: false });
 
     assert.equal(closed, 0);
@@ -201,19 +201,19 @@ describe('closeResolvedPrivateIssues', () => {
 
   it('is a no-op when the clean repo has no tracking issue', async () => {
     const gh = makeGh({ existingIssues: [] });
-    assert.equal(await closeResolvedPrivateIssues(gh, 'alice', ['value-punter'], [], { dryRun: false }), 0);
+    assert.equal(await closeResolvedPrivateIssues(gh, 'alice', ['sekrit-thing'], [], { dryRun: false }), 0);
     assert.equal(patches(gh.calls).length, 0);
   });
 
   it('writes nothing in dry run', async () => {
     const gh = makeGh({ existingIssues: [{ number: 12, title: TRACKING_TITLE }] });
-    assert.equal(await closeResolvedPrivateIssues(gh, 'alice', ['value-punter'], [], { dryRun: true }), 0);
+    assert.equal(await closeResolvedPrivateIssues(gh, 'alice', ['sekrit-thing'], [], { dryRun: true }), 0);
     assert.equal(gh.calls.length, 0);
   });
 
   it('defaults to dry run when the option is omitted', async () => {
     const gh = makeGh({ existingIssues: [{ number: 12, title: TRACKING_TITLE }] });
-    assert.equal(await closeResolvedPrivateIssues(gh, 'alice', ['value-punter'], []), 0);
+    assert.equal(await closeResolvedPrivateIssues(gh, 'alice', ['sekrit-thing'], []), 0);
     assert.equal(gh.calls.length, 0);
   });
 

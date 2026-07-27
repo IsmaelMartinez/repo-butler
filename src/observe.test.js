@@ -57,7 +57,7 @@ describe('observePortfolio — repo discovery', () => {
             total_count: 2,
             repositories: [
               makeRepo('public-repo'),
-              makeRepo('value-punter', { private: true, visibility: 'private' }),
+              makeRepo('sekrit-thing', { private: true, visibility: 'private' }),
             ],
           }),
         };
@@ -72,7 +72,7 @@ describe('observePortfolio — repo discovery', () => {
     assert.equal(result.repos[0].name, 'public-repo');
     assert.equal(typeof result.repos[0].id, 'number', 'repo should carry its GitHub numeric id');
     assert.equal(result.repos[0].private, false);
-    assert.ok(!result.repos.find(r => r.name === 'value-punter'), 'private repo should be filtered out');
+    assert.ok(!result.repos.find(r => r.name === 'sekrit-thing'), 'private repo should be filtered out');
   });
 
   // Private repos are monitored but never published. `repos` must stay
@@ -91,7 +91,7 @@ describe('observePortfolio — repo discovery', () => {
             total_count: 2,
             repositories: [
               makeRepo('public-repo'),
-              makeRepo('value-punter', { private: true, visibility: 'private' }),
+              makeRepo('sekrit-thing', { private: true, visibility: 'private' }),
             ],
           }),
         };
@@ -107,13 +107,13 @@ describe('observePortfolio — repo discovery', () => {
 
     // But now retained, and tagged, for governance to opt in to.
     assert.equal(result.privateRepos.length, 1);
-    assert.equal(result.privateRepos[0].name, 'value-punter');
+    assert.equal(result.privateRepos[0].name, 'sekrit-thing');
     assert.equal(result.privateRepos[0].private, true);
     assert.equal(result.privateRepos[0].visibility, 'private');
 
     // classification feeds the GITHUB_OUTPUT summary, a public sink.
     const allClassified = Object.values(result.classification).flat();
-    assert.ok(!allClassified.includes('value-punter'),
+    assert.ok(!allClassified.includes('sekrit-thing'),
       'private repo must not appear in any classification bucket');
   });
 
