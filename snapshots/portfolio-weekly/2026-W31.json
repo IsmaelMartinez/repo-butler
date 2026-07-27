@@ -932,11 +932,11 @@
       "id": 1185787142,
       "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 405,
+      "commits_6mo": 406,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9285714285714286,
+      "ciPassRate": 0.927710843373494,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-07-27T13:23:17Z",
+      "pushed_at": "2026-07-27T13:25:28Z",
       "traffic": {
         "views_14d": {
           "count": 13,
@@ -1267,7 +1267,7 @@
       },
       "ci": 7,
       "released_at": "2026-06-14T21:21:39Z",
-      "pushed_at": "2026-07-20T13:03:47Z",
+      "pushed_at": "2026-07-27T13:29:36Z",
       "traffic": {
         "views_14d": {
           "count": 11,
