@@ -75,6 +75,8 @@ Deterministic-failure SHA verification corrected 2026-07-26 (PR #345). A moved h
 
 Dependency sweep 2026-07-26 (PRs #328, #329). Actions majors bumped across all nine workflows. Portfolio-wide, 20 of 22 open Dependabot PRs merged (oldest 34 days); 7 needed a root-cause fix. The survivor is a `typescript` 6→7 bump, blocked on `typescript-eslint` TS 7 support (upstream #10940).
 
+
+Roadmap structure reorganised 2026-07-27 (PR #349). Cleaned up the project roadmap by grouping tasks into "done" versus "in-flight" categories and compacting historical log entries by month to enhance long-term planning and readability.
 ---
 
 ## Next Up
