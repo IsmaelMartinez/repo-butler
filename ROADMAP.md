@@ -109,11 +109,11 @@ This document hit the 60,000-character `validateRoadmap` ceiling on 2026-07-26 w
 
 `compactShippedLog` closes that gap: dated prose entries older than `compact_after_days` are rolled up in place to one machine-generated line per month, keeping every PR reference and dropping the prose to git history. Undated paragraphs — the evergreen capability description, and hand-written month summaries like the three above — are passed through untouched. Deferred and worth revisiting if the document grows again: `compactRoadmap` still skips struck subsections that carry no date at all, and shipped bullets nested inside active sections are never compacted because only `###` blocks are eligible.
 
-### Skill distribution — what ships isn't what runs (#350)
+### Live surfaces are bound to a working tree (#350)
 
-The `/repo-butler` and `/repo-butler-apply` skills have a canonical copy in `skills/` and a separate installed copy that is what actually executes. Merging a PR updates only the former, and nothing compares the two, so they diverge silently until the output looks wrong. It has bitten twice: PR #291's comic uplift kept rendering the old version after merge, and the 2026-07 private-name removal had to be applied to the installed copy by hand — where editing only the repo copy would have left the running skill still naming a private repo.
+The skills and the MCP server both run out of a checkout rather than off `main`. `scripts/install-skills.sh` symlinks `skills/<name>` into the local registry, which is the right design — a merge takes effect with no copy step — but it binds the running skill to that checkout's *working tree*. So the live skill is whatever the checkout currently is: an unpulled `main`, a feature branch, or an uncommitted edit. PR #291's comic uplift kept rendering the old version after merge for exactly this reason, and writing to the registry path turns out to edit the repo itself.
 
-The fix is the `install.sh` deferred from the skills-consolidation work, plus a drift check. A symlink is the stronger option, since it removes the sync step rather than automating it. Filed as #350, which also records the same-shaped bug in the MCP server: `runGitOnDataBranch` never fetches, so a checkout serves whatever `origin/repo-butler-data` last pointed at and goes stale without saying so. That half can ship independently.
+The MCP server has the same shape: `runGitOnDataBranch` never fetches, so it serves whatever `origin/repo-butler-data` last pointed at and goes stale without saying so — which on 2026-07-25 produced a briefing claiming 12 Gold against a true 7. The missing piece in both cases is a staleness signal, not an installer: something that reports how far the linked checkout is behind, and a server that carries the age of the data it is serving. The two halves ship independently.
 
 ### Dashboard round-two follow-ons
 
