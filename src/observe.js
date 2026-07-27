@@ -168,11 +168,27 @@ export async function observePortfolio(context) {
   // owner here. Public endpoints are already owner-scoped by URL.
   const owned = repos.filter(r => !r.owner || r.owner.login === owner);
 
-  // Exclude private repos from the portfolio. Reports are published to a
-  // public GitHub Pages site, so including private repos would leak names,
-  // descriptions, and activity metadata. Count them for the log line only.
-  const privateCount = owned.filter(r => r.private).length;
+  // Private repos are kept, but held apart from the public portfolio rather
+  // than mixed into it.
+  //
+  // Every pre-existing consumer reads `repos`, and `repos` stays public-only —
+  // so the report HTML, the data-branch snapshots, the GITHUB_OUTPUT summary
+  // and cross-repo PROPOSE cannot leak a private name even by accident, and
+  // needed no changes. The consumers that legitimately require private repos
+  // (governance detection and health-tier computation) opt in by reading
+  // `privateRepos` explicitly.
+  //
+  // That inverts the failure mode: the risk is no longer "every writer must
+  // remember to filter" but "a writer must deliberately ask for private data".
+  // store.writeGovernanceFindings independently refuses private findings at the
+  // sink as a second line of defence, and observe.test.js asserts no private
+  // name reaches a published artifact.
+  //
+  // Note repo-butler is itself a PUBLIC repo, so there are three public sinks,
+  // not one: GitHub Pages, the repo-butler-data branch, and the Actions logs.
+  // Log lines below therefore count private repos and never name them.
   const publicOnly = owned.filter(r => !r.private);
+  const privateOnly = owned.filter(r => r.private);
 
   // Fetch the per-repo languages byte map in batches. Polyglot detection in
   // safety.js prefers this over the dominant `language` field so e.g. a
@@ -182,26 +198,29 @@ export async function observePortfolio(context) {
   // over the whole list) so a 100+ portfolio doesn't trip GitHub's secondary
   // abuse limits — same pattern as apply.js's per-repo PR creation.
   const LANGUAGES_BATCH_SIZE = 10;
-  const languagesMaps = [];
-  for (let i = 0; i < publicOnly.length; i += LANGUAGES_BATCH_SIZE) {
-    const batch = publicOnly.slice(i, i + LANGUAGES_BATCH_SIZE);
-    const results = await Promise.all(batch.map(async r => {
-      try {
-        return await gh.request(`/repos/${owner}/${r.name}/languages`);
-      } catch {
-        return null;
-      }
-    }));
-    languagesMaps.push(...results);
-  }
+  const fetchLanguages = async (list) => {
+    const maps = [];
+    for (let i = 0; i < list.length; i += LANGUAGES_BATCH_SIZE) {
+      const batch = list.slice(i, i + LANGUAGES_BATCH_SIZE);
+      const results = await Promise.all(batch.map(async r => {
+        try {
+          return await gh.request(`/repos/${owner}/${r.name}/languages`);
+        } catch {
+          return null;
+        }
+      }));
+      maps.push(...results);
+    }
+    return maps;
+  };
 
-  const portfolio = publicOnly.map((r, i) => ({
+  const toRepo = (r, languages) => ({
     id: r.id,
     full_name: r.full_name,
     name: r.name,
     description: r.description,
     language: r.language,
-    languages: languagesMaps[i],
+    languages,
     stars: r.stargazers_count,
     forks: r.forks_count,
     open_issues: r.open_issues_count,
@@ -213,15 +232,23 @@ export async function observePortfolio(context) {
     has_issues: r.has_issues,
     default_branch: r.default_branch,
     topics: r.topics || [],
-    private: false,
-    visibility: r.visibility || 'public',
-  }));
+    private: !!r.private,
+    visibility: r.visibility || (r.private ? 'private' : 'public'),
+  });
 
-  console.log(`Portfolio source: ${source} — ${portfolio.length} public repos (${privateCount} private hidden).`);
+  const publicLanguages = await fetchLanguages(publicOnly);
+  const portfolio = publicOnly.map((r, i) => toRepo(r, publicLanguages[i]));
 
+  const privateLanguages = await fetchLanguages(privateOnly);
+  const privateRepos = privateOnly.map((r, i) => toRepo(r, privateLanguages[i]));
+
+  console.log(`Portfolio source: ${source} — ${portfolio.length} public repos (${privateRepos.length} private, monitored but unpublished).`);
+
+  // Classification feeds the GITHUB_OUTPUT summary, which is a public sink on a
+  // public repo — so it is computed from public repos only.
   const classification = classifyRepos(portfolio);
 
-  return { timestamp: new Date().toISOString(), owner, repos: portfolio, classification };
+  return { timestamp: new Date().toISOString(), owner, repos: portfolio, privateRepos, classification };
 }
 
 // /installation/repositories returns `{ total_count, repositories: [...] }`

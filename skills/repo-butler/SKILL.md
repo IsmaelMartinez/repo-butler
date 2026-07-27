@@ -212,7 +212,7 @@ The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series �
 Compose the scene:
 
 - Pick the scene from the table above using the data: top concern by severity wins. Concerns come from `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `secretScanning.count > 0`, `ciPassRate < 0.7`, `open_issues ≥ 10`, missing `license`, plus governance standards gaps and policy drift.
-- Render Reginald with the scene's eye mood and the co-star (if any). Reginald speaks one or two in-character lines that name the real signal (repo names, counts) — e.g. the gardener "has found three pests in value-punter, sir." Add the Doric weather word only on `garden-pests`/`storm` (dreich) or the calm scenes (braw).
+- Render Reginald with the scene's eye mood and the co-star (if any). Reginald speaks one or two in-character lines that name the real signal (repo names, counts) — e.g. the gardener "has found three pests in teams-for-linux, sir." Add the Doric weather word only on `garden-pests`/`storm` (dreich) or the calm scenes (braw).
 - Open with the continuity delta if present ("since your last briefing, sir, …"), then the relevant streak or saga line. On Mondays with open issues > 0, append "the postmaster is tardy again, sir." On 25 January prepend "A guid Burns Night to ye, sir."; on 31 December "Hogmanay greetings, sir."
 - On a calm scene, fold in one working-state observation if the local block returned anything ("a forgotten parcel in the hallway, sir" for a stash older than the last commit; otherwise "the study is in impeccable order, sir").
 - Stat strip: `{N} repos · {gold} Gold · {top concern stat} · {ci}`.

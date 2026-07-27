@@ -57,7 +57,7 @@ describe('observePortfolio — repo discovery', () => {
             total_count: 2,
             repositories: [
               makeRepo('public-repo'),
-              makeRepo('value-punter', { private: true, visibility: 'private' }),
+              makeRepo('sekrit-thing', { private: true, visibility: 'private' }),
             ],
           }),
         };
@@ -72,7 +72,81 @@ describe('observePortfolio — repo discovery', () => {
     assert.equal(result.repos[0].name, 'public-repo');
     assert.equal(typeof result.repos[0].id, 'number', 'repo should carry its GitHub numeric id');
     assert.equal(result.repos[0].private, false);
-    assert.ok(!result.repos.find(r => r.name === 'value-punter'), 'private repo should be filtered out');
+    assert.ok(!result.repos.find(r => r.name === 'sekrit-thing'), 'private repo should be filtered out');
+  });
+
+  // Private repos are monitored but never published. `repos` must stay
+  // public-only — every pre-existing publisher reads it, so anything that leaks
+  // into it leaks to GitHub Pages, the repo-butler-data branch AND the Actions
+  // logs, all of which are world-readable because repo-butler is a public repo.
+  it('returns private repos under privateRepos, absent from repos and classification', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/installation/repositories')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Map(),
+          json: async () => ({
+            total_count: 2,
+            repositories: [
+              makeRepo('public-repo'),
+              makeRepo('sekrit-thing', { private: true, visibility: 'private' }),
+            ],
+          }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { observePortfolio } = await import('./observe.js');
+    const result = await observePortfolio({ owner: 'alice', token: 'fake' });
+
+    // Still hidden from the published set.
+    assert.deepEqual(result.repos.map(r => r.name), ['public-repo']);
+
+    // But now retained, and tagged, for governance to opt in to.
+    assert.equal(result.privateRepos.length, 1);
+    assert.equal(result.privateRepos[0].name, 'sekrit-thing');
+    assert.equal(result.privateRepos[0].private, true);
+    assert.equal(result.privateRepos[0].visibility, 'private');
+
+    // classification feeds the GITHUB_OUTPUT summary, a public sink.
+    const allClassified = Object.values(result.classification).flat();
+    assert.ok(!allClassified.includes('sekrit-thing'),
+      'private repo must not appear in any classification bucket');
+  });
+
+  // The blunt instrument: serialise everything observePortfolio would hand to a
+  // publisher and assert the private name simply is not in it. This catches a
+  // future field being added to `repos` that happens to carry private data,
+  // which a field-by-field assertion would miss.
+  it('never mentions a private repo name in the publishable payload', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/installation/repositories')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Map(),
+          json: async () => ({
+            total_count: 2,
+            repositories: [
+              makeRepo('public-repo'),
+              makeRepo('sekrit-thing', { private: true, visibility: 'private', description: 'do not publish me' }),
+            ],
+          }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${u}`);
+    });
+
+    const { observePortfolio } = await import('./observe.js');
+    const { repos, classification } = await observePortfolio({ owner: 'alice', token: 'fake' });
+
+    const publishable = JSON.stringify({ repos, classification });
+    assert.ok(!publishable.includes('sekrit-thing'), 'private repo name leaked into publishable payload');
+    assert.ok(!publishable.includes('do not publish me'), 'private repo description leaked into publishable payload');
   });
 
   it('hides private repos returned via /user/repos fallback', async () => {
