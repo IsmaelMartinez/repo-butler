@@ -79,6 +79,8 @@ Roadmap restructured and the shipped log compacted 2026-07-27 (PR #349). The doc
 
 Roadmap append spacing fixed 2026-07-27 (PR #352). Appended entries landed flush against the following `---`, which CommonMark reads as a setext heading underline, so the last entry in a section rendered as an `<h2>` and the horizontal rule vanished. Live since at least #330 and invisible in a diff — it showed only in the rendered file.
 
+Roadmap formatting polish and administrative updates completed 2026-07-27 (PRs #351, #352). These changes finalized the roadmap compaction mechanics and resolved a subtle CommonMark rendering issue where trailing entries ran flush against the section divider.
+
 ---
 
 ## Next Up
