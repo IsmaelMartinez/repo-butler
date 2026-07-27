@@ -55,6 +55,7 @@ Create a `.github/roadmap.yml` in your repository to customise Repo Butler's beh
 ```yaml
 roadmap:
   path: ROADMAP.md
+  compact_after_days: 60
 
 schedule:
   assess: daily
@@ -74,6 +75,8 @@ limits:
 The `context` field tells the LLM about your project so it can generate relevant improvement ideas. The `providers.default` field selects the LLM provider (`gemini` for Gemini Flash free tier, `claude` for Claude Sonnet). Setting `require_approval: true` means proposed issues are created with a `needs-approval` label for human review before any action is taken.
 
 The `schedule` section controls how often each phase runs. Setting `assess: daily` and `ideate: weekly` means the butler checks project health every day but only generates new ideas once a week, keeping noise low.
+
+The UPDATE phase only ever *appends* to your roadmap — it can add entries but never delete or rewrite them — so without compaction the document would grow forever and eventually fail the 60,000-character safety check. `roadmap.compact_after_days` sets how much full detail to keep: completed `~~SHIPPED~~` subsections older than that are trimmed to a one-line pointer, and older dated entries in the free-prose `## Implemented` section are rolled up to one line per month. The prose always stays in git history. Undated paragraphs are never touched, so evergreen descriptions survive — if you want a paragraph kept verbatim, leave a full `YYYY-MM-DD` date out of it.
 
 ## How it works
 
@@ -180,6 +183,8 @@ Two skills ship from `skills/` for use inside Claude Code: `repo-butler` (read-s
 ```
 
 The script symlinks both skills into `$HOME/.claude/skills/`, cleans up dead symlinks from earlier `butler-briefing`/`butler-debrief`/`butler-apply` layouts, and is idempotent. Pass `--uninstall` to remove the symlinks, or `--skills-dir DIR` to target a custom location. Restart your Claude Code session afterwards so the new skills appear in the registry.
+
+Because these are symlinks, the skill that runs is whatever is in **that checkout's working tree** — not whatever is on `main`. Merging a PR does not change what runs until you pull, an experiment on a feature branch becomes the live skill while you have it checked out, and editing the file through the registry path edits the repository itself. If a skill behaves like an older version, check the checkout is up to date before looking anywhere else. See [#350](https://github.com/IsmaelMartinez/repo-butler/issues/350) for the staleness signal that would make this visible.
 
 Both skills source their portfolio data via the repo-butler MCP server below — no local clone of the data branch is required. Install the MCP server first (next section) and the skills will work from any working directory. Optional config at `~/.config/repo-butler/config.sh` recognises `REPO_BUTLER_PROJECTS_DIRS` (newline-separated parent dirs to scan for local working state) — defaults to `$HOME/projects/github` and `$HOME/projects/gitlab`.
 

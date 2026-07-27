@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, compactShippedLog, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
 import { validateRoadmap } from './safety.js';
+import { readFileSync } from 'node:fs';
 
 describe('buildRoadmapPrBody', () => {
   it('includes the assessment when provided', () => {
@@ -838,6 +839,144 @@ describe('compactRoadmap', () => {
     const input = make();
     const { result } = compactRoadmap(input, today);
     assert.ok(result.length < input.length);
+  });
+});
+
+describe('compactShippedLog', () => {
+  const today = '2026-07-27';
+  const make = (...extra) => [
+    '# Roadmap',
+    '',
+    '## Implemented',
+    '',
+    'Evergreen prose describing what the system does. Carries no date at all.',
+    '',
+    'Old thing shipped 2026-03-04 (PR #10). Verbose prose about the old work.',
+    '',
+    'Another old thing shipped 2026-03-19 (PR #11). More verbose prose here.',
+    '',
+    'April thing shipped 2026-04-02 (PR #20). Prose about the April work.',
+    '',
+    'Recent thing shipped 2026-07-20 (PR #99). Prose that must survive.',
+    ...extra,
+    '',
+    '---',
+    '',
+    '## Next Up',
+    '',
+    'Active work.',
+  ].join('\n');
+
+  it('rolls aged entries up to one line per month, in place', () => {
+    const { result, rolled } = compactShippedLog(make(), today);
+    assert.deepEqual(rolled, ['2026-03', '2026-04']);
+    assert.ok(result.includes('**2026-03** — 2 entries (#10, #11). Full details in git history.'));
+    assert.ok(result.includes('**2026-04** — 1 entry (#20). Full details in git history.'));
+    assert.ok(!result.includes('Verbose prose about the old work'), 'aged prose dropped to git history');
+    assert.ok(result.indexOf('**2026-03**') < result.indexOf('**2026-04**'), 'document order preserved');
+  });
+
+  it('leaves undated paragraphs alone, so evergreen prose survives', () => {
+    const { result } = compactShippedLog(make(), today);
+    assert.ok(result.includes('Evergreen prose describing what the system does.'));
+  });
+
+  it('leaves entries inside the age window alone', () => {
+    const { result } = compactShippedLog(make(), today);
+    assert.ok(result.includes('Recent thing shipped 2026-07-20 (PR #99). Prose that must survive.'));
+  });
+
+  it('does not touch other sections', () => {
+    const { result } = compactShippedLog(make(), today);
+    assert.ok(result.includes('## Next Up'));
+    assert.ok(result.includes('Active work.'));
+  });
+
+  it('is idempotent — a second pass changes nothing and reports no work', () => {
+    const once = compactShippedLog(make(), today).result;
+    const twice = compactShippedLog(once, today);
+    assert.equal(twice.result, once);
+    assert.deepEqual(twice.rolled, []);
+  });
+
+  it('absorbs a newly-aged entry into the month that already has a rollup line', () => {
+    // The 2026-04 line already exists; a second April entry ages in later.
+    const withRollup = [
+      '## Implemented',
+      '',
+      '**2026-04** — 1 entry (#20). Full details in git history.',
+      '',
+      'Late April thing shipped 2026-04-28 (PR #21). Prose.',
+      '',
+      '## Next Up',
+      '',
+      'x',
+    ].join('\n');
+    const { result, rolled } = compactShippedLog(withRollup, today);
+    assert.deepEqual(rolled, ['2026-04']);
+    assert.ok(result.includes('**2026-04** — 2 entries (#20, #21). Full details in git history.'));
+    assert.ok(!result.match(/\*\*2026-04\*\*[\s\S]*\*\*2026-04\*\*/), 'must not mint a second line for the month');
+  });
+
+  it('lists every reference in ascending order rather than a first-last span', () => {
+    const many = ['## Implemented', ''];
+    for (let n = 1; n <= 9; n++) many.push(`Thing ${n} shipped 2026-03-0${n} (PR #${n * 10}).`, '');
+    many.push('## Next Up', '', 'x');
+    const { result } = compactShippedLog(many.join('\n'), today);
+    assert.ok(result.includes('**2026-03** — 9 entries (#10, #20, #30, #40, #50, #60, #70, #80, #90). Full details in git history.'));
+  });
+
+  it('does not fabricate a range when prose cites an upstream issue number', () => {
+    // A far-out-of-range foreign ref (typescript-eslint #10940 appears in the
+    // real roadmap) must not become the top of an invented span.
+    const roadmap = [
+      '## Implemented',
+      '',
+      'Thing shipped 2026-03-01 (PR #326). Blocked on upstream #10940.',
+      '',
+      'Other thing shipped 2026-03-02 (PR #331).',
+      '',
+      '## Next Up',
+      '',
+      'x',
+    ].join('\n');
+    const { result } = compactShippedLog(roadmap, today);
+    assert.ok(result.includes('(#326, #331, #10940)'), 'every ref listed, none invented');
+    assert.ok(!result.includes('#326–#10940'), 'must not fabricate a span across a foreign ref');
+  });
+
+  it('returns the input untouched when the section is absent', () => {
+    const roadmap = '# Roadmap\n\n## Next Up\n\nOnly this.';
+    const { result, rolled } = compactShippedLog(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.deepEqual(rolled, []);
+  });
+
+  it('leaves everything alone when nothing is old enough', () => {
+    const roadmap = ['## Implemented', '', 'Thing shipped 2026-07-20 (PR #99).', '', '## Next Up', '', 'x'].join('\n');
+    const { result, rolled } = compactShippedLog(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.deepEqual(rolled, []);
+  });
+
+  it('fails safe on an unparseable date rather than dropping the entry', () => {
+    const roadmap = ['## Implemented', '', 'Thing shipped 2026-13-45 (PR #99).', '', '## Next Up', '', 'x'].join('\n');
+    const { result, rolled } = compactShippedLog(roadmap, today);
+    assert.equal(result, roadmap);
+    assert.deepEqual(rolled, []);
+  });
+
+  it('handles an empty or missing roadmap', () => {
+    assert.deepEqual(compactShippedLog('', today), { result: '', rolled: [] });
+    assert.deepEqual(compactShippedLog(null, today), { result: null, rolled: [] });
+  });
+
+  it('keeps the real roadmap stable at the configured window but compacts below it', () => {
+    const real = readFileSync(new URL('../ROADMAP.md', import.meta.url), 'utf8');
+    assert.deepEqual(compactShippedLog(real, today, { maxAgeDays: 60 }).rolled, [],
+      'shipped ROADMAP.md must not churn a PR on the next scheduled run');
+    assert.ok(compactShippedLog(real, today, { maxAgeDays: 30 }).result.length < real.length,
+      'a tighter window must still find something to roll up');
   });
 });
 

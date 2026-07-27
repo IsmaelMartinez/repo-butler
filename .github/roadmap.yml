@@ -2,10 +2,20 @@ repository: IsmaelMartinez/repo-butler
 
 roadmap:
   path: ROADMAP.md
-  # Age (days) after which a completed ~~SHIPPED~~ subsection's verbose body is
-  # compacted to a one-line pointer by the UPDATE phase (full prose stays in git
-  # history). Default 60. Lower it to trim more aggressively.
-  # compact_after_days: 60
+  # How many days of full detail the roadmap keeps. Older work is compacted by
+  # the UPDATE phase on every run; the prose always stays in git history. Two
+  # mechanisms share this window:
+  #   - compactRoadmap    trims a completed ~~SHIPPED~~ `###` subsection's body
+  #                       to a one-line pointer.
+  #   - compactShippedLog rolls aged prose entries in `## Implemented` up to one
+  #                       line per month. This is the one that matters over
+  #                       time: UPDATE appends there on every run, so without it
+  #                       the document only ever grows — which is how it reached
+  #                       the 60,000-char validateRoadmap ceiling on 2026-07-26.
+  # Undated paragraphs are never rolled up, so the evergreen capability prose and
+  # the hand-written month summaries are safe. Set explicitly rather than left to
+  # the default so it is easy to find and tune; lower it to keep less detail.
+  compact_after_days: 60
 
 schedule:
   assess: daily
