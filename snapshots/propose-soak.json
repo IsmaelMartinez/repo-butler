@@ -152,5 +152,39 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-07-27T09:54:04.093Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Uplift skill-sources to Silver Tier by establishing CI workflows and community health standards",
+        "target_repo": "skill-sources",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "not-allowlisted",
+        "number": null
+      },
+      {
+        "title": "Establish release-cadence workflow template in skill-sources to resolve portfolio drift",
+        "target_repo": "skill-sources",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "not-allowlisted",
+        "number": null
+      },
+      {
+        "title": "Harden the release-cadence workflow template against security vulnerabilities",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
