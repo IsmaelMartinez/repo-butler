@@ -211,11 +211,11 @@
       "id": 151476958,
       "open_issues": 17,
       "open_bugs": 8,
-      "commits_6mo": 449,
+      "commits_6mo": 452,
       "stars": 4889,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9574468085106383,
+      "ciPassRate": 0.9629629629629629,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -237,7 +237,7 @@
       },
       "ci": 15,
       "released_at": "2026-07-27T13:16:00Z",
-      "pushed_at": "2026-07-27T13:15:59Z",
+      "pushed_at": "2026-07-27T15:36:29Z",
       "traffic": {
         "views_14d": {
           "count": 6879,
@@ -314,11 +314,11 @@
       "id": 786898753,
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 221,
+      "commits_6mo": 224,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9634146341463414,
+      "ciPassRate": 0.9146341463414634,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 11,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-07-27T13:16:36Z",
+      "pushed_at": "2026-07-27T16:22:42Z",
       "traffic": {
         "views_14d": {
           "count": 31,
@@ -932,11 +932,11 @@
       "id": 1185787142,
       "open_issues": 2,
       "open_bugs": 0,
-      "commits_6mo": 406,
+      "commits_6mo": 408,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.927710843373494,
+      "ciPassRate": 0.9156626506024096,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-07-27T13:25:28Z",
+      "pushed_at": "2026-07-27T14:55:59Z",
       "traffic": {
         "views_14d": {
           "count": 13,
@@ -1035,11 +1035,11 @@
       "id": 1196601911,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 300,
+      "commits_6mo": 304,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9263157894736842,
+      "ciPassRate": 0.9183673469387755,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1061,7 +1061,7 @@
       },
       "ci": 7,
       "released_at": "2026-07-12T13:00:13Z",
-      "pushed_at": "2026-07-26T12:21:28Z",
+      "pushed_at": "2026-07-27T13:57:58Z",
       "traffic": {
         "views_14d": {
           "count": 20,
@@ -1344,11 +1344,11 @@
       "id": 1313126760,
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 30,
+      "commits_6mo": 36,
       "stars": 0,
       "license": "MIT",
-      "communityHealth": 42,
-      "ciPassRate": null,
+      "communityHealth": 85,
+      "ciPassRate": 0.8,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1361,9 +1361,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 0,
-      "released_at": null,
-      "pushed_at": "2026-07-27T08:11:27Z",
+      "ci": 2,
+      "released_at": "2026-07-27T15:48:04Z",
+      "pushed_at": "2026-07-27T16:16:33Z",
       "traffic": {
         "views_14d": {
           "count": 0,
@@ -1375,11 +1375,11 @@
         }
       },
       "computed": {
-        "tier": "bronze",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -1394,12 +1394,12 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
             "name": "Community health above 80%",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -1414,12 +1414,12 @@
           },
           {
             "name": "Has CI workflows",
-            "passed": false,
+            "passed": true,
             "required_for": "silver"
           },
           {
             "name": "Community health above 50%",
-            "passed": false,
+            "passed": true,
             "required_for": "silver"
           },
           {
@@ -1433,7 +1433,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Has CI workflows"
+        "next_step": null
       }
     }
   }
