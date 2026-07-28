@@ -7,7 +7,7 @@ import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState } from '.
 import { detectTierChanges } from './tier-change.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
-  TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
+  TIER_DISPLAY, TIER_RANK, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION, isExcludedRepo,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
   computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
@@ -53,7 +53,7 @@ const ABOUT_SECTION = `<details>
 <li><strong>OBSERVE</strong> — gathers project state via the GitHub API (issues, PRs, releases, labels, workflows, roadmap content) and classifies all portfolio repos by activity level. No LLM needed.</li>
 <li><strong>ASSESS</strong> — diffs the current snapshot against the previous run, computes weekly trends (growing/shrinking/stable), and optionally summarises changes with Gemini Flash.</li>
 <li><strong>UPDATE</strong> — generates an updated roadmap document, validates it through a safety layer, and opens a PR.</li>
-<li><strong>GOVERNANCE</strong> — runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, open vulnerabilities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.</li>
+<li><strong>GOVERNANCE</strong> — runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, tier regressions, open vulnerabilities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.</li>
 <li><strong>IDEATE</strong> — generates improvement ideas using an LLM (Claude for deeper reasoning, Gemini Flash as default), feeding off the fresh governance findings.</li>
 <li><strong>PROPOSE</strong> — safety-filters ideas (URL allowlist, @mention blocking, secret detection), then creates GitHub issues capped at <code>max_issues_per_run</code>, sorted by priority, labelled for human review.</li>
 <li><strong>REPORT</strong> — generates HTML dashboards for every active repo in the portfolio, deployed to GitHub Pages.</li>
@@ -527,6 +527,7 @@ export function buildGovernanceSection(findings) {
   const drift = findings.filter(f => f.type === 'policy-drift');
   const uplift = findings.filter(f => f.type === 'tier-uplift');
   const openVulns = findings.filter(f => f.type === 'open-vulnerability');
+  const regressions = findings.filter(f => f.type === 'tier-regression');
 
   const parts = [];
 
@@ -586,6 +587,33 @@ export function buildGovernanceSection(findings) {
 <p class="muted">Dependabot autofix: <em>in flight</em> = GitHub's automated security fixes are opening the bump PRs; <em>not driven</em> = enable them via the <code>dependabot-security</code> apply action.</p>
 <div class="chart-container">
 <table><thead><tr><th>Repo</th><th>Priority</th><th>Source</th><th>Open alerts</th><th>Dependabot autofix</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
+  }
+
+  // Tier regressions come right after open vulnerabilities: a lost tier is the
+  // G7 Gold-ratchet loss signal, more urgent than the opportunity tables below.
+  // The remediation route back up lives in the companion Tier Uplift row.
+  if (regressions.length > 0) {
+    const rows = regressions
+      .slice()
+      .sort((a, b) => {
+        const pa = a.priority === 'high' ? 0 : 1;
+        const pb = b.priority === 'high' ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return a.repo.localeCompare(b.repo);
+      })
+      .map(g => `<tr>
+  <td><a href="${escHtml(g.repo)}.html">${escHtml(g.repo)}</a></td>
+  <td><span class="tier-badge tier-${escHtml(g.previousTier)}">${escHtml(TIER_DISPLAY[g.previousTier] || g.previousTier)}</span> → <span class="tier-badge tier-${escHtml(g.currentTier)}">${escHtml(TIER_DISPLAY[g.currentTier] || g.currentTier)}</span></td>
+  <td><span style="color:${PRIORITY_COLOR[g.priority] || 'var(--muted)'}">${escHtml(g.priority)}</span></td>
+  <td>${escHtml(g.priorWeek || '—')}</td>
+</tr>`)
+      .join('');
+    parts.push(`<h3>Tier Regressions</h3>
+<p class="muted">Repos whose health tier fell since the previous weekly snapshot. The way back up is in Tier Uplift Opportunities below.</p>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>Change</th><th>Priority</th><th>Since</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`);
   }
@@ -810,8 +838,6 @@ const BUTLER_STATUS = {
 };
 const SINCE_EMPTY = `Nothing's stirred since my last round. A quiet portfolio is a contented one.`;
 const SINCE_FIRST_RUN = `Still settling in — once I've a prior round to compare, I'll report what's changed.`;
-
-const TIER_RANK = { none: 0, bronze: 1, silver: 2, gold: 3 };
 
 // True when a repo (current classified object or a stored portfolio-weekly
 // summary — both carry vulns/codeScanning/secretScanning) has open critical or

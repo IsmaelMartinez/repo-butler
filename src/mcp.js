@@ -238,7 +238,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven and openVulnerabilities, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot — the summary counts them as tierRegressions), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven and openVulnerabilities, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -414,6 +414,9 @@ function toolGetGovernanceFindings() {
         gaps: findings.filter(f => f.type === 'standards-gap').length,
         drift: findings.filter(f => f.type === 'policy-drift').length,
         uplift: findings.filter(f => f.type === 'tier-uplift').length,
+        // G7 Gold ratchet: repos whose tier fell since the previous weekly
+        // portfolio snapshot. The loss-side mirror of `uplift`.
+        tierRegressions: findings.filter(f => f.type === 'tier-regression').length,
         openVulnerabilities,
         // Week-over-week trend for openVulnerabilities, from the same
         // governance-weekly history stream as autofixNotDrivenTrend below (see

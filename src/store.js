@@ -221,10 +221,18 @@ export function createStore(context) {
   // One list + one read — kept lighter than readRepoWeeklyHistory, which pulls
   // the whole window. Best-effort: any failure (missing dir, parse error)
   // returns null so the dashboard simply renders its first-run calm state.
-  async function readLatestPortfolioWeekly() {
+  // options.beforeWeek: only consider snapshots from weeks strictly before the
+  // given isoWeekKey. The governance tier-regression detector uses this to diff
+  // against the PREVIOUS week — the current-week file is overwritten up to
+  // 4×/day, so diffing against it would clear a regression finding one run
+  // after it fired instead of letting it persist for the week.
+  async function readLatestPortfolioWeekly(options = {}) {
     try {
       const files = await listBranchDir(PORTFOLIO_WEEKLY_DIR);
-      const jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+      let jsonFiles = files.filter(f => f.endsWith('.json')).sort();
+      if (options.beforeWeek) {
+        jsonFiles = jsonFiles.filter(f => f.replace('.json', '') < options.beforeWeek);
+      }
       if (jsonFiles.length === 0) return null;
       const latest = jsonFiles[jsonFiles.length - 1];
       const content = await readFile(`${PORTFOLIO_WEEKLY_DIR}/${latest}`);

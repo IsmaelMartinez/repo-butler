@@ -375,6 +375,8 @@ describe('MCP server', async () => {
       const data = JSON.parse(r.result.content[0].text);
       assert.ok(Array.isArray(data.findings));
       if (data.summary) {
+        assert.equal(typeof data.summary.tierRegressions, 'number',
+          'summary counts tier-regression findings (G7)');
         // Either no prior governance-weekly snapshot exists yet (null) or a
         // fully-shaped trend object — never a bare number or partial object.
         for (const trend of [data.summary.autofixNotDrivenTrend, data.summary.openVulnerabilitiesTrend]) {

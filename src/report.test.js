@@ -1887,6 +1887,18 @@ describe('buildGovernanceSection', () => {
     assert.ok(html.includes('high'), 'should show priority');
   });
 
+  it('renders a Tier Regressions table for tier-regression findings', () => {
+    const findings = [
+      { type: 'tier-regression', repo: 'repo-a', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26', priority: 'high', remediation: { executor: 'manual' } },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Tier Regressions'), 'should have a tier regressions heading');
+    assert.ok(html.includes('href="repo-a.html"'), 'should link the regressed repo');
+    assert.ok(html.includes('Gold'), 'should show the lost tier');
+    assert.ok(html.includes('Silver'), 'should show the current tier');
+    assert.ok(html.includes('2026-W26'), 'should show the baseline week');
+  });
+
   it('renders open-vulnerability findings with repo link, source, and alert counts', () => {
     const findings = [
       { type: 'open-vulnerability', repo: 'repo-a', critical: 2, high: 1, secretScanning: 0, sources: ['dependabot'], priority: 'high', remediation: { executor: 'manual' } },

@@ -1,6 +1,10 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, detectTierRegressions, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
+import { isoWeekKey } from './store.js';
 
 // --- Test helpers ---
 
@@ -959,5 +963,145 @@ describe('runGovernance — private repos must never enter the governance pipeli
       assert.ok(!JSON.stringify(batch).includes(CANARY),
         'private repo name reached a data-branch write');
     }
+  });
+});
+
+// --- detectTierRegressions (G7 — the Gold ratchet) ---
+//
+// The mirror image of tier-uplift: uplift fires on opportunity, tier-regression
+// fires on loss. Detection is a pure diff of two portfolio-weekly-shaped
+// snapshots via the same detectTierChanges core the dashboard's "since the last
+// run" strip uses. The real-data case uses the committed W26/W27 snapshots from
+// the data branch — the 2026-07 release-drift week, when nine repos crossed the
+// 90-day release boundary at once and fell gold→silver. (The plan of record
+// originally named the W29/W30 pair with six regressions, but weekly files are
+// overwritten intra-week and that pair healed to uplifts-only before this
+// landed; W26/W27 is the pair that still carries real regressions.)
+
+const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+
+function weeklySnap(tiers) {
+  const repos = {};
+  for (const [name, tier] of Object.entries(tiers)) repos[name] = { computed: { tier } };
+  return { schema_version: 'v1', repos };
+}
+
+describe('detectTierRegressions', () => {
+  it('emits exactly one tier-regression finding for a fabricated gold-to-silver pair', () => {
+    const prior = { ...weeklySnap({ 'repo-a': 'gold', 'repo-b': 'silver' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'silver', 'repo-b': 'silver' });
+
+    const findings = detectTierRegressions(current, prior);
+
+    assert.deepEqual(findings, [{
+      type: 'tier-regression',
+      repo: 'repo-a',
+      previousTier: 'gold',
+      currentTier: 'silver',
+      priorWeek: '2026-W26',
+      priority: 'high',
+    }]);
+  });
+
+  it('emits no tier-regression finding for an unchanged pair', () => {
+    const tiers = { 'repo-a': 'gold', 'repo-b': 'silver', 'repo-c': 'bronze' };
+    assert.deepEqual(detectTierRegressions(weeklySnap(tiers), weeklySnap(tiers)), []);
+  });
+
+  it('ignores uplifts — tier-regression fires on loss, never on recovery', () => {
+    const prior = weeklySnap({ 'repo-a': 'silver' });
+    const current = weeklySnap({ 'repo-a': 'gold' });
+    assert.deepEqual(detectTierRegressions(current, prior), []);
+  });
+
+  it('emits no tier-regression finding on the first run (no prior weekly snapshot)', () => {
+    assert.deepEqual(detectTierRegressions(weeklySnap({ 'repo-a': 'gold' }), null), []);
+  });
+
+  it('grades a tier-regression that did not fall from gold as medium priority', () => {
+    const findings = detectTierRegressions(weeklySnap({ 'repo-a': 'bronze' }), weeklySnap({ 'repo-a': 'silver' }));
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].priority, 'medium');
+    assert.equal(findings[0].priorWeek, null);
+  });
+
+  it('reports the nine real gold-to-silver tier-regressions in the W26/W27 release-drift pair', () => {
+    const w26 = JSON.parse(readFileSync(join(FIXTURE_DIR, 'portfolio-weekly-2026-W26.json'), 'utf8'));
+    const w27 = JSON.parse(readFileSync(join(FIXTURE_DIR, 'portfolio-weekly-2026-W27.json'), 'utf8'));
+    w26._week = '2026-W26';
+
+    const findings = detectTierRegressions(w27, w26);
+
+    assert.equal(findings.length, 9, 'the release-drift week regressed exactly nine repos');
+    for (const f of findings) {
+      assert.equal(f.type, 'tier-regression');
+      assert.equal(f.previousTier, 'gold');
+      assert.equal(f.currentTier, 'silver');
+      assert.equal(f.priority, 'high');
+      assert.equal(f.priorWeek, '2026-W26');
+    }
+    assert.deepEqual(findings.map(f => f.repo).sort(), [
+      'ai-model-advisor', 'betis-escocia', 'bonnie-wee-plot',
+      'github-issue-triage-bot', 'ismaelmartinez.me.uk', 'repo-butler',
+      'teams-for-linux', 'wifisentinel', 'yourear',
+    ]);
+  });
+});
+
+describe('buildRemediationPlan — tier-regression', () => {
+  it('maps a tier-regression finding to a manual plan naming the lost tier', () => {
+    const plan = buildRemediationPlan({
+      type: 'tier-regression', repo: 'repo-a',
+      previousTier: 'gold', currentTier: 'silver',
+      priorWeek: '2026-W26', priority: 'high',
+    });
+    assert.equal(plan.executor, 'manual');
+    assert.match(plan.intent, /repo-a/);
+    assert.match(plan.rationale, /gold/);
+    assert.match(plan.rationale, /silver/);
+    assert.ok(plan.acceptanceCriteria.length > 0, 'a tier-regression plan states how to verify recovery');
+  });
+});
+
+describe('runGovernance — tier-regression wiring', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('merges tier-regression findings diffed against the prior-week portfolio snapshot', async () => {
+    globalThis.fetch = async () => ({
+      ok: true, status: 200, headers: new Map(),
+      json: async () => [], text: async () => '[]',
+    });
+
+    const repos = [makeRepo('repo-a')];
+    // A critical open alert caps repo-a below gold today, whatever the other checks say.
+    const repoDetails = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' } },
+    });
+
+    const reads = [];
+    const store = {
+      readRepoCache: async () => null,
+      readLatestGovernanceWeekly: async () => null,
+      writeGovernanceWeekly: async () => {},
+      writeGovernanceFindings: async () => {},
+      readLatestPortfolioWeekly: async (opts) => {
+        reads.push(opts);
+        return { ...weeklySnap({ 'repo-a': 'gold' }), _week: '2026-W26' };
+      },
+    };
+
+    const context = { owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store, repoDetails };
+    await runGovernance(context);
+
+    const regressions = context.governanceFindings.filter(f => f.type === 'tier-regression');
+    assert.equal(regressions.length, 1);
+    assert.equal(regressions[0].repo, 'repo-a');
+    assert.equal(regressions[0].previousTier, 'gold');
+    assert.equal(regressions[0].priorWeek, '2026-W26');
+    assert.ok(regressions[0].remediation, 'tier-regression findings carry the ADR-007 remediation plan');
+    assert.equal(reads.length, 1, 'reads the prior portfolio weekly exactly once');
+    assert.equal(reads[0]?.beforeWeek, isoWeekKey(new Date()),
+      'diffs against the previous WEEK, not the current-week file an earlier run today already overwrote');
   });
 });
