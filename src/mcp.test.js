@@ -33,6 +33,7 @@ describe('MCP server', async () => {
   const unwrapWeeklyRepos = mod.unwrapWeeklyRepos;
   const computeAutofixNotDrivenTrend = mod.computeAutofixNotDrivenTrend;
   const computeOpenVulnerabilitiesTrend = mod.computeOpenVulnerabilitiesTrend;
+  const computeTierRegressionsTrend = mod.computeTierRegressionsTrend;
   const GOVERNANCE_WEEKLY_FILE_PATTERN = mod.GOVERNANCE_WEEKLY_FILE_PATTERN;
 
   beforeEach(() => captureResponses());
@@ -132,6 +133,38 @@ describe('MCP server', async () => {
       const prior = { findings: [{ type: 'open-vulnerability', repo: 'a' }] };
       const trend = computeOpenVulnerabilitiesTrend(4, prior);
       assert.deepEqual(trend, { current: 4, previous: 1, delta: 3, direction: 'worsening' });
+    });
+  });
+
+  describe('computeTierRegressionsTrend', () => {
+    it('returns null when there is no prior weekly snapshot', () => {
+      assert.equal(computeTierRegressionsTrend(2, null), null);
+    });
+
+    it('counts only tier-regression findings', () => {
+      const prior = {
+        findings: [
+          { type: 'tier-regression', repo: 'a', previousTier: 'gold', currentTier: 'silver' },
+          { type: 'tier-regression', repo: 'b', previousTier: 'silver', currentTier: 'bronze' },
+          { type: 'tier-uplift', repo: 'c' },
+          { type: 'standards-gap', tool: 'license' },
+        ],
+      };
+      const trend = computeTierRegressionsTrend(1, prior);
+      assert.deepEqual(trend, { current: 1, previous: 2, delta: -1, direction: 'improving' });
+    });
+
+    it('reports "worsening" when the tier-regression count rises', () => {
+      const prior = { findings: [{ type: 'tier-regression', repo: 'a' }] };
+      const trend = computeTierRegressionsTrend(3, prior);
+      assert.deepEqual(trend, { current: 3, previous: 1, delta: 2, direction: 'worsening' });
+    });
+
+    it('reports "unchanged" when the counts match, including 0 vs 0', () => {
+      assert.deepEqual(
+        computeTierRegressionsTrend(0, { findings: [] }),
+        { current: 0, previous: 0, delta: 0, direction: 'unchanged' }
+      );
     });
   });
 
@@ -379,7 +412,7 @@ describe('MCP server', async () => {
           'summary counts tier-regression findings (G7)');
         // Either no prior governance-weekly snapshot exists yet (null) or a
         // fully-shaped trend object — never a bare number or partial object.
-        for (const trend of [data.summary.autofixNotDrivenTrend, data.summary.openVulnerabilitiesTrend]) {
+        for (const trend of [data.summary.autofixNotDrivenTrend, data.summary.openVulnerabilitiesTrend, data.summary.tierRegressionsTrend]) {
           if (trend !== null) {
             assert.equal(typeof trend.current, 'number');
             assert.equal(typeof trend.previous, 'number');

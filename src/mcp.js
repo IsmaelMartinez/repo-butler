@@ -144,6 +144,10 @@ function computeOpenVulnerabilitiesTrend(currentCount, priorWeeklyData) {
   return computeGovernanceCountTrend(currentCount, priorWeeklyData, f => f.type === 'open-vulnerability');
 }
 
+function computeTierRegressionsTrend(currentCount, priorWeeklyData) {
+  return computeGovernanceCountTrend(currentCount, priorWeeklyData, f => f.type === 'tier-regression');
+}
+
 // Normalize a parsed weekly snapshot to a flat { repoName: data } map.
 // Supports both v1 envelope ({ schema_version, repos }) and legacy flat format.
 function unwrapWeeklyRepos(parsed) {
@@ -238,7 +242,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot — the summary counts them as tierRegressions), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven and openVulnerabilities, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven, openVulnerabilities, and tierRegressions, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend / tierRegressionsTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -404,9 +408,11 @@ function toolGetGovernanceFindings() {
     const findings = JSON.parse(raw);
     const openVulnerabilities = findings.filter(f => f.type === 'open-vulnerability').length;
     const autofixNotDriven = findings.filter(isAutofixNotDriven).length;
+    const tierRegressions = findings.filter(f => f.type === 'tier-regression').length;
     const prior = loadPriorGovernanceWeekly();
     const autofixNotDrivenTrend = withPreviousWeek(computeAutofixNotDrivenTrend(autofixNotDriven, prior?.data), prior?.week);
     const openVulnerabilitiesTrend = withPreviousWeek(computeOpenVulnerabilitiesTrend(openVulnerabilities, prior?.data), prior?.week);
+    const tierRegressionsTrend = withPreviousWeek(computeTierRegressionsTrend(tierRegressions, prior?.data), prior?.week);
     return {
       findings,
       summary: {
@@ -415,8 +421,10 @@ function toolGetGovernanceFindings() {
         drift: findings.filter(f => f.type === 'policy-drift').length,
         uplift: findings.filter(f => f.type === 'tier-uplift').length,
         // G7 Gold ratchet: repos whose tier fell since the previous weekly
-        // portfolio snapshot. The loss-side mirror of `uplift`.
-        tierRegressions: findings.filter(f => f.type === 'tier-regression').length,
+        // portfolio snapshot. The loss-side mirror of `uplift`, with the same
+        // week-over-week trend treatment as openVulnerabilitiesTrend below.
+        tierRegressions,
+        tierRegressionsTrend,
         openVulnerabilities,
         // Week-over-week trend for openVulnerabilities, from the same
         // governance-weekly history stream as autofixNotDrivenTrend below (see
@@ -870,4 +878,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, TOOLS, RESOURCES };
