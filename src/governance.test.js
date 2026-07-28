@@ -1018,6 +1018,16 @@ describe('detectTierRegressions', () => {
     assert.deepEqual(detectTierRegressions(weeklySnap({ 'repo-a': 'gold' }), null), []);
   });
 
+  it('excludes shadow/test repos from tier-regression findings like every other detector', () => {
+    const prior = weeklySnap({ 'real-app': 'gold', 'my-shadow-env': 'gold', 'test-repo-lab': 'gold' });
+    const current = weeklySnap({ 'real-app': 'silver', 'my-shadow-env': 'silver', 'test-repo-lab': 'silver' });
+
+    const findings = detectTierRegressions(current, prior);
+
+    assert.deepEqual(findings.map(f => f.repo), ['real-app'],
+      'REPO_EXCLUSION_PATTERNS repos never surface governance findings');
+  });
+
   it('grades a tier-regression that did not fall from gold as medium priority', () => {
     const findings = detectTierRegressions(weeklySnap({ 'repo-a': 'bronze' }), weeklySnap({ 'repo-a': 'silver' }));
     assert.equal(findings.length, 1);

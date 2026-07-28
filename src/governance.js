@@ -412,6 +412,10 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
     // Null-prototype map: repo names are external (see tier-change.js).
     const tiers = Object.create(null);
     for (const [name, s] of Object.entries(snap.repos)) {
+      // buildPortfolioSnapshot only drops archived/forks, so shadow/test repos
+      // are present in weekly snapshots — filter them here to match the
+      // eligibleRepos boundary every other detector applies.
+      if (REPO_EXCLUSION_PATTERNS.some(p => name.includes(p))) continue;
       const t = s?.computed?.tier;
       if (t) tiers[name] = t;
     }
