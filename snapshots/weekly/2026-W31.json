@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-29T12:57:02.708Z",
+  "timestamp": "2026-07-29T14:37:57.595Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 5,
+    "open_issues_count": 4,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-07-29T09:36:21Z",
+    "pushed_at": "2026-07-29T14:37:36Z",
     "archived": false
   },
   "issues": {
@@ -114,6 +114,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 355,
+        "title": "feat(governance): G12 watch the butler's own PRs for going stale",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-07-29T14:37:33Z"
+      },
       {
         "number": 354,
         "title": "feat(governance): G7 gold-ratchet tier-regression detector",
@@ -1591,10 +1598,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9397590361445783,
-    "total_runs": 83,
+    "pass_rate": 0.9285714285714286,
+    "total_runs": 84,
     "passed": 78,
-    "failed": 5
+    "failed": 6
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1608,9 +1615,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 8,
-    "recently_merged_prs": 179,
+    "recently_merged_prs": 180,
     "bot_prs": 8,
-    "human_prs": 171,
+    "human_prs": 172,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
@@ -1624,7 +1631,7 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 0.9397590361445783,
+    "ci_pass_rate": 0.9285714285714286,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.3,
