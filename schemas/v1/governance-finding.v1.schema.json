@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/governance-finding.v1.schema.json",
   "title": "GovernanceFinding",
-  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale) and src/butler-pr-audit.js (stale-butler-pr). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
+  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale), src/butler-pr-audit.js (stale-butler-pr) and src/stalled-alert.js (stalled-alert). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
   "type": "object",
   "required": ["type", "priority", "remediation"],
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr"],
+      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr", "stalled-alert"],
       "description": "The finding category, which determines the remaining fields."
     },
     "priority": {
@@ -22,7 +22,7 @@
     },
     "repo": {
       "type": "string",
-      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr: the affected repository name."
+      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr, stalled-alert: the affected repository name."
     },
     "nonCompliant": {
       "type": "array",
@@ -89,6 +89,27 @@
             "description": "stale-butler-pr only: names of the failing workflow runs on the most recent attempt."
           },
           "title": { "type": "string", "description": "dependabot-stale only." }
+        }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "description": "stalled-alert only (G13): the open Dependabot alerts past the age threshold with no open Dependabot PR addressing them. A grouped Dependabot PR (whose branch names no package) in the same ecosystem and directory counts as possibly addressing an alert and suppresses it — the detector errs toward silence, because a false positive costs trust in every row.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "integer", "description": "The Dependabot alert number on the affected repo." },
+          "package": { "type": "string", "description": "The vulnerable package name, as the alert reports it." },
+          "ecosystem": { "type": ["string", "null"], "description": "The alert's package ecosystem (npm, pip, actions, ...). Only npm alerts can be classified; every other ecosystem is reported with classification `unknown`." },
+          "manifestPath": { "type": ["string", "null"], "description": "The manifest the alert names. Its directory is what the classifier reads package.json and package-lock.json from, and what a grouped Dependabot branch is compared against." },
+          "severity": { "type": ["string", "null"], "enum": ["low", "medium", "high", "critical", null], "description": "Advisory severity. The detector's floor is `medium`, deliberately below open-vulnerability's critical/high bar — the live case that motivated G13 was a medium alert open for 35 days, invisible to every other signal." },
+          "ageDays": { "type": "integer", "minimum": 0, "description": "Days the alert has been open." },
+          "classification": {
+            "type": "string",
+            "enum": ["reachable-by-update", "direct-dependency", "disjoint-ranges", "out-of-scope", "parent-undeterminable", "no-patched-version", "override-conflict", "pnpm-auto-installed-peer", "no-package", "override", "unknown"],
+            "description": "Why the alert is stuck, from src/trimmer.js planOverride called READ-ONLY (ADR-014). `reachable-by-update` means a lockfile refresh clears it and nobody has run one; `direct-dependency` means bump it normally; the rest need a human decision. `override` means a parent-scoped override WOULD clear it — reported as a classification and never acted on, since making that jump is ADR-013's business. `unknown` is the fail-closed value for an unreadable/unparseable manifest or lockfile, or an ecosystem with no classifier; the finding is still emitted, because the alert is stale whether or not we can explain it."
+          },
+          "detail": { "type": "string", "description": "The classifier's own one-line explanation, capped at 200 characters. Built from target-repo lockfile contents, so it is escaped on the dashboard and deliberately never enters the IDEATE prompt." }
         }
       }
     },

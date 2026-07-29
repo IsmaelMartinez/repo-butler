@@ -410,6 +410,8 @@ describe('MCP server', async () => {
       if (data.summary) {
         assert.equal(typeof data.summary.tierRegressions, 'number',
           'summary counts tier-regression findings (G7)');
+        assert.equal(typeof data.summary.stalledAlerts, 'number',
+          'summary counts stalled-alert findings (G13)');
         // Either no prior governance-weekly snapshot exists yet (null) or a
         // fully-shaped trend object — never a bare number or partial object.
         for (const trend of [data.summary.autofixNotDrivenTrend, data.summary.openVulnerabilitiesTrend, data.summary.tierRegressionsTrend]) {

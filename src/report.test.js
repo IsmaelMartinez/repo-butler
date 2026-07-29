@@ -1916,6 +1916,29 @@ describe('buildGovernanceSection', () => {
     assert.ok(!html.includes('repo-butler/onboard'), 'a branch name must never render');
   });
 
+  it('renders a Stalled Alerts table for stalled-alert findings, escaping the detail', () => {
+    // Same reason as the Stale Butler PRs block above: a finding type with no
+    // block here inflates the "Governance (N)" header and then vanishes.
+    const findings = [{
+      type: 'stalled-alert',
+      repo: 'repo-a',
+      alerts: [
+        { number: 153, package: 'http-proxy-middleware', ecosystem: 'npm', manifestPath: 'docs-site/package-lock.json', severity: 'medium', ageDays: 35, classification: 'reachable-by-update', detail: '<script>alert(1)</script>' },
+        { number: 160, package: 'wee-lib', ecosystem: 'npm', manifestPath: 'package-lock.json', severity: 'high', ageDays: 20, classification: 'unknown', detail: 'lockfile unreadable' },
+      ],
+      priority: 'medium',
+      remediation: { executor: 'manual' },
+    }];
+    const html = buildGovernanceSection(findings);
+
+    assert.ok(html.includes('Stalled Alerts'), 'should have a stalled alerts heading');
+    assert.ok(html.includes('href="repo-a.html"'), 'should link the repo');
+    assert.ok(html.includes('http-proxy-middleware'), 'should name the package');
+    assert.ok(html.includes('35d'), 'should show the oldest age');
+    assert.ok(html.includes('reachable-by-update'), 'the classification is the actionable part');
+    assert.ok(!html.includes('<script>alert(1)</script>'), 'a detail string built from lockfile contents must be escaped');
+  });
+
   it('renders a Tier Regressions table for tier-regression findings', () => {
     const findings = [
       { type: 'tier-regression', repo: 'repo-a', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26', priority: 'high', remediation: { executor: 'manual' } },
