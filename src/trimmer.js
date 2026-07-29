@@ -155,6 +155,11 @@ function directRange(manifest, name) {
   return null;
 }
 
+// How a refusal names the parents it is refusing over, for the `detail` string.
+function describeParents(parents) {
+  return parents.map(p => `${p.parent}@${p.range}`).join(', ');
+}
+
 /**
  * Decide the remediation for one alert.
  *
@@ -178,7 +183,8 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
   // No published fix means there is nothing to point an override at. Refusing is
   // the only honest answer; inventing a version would pin to something that does
   // not exist.
-  if (!patched || !parseVersion(patched)) {
+  const patchedVersion = parseVersion(patched);
+  if (!patchedVersion) {
     return refuse('no-patched-version', `no published patched version for ${name}`);
   }
 
@@ -204,16 +210,16 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
       `no parent in the lockfile declares a dependency on ${name}`);
   }
 
+  // Parents that cannot reach the patch are the ones needing a scoped override.
+  const capped = parents.filter(p => !satisfiesRange(patched, p.range));
+
   // If every parent's declared range already admits the patched version, the
   // lockfile is simply stale and `npm update --package-lock-only` reaches it. An
   // override would be permanent manifest cruft for a transient problem.
-  if (parents.every(p => satisfiesRange(patched, p.range))) {
+  if (capped.length === ZERO) {
     return refuse('reachable-by-update',
       `every parent range already admits ${name}@${patched}; refresh the lockfile instead`);
   }
-
-  // Parents that cannot reach the patch are the ones needing a scoped override.
-  const capped = parents.filter(p => !satisfiesRange(patched, p.range));
 
   // An override may widen a range WITHIN a major line; it must never drag a
   // parent across one. The yourear/brace-expansion case is exactly this: one
@@ -221,15 +227,13 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
   // force a major bump the parent never declared and could break at runtime —
   // the vulnerable 1.x line needs its own 1.x patch, which is a different fix.
   // Checking only how MANY parents are capped misses this entirely.
-  const patchedMajor = parseVersion(patched).major;
   const crossMajor = capped.filter(p => {
     const base = parseVersion(p.range.replace(/^[\^~]|^>=/, ''));
-    return !base || base.major !== patchedMajor;
+    return !base || base.major !== patchedVersion.major;
   });
   if (crossMajor.length > ZERO) {
-    const shown = crossMajor.map(p => `${p.parent}@${p.range}`).join(', ');
     return refuse('disjoint-ranges',
-      `${name}@${patched} sits outside the major line declared by ${shown}; an override would force a major bump`);
+      `${name}@${patched} sits outside the major line declared by ${describeParents(crossMajor)}; an override would force a major bump`);
   }
 
   // More than one distinct capped parent means more than one scope to write, and
@@ -252,7 +256,6 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
   // ^0.34.5 -> 0.35.0 (the proven case) is one crossing, while ^0.1.0 -> 0.9.0
   // is eight. A major-only comparison cannot tell those apart, which makes it
   // blind exactly where this module operates.
-  const patchedVersion = parseVersion(patched);
   const outOfScope = capped.filter(p => {
     const base = p.range.startsWith('^') ? parseVersion(p.range.slice(1)) : null;
     return !base
@@ -261,9 +264,8 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
       || base.minor + 1 !== patchedVersion.minor;
   });
   if (outOfScope.length > ZERO) {
-    const shown = outOfScope.map(p => `${p.parent}@${p.range}`).join(', ');
     return refuse('out-of-scope',
-      `${name}@${patched} is not an adjacent 0.x widening of ${shown}; only a minor-locked 0.x caret warrants an override`);
+      `${name}@${patched} is not an adjacent 0.x widening of ${describeParents(outOfScope)}; only a minor-locked 0.x caret warrants an override`);
   }
 
   const parent = distinct[0];
