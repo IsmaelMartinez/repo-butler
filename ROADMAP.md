@@ -79,7 +79,7 @@ Roadmap restructured and the shipped log compacted 2026-07-27 (PR #349). The doc
 
 Roadmap append spacing fixed 2026-07-27 (PR #352). Appended entries landed flush against the following `---`, which CommonMark reads as a setext heading underline, so the last entry in a section rendered as an `<h2>` and the horizontal rule vanished. Live since at least #330 and invisible in a diff — it showed only in the rendered file.
 
-Self-cleaning governance rule G12 shipped 2026-07-29 (PR #355). This feature configures the butler to watch its own automated pull requests for staleness, preventing lingering contributions and refining the repository's self-maintenance loop.
+Architectural trust model and core decision engine refinement shipped 2026-07-29 (PR #356). Implemented the ADR-013 content-transformation trust model and the G6 deciding core, formalizing architectural decision boundaries and strengthening deterministic decision-making security.
 
 ---
 
