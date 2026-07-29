@@ -194,6 +194,16 @@ function appendGovernanceContext(parts, findings) {
       const oldest = f.stalePRs.reduce((max, p) => Math.max(max, p.age || 0), 0);
       const states = [...new Set(f.stalePRs.map(p => p.state))].sort().join(', ');
       parts.push(`Stale butler PRs: ${f.repo} has ${f.stalePRs.length} unmerged repo-butler PR(s) (oldest: ${oldest}d; state: ${states})`);
+    } else if (f.type === 'stalled-alert') {
+      // Counts, ages and classifications only — never the advisory summary
+      // (written by whoever filed the GHSA) and never the classification detail
+      // string (built from target-repo lockfile contents). Both are external
+      // text and this string reaches the LLM prompt; the same precedent as the
+      // dependabot-stale and stale-butler-pr lines above.
+      const alerts = f.alerts || [];
+      const oldest = alerts.reduce((max, a) => Math.max(max, a.ageDays || 0), 0);
+      const classes = [...new Set(alerts.map(a => a.classification).filter(Boolean))].sort().join(', ');
+      parts.push(`Stalled alerts: ${f.repo} has ${alerts.length} open Dependabot alert(s) with no PR addressing them (oldest: ${oldest}d; classified: ${classes})`);
     }
   }
 

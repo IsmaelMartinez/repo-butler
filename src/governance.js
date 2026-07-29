@@ -9,6 +9,7 @@ import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
+import { detectStalledAlerts } from './stalled-alert.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
 
@@ -84,6 +85,20 @@ export async function runGovernance(context) {
   if (butlerPRs.length > 0) {
     context.governanceFindings.push(...butlerPRs);
     console.log(`Butler PR audit: ${butlerPRs.length} repos with stale butler PRs.`);
+  }
+
+  // G13: open Dependabot alerts nobody is driving to resolution. Wrapped like
+  // the two audits above and for the identical reason — a throw here would
+  // abort runGovernance before writeGovernanceFindings and leave the data
+  // branch serving the previous run's findings. Detection only: ADR-014
+  // authorises no write in response to a stalled alert.
+  // portfolio.repos only, never privateRepos (see the private-repo section of
+  // CLAUDE.md and the guard in governance.test.js).
+  const stalledAlerts = await detectStalledAlerts(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => { console.error(`Stalled-alert detection failed: ${err.message}`); return []; });
+  if (stalledAlerts.length > 0) {
+    context.governanceFindings.push(...stalledAlerts);
+    console.log(`Stalled alerts: ${stalledAlerts.length} repos with unattended Dependabot alerts.`);
   }
 
   // Attach the portable remediation-plan contract (ADR-007) to every finding
@@ -751,6 +766,33 @@ export function buildRemediationPlan(finding) {
         intent: `Land or close ${prs.length} stale repo-butler PR(s) in ${finding.repo}`,
         rationale: `${prs.length} butler-opened PR(s) unmerged beyond the staleness threshold (oldest ${oldest} days; state: ${states.join(', ') || 'unknown'}). ${remedy}`,
         acceptanceCriteria: ['Each stale repo-butler PR is merged or closed'],
+      };
+    }
+    case 'stalled-alert': {
+      const alerts = finding.alerts || [];
+      const oldest = alerts.reduce((max, a) => Math.max(max, a.ageDays || 0), 0);
+      const classes = [...new Set(alerts.map(a => a.classification).filter(Boolean))].sort();
+      // The classification IS the remedy hint, and each one means something
+      // different to the operator: reachable-by-update needs only a lockfile
+      // refresh (the live thirty-five-day case), direct-dependency is an
+      // ordinary bump, and the rest need a human decision. An `override`
+      // classification says a parent-scoped override WOULD clear it — reported,
+      // never applied, since ADR-014 authorises no write and the jump to writing
+      // one is ADR-013's business.
+      const remedy = classes.includes('reachable-by-update')
+        ? 'At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.'
+        : classes.includes('direct-dependency')
+          ? 'At least one is a direct dependency — bump it normally.'
+          : 'These need a human decision about the dependency graph.';
+      // executor 'manual', like every other per-repo STATE finding: ADR-014
+      // authorises no write at all in response to a stalled alert, so this must
+      // never acquire a template/settings path or reach cross-repo PROPOSE.
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Unblock ${alerts.length} stalled Dependabot alert(s) in ${finding.repo}`,
+        rationale: `${alerts.length} open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest ${oldest} days; classified: ${classes.join(', ') || 'unknown'}). ${remedy}`,
+        acceptanceCriteria: ['Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it'],
       };
     }
     case 'open-vulnerability': {

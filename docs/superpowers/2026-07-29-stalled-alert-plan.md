@@ -67,6 +67,38 @@ never suppress the finding — the alert is stale whether or not we can explain 
 `executor: 'manual'`, off cross-repo PROPOSE, and `computeHealthTier` untouched —
 the same lane every per-repo state finding already occupies.
 
+Progress (2026-07-29): implemented as `src/stalled-alert.js`, wired into
+`runGovernance` behind the same `.catch()` the two PR audits use, and rendered as
+a "Stalled Alerts" dashboard block. Three decisions were made while building that
+the spec left open, and each is a judgement rather than a detail.
+
+*The severity floor is `medium` and the age threshold 14 days.* Both are
+parameters on the detector rather than config keys — there is no evidence yet
+about what a maintainer would want to tune, and an unused config surface is a
+liability. The floor sits deliberately below `detectOpenVulnerabilities`'s
+critical/high bar, which is the whole reason the live case was invisible.
+Fourteen days is well past "Dependabot is about to fix this anyway" (it opens a
+security PR within hours when it can) while staying shorter than
+`dependabot-audit`'s 30-day bar, which waits on a human rather than a bot.
+
+*Grouped-PR suppression needed a version-versus-hash rule, not a package parse.*
+`dependabot/npm_and_yarn/docs-site/minor-and-patch-479fbeca4e` splits at the last
+dash into a plausible-looking name and a suffix that *starts with a digit*, so
+the obvious "does the tail look like a version" test reads a grouped branch as a
+single-package one and lets a false positive through. The rule is therefore
+narrow — a dotted numeric run, or a bare major of at most four digits — and
+everything else is treated as a group hash, which suppresses. A grouped branch at
+the repo ROOT suppresses any root-directory alert in its ecosystem, because the
+leading path segment of a grouped branch is genuinely ambiguous between a
+directory and part of the group name, and guessing in the other direction is the
+expensive mistake.
+
+*Non-npm alerts are reported, not skipped.* `planOverride` reads an npm lockfile,
+so a `pip` or `actions` alert cannot be classified — but it can still be stalled,
+so it is emitted with `classification: 'unknown'` and no file reads at all. This
+is the same fail-closed rule as an unreadable lockfile, applied to a different
+cause.
+
 ### Verifier — the loopable goal
 
 ```bash

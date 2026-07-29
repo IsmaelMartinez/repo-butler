@@ -1138,3 +1138,130 @@ describe('runGovernance — tier-regression wiring', () => {
       'diffs against the previous WEEK, not the current-week file an earlier run today already overwrote');
   });
 });
+
+// --- G13: the stalled-alert detector's wiring into the phase ---
+//
+// The wiring is the part that has silently failed before: a finding type can be
+// detected correctly and still never reach the prompt, the schema or the page.
+// These cover the governance end of it — the detector's own behaviour lives in
+// stalled-alert.test.js.
+
+describe('runGovernance — stalled-alert wiring', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  // One open Dependabot alert, old enough and severe enough to qualify.
+  const staleAlert = [{
+    number: 153,
+    state: 'open',
+    created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
+    dependency: {
+      package: { ecosystem: 'npm', name: 'http-proxy-middleware' },
+      manifest_path: 'docs-site/package-lock.json',
+    },
+    security_vulnerability: { severity: 'medium', first_patched_version: { identifier: '2.0.10' } },
+    security_advisory: { ghsa_id: 'GHSA-64mm-vxmg-q3vj', summary: 'ZZADVISORYTEXTZZ' },
+  }];
+
+  function mockFetch() {
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      const body = u.includes('/dependabot/alerts') ? staleAlert : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+    };
+  }
+
+  const store = {
+    readRepoCache: async () => null,
+    readLatestGovernanceWeekly: async () => null,
+    writeGovernanceWeekly: async () => {},
+    writeGovernanceFindings: async () => {},
+  };
+
+  it('merges stalled-alert findings into the phase output with a remediation plan', async () => {
+    mockFetch();
+    const repos = [makeRepo('repo-a')];
+    const context = {
+      owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store,
+      repoDetails: makeDetails(repos),
+    };
+
+    await runGovernance(context);
+
+    const stalled = context.governanceFindings.filter(f => f.type === 'stalled-alert');
+    assert.equal(stalled.length, 1);
+    assert.equal(stalled[0].repo, 'repo-a');
+    assert.equal(stalled[0].alerts[0].number, 153);
+    // The contents API is mocked to an array, so getFileContent yields null —
+    // exactly the unreadable-input case, which must classify unknown and STILL
+    // report the finding.
+    assert.equal(stalled[0].alerts[0].classification, 'unknown');
+    assert.ok(stalled[0].remediation, 'stalled-alert findings carry the ADR-007 remediation plan');
+    assert.equal(stalled[0].remediation.executor, 'manual');
+  });
+
+  it('keeps advisory text out of every stalled-alert finding field', async () => {
+    mockFetch();
+    const repos = [makeRepo('repo-a')];
+    const context = {
+      owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store,
+      repoDetails: makeDetails(repos),
+    };
+
+    await runGovernance(context);
+
+    const stalled = context.governanceFindings.filter(f => f.type === 'stalled-alert');
+    assert.equal(stalled.length, 1, 'the guard is worthless unless the detector actually fired');
+    assert.ok(!JSON.stringify(stalled).includes('ZZADVISORYTEXTZZ'),
+      'advisory summaries are attacker-controlled prose and must never enter a finding');
+  });
+
+  it('never runs the stalled-alert detector over private repos', async () => {
+    mockFetch();
+    const CANARY = 'ZZPRIVATECANARYZZ';
+    const repos = [makeRepo('repo-a')];
+    const privateRepos = [makeRepo(CANARY)];
+    const context = {
+      owner: 'acme', token: 'tok',
+      portfolio: { repos, privateRepos }, config: {}, store,
+      repoDetails: makeDetails([...repos, ...privateRepos]),
+    };
+
+    await runGovernance(context);
+
+    const stalled = context.governanceFindings.filter(f => f.type === 'stalled-alert');
+    assert.equal(stalled.length, 1, 'the detector must have fired for this guard to mean anything');
+    assert.ok(!JSON.stringify(context.governanceFindings).includes(CANARY),
+      'a private repo name reached the governance findings via the stalled-alert detector');
+  });
+});
+
+describe('buildRemediationPlan — stalled-alert', () => {
+  const finding = {
+    type: 'stalled-alert',
+    repo: 'teams-for-linux',
+    priority: 'medium',
+    alerts: [
+      { number: 153, package: 'http-proxy-middleware', ecosystem: 'npm', severity: 'medium', ageDays: 35, classification: 'reachable-by-update', detail: 'every parent range already admits it' },
+      { number: 160, package: 'wee-lib', ecosystem: 'npm', severity: 'high', ageDays: 20, classification: 'unknown', detail: 'manifest or lockfile could not be read' },
+    ],
+  };
+
+  it('routes a stalled-alert finding to executor manual with no target files', () => {
+    // A per-repo STATE finding, like open-vulnerability and tier-regression:
+    // ADR-014 authorises no write, so it must never acquire a template or
+    // settings path, and it stays out of cross-repo PROPOSE.
+    const plan = buildRemediationPlan(finding);
+    assert.equal(plan.executor, 'manual');
+    assert.deepEqual(plan.targetFiles, []);
+  });
+
+  it('states the stalled-alert count, the oldest age and the classifications in the rationale', () => {
+    const plan = buildRemediationPlan(finding);
+    assert.match(plan.rationale, /2/);
+    assert.match(plan.rationale, /35/);
+    assert.match(plan.rationale, /reachable-by-update/);
+    assert.ok(plan.intent.includes('teams-for-linux'));
+    assert.ok(plan.acceptanceCriteria.length > 0);
+  });
+});

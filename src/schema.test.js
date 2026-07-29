@@ -274,7 +274,17 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
       { type: 'open-vulnerability', repo: 'repo-e', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'] },
       { type: 'tier-regression', repo: 'repo-f', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26' },
       { type: 'stale-butler-pr', repo: 'repo-g', stalePRs: [{ number: 9, age: 40, branch: 'repo-butler/apply-codeowners', prClass: 'apply', state: 'blocked-persistent', verified: true }] },
+      { type: 'stalled-alert', repo: 'repo-h', alerts: [{ number: 153, package: 'http-proxy-middleware', ecosystem: 'npm', manifestPath: 'docs-site/package-lock.json', severity: 'medium', ageDays: 35, classification: 'reachable-by-update', detail: 'refresh the lockfile instead' }] },
     ];
+
+    // Every type the schema admits must appear above, or its remediation plan
+    // is never validated — which is exactly how tier-regression shipped
+    // unvalidated once already.
+    const typeEnum = schema.properties.type.enum;
+    const sampled = new Set(sampleFindings.map(f => f.type));
+    for (const t of typeEnum) {
+      assert.ok(sampled.has(t), `no sample finding for schema type "${t}" — its remediation plan is untested`);
+    }
 
     for (const finding of sampleFindings) {
       const plan = buildRemediationPlan(finding);
@@ -315,5 +325,12 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
     // which is precisely what this finding watches for going stale.
     const staleButler = buildRemediationPlan({ type: 'stale-butler-pr', repo: 'r', stalePRs: [{ number: 1, age: 40, state: 'awaiting-human' }] });
     assert.equal(staleButler.executor, 'manual');
+
+    // stalled-alert is a per-repo STATE finding too, and ADR-014 authorises no
+    // write at all in response to one — so a template/settings route here would
+    // contradict the ADR that created the finding type.
+    const stalled = buildRemediationPlan({ type: 'stalled-alert', repo: 'r', alerts: [{ number: 1, ageDays: 35, classification: 'reachable-by-update' }] });
+    assert.equal(stalled.executor, 'manual');
+    assert.deepEqual(stalled.targetFiles, []);
   });
 });

@@ -540,6 +540,7 @@ export function buildGovernanceSection(findings) {
   const openVulns = findings.filter(f => f.type === 'open-vulnerability');
   const regressions = findings.filter(f => f.type === 'tier-regression');
   const staleButlerPRs = findings.filter(f => f.type === 'stale-butler-pr');
+  const stalledAlerts = findings.filter(f => f.type === 'stalled-alert');
 
   const parts = [];
 
@@ -626,6 +627,40 @@ export function buildGovernanceSection(findings) {
 <p class="muted">Repos whose health tier fell since the previous weekly snapshot. The way back up is in Tier Uplift Opportunities below.</p>
 <div class="chart-container">
 <table><thead><tr><th>Repo</th><th>Change</th><th>Priority</th><th>Since</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
+  }
+
+  // Stalled Dependabot alerts (G13) sit with the other security state, above
+  // the opportunity tables: an alert nobody is driving is closer to an open
+  // vulnerability than to a standards gap. The classification is the actionable
+  // column — `reachable-by-update` means a lockfile refresh clears it.
+  if (stalledAlerts.length > 0) {
+    const rows = stalledAlerts
+      .slice()
+      .sort((a, b) => a.repo.localeCompare(b.repo))
+      .map(f => {
+        const oldest = f.alerts.reduce((max, a) => Math.max(max, a.ageDays || 0), 0);
+        const detail = f.alerts
+          .slice()
+          .sort((a, b) => b.ageDays - a.ageDays)
+          // Package name, age and classification only — the advisory summary is
+          // never carried on the finding at all, and `detail` is built from
+          // target-repo lockfile contents, so everything here is escaped.
+          .map(a => `${escHtml(a.package)} <span class="muted">(${escHtml(String(a.ageDays))}d, ${escHtml(a.severity || 'unknown')}, ${escHtml(a.classification)})</span>`)
+          .join(', ');
+        return `<tr>
+  <td><a href="${escHtml(f.repo)}.html">${escHtml(f.repo)}</a></td>
+  <td>${f.alerts.length}</td>
+  <td>${escHtml(String(oldest))}d</td>
+  <td>${detail}</td>
+</tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Stalled Alerts</h3>
+<p class="muted">Open Dependabot alerts past the staleness threshold with no Dependabot PR addressing them. <em>reachable-by-update</em> = a lockfile refresh clears it and nobody has run one; <em>unknown</em> = the manifest or lockfile could not be read, which never suppresses the row.</p>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>Alerts</th><th>Oldest</th><th>Detail</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`);
   }
