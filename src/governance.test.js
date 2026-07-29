@@ -967,6 +967,15 @@ describe('runGovernance — private repos must never enter the governance pipeli
     };
     await runGovernance(context);
 
+    // Assert the butler-PR path actually FIRED before asserting it stayed
+    // clean. Without this the guard passes just as happily when the detector
+    // emits nothing at all — renaming the branch prefix would silently stop
+    // covering this path while the canary assertion below still went green,
+    // which is the "passes for the wrong reason" failure this file's earlier
+    // version already suffered once.
+    assert.ok(context.governanceFindings.some(f => f.type === 'stale-butler-pr'),
+      'the stale-butler-pr detector must have run for this guard to mean anything');
+
     // Serialised, so the canary is caught wherever it hides — `repo`, a
     // `nonCompliant`/`compliant` array, a remediation plan, a rationale string.
     const serialised = JSON.stringify(context.governanceFindings);

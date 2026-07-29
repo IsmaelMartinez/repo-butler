@@ -60,7 +60,12 @@ export async function runGovernance(context) {
   // the same list but keeps only its length, and that block sits behind the
   // pushed_at cache — a cache hit would hand a stale PR list to a staleness
   // detector.
-  const openPRs = await fetchOpenPRs(gh, owner, portfolio.repos);
+  // Wrapped for the same reason both audits below are: this runs BEFORE
+  // writeGovernanceFindings, so a throw here (a malformed repo entry, say)
+  // would abort the phase and leave the data branch serving the previous run's
+  // findings. An empty map degrades to each audit listing its own repos.
+  const openPRs = await fetchOpenPRs(gh, owner, portfolio.repos)
+    .catch(err => { console.error(`Open-PR sweep failed: ${err.message}`); return {}; });
 
   // Both audits are wrapped: they own per-repo error handling, but a throw from
   // anything outside that per-repo try (a malformed input, say) would abort
@@ -128,7 +133,10 @@ export async function fetchOpenPRs(gh, owner, repos) {
         max: 100,
       });
       return Array.isArray(prs) ? [repo.name, prs] : null;
-    } catch {
+    } catch (err) {
+      // Log it here, or the operator sees only the two downstream symptoms (both
+      // audits re-listing the same repo) and never the one cause.
+      console.log(`open-PR sweep: skipping ${repo.name} (${err.message?.slice(0, 80)})`);
       return null;
     }
   }));

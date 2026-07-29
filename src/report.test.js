@@ -1887,6 +1887,35 @@ describe('buildGovernanceSection', () => {
     assert.ok(html.includes('high'), 'should show priority');
   });
 
+  it('renders a Stale Butler PRs table, escaping everything and leaking no title', () => {
+    // A finding type with no block here silently inflates the "Governance (N)"
+    // header and then vanishes from the page, which would defeat G12 entirely.
+    const findings = [{
+      type: 'stale-butler-pr',
+      repo: 'repo-a',
+      stalePRs: [
+        { number: 21, age: 40, state: 'awaiting-human', branch: 'repo-butler/onboard', verified: true, draft: false, title: '<script>alert(1)</script>' },
+        { number: 22, age: 15, state: 'blocked-persistent', branch: 'repo-butler/apply-codeowners', verified: false, draft: true, title: 'untrusted' },
+      ],
+      priority: 'medium',
+      remediation: { executor: 'manual' },
+    }];
+    const html = buildGovernanceSection(findings);
+
+    assert.ok(html.includes('Stale Butler PRs'), 'should have a stale butler PR heading');
+    assert.ok(html.includes('href="repo-a.html"'), 'should link the repo');
+    assert.ok(html.includes('#21') && html.includes('#22'), 'should list both PRs');
+    assert.ok(html.includes('40d'), 'should show the oldest age');
+    assert.ok(html.includes('awaiting merge'), 'should use the human-readable state label');
+    assert.ok(html.includes('draft'), 'a parked PR reads wrongly as merely ignored otherwise');
+    assert.ok(html.includes('unverified'), 'should flag the PR whose identity did not corroborate');
+
+    // The dashboard is world-readable and PR titles are attacker-controlled:
+    // anyone can open a `repo-butler/*` branch on a portfolio repo.
+    assert.ok(!html.includes('<script>alert(1)</script>'), 'a PR title must never render');
+    assert.ok(!html.includes('repo-butler/onboard'), 'a branch name must never render');
+  });
+
   it('renders a Tier Regressions table for tier-regression findings', () => {
     const findings = [
       { type: 'tier-regression', repo: 'repo-a', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26', priority: 'high', remediation: { executor: 'manual' } },

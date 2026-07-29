@@ -643,7 +643,10 @@ export function buildGovernanceSection(findings) {
         const detail = f.stalePRs
           .slice()
           .sort((a, b) => b.age - a.age)
-          .map(p => `#${escHtml(String(p.number))} <span class="muted">(${escHtml(String(p.age))}d, ${escHtml(STALE_PR_STATE_LABEL[p.state] || p.state)}${p.verified === false ? ', unverified' : ''})</span>`)
+          // `draft` is surfaced because a draft PR reads as "awaiting merge"
+          // otherwise, which inverts the meaning: nobody is ignoring it, a human
+          // deliberately parked it.
+          .map(p => `#${escHtml(String(p.number))} <span class="muted">(${escHtml(String(p.age))}d, ${escHtml(STALE_PR_STATE_LABEL[p.state] || p.state)}${p.draft ? ', draft' : ''}${p.verified === false ? ', unverified' : ''})</span>`)
           .join(', ');
         return `<tr>
   <td><a href="${escHtml(f.repo)}.html">${escHtml(f.repo)}</a></td>

@@ -288,4 +288,59 @@ describe('stale-butler-pr detection', () => {
     assert.equal(findings[0].stalePRs[0].verified, true,
       'the real onboard body carries APPLY_PR_MARKER, so identity verifies');
   });
+
+  it('stale-butler-pr: reports ci-pending distinctly, not as blocked or awaiting-human', async () => {
+    // A PR whose CI never settles needs a different remedy from one that is
+    // failing and one that is merely ignored, so the three must not collapse.
+    const gh = makeGh({ 'repo-a': [makePR(1, 'repo-butler/apply-codeowners', 40)] }, { ciState: 'pending' });
+
+    const findings = await auditButlerPRs(gh, 'owner', [makeRepo('repo-a')]);
+
+    assert.equal(findings[0].stalePRs[0].state, 'ci-pending');
+    assert.deepEqual(findings[0].stalePRs[0].failing, []);
+    assert.equal(gh.calls.filter(c => c.kind === 'ciHistory').length, 0,
+      'only a red PR is worth the extra history call');
+  });
+
+  it('stale-butler-pr: caps CI classification per repo but still reports the remainder', async () => {
+    // The cap is the one off-by-one in the file. Loosening it to `i >` adds an
+    // extra pair of API calls per affected repo on all four daily runs, and
+    // nothing else in the suite would notice.
+    const prs = [40, 39, 38, 37].map((age, i) => makePR(i + 1, 'repo-butler/apply-codeowners', age));
+    const gh = makeGh({ 'repo-a': prs }, { ciState: 'green' });
+
+    const findings = await auditButlerPRs(gh, 'owner', [makeRepo('repo-a')]);
+    const states = findings[0].stalePRs.map(p => p.state);
+
+    assert.equal(findings[0].stalePRs.length, 4, 'nothing is silently dropped');
+    assert.deepEqual(states, ['awaiting-human', 'awaiting-human', 'awaiting-human', 'unclassified']);
+    assert.equal(gh.calls.filter(c => c.kind === 'ciState').length, 3,
+      'exactly three PRs may cost a CI read');
+  });
+
+  it('stale-butler-pr: verifies identity from the governance-apply LABEL, not only the body marker', async () => {
+    // apply.js labels every PR it opens, so the label is a live corroboration
+    // route in its own right — a body that got edited must not read as forged.
+    const pr = makePR(1, 'repo-butler/apply-codeowners', 40, {
+      body: 'a maintainer rewrote this description',
+      labels: [{ name: 'governance-apply' }],
+    });
+    const gh = makeGh({ 'repo-a': [pr] }, { ciState: 'green' });
+
+    const findings = await auditButlerPRs(gh, 'owner', [makeRepo('repo-a')]);
+
+    assert.equal(findings[0].stalePRs[0].verified, true);
+  });
+
+  it('stale-butler-pr: surfaces an unmarked branch as unverified rather than dropping it', async () => {
+    // A branch impersonating the butler is itself worth seeing; dropping it
+    // would hide the case the identity check exists for.
+    const pr = makePR(1, 'repo-butler/apply-codeowners', 40, { body: 'no marker', labels: [] });
+    const gh = makeGh({ 'repo-a': [pr] }, { ciState: 'green' });
+
+    const findings = await auditButlerPRs(gh, 'owner', [makeRepo('repo-a')]);
+
+    assert.equal(findings.length, 1, 'surfaced, not dropped');
+    assert.equal(findings[0].stalePRs[0].verified, false);
+  });
 });
