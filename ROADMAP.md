@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-07-29
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path and per-class auto-merge are all live; cross-repo PROPOSE is mid-graduation and private-repo watching is in review.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -79,7 +79,7 @@ Roadmap restructured and the shipped log compacted 2026-07-27 (PR #349). The doc
 
 Roadmap append spacing fixed 2026-07-27 (PR #352). Appended entries landed flush against the following `---`, which CommonMark reads as a setext heading underline, so the last entry in a section rendered as an `<h2>` and the horizontal rule vanished. Live since at least #330 and invisible in a diff — it showed only in the rendered file.
 
-Roadmap formatting polish and administrative updates completed 2026-07-27 (PRs #351, #352). These changes finalized the roadmap compaction mechanics and resolved a subtle CommonMark rendering issue where trailing entries ran flush against the section divider.
+G7 gold-ratchet tier-regression detector shipped 2026-07-29 (PR #354). Extends the governance engine with strict tier-regression detection to guarantee portfolio health compliance and prevent accidental downgrades.
 
 ---
 
