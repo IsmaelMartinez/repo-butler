@@ -215,7 +215,7 @@
       "stars": 4892,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9795918367346939,
+      "ciPassRate": 0.9791666666666666,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 11,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-07-29T05:44:32Z",
+      "pushed_at": "2026-07-29T10:43:09Z",
       "traffic": {
         "views_14d": {
           "count": 30,
@@ -833,7 +833,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9278350515463918,
+      "ciPassRate": 0.9381443298969072,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -855,7 +855,7 @@
       },
       "ci": 16,
       "released_at": "2026-07-13T06:39:49Z",
-      "pushed_at": "2026-07-26T12:20:01Z",
+      "pushed_at": "2026-07-29T11:43:44Z",
       "traffic": {
         "views_14d": {
           "count": 2,
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.927710843373494,
+      "ciPassRate": 0.9397590361445783,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-07-29T08:14:57Z",
+      "pushed_at": "2026-07-29T09:36:21Z",
       "traffic": {
         "views_14d": {
           "count": 12,
@@ -1342,13 +1342,13 @@
     },
     "skill-sources": {
       "id": 1313126760,
-      "open_issues": 1,
+      "open_issues": 2,
       "open_bugs": 0,
       "commits_6mo": 36,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 0.8333333333333334,
+      "ciPassRate": 0.8888888888888888,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1363,7 +1363,7 @@
       },
       "ci": 2,
       "released_at": "2026-07-27T15:48:04Z",
-      "pushed_at": "2026-07-27T21:01:56Z",
+      "pushed_at": "2026-07-29T10:32:02Z",
       "traffic": {
         "views_14d": {
           "count": 1,
