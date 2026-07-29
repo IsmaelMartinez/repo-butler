@@ -313,6 +313,39 @@ Refusal conditions are part of the specification, each mapped to a verified fixt
 
 Tests use those three real cases as fixtures, because each would have broken a naive implementation.
 
+Progress (2026-07-29): G5 complete — [ADR-013](../decisions/013-content-transformation-writes.md)
+covers the third write category, with the benign-worst-case analysis redone
+rather than inherited. G6's deciding core ships as `src/trimmer.js` (pure, no
+caller in the write path yet), verifier `scripts/verify-g5.sh`.
+
+The rescope this document already argued for at lines 43-49 is now implemented,
+not just noted: `reachable-by-update` is a **refusal**. If every parent range
+already admits the patch, `npm update --package-lock-only` reaches it and an
+override would be permanent manifest cruft for a transient problem. The only
+shape that produces a change is the `0.x`-capped one. The happy-path test is the
+real `sharp` under `next@^0.34.5` from bonnie-wee-plot's lockfile, and it asserts
+the trimmer independently derives `{"next": {"sharp": "^0.35.0"}}` — the fix a
+maintainer had already written by hand.
+
+One refusal rule was wrong on the first attempt and is worth recording, because
+the test caught it and a review of the prose would not have. Disjointness was
+first implemented as "more than one capped parent". That passes the
+`brace-expansion` fixture's shape check while doing the wrong thing: with one
+parent at `^1.1.11` and a patch at `2.0.2`, only one parent is capped, so the
+naive rule emitted an override dragging that parent across a major boundary it
+never declared. The correct rule is a **major-line check** — an override may
+widen within a major line and must never cross one. Both real cases then fall
+out correctly: `brace-expansion` refuses (1.x parent, 2.x patch) and `sharp`
+proceeds (0.34 → 0.35, same major line).
+
+**Acceptance cannot currently be met**, and this is a blocker rather than an
+omission: the stated canary requires "a repo with an open critical or high alert
+whose autofix is not driving", and the portfolio has **zero** open critical/high
+alerts. There is nothing to trim. The core is proven against real lockfile
+structure and the real historical cases; it is unproven end-to-end until an
+advisory appears. The rescan-nudging goal proposed at line 49 is the better next
+investment and remains unbuilt.
+
 It stays off the schedule and off auto-merge. Auto-merge is restricted by construction to classes with a `TEMPLATES` entry (`isAutoMergeAllowed`, `apply.js:1075`), which excludes content transformation; that restriction is correct and this plan does not relax it.
 
 ### G11 — CI hygiene
