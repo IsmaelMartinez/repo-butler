@@ -134,8 +134,12 @@ export async function auditButlerPRs(gh, owner, repos, { openPRs = null } = {}) 
       const stale = [];
       for (const pr of prs) {
         const prClass = classifyButlerBranch(pr?.head?.ref);
-        if (!prClass || !isAuditableClass(prClass)) continue;
+        if (!isAuditableClass(prClass)) continue;
         const age = Math.floor((now - new Date(pr.created_at).getTime()) / 86400000);
+        // Negated `>` rather than `<=`, and deliberately so: an unparseable
+        // created_at makes `age` NaN, and every NaN comparison is false — so
+        // this form SKIPS such a PR, where `age <= threshold` would let it
+        // through and report a PR of unknown age as stale.
         if (!(age > THRESHOLD_DAYS[prClass])) continue;
         stale.push({ pr, prClass, age });
       }
@@ -147,22 +151,20 @@ export async function auditButlerPRs(gh, owner, repos, { openPRs = null } = {}) 
       stale.sort((a, b) => b.age - a.age);
 
       const stalePRs = [];
-      for (const [i, s] of stale.entries()) {
-        const base = {
-          number: s.pr.number,
-          age: s.age,
-          branch: s.pr.head?.ref,
-          prClass: s.prClass,
-          draft: s.pr.draft === true,
-          verified: isVerified(s.pr),
-          author: s.pr.user?.login ?? null,
-        };
-        if (i >= MAX_CLASSIFIED_PER_REPO) {
-          stalePRs.push({ ...base, state: 'unclassified', failing: [] });
-          continue;
-        }
-        const { state, failing } = await classifyPR(gh, owner, repo.name, s.pr);
-        stalePRs.push({ ...base, state, failing });
+      for (const [i, { pr, prClass, age }] of stale.entries()) {
+        const classification = i < MAX_CLASSIFIED_PER_REPO
+          ? await classifyPR(gh, owner, repo.name, pr)
+          : { state: 'unclassified', failing: [] };
+        stalePRs.push({
+          number: pr.number,
+          age,
+          branch: pr.head?.ref,
+          prClass,
+          draft: pr.draft === true,
+          verified: isVerified(pr),
+          author: pr.user?.login ?? null,
+          ...classification,
+        });
       }
 
       return {

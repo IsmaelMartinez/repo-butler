@@ -391,6 +391,20 @@ exits **0** when the named test file is absent and zero tests match. Exit code
 alone would therefore have declared this goal already met before a line was
 written. The test-count floor in `verify-g12.sh` is what makes it able to fail.
 
+Review follow-up (2026-07-29). The open-PR sweep was the one call in
+`runGovernance` sitting outside a `catch` — directly beneath a comment
+explaining why that is fatal, since a throw there aborts the phase before
+`writeGovernanceFindings` and leaves the data branch serving the previous run's
+findings. It is now wrapped like both audits. The rest was coverage: `prCiState`
+is the most intricate new code in the change and had no direct test, every
+assertion about it coming through a stub. Two mutations confirmed the gap was
+real — reversing the red-beats-pending precedence, and loosening the
+per-repo classification cap by one — each of which previously passed the entire
+suite. The lesson generalises past this goal: a test that passes against
+mutated production code is measuring nothing, and for characterisation tests
+written after the fact, mutating the source is the only available substitute for
+watching the test fail first.
+
 This is the same blindness as G7 seen from another angle. G7 notices a repo losing tier; G12 notices the butler's own action failing to land. Both are instances of a single missing property: the butler acts, and nothing checks afterwards whether the action worked. If only one thing is built from this document, build that property — G7 is the cheapest slice of it, G12 the second.
 
 ## What this plan deliberately does not do
