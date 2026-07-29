@@ -337,6 +337,74 @@ Acceptance: a finding is emitted when a PR on a `repo-butler/apply-*` branch, ca
 cd <repo-butler> && node --test --test-name-pattern 'stale-apply-pr' src/governance.test.js
 ```
 
+Progress (2026-07-29): implemented as `src/butler-pr-audit.js`, verifier
+`scripts/verify-g12.sh`. Six deviations from the spec above, each forced by
+evidence found while building, and each recorded here rather than quietly
+absorbed.
+
+*Scope widened beyond `apply-*`.* The motivating PR (#169) merged on 2026-07-25,
+but `lounge-tv` #21 — an **onboard** PR — had by then sat green, mergeable and
+ignored for 16 days. Scoping to `apply-*` as written would have shipped a
+detector that emitted nothing and repeated the very blindness it exists to fix,
+so the locator is `repo-butler/*`. Roadmap PRs are then excluded again for a
+different reason: UPDATE force-pushes a fresh head onto the same PR every run and
+`self-test.yml` runs `update` immediately before `governance`, so their CI is
+permanently in flight and their age never resets — including them would emit a
+wrong "blocked" row about the butler's own repo four times a day.
+
+*Trigger widened to include green-but-ignored.* "Open beyond a threshold with CI
+not green" is silent on the failure mode actually present in the portfolio. A
+green PR nobody merged also means the remediation never landed.
+
+*Blame attribution dropped.* The spec asks to distinguish "blocked by its own
+content" from "blocked by a repo-wide CI failure". The intended signal does not
+carry that information: `prCiHistory.failing` holds workflow *run* names, and
+most repos here run a single workflow called `CI`, so a sibling comparison would
+report "overlap" almost always while costing several extra calls per PR. It
+reports **persistence** instead — the identical failing set across three
+attempts, via the existing `isDeterministicFailure` — which is the signal an
+operator acts on ("a rebase will not fix this").
+
+*`prCiGreen` deliberately not reused.* It is a merge-authorisation guard that
+collapses red, pending, no-CI-at-all and API errors into a single `false`.
+Reading that as "blocked" would permanently mislabel every repo carrying a
+`ci-workflows` gap. A separate four-way `prCiState` was added beside it, leaving
+the merge guard's conservative path untouched.
+
+*Thresholds relaxed.* `apply-scheduled.yml` is a **weekly** cron, so the
+originally-planned 7 days would fire on any apply PR that merely missed one run.
+Apply 14d, onboard 30d.
+
+*Identity recorded, not enforced.* Gating on the App's bot login would silently
+blind the detector the moment the App were renamed — the exact failure mode this
+goal exists to catch. The branch prefix locates; the marker corroborates into a
+`verified` flag; an unmarked `repo-butler/*` branch is surfaced, not dropped.
+
+Two pre-existing gaps in the shipped G7 work were found and fixed in the same
+change: `tier-regression` was missing from `ideate.js`'s
+`appendGovernanceContext` (so those findings never reached the IDEATE prompt) and
+from `schema.test.js`'s `sampleFindings` (so its remediation plan was never
+validated).
+
+Worth recording about the verifier itself: `node --test` reports `pass 1` and
+exits **0** when the named test file is absent and zero tests match. Exit code
+alone would therefore have declared this goal already met before a line was
+written. The test-count floor in `verify-g12.sh` is what makes it able to fail.
+
+Review follow-up (2026-07-29). The open-PR sweep was the one call in
+`runGovernance` sitting outside a `catch` — directly beneath a comment
+explaining why that is fatal, since a throw there aborts the phase before
+`writeGovernanceFindings` and leaves the data branch serving the previous run's
+findings. It is now wrapped like both audits. The rest was coverage: `prCiState`
+is the most intricate new code in the change and had no direct test, every
+assertion about it coming through a stub. Two mutations confirmed the gap was
+real — reversing the red-beats-pending precedence, and loosening the
+per-repo classification cap by one — each of which previously passed the entire
+suite. The lesson generalises past this goal: a test that passes against
+mutated production code is measuring nothing, and for characterisation tests
+written after the fact, mutating the source is the only available substitute for
+watching the test fail first.
+
 This is the same blindness as G7 seen from another angle. G7 notices a repo losing tier; G12 notices the butler's own action failing to land. Both are instances of a single missing property: the butler acts, and nothing checks afterwards whether the action worked. If only one thing is built from this document, build that property — G7 is the cheapest slice of it, G12 the second.
 
 ## What this plan deliberately does not do

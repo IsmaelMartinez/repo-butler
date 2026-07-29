@@ -504,6 +504,17 @@ const STANDARD_LABELS = {
   'release-cadence': 'Release automation',
 };
 
+// Human labels for the butler-PR staleness states (src/butler-pr-audit.js).
+const STALE_PR_STATE_LABEL = {
+  'awaiting-human': 'awaiting merge',
+  'blocked-persistent': 'blocked (persistent)',
+  'blocked-transient': 'blocked',
+  'ci-none': 'no CI',
+  'ci-pending': 'CI running',
+  unknown: 'unknown',
+  unclassified: 'not checked',
+};
+
 const DRIFT_LABELS = {
   'license': 'License',
   'ci-reliability': 'CI reliability',
@@ -528,6 +539,7 @@ export function buildGovernanceSection(findings) {
   const uplift = findings.filter(f => f.type === 'tier-uplift');
   const openVulns = findings.filter(f => f.type === 'open-vulnerability');
   const regressions = findings.filter(f => f.type === 'tier-regression');
+  const staleButlerPRs = findings.filter(f => f.type === 'stale-butler-pr');
 
   const parts = [];
 
@@ -614,6 +626,40 @@ export function buildGovernanceSection(findings) {
 <p class="muted">Repos whose health tier fell since the previous weekly snapshot. The way back up is in Tier Uplift Opportunities below.</p>
 <div class="chart-container">
 <table><thead><tr><th>Repo</th><th>Change</th><th>Priority</th><th>Since</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
+  }
+
+  // The butler's own PRs that never landed. Rendered explicitly because a
+  // finding type with no block here silently inflates the "Governance (N)"
+  // header and then vanishes from the page — which is how `dependabot-stale`
+  // currently behaves, and would defeat G12's whole purpose.
+  if (staleButlerPRs.length > 0) {
+    const rows = staleButlerPRs
+      .slice()
+      .sort((a, b) => a.repo.localeCompare(b.repo))
+      .map(f => {
+        const oldest = f.stalePRs.reduce((max, p) => Math.max(max, p.age || 0), 0);
+        const detail = f.stalePRs
+          .slice()
+          .sort((a, b) => b.age - a.age)
+          // `draft` is surfaced because a draft PR reads as "awaiting merge"
+          // otherwise, which inverts the meaning: nobody is ignoring it, a human
+          // deliberately parked it.
+          .map(p => `#${escHtml(String(p.number))} <span class="muted">(${escHtml(String(p.age))}d, ${escHtml(STALE_PR_STATE_LABEL[p.state] || p.state)}${p.draft ? ', draft' : ''}${p.verified === false ? ', unverified' : ''})</span>`)
+          .join(', ');
+        return `<tr>
+  <td><a href="${escHtml(f.repo)}.html">${escHtml(f.repo)}</a></td>
+  <td>${f.stalePRs.length}</td>
+  <td>${escHtml(String(oldest))}d</td>
+  <td>${detail}</td>
+</tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Stale Butler PRs</h3>
+<p class="muted">Pull requests the butler opened and nobody landed. <em>awaiting merge</em> = green and mergeable, just ignored; <em>blocked (persistent)</em> = failing identically every attempt, so a rebase will not help.</p>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>PRs</th><th>Oldest</th><th>Detail</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`);
   }

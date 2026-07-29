@@ -892,11 +892,25 @@ describe('runGovernance — private repos must never enter the governance pipeli
     // Return a long-stale Dependabot PR for every repo, so auditDependabot also
     // produces a finding. With an empty page it emits nothing and this guard
     // would not cover the audit path at all.
+    // Two PRs per repo: one Dependabot (feeds auditDependabot) and one on a
+    // repo-butler/* branch (feeds auditButlerPRs). Without the second, the
+    // butler-PR detector never fires during this guard and its contribution to
+    // the findings — including the private repo's name in a `repo` field —
+    // would go unchecked as the phase grows.
     const stalePR = [{
       number: 1,
       title: 'chore(deps): bump something',
       user: { login: 'dependabot[bot]' },
       created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
+    }, {
+      number: 2,
+      title: 'chore: add codeowners configuration',
+      user: { login: 'repo-butler-app[bot]' },
+      created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
+      head: { ref: 'repo-butler/apply-codeowners', sha: 'deadbeef' },
+      body: '*Opened automatically by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler)*',
+      labels: [],
+      draft: false,
     }];
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
@@ -952,6 +966,15 @@ describe('runGovernance — private repos must never enter the governance pipeli
       config, store, repoDetails,
     };
     await runGovernance(context);
+
+    // Assert the butler-PR path actually FIRED before asserting it stayed
+    // clean. Without this the guard passes just as happily when the detector
+    // emits nothing at all — renaming the branch prefix would silently stop
+    // covering this path while the canary assertion below still went green,
+    // which is the "passes for the wrong reason" failure this file's earlier
+    // version already suffered once.
+    assert.ok(context.governanceFindings.some(f => f.type === 'stale-butler-pr'),
+      'the stale-butler-pr detector must have run for this guard to mean anything');
 
     // Serialised, so the canary is caught wherever it hides — `repo`, a
     // `nonCompliant`/`compliant` array, a remediation plan, a rationale string.

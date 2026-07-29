@@ -418,6 +418,84 @@ describe('createClient — mergePR', () => {
   });
 });
 
+// prCiState exists BESIDE prCiGreen rather than replacing it: prCiGreen is a
+// merge authorisation and must keep collapsing everything non-green into false,
+// whereas a reporting caller has to tell "red" from "nothing ran" from "could
+// not read" — the three would otherwise land in the same dashboard row with
+// three different remedies.
+describe('createClient — prCiState', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  function route(checkRuns, statusBody, { totalCount } = {}) {
+    return mock.fn(async (url) => {
+      const u = url.toString();
+      if (u.includes('/check-runs')) {
+        return jsonResponse({ check_runs: checkRuns, total_count: totalCount ?? checkRuns.length });
+      }
+      if (u.endsWith('/status')) return jsonResponse(statusBody);
+      return jsonResponse({});
+    });
+  }
+
+  it('green when every check-run succeeded and no status is failing', async () => {
+    globalThis.fetch = route(
+      [{ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'skipped' }],
+      { state: 'success', statuses: [] },
+    );
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'green');
+  });
+
+  it('red when a check-run concluded failure', async () => {
+    globalThis.fetch = route([{ status: 'completed', conclusion: 'failure' }], { state: 'success', statuses: [] });
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'red');
+  });
+
+  it('red when the combined status is error, not just failure', async () => {
+    // An errored status (a webhook that never reported, say) is as blocking as
+    // a failure; treating only 'failure' as red would report the PR green.
+    globalThis.fetch = route([], { state: 'error', statuses: [{ state: 'error' }] });
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'red');
+  });
+
+  it('pending when a run is still in flight and nothing has failed', async () => {
+    globalThis.fetch = route(
+      [{ status: 'completed', conclusion: 'success' }, { status: 'in_progress', conclusion: null }],
+      { state: 'pending', statuses: [] },
+    );
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'pending');
+  });
+
+  it('RED BEATS PENDING — one failure decides it however much is still running', async () => {
+    // The precedence is load-bearing: reversing these two checks reports a
+    // genuinely broken PR as merely unsettled, and the whole suite still passes.
+    globalThis.fetch = route(
+      [{ status: 'completed', conclusion: 'failure' }, { status: 'queued', conclusion: null }],
+      { state: 'pending', statuses: [] },
+    );
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'red');
+  });
+
+  it('none when the commit carries no CI signal at all', async () => {
+    // Distinct from red on purpose: the portfolio actively tracks a ci-workflows
+    // gap, so "this repo has no CI" must not read as "this PR is broken".
+    globalThis.fetch = route([], { state: 'pending', statuses: [] });
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'none');
+  });
+
+  it('unknown when the paging cap is hit before the run list is complete', async () => {
+    // An incomplete read is never guessed in either direction.
+    globalThis.fetch = route([{ status: 'completed', conclusion: 'success' }], { state: 'success', statuses: [] }, { totalCount: 9999 });
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'unknown');
+  });
+
+  it('unknown when the API throws, never a guess', async () => {
+    globalThis.fetch = mock.fn(async () => { throw new Error('network down'); });
+    assert.equal(await createClient('tok').prCiState('o', 'r', 'sha'), 'unknown');
+  });
+});
+
 describe('createClient — prCiGreen', () => {
   let originalFetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });

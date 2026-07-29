@@ -272,6 +272,8 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
       { type: 'policy-drift', category: 'license', repo: 'repo-c', expected: 'MIT', actual: 'GPL-3.0' },
       { type: 'dependabot-stale', repo: 'repo-d', stalePRs: [{ number: 1, title: 'bump', age: 45 }] },
       { type: 'open-vulnerability', repo: 'repo-e', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'] },
+      { type: 'tier-regression', repo: 'repo-f', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26' },
+      { type: 'stale-butler-pr', repo: 'repo-g', stalePRs: [{ number: 9, age: 40, branch: 'repo-butler/apply-codeowners', prClass: 'apply', state: 'blocked-persistent', verified: true }] },
     ];
 
     for (const finding of sampleFindings) {
@@ -307,5 +309,11 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
     // template/settings write path via the remediation plan (ADR-002/011 lane).
     const openVuln = buildRemediationPlan({ type: 'open-vulnerability', repo: 'r', critical: 0, high: 1, secretScanning: 0, sources: ['dependabot'] });
     assert.equal(openVuln.executor, 'manual');
+
+    // stale-butler-pr is likewise a per-repo STATE finding. Routing it to
+    // `template` would also be circular: the templated path opens apply PRs,
+    // which is precisely what this finding watches for going stale.
+    const staleButler = buildRemediationPlan({ type: 'stale-butler-pr', repo: 'r', stalePRs: [{ number: 1, age: 40, state: 'awaiting-human' }] });
+    assert.equal(staleButler.executor, 'manual');
   });
 });

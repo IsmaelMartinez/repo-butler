@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/governance-finding.v1.schema.json",
   "title": "GovernanceFinding",
-  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability) and src/dependabot-audit.js (dependabot-stale). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
+  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale) and src/butler-pr-audit.js (stale-butler-pr). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
   "type": "object",
   "required": ["type", "priority", "remediation"],
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability"],
+      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr"],
       "description": "The finding category, which determines the remaining fields."
     },
     "priority": {
@@ -22,7 +22,7 @@
     },
     "repo": {
       "type": "string",
-      "description": "policy-drift, tier-uplift, dependabot-stale, open-vulnerability: the affected repository name."
+      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr: the affected repository name."
     },
     "nonCompliant": {
       "type": "array",
@@ -57,6 +57,40 @@
     "autofixEnabled": {
       "type": ["boolean", "null"],
       "description": "open-vulnerability, dependabot-sourced only (ADR-012 Phase 3): whether GitHub's Dependabot automated security fixes are actively opening the bump PRs. true = remediation in flight (enabled and not paused); false = OFF/paused (not being driven to resolution); null = state unreadable/unknown. Read in the OBSERVE/portfolio-details layer (detection stays pure). When true and Dependabot is the only source, a high-priority finding is downgraded to medium; max_severity is never changed and the health-tier drop stands."
+    },
+    "stalePRs": {
+      "type": "array",
+      "description": "dependabot-stale and stale-butler-pr: the unmerged PRs behind the finding. stale-butler-pr entries additionally carry prClass/state/verified.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "integer" },
+          "age": { "type": "integer", "minimum": 0, "description": "Days open." },
+          "branch": { "type": "string" },
+          "prClass": {
+            "type": "string",
+            "enum": ["apply", "onboard"],
+            "description": "stale-butler-pr only: which butler workflow opened it. roadmap-update PRs are excluded from staleness — UPDATE rewrites their head every pipeline run, so their CI is permanently in flight and their age never resets."
+          },
+          "state": {
+            "type": "string",
+            "enum": ["awaiting-human", "blocked-persistent", "blocked-transient", "ci-none", "ci-pending", "unknown", "unclassified"],
+            "description": "stale-butler-pr only. Derived from the four-way prCiState (NOT prCiGreen, which collapses red/pending/no-CI/error into one false): awaiting-human = green and simply unmerged; blocked-persistent = the identical check set failed the last 3 attempts, so a rebase will not clear it; blocked-transient = red without that repeat evidence; ci-none = the repo has no CI at all, so nothing is blocking it; unknown = CI state unreadable, which never downgrades to an all-clear; unclassified = beyond the per-repo classification cap."
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "stale-butler-pr only: whether the PR body carries a butler marker or the governance-apply label. A branch prefix is forgeable, so false means the branch claims to be the butler's but carries no corroboration — surfaced rather than dropped."
+          },
+          "draft": { "type": "boolean" },
+          "author": { "type": ["string", "null"] },
+          "failing": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "stale-butler-pr only: names of the failing workflow runs on the most recent attempt."
+          },
+          "title": { "type": "string", "description": "dependabot-stale only." }
+        }
+      }
     },
     "remediation": { "$ref": "#/$defs/RemediationPlan" }
   },

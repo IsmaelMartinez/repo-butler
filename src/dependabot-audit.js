@@ -12,9 +12,14 @@ const HIGH_PRIORITY_DAYS = 60;
  * @param {object} gh — GitHub API client (createClient return)
  * @param {string} owner — repo owner
  * @param {Array} repos — portfolio repos from observePortfolio()
+ * @param {{ openPRs?: Object }} [options] — pre-fetched `{ repoName: prs[] }` map
+ *   (governance.js fetchOpenPRs). Optional and backwards compatible: omit it and
+ *   each repo is listed on demand exactly as before. It exists so this audit and
+ *   the butler-PR audit, which read the identical open-PR list, do not sweep it
+ *   twice on every pipeline run.
  * @returns {Array} findings of type 'dependabot-stale'
  */
-export async function auditDependabot(gh, owner, repos) {
+export async function auditDependabot(gh, owner, repos, { openPRs = null } = {}) {
   const eligible = repos.filter(r =>
     !r.archived && !r.fork && !REPO_EXCLUSION_PATTERNS.some(p => r.name.includes(p))
   );
@@ -23,7 +28,7 @@ export async function auditDependabot(gh, owner, repos) {
 
   const results = await Promise.all(eligible.map(async (repo) => {
     try {
-      const prs = await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
+      const prs = openPRs?.[repo.name] ?? await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
         params: { state: 'open', sort: 'created', direction: 'asc' },
         max: 100,
       });

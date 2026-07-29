@@ -8,6 +8,7 @@ import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
+import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
 
@@ -52,10 +53,37 @@ export async function runGovernance(context) {
   context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...regressions];
   console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${regressions.length} tier-regression)`);
 
-  const stale = await auditDependabot(gh, owner, portfolio.repos);
+  // One open-PR sweep, two consumers. Both audits read the identical
+  // `/pulls?state=open` list for every eligible repo, so fetching it twice would
+  // double that call across the portfolio on every one of the 4 daily runs.
+  // Deliberately NOT sourced from context.repoDetails: report-portfolio fetches
+  // the same list but keeps only its length, and that block sits behind the
+  // pushed_at cache — a cache hit would hand a stale PR list to a staleness
+  // detector.
+  // Wrapped for the same reason both audits below are: this runs BEFORE
+  // writeGovernanceFindings, so a throw here (a malformed repo entry, say)
+  // would abort the phase and leave the data branch serving the previous run's
+  // findings. An empty map degrades to each audit listing its own repos.
+  const openPRs = await fetchOpenPRs(gh, owner, portfolio.repos)
+    .catch(err => { console.error(`Open-PR sweep failed: ${err.message}`); return {}; });
+
+  // Both audits are wrapped: they own per-repo error handling, but a throw from
+  // anything outside that per-repo try (a malformed input, say) would abort
+  // runGovernance before writeGovernanceFindings, leaving the data branch
+  // serving the PREVIOUS run's findings while the phase reports failure. The
+  // phase must degrade to "this detector found nothing", never to stale output.
+  const stale = await auditDependabot(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => { console.error(`Dependabot audit failed: ${err.message}`); return []; });
   if (stale.length > 0) {
     context.governanceFindings.push(...stale);
     console.log(`Dependabot audit: ${stale.length} repos with stale PRs.`);
+  }
+
+  const butlerPRs = await auditButlerPRs(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => { console.error(`Butler PR audit failed: ${err.message}`); return []; });
+  if (butlerPRs.length > 0) {
+    context.governanceFindings.push(...butlerPRs);
+    console.log(`Butler PR audit: ${butlerPRs.length} repos with stale butler PRs.`);
   }
 
   // Attach the portable remediation-plan contract (ADR-007) to every finding
@@ -79,6 +107,40 @@ export async function runGovernance(context) {
     // remediation and the dashboard/MCP/apply read out-of-date data.
     await store.writeGovernanceFindings(context.governanceFindings);
   }
+}
+
+/**
+ * Sweep every governance-eligible repo's open PRs once, so the detectors that
+ * need that list can share a single pass. Returns `{ repoName: prs[] }`.
+ *
+ * Best-effort per repo: a repo whose listing fails is simply absent from the
+ * map, and each detector falls back to listing that repo itself — so a
+ * transient failure here degrades to the old double-fetch behaviour rather than
+ * silently reporting "no open PRs", which a staleness detector would read as
+ * "nothing is stale".
+ *
+ * @param {object} gh — GitHub API client
+ * @param {string} owner
+ * @param {Array} repos — portfolio repos from observePortfolio()
+ * @returns {Promise<Object>} map of repo name to its open PRs
+ */
+export async function fetchOpenPRs(gh, owner, repos) {
+  const eligible = eligibleRepos(repos || []);
+  const entries = await Promise.all(eligible.map(async (repo) => {
+    try {
+      const prs = await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
+        params: { state: 'open', sort: 'created', direction: 'asc' },
+        max: 100,
+      });
+      return Array.isArray(prs) ? [repo.name, prs] : null;
+    } catch (err) {
+      // Log it here, or the operator sees only the two downstream symptoms (both
+      // audits re-listing the same repo) and never the one cause.
+      console.log(`open-PR sweep: skipping ${repo.name} (${err.message?.slice(0, 80)})`);
+      return null;
+    }
+  }));
+  return Object.fromEntries(entries.filter(Boolean));
 }
 
 /**
@@ -667,6 +729,28 @@ export function buildRemediationPlan(finding) {
         intent: `Review ${prs.length} stale Dependabot PR(s) in ${finding.repo}`,
         rationale: `${prs.length} Dependabot PR(s) open beyond the staleness threshold (oldest ${oldest} days).`,
         acceptanceCriteria: ['Each stale Dependabot PR is merged or closed'],
+      };
+    }
+    case 'stale-butler-pr': {
+      const prs = finding.stalePRs || [];
+      const oldest = prs.reduce((max, p) => Math.max(max, p.age || 0), 0);
+      const states = [...new Set(prs.map(p => p.state))].sort();
+      // executor 'manual', like dependabot-stale and open-vulnerability: this is
+      // a per-repo STATE finding, so it must stay off the templated-PR path and
+      // out of cross-repo PROPOSE (ADR-002/ADR-011). Note the recursion hazard
+      // it would otherwise create — the templated path opens apply PRs, which is
+      // exactly what this finding watches.
+      const remedy = states.includes('blocked-persistent')
+        ? 'A persistent failure will not clear on a rebase — fix the cause or close the PR.'
+        : states.includes('awaiting-human') || states.includes('ci-none')
+          ? 'Nothing is blocking these — they need a merge decision.'
+          : 'Check why CI has not settled.';
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Land or close ${prs.length} stale repo-butler PR(s) in ${finding.repo}`,
+        rationale: `${prs.length} butler-opened PR(s) unmerged beyond the staleness threshold (oldest ${oldest} days; state: ${states.join(', ') || 'unknown'}). ${remedy}`,
+        acceptanceCriteria: ['Each stale repo-butler PR is merged or closed'],
       };
     }
     case 'open-vulnerability': {

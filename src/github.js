@@ -280,6 +280,63 @@ export function createClient(token, options = {}) {
     }
   }
 
+  // Report a commit's CI as a four-way state, for REPORTING paths that must tell
+  // apart the realities `prCiGreen` deliberately collapses.
+  //
+  // `prCiGreen` above answers one question — "may this be merged?" — and answers
+  // `false` for red CI, pending CI, NO CI AT ALL, and an API error alike. That is
+  // correct for authorising an irreversible write, and it must not be loosened.
+  // But a reporting caller that reads that boolean as "blocked" mislabels every
+  // repo with no CI configured (the portfolio actively tracks a `ci-workflows`
+  // standards gap) and every PR whose checks are merely still running.
+  //
+  // So this is a SEPARATE function, not a refactor of prCiGreen: the merge guard
+  // keeps its own conservative code path, and nothing here can pressure it to
+  // relax. Reads the same two sources.
+  //
+  // Returns: 'green'   — every check-run completed OK and any statuses rolled up success
+  //          'red'     — at least one check-run or status concluded failure
+  //          'pending' — nothing failed, but something is still running/queued
+  //          'none'    — no CI signal exists at all for this commit
+  //          'unknown' — the state could not be read (error, or paging cap hit)
+  async function prCiState(owner, repo, ref) {
+    const OK = new Set(['success', 'neutral', 'skipped']);
+    try {
+      const runs = [];
+      let complete = false;
+      for (let page = 1; page <= 10; page++) {
+        const cr = await request(`/repos/${owner}/${repo}/commits/${ref}/check-runs`, { params: { per_page: 100, page } });
+        const batch = Array.isArray(cr?.check_runs) ? cr.check_runs : [];
+        runs.push(...batch);
+        const total = Number(cr?.total_count) || 0;
+        if (batch.length === 0 || runs.length >= total) { complete = true; break; }
+      }
+      // Same runaway backstop as prCiGreen; an incomplete read is 'unknown'
+      // rather than a guess in either direction.
+      if (!complete) return 'unknown';
+
+      const st = await request(`/repos/${owner}/${repo}/commits/${ref}/status`);
+      const statuses = Array.isArray(st?.statuses) ? st.statuses : [];
+
+      if (runs.length === 0 && statuses.length === 0) return 'none';
+
+      // Failure dominates: one red check is the answer regardless of what else
+      // is still in flight.
+      for (const r of runs) {
+        if (r.status === 'completed' && !OK.has(r.conclusion)) return 'red';
+      }
+      if (statuses.length > 0 && (st.state === 'failure' || st.state === 'error')) return 'red';
+
+      // Nothing red — anything unfinished makes the verdict provisional.
+      if (runs.some(r => r.status !== 'completed')) return 'pending';
+      if (statuses.length > 0 && st.state === 'pending') return 'pending';
+
+      return 'green';
+    } catch {
+      return 'unknown';
+    }
+  }
+
   // Recent CI history for a PR head branch, newest attempt first, capped at
   // `attempts`. One element is one CI *attempt*: every completed workflow run
   // sharing a head SHA and re-run number, shaped
@@ -326,7 +383,7 @@ export function createClient(token, options = {}) {
     }
   }
 
-  return { request, paginate, getFileContent, listDir, putFile, deleteFile, mergePR, prCiGreen, prCiHistory };
+  return { request, paginate, getFileContent, listDir, putFile, deleteFile, mergePR, prCiGreen, prCiState, prCiHistory };
 }
 
 // True if the repo has an ACTIVE repository ruleset carrying a `copilot_code_review`
