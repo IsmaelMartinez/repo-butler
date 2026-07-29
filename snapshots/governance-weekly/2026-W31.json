@@ -260,6 +260,32 @@
           "Every non-compliant repo passes the release-cadence standard check"
         ]
       }
+    },
+    {
+      "type": "stalled-alert",
+      "repo": "teams-for-linux",
+      "alerts": [
+        {
+          "number": 153,
+          "package": "http-proxy-middleware",
+          "ecosystem": "npm",
+          "manifestPath": "docs-site/package-lock.json",
+          "severity": "medium",
+          "ageDays": 35,
+          "classification": "reachable-by-update",
+          "detail": "every parent range already admits http-proxy-middleware@2.0.10; refresh the lockfile instead"
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 35 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
+        "acceptanceCriteria": [
+          "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
+        ]
+      }
     }
   ]
 }
