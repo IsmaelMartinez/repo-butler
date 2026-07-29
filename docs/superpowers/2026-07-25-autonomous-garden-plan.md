@@ -309,11 +309,68 @@ A deterministic remediation lane in the existing apply architecture, not an agen
 
 Acceptance: against the reserved `wifisentinel` canary, the trimmer produces a PR that installs cleanly and passes the repo's tests; after maintainer-approved merge and a polled rescan, the G1 verifier scoped to that repo returns zero.
 
-Refusal conditions are part of the specification, each mapped to a verified fixture. Refuse when one package has disjoint vulnerable ranges it cannot scope to distinct parents (`yourear`/`brace-expansion`). Scope each fix to the manifest its alert names rather than assuming one per repo (`teams-for-linux`). Refuse to write an override duplicating a direct dependency at a compatible range (`bonnie-wee-plot`/`postcss`). Refuse on pnpm repositories where the vulnerable package is an auto-installed peer. Never emit a blanket top-level override, never widen a range on a package that is not the subject of an alert, and refuse rather than guess when the parent cannot be determined.
+Refusal conditions are part of the specification, each mapped to a verified fixture. (Two were added while building, both from real manifest shapes this list did not anticipate: refuse when the manifest already overrides the parent to a *string*, since nesting under that key would silently delete a deliberate pin; and refuse anything that is not the proven `0.x`-adjacent shape, so "only the proven shape" is enforced by a check rather than promised in prose.) Refuse when one package has disjoint vulnerable ranges it cannot scope to distinct parents (`yourear`/`brace-expansion`). Scope each fix to the manifest its alert names rather than assuming one per repo (`teams-for-linux`). Refuse to write an override duplicating a direct dependency at a compatible range (`bonnie-wee-plot`/`postcss`). Refuse on pnpm repositories where the vulnerable package is an auto-installed peer. Never emit a blanket top-level override, never widen a range on a package that is not the subject of an alert, and refuse rather than guess when the parent cannot be determined.
 
 Tests use those three real cases as fixtures, because each would have broken a naive implementation.
 
-It stays off the schedule and off auto-merge. Auto-merge is restricted by construction to classes with a `TEMPLATES` entry (`isAutoMergeAllowed`, `apply.js:1075`), which excludes content transformation; that restriction is correct and this plan does not relax it.
+Progress (2026-07-29): G5 complete — [ADR-013](../decisions/013-content-transformation-writes.md)
+covers the third write category, with the benign-worst-case analysis redone
+rather than inherited. G6's deciding core ships as `src/trimmer.js` (pure, no
+caller in the write path yet), verifier `scripts/verify-g5.sh`.
+
+The rescope this document already argued for at lines 43-49 is now implemented,
+not just noted: `reachable-by-update` is a **refusal**. If every parent range
+already admits the patch, `npm update --package-lock-only` reaches it and an
+override would be permanent manifest cruft for a transient problem. The only
+shape that produces a change is the `0.x`-capped one. The happy-path test is the
+real `sharp` under `next@^0.34.5` from bonnie-wee-plot's lockfile, and it asserts
+the trimmer independently derives `{"next": {"sharp": "^0.35.0"}}` — the fix a
+maintainer had already written by hand.
+
+One refusal rule was wrong on the first attempt and is worth recording, because
+the test caught it and a review of the prose would not have. Disjointness was
+first implemented as "more than one capped parent". That passes the
+`brace-expansion` fixture's shape check while doing the wrong thing: with one
+parent at `^1.1.11` and a patch at `2.0.2`, only one parent is capped, so the
+naive rule emitted an override dragging that parent across a major boundary it
+never declared. The rule was corrected to a **major-line check** — an override
+may widen within a major line and must never cross one — and both real cases
+then fell out correctly: `brace-expansion` refuses (1.x parent, 2.x patch) and
+`sharp` proceeds (0.34 → 0.35, same major line).
+
+**That correction was itself insufficient, which is the more interesting
+finding.** A review the same day showed the major-line check is blind inside
+`0.x` — precisely the range this capability exists to operate on. Every `0.x`
+version shares major 0, so the check passes `^0.1.0 → 0.9.0` exactly as readily
+as the sanctioned `^0.34.5 → 0.35.0`, dragging a parent across eight breaking
+lines. The rule holds only for the `1.x` case it was written against and never
+fires for the case it was written for. The fence is now a **release-line**
+test — inside `0.x` the minor IS the breaking line — bounded to the adjacent
+line. Twice now the same rule has been fixed by a case the previous version
+could not see, which is an argument for fixtures drawn from real advisories
+rather than reasoning about semver in the abstract.
+
+The same review found six further fail-open paths, of which one deserves
+recording beyond its fix. Every version parse was prefix-anchored, so
+`>=1.0.0 <2.0.0` parsed as `>=1.0.0` and silently discarded the upper bound.
+The consequence was not a crash but a confident wrong answer in the most
+damaging direction available: a parent that genuinely cannot reach the patch was
+classified `reachable-by-update` and told to refresh its lockfile, so the module
+declined the exact fix it exists to produce and explained why. A refusal-first
+design does not by itself protect against this — the refusal was reached
+through a fail-open parse, and a wrong refusal looks identical to a right one
+from the outside. The parse is now fully anchored: residual text means
+not-understood, and not-understood means not-satisfied.
+
+**Acceptance cannot currently be met**, and this is a blocker rather than an
+omission: the stated canary requires "a repo with an open critical or high alert
+whose autofix is not driving", and the portfolio has **zero** open critical/high
+alerts. There is nothing to trim. The core is proven against real lockfile
+structure and the real historical cases; it is unproven end-to-end until an
+advisory appears. The rescan-nudging goal proposed at line 49 is the better next
+investment and remains unbuilt.
+
+It stays off the schedule and off auto-merge. Auto-merge is restricted by construction to classes with a `TEMPLATES` entry (`isAutoMergeAllowed`, `apply.js:1160`), which excludes content transformation; that restriction is correct and this plan does not relax it.
 
 ### G11 — CI hygiene
 
