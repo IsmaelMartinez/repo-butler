@@ -185,6 +185,15 @@ function appendGovernanceContext(parts, findings) {
     } else if (f.type === 'open-vulnerability') {
       const secret = f.secretScanning ? ` + ${f.secretScanning} secret-scanning hit(s)` : '';
       parts.push(`Open vulnerabilities: ${f.repo} has ${f.critical || 0} critical / ${f.high || 0} high open alert(s)${secret} [${(f.sources || []).join(', ')}]`);
+    } else if (f.type === 'tier-regression') {
+      parts.push(`Tier regression: ${f.repo} fell from ${f.previousTier} to ${f.currentTier}${f.priorWeek ? ` since ${f.priorWeek}` : ''}`);
+    } else if (f.type === 'stale-butler-pr') {
+      // Counts, ages and states only — never PR titles. The branch prefix is
+      // forgeable, so a title is attacker-controlled text and this string
+      // reaches the LLM prompt. Same precedent as the dependabot-stale line.
+      const oldest = f.stalePRs.reduce((max, p) => Math.max(max, p.age || 0), 0);
+      const states = [...new Set(f.stalePRs.map(p => p.state))].sort().join(', ');
+      parts.push(`Stale butler PRs: ${f.repo} has ${f.stalePRs.length} unmerged repo-butler PR(s) (oldest: ${oldest}d; state: ${states})`);
     }
   }
 

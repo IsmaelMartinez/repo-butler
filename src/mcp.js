@@ -242,7 +242,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven, openVulnerabilities, and tierRegressions, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend / tierRegressionsTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot), stale butler PRs (repo-butler-opened PRs that never landed — counted as staleButlerPRs, each carrying per-PR state: awaiting-human / blocked-persistent / blocked-transient / ci-none / ci-pending / unknown), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven, openVulnerabilities, and tierRegressions, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend / tierRegressionsTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -425,6 +425,9 @@ function toolGetGovernanceFindings() {
         // week-over-week trend treatment as openVulnerabilitiesTrend below.
         tierRegressions,
         tierRegressionsTrend,
+        // G12: repos with butler-opened PRs that never landed — the butler's own
+        // remediation rotting. Each finding's stalePRs[] carries the per-PR state.
+        staleButlerPRs: findings.filter(f => f.type === 'stale-butler-pr').length,
         openVulnerabilities,
         // Week-over-week trend for openVulnerabilities, from the same
         // governance-weekly history stream as autofixNotDrivenTrend below (see
