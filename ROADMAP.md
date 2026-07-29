@@ -79,7 +79,7 @@ Roadmap restructured and the shipped log compacted 2026-07-27 (PR #349). The doc
 
 Roadmap append spacing fixed 2026-07-27 (PR #352). Appended entries landed flush against the following `---`, which CommonMark reads as a setext heading underline, so the last entry in a section rendered as an `<h2>` and the horizontal rule vanished. Live since at least #330 and invisible in a diff — it showed only in the rendered file.
 
-G7 gold-ratchet tier-regression detector shipped 2026-07-29 (PR #354). Extends the governance engine with strict tier-regression detection to guarantee portfolio health compliance and prevent accidental downgrades.
+Self-cleaning governance rule G12 shipped 2026-07-29 (PR #355). This feature configures the butler to watch its own automated pull requests for staleness, preventing lingering contributions and refining the repository's self-maintenance loop.
 
 ---
 
