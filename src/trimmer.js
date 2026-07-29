@@ -18,7 +18,15 @@
 //
 // REFUSALS ARE THE SPECIFICATION. Each one below is drawn from a real case that
 // would have broken a naive implementation, and refusing is a success, not a
-// failure to try harder.
+// failure to try harder. The refusals rule cases OUT; one scope fence rules the
+// single sanctioned case IN, so "only the proven shape" is a property of this
+// code and not a promise made elsewhere.
+//
+// PRECONDITIONS the caller owns, because a pure function cannot check them:
+// `lock`, `manifest` and `alert.manifestPath` must all describe the SAME
+// project, and unreadable or unparseable input must abort before reaching here
+// rather than arriving as an empty object. See ADR-013, "What the caller must
+// guarantee".
 
 const ZERO = 0;
 
@@ -30,8 +38,13 @@ const ZERO = 0;
 // unrecognised range can never be read as "already covered" and silently
 // suppress a needed fix.
 
+// FULLY ANCHORED, and that is the whole point. A prefix-anchored parse reads
+// `>=1.0.0 <2.0.0` as `>=1.0.0` and silently discards the upper bound, so a
+// range that cannot reach the patch reads as though it can — the one failure
+// direction this module must never have. Anything with residual text is simply
+// not understood, and not-understood means not-satisfied.
 function parseVersion(v) {
-  const m = String(v ?? '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  const m = String(v ?? '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)[\w.+-]*$/);
   return m ? { major: +m[1], minor: +m[2], patch: +m[3] } : null;
 }
 
@@ -76,20 +89,34 @@ export function satisfiesRange(version, range) {
     return base ? cmp(v, base) >= ZERO : false;
   }
 
-  // Only treat it as an exact pin if the range is JUST a version — `1.2.3 || 2.x`
-  // and other disjunctions are not understood, and must fail closed.
+  // An exact pin. `parseVersion` is anchored, so `1.2.3 || 2.x` and every other
+  // disjunction returns null here and falls through to the closed default.
   const exact = parseVersion(raw);
-  if (exact && /^v?\d+\.\d+\.\d+[\w.+-]*$/.test(raw)) return cmp(v, exact) === ZERO;
-
-  return false;
+  return exact ? cmp(v, exact) === ZERO : false;
 }
 
-const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+// Fields that put a package INTO the tree. peerDependencies is deliberately
+// absent: a peer range declares compatibility, it does not install anything, so
+// counting it as a parent edge emits an override for a package that may not be
+// installed at all (the fixture's `sass` is an optional peer of both next and
+// vite and is installed by neither).
+const INSTALL_EDGE_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'];
+
+// For reading the ROOT manifest, where a peer range is still the maintainer's
+// own declared range and so still means "do not override this".
+const MANIFEST_DEP_FIELDS = [...INSTALL_EDGE_FIELDS, 'peerDependencies'];
+
+// Lock keys that name a manifest rather than an installed package: the root
+// (`''`) and every npm workspace member, which is keyed by directory. Neither
+// can key an `overrides` block — npm matches those by dependency NAME — and for
+// both the real fix is to edit that manifest directly.
+const MANIFEST_KEY = '<manifest>';
 
 /**
  * Every package in the tree that declares a dependency on `name`, with the range
  * it declares. Reads a lockfileVersion 2/3 `packages` map, whose keys are
- * install paths (`''` is the root manifest, reported as `<root>`).
+ * install paths. Keys that are manifests rather than installed packages — the
+ * root `''` and workspace members like `apps/web` — report `<manifest>`.
  *
  * optionalDependencies is included deliberately: the real sharp/next case — the
  * one shape this module exists for — arrives that way, and a walker reading only
@@ -101,11 +128,11 @@ export function findParents(lock, name) {
 
   const parents = [];
   for (const [path, meta] of Object.entries(packages)) {
-    for (const field of DEP_FIELDS) {
+    for (const field of INSTALL_EDGE_FIELDS) {
       const range = meta?.[field]?.[name];
       if (typeof range !== 'string') continue;
       parents.push({
-        parent: path === '' ? '<root>' : path.split('node_modules/').pop(),
+        parent: path.includes('node_modules/') ? path.split('node_modules/').pop() : MANIFEST_KEY,
         path,
         field,
         range,
@@ -121,7 +148,7 @@ export function findParents(lock, name) {
 // bonnie-wee-plot), so a generator without this check would manufacture that bug
 // across the portfolio.
 function directRange(manifest, name) {
-  for (const field of DEP_FIELDS) {
+  for (const field of MANIFEST_DEP_FIELDS) {
     const range = manifest?.[field]?.[name];
     if (typeof range === 'string') return range;
   }
@@ -171,7 +198,7 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
       `${name} is a direct dependency at ${direct}; bump the dependency rather than overriding it`);
   }
 
-  const parents = findParents(lock, name).filter(p => p.parent !== '<root>');
+  const parents = findParents(lock, name).filter(p => p.parent !== MANIFEST_KEY);
   if (parents.length === ZERO) {
     return refuse('parent-undeterminable',
       `no parent in the lockfile declares a dependency on ${name}`);
@@ -213,6 +240,32 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
       `${name} is capped by ${distinct.length} parents (${distinct.join(', ')}) with no single satisfying version`);
   }
 
+  // THE SCOPE FENCE. Everything above rules out cases that are wrong; this rules
+  // IN the single case proven right. Only a caret on a 0.x version genuinely
+  // needs an override — it is minor-locked, so no lockfile refresh can ever
+  // reach the next minor line. An exact pin or a tilde is a deliberate narrowing
+  // by the parent, and a 1.x+ caret that cannot reach the patch is a major
+  // crossing already refused above.
+  //
+  // The jump is bounded to the ADJACENT line for the same reason a major-line
+  // check exists at all: inside 0.x every minor IS a breaking line, so
+  // ^0.34.5 -> 0.35.0 (the proven case) is one crossing, while ^0.1.0 -> 0.9.0
+  // is eight. A major-only comparison cannot tell those apart, which makes it
+  // blind exactly where this module operates.
+  const patchedVersion = parseVersion(patched);
+  const outOfScope = capped.filter(p => {
+    const base = p.range.startsWith('^') ? parseVersion(p.range.slice(1)) : null;
+    return !base
+      || base.major !== ZERO
+      || patchedVersion.major !== ZERO
+      || base.minor + 1 !== patchedVersion.minor;
+  });
+  if (outOfScope.length > ZERO) {
+    const shown = outOfScope.map(p => `${p.parent}@${p.range}`).join(', ');
+    return refuse('out-of-scope',
+      `${name}@${patched} is not an adjacent 0.x widening of ${shown}; only a minor-locked 0.x caret warrants an override`);
+  }
+
   const parent = distinct[0];
   // Caret on the patched version: the minimum widening that clears the alert
   // while still allowing ordinary patch updates. This matches the in-house
@@ -220,13 +273,20 @@ export function planOverride({ lock, manifest, alert, pnpmAutoInstalledPeer = fa
   // recipe matters more than inventing a tighter one.
   const value = `^${patched}`;
 
-  // Merge without disturbing anything else. Only the alert subject's parent key
-  // may change; every other override is carried through byte-identical.
+  // Only the alert subject's parent key may change; every other override is
+  // carried through byte-identical. A parent key already holding a STRING is a
+  // deliberate pin of the parent itself, and nesting under it would silently
+  // delete that pin — bonnie-wee-plot's apparently-redundant postcss override
+  // was in fact load-bearing, so the butler refuses rather than reinterpreting
+  // an entry a human wrote.
   const merged = { ...(manifest?.overrides || {}) };
   const existingParentScope = merged[parent];
-  merged[parent] = (existingParentScope && typeof existingParentScope === 'object')
-    ? { ...existingParentScope, [name]: value }
-    : { [name]: value };
+  if (existingParentScope !== undefined
+      && (typeof existingParentScope !== 'object' || existingParentScope === null)) {
+    return refuse('override-conflict',
+      `the manifest already overrides ${parent} to ${existingParentScope}; merging would discard that pin`);
+  }
+  merged[parent] = { ...(existingParentScope || {}), [name]: value };
 
   return {
     action: 'override',

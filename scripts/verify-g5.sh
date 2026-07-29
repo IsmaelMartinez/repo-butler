@@ -18,7 +18,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 ADR=docs/decisions/013-content-transformation-writes.md
-MIN_TESTS=12
+MIN_TESTS=20
 
 [ -f "$ADR" ] || { echo "G5 VERIFIER FAIL (missing $ADR)"; exit 1; }
 

@@ -52,6 +52,17 @@ describe('trimmer range satisfaction', () => {
     assert.equal(satisfiesRange('1.0.0', 'latest'), false);
     assert.equal(satisfiesRange('1.0.0', ''), false);
   });
+
+  it('trimmer: a COMPOUND range is not read as satisfied by its lower bound alone', () => {
+    // The subtlest fail-open available here. A prefix-anchored version parse
+    // reads `>=1.0.0 <2.0.0` as just `>=1.0.0` and silently drops the upper
+    // bound — so a parent that genuinely cannot reach the patch is classified
+    // `reachable-by-update` and the fix it needs is suppressed with a
+    // confidently wrong reason.
+    assert.equal(satisfiesRange('2.0.2', '>=1.0.0 <2.0.0'), false);
+    assert.equal(satisfiesRange('1.6.0', '>=1.0.0 <1.5.0'), false);
+    assert.equal(satisfiesRange('9.0.0', '^1.0.0 <2.0.0'), false);
+  });
 });
 
 // --- parent scope computation ---
@@ -61,7 +72,8 @@ describe('trimmer parent resolution', () => {
     const parents = findParents(FIXTURE, 'postcss');
     const names = parents.map(p => p.parent).sort();
 
-    assert.ok(names.includes('<root>'), 'the root manifest is itself a parent');
+    assert.ok(names.includes('<manifest>'),
+      'the root manifest declares it too, and is reported as a manifest rather than a package');
     assert.ok(names.includes('next'));
     assert.ok(names.includes('vite'));
     assert.equal(parents.find(p => p.parent === 'next').range, '8.4.31',
@@ -169,6 +181,75 @@ describe('trimmer refusal conditions', () => {
     assert.equal(plan.action, 'refuse');
     assert.equal(plan.reason, 'no-patched-version');
   });
+
+  it('trimmer: refuses an advisory whose patched version is a LIST, not one version', () => {
+    // Real advisories express the fix as `0.35.0, 0.34.6` or `0.35.0 or later`.
+    // A prefix-anchored check accepts those and then interpolates the whole
+    // string, writing the invalid range `^0.35.0, 0.34.6` into a target repo's
+    // package.json — a broken install, which is the exact blast radius ADR-013
+    // exists to bound.
+    for (const patchedVersion of ['0.35.0, 0.34.6', '0.35.0 or later', '>= 0.35.0']) {
+      const plan = planOverride({
+        lock: FIXTURE, manifest: {},
+        alert: { package: 'sharp', patchedVersion },
+      });
+
+      assert.equal(plan.action, 'refuse', `${patchedVersion} must not produce a write`);
+      assert.equal(plan.reason, 'no-patched-version');
+    }
+  });
+
+  it('trimmer: refuses rather than CLOBBERING a string-valued override on the parent key', () => {
+    // ADR-013 promises existing entries are "carried through byte-identical".
+    // A manifest may already pin the parent itself (`overrides: {next: "16.2.11"}`),
+    // and replacing that with a nested object silently deletes a deliberate —
+    // possibly load-bearing — human decision. bonnie-wee-plot's postcss override
+    // looked redundant and was in fact load-bearing; that is the whole reason
+    // the butler never rewrites an entry it did not add.
+    const manifest = { overrides: { next: '16.2.11', rollup: '^4.0.0' } };
+    const plan = planOverride({
+      lock: FIXTURE, manifest,
+      alert: { package: 'sharp', patchedVersion: '0.35.0' },
+    });
+
+    assert.equal(plan.action, 'refuse');
+    assert.equal(plan.reason, 'override-conflict');
+  });
+
+  it('trimmer: refuses a WORKSPACE member, whose lock key is a path and not a package name', () => {
+    // npm workspace lockfiles key member manifests by directory (`apps/web`),
+    // with no `node_modules/` segment. Deriving a parent name from that yields
+    // an override keyed `"apps/web"`, which npm matches by dependency NAME — so
+    // the entry is inert and the alert stays open while the PR looks like a fix.
+    const lock = {
+      lockfileVersion: 3,
+      packages: {
+        '': { workspaces: ['apps/*'] },
+        'apps/web': { dependencies: { vuln: '^0.1.0' } },
+        'node_modules/vuln': { version: '0.1.0' },
+      },
+    };
+    const plan = planOverride({
+      lock, manifest: {},
+      alert: { package: 'vuln', patchedVersion: '0.2.0' },
+    });
+
+    assert.equal(plan.action, 'refuse');
+    assert.equal(plan.reason, 'parent-undeterminable');
+  });
+
+  it('trimmer: refuses a PEER dependency, which declares compatibility and installs nothing', () => {
+    // `sass` is an optional peer of both next and vite in the real fixture and
+    // is installed by neither. Counting a peer range as an install edge emits an
+    // override for a package that is not in the tree.
+    const plan = planOverride({
+      lock: FIXTURE, manifest: {},
+      alert: { package: 'sass', patchedVersion: '1.4.0' },
+    });
+
+    assert.equal(plan.action, 'refuse');
+    assert.equal(plan.reason, 'parent-undeterminable');
+  });
 });
 
 // --- scope: only the 0.x-capped case warrants an override ---
@@ -191,6 +272,41 @@ describe('trimmer scope', () => {
 
     assert.equal(plan.action, 'refuse');
     assert.equal(plan.reason, 'reachable-by-update');
+  });
+
+  it('trimmer: refuses a 0.x jump spanning MORE THAN ONE minor line', () => {
+    // Inside 0.x every minor is a breaking line, so a major-only comparison is
+    // blind exactly where this capability operates. ^0.1.0 -> 0.9.0 drags a
+    // parent across eight breaking lines it never declared. The proven case is
+    // an ADJACENT jump (^0.34.5 -> 0.35.0); anything wider is a human's call.
+    const lock = {
+      lockfileVersion: 3,
+      packages: {
+        '': { dependencies: { p: '^1.0.0' } },
+        'node_modules/p': { version: '1.0.0', dependencies: { vuln: '^0.1.0' } },
+        'node_modules/vuln': { version: '0.1.0' },
+      },
+    };
+    const plan = planOverride({
+      lock, manifest: {},
+      alert: { package: 'vuln', patchedVersion: '0.9.0' },
+    });
+
+    assert.equal(plan.action, 'refuse');
+    assert.equal(plan.reason, 'out-of-scope');
+  });
+
+  it('trimmer: refuses to widen a parent\'s deliberate EXACT pin', () => {
+    // next pins postcss at 8.4.31 exactly. Widening that to ^8.5.23 overrides a
+    // choice the parent made on purpose, and it is not the 0.x-capped shape the
+    // ADR authorises — "it emits a change only for the single proven shape".
+    const plan = planOverride({
+      lock: FIXTURE, manifest: {},
+      alert: { package: 'postcss', patchedVersion: '8.5.23' },
+    });
+
+    assert.equal(plan.action, 'refuse');
+    assert.equal(plan.reason, 'out-of-scope');
   });
 });
 

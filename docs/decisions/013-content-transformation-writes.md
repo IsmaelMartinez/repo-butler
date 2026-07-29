@@ -97,10 +97,20 @@ fencing that answers each failure mode above by name.
   cannot prove safe: `direct-dependency` (→ mode 4), `disjoint-ranges` where a
   patch sits outside a parent's declared major line, `reachable-by-update` where
   a lockfile refresh already reaches the fix, `pnpm-auto-installed-peer` where
-  overrides do not apply at all, `parent-undeterminable`, and
-  `no-patched-version`. It emits a change only for the single proven shape. Each
+  overrides do not apply at all, `override-conflict` where the manifest already
+  pins that parent to a string (→ mode 3), `out-of-scope` for anything that is
+  not the proven shape, `parent-undeterminable`, and `no-patched-version`. Each
   refusal is drawn from a real case that would have broken a naive
   implementation, and refusing is a success, not a failure to try harder.
+- **The proven shape is fenced IN, not merely gestured at.** Every refusal above
+  rules a case out; one check rules the single sanctioned case in. An override is
+  emitted only when the capping parent declares a **caret on a `0.x` version**
+  and the patch sits in the **adjacent** minor line. That fence is what makes
+  "only the proven shape" a property of the code rather than a claim in a
+  document. It matters because a major-line comparison is blind precisely where
+  this capability operates: inside `0.x` every minor is itself a breaking line,
+  so `^0.34.5 → 0.35.0` is one crossing while `^0.1.0 → 0.9.0` is eight, and a
+  check that compares only majors cannot tell them apart.
 - **Never a blanket top-level override, and never a package other than the alert
   subject** (→ mode 2). The emitted form is parent-scoped
   (`{"next": {"sharp": "^0.35.0"}}`), matching the recipe already applied by hand
@@ -111,9 +121,14 @@ fencing that answers each failure mode above by name.
   subject's parent. The butler never removes or rewrites an entry it did not add
   — notably, `bonnie-wee-plot`'s apparently-redundant `postcss` override is in
   fact load-bearing, and a "tidy-up" capability would have removed it and
-  reintroduced a vulnerability.
+  reintroduced a vulnerability. The sharp edge here is that a parent key may
+  already hold a *string* (`overrides: {"next": "16.2.11"}` pins the parent
+  itself). Nesting the fix under that key would silently delete a deliberate
+  human pin, so the trimmer refuses (`override-conflict`) rather than
+  reinterpreting an entry someone else wrote.
 - **Fail closed on unreadable input** (→ modes 1, 6). A manifest or lockfile that
-  cannot be fetched or parsed is a refusal, never an assumption.
+  cannot be fetched or parsed is a refusal, never an assumption. This one is a
+  **caller obligation**, not a property of the core — see below.
 - **Auto-merge-ineligible by construction** (→ mode 2). `isAutoMergeAllowed`
   (`src/apply.js:1160`) requires `Boolean(TEMPLATES[tool])`, and a content
   transform has no `TEMPLATES` entry by its nature. No allow-list entry can make
@@ -130,6 +145,26 @@ fencing that answers each failure mode above by name.
   (`src/safety.js:435`) — inherited unchanged. Note the polarity: for apply,
   `require_approval: true` is the *operating* state and `false` is the kill
   switch.
+
+### What the caller must guarantee
+
+The core is pure, which means several of the fences above cannot live inside it.
+Writing them down here is the point: with no caller yet, these are the easiest
+things in this ADR to violate by accident when the write path is wired.
+
+The caller owns fetching and parsing, so it owns failing closed. `getFileContent`
+(`src/github.js:135`) returns `null` for absent, 404, rate-limited **and** over
+1 MB alike, and real lockfiles exceed 1 MB — so a `null` must abort that repo,
+never proceed with a partial view. It owns correspondence, too: the trimmer
+trusts that the `lock`, the `manifest` and `alert.manifestPath` it is handed all
+describe the same project, and it cannot check this. Handing it a root lockfile
+alongside a sub-directory manifest would defeat the `direct-dependency` fence,
+because the direct-dependency read would consult the wrong manifest. It owns the
+dry-run preview printing the full proposed `overrides` diff, since the preview is
+the audit record. And it owns writing back only `merged`, whole, without
+reformatting the rest of the file — a `JSON.parse`/`stringify` round trip over
+the entire manifest would reflow the whole document and bury the one real change
+in the diff, which is mode 1.
 
 ### Benign worst case, stated plainly
 
