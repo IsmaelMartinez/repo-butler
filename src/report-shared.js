@@ -6,6 +6,9 @@ export const SIX_MONTHS_AGO = new Date(Date.now() - 180 * 86400000);
 export const ONE_YEAR_AGO = new Date(Date.now() - 365 * 86400000);
 
 export const TIER_DISPLAY = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze', none: 'Unranked' };
+// Ordinal rank for comparing tiers — shared by the dashboard's "since the last
+// run" strip and the governance tier-regression detector (down = rank fell).
+export const TIER_RANK = { none: 0, bronze: 1, silver: 2, gold: 3 };
 export const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
 
 // Return the next tier above `tier` in the gold > silver > bronze > none ladder,

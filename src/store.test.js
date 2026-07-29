@@ -382,6 +382,30 @@ describe('writeGovernanceWeekly / readLatestGovernanceWeekly', () => {
     assert.deepEqual(result.findings, latestFindings);
   });
 
+  it('readLatestPortfolioWeekly beforeWeek skips the current-week file (tier-regression baseline)', async () => {
+    // The governance tier-regression detector diffs against the PREVIOUS week:
+    // the current-week file is overwritten up to 4x/day, so without beforeWeek
+    // an intraday run would diff against its own earlier write and a regression
+    // finding would vanish after one run instead of persisting for the week.
+    const gh = makeFakeGh({ existing: ['2026-W26.json', '2026-W27.json'] });
+    gh.getFileContent = async (_o, _r, path) => {
+      if (path.endsWith('2026-W27.json')) return JSON.stringify({ schema_version: 'v1', repos: { a: { computed: { tier: 'silver' } } } });
+      if (path.endsWith('2026-W26.json')) return JSON.stringify({ schema_version: 'v1', repos: { a: { computed: { tier: 'gold' } } } });
+      return null;
+    };
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    const latest = await store.readLatestPortfolioWeekly();
+    assert.equal(latest._week, '2026-W27', 'without beforeWeek the newest file wins');
+
+    const prior = await store.readLatestPortfolioWeekly({ beforeWeek: '2026-W27' });
+    assert.equal(prior._week, '2026-W26', 'beforeWeek excludes the current week');
+    assert.equal(prior.repos.a.computed.tier, 'gold');
+
+    assert.equal(await store.readLatestPortfolioWeekly({ beforeWeek: '2026-W26' }), null,
+      'no file strictly before the given week means no baseline');
+  });
+
   it('prunes old governance-weekly snapshots beyond MAX_WEEKLY_SNAPSHOTS', async () => {
     const existing = Array.from({ length: 14 }, (_, i) => `2025-W${String(i + 1).padStart(2, '0')}.json`);
     const gh = makeFakeGh({ existing });

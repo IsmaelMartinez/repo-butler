@@ -3,11 +3,13 @@
 // Pure functions that receive portfolio data and return governance findings.
 
 import { detectEcosystem } from './safety.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, TIER_RANK } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
+import { detectTierChanges } from './tier-change.js';
+import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
 
 // Thin orchestration wrapper: enriches portfolio details, runs all detectors,
 // runs the dependabot audit, and persists findings to the data branch.
@@ -34,8 +36,21 @@ export async function runGovernance(context) {
   const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
   const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
   const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails);
-  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns];
-  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln)`);
+
+  // G7 Gold ratchet: diff this run's computed tiers (in the same weekly-snapshot
+  // shape REPORT later persists) against the PREVIOUS week's portfolio snapshot.
+  // beforeWeek keeps the baseline stable across the 4×/day runs — diffing
+  // against the current-week file would clear a regression one run after it
+  // fired, since REPORT overwrites that file at the end of every pipeline run.
+  let regressions = [];
+  if (store?.readLatestPortfolioWeekly) {
+    const priorPortfolioWeekly = await store.readLatestPortfolioWeekly({ beforeWeek: isoWeekKey(new Date()) });
+    const currentWeekly = buildPortfolioSnapshot(portfolio.repos, context.repoDetails, config);
+    regressions = detectTierRegressions(currentWeekly, priorPortfolioWeekly);
+  }
+
+  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...regressions];
+  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${regressions.length} tier-regression)`);
 
   const stale = await auditDependabot(gh, owner, portfolio.repos);
   if (stale.length > 0) {
@@ -369,6 +384,61 @@ export function generateUpliftProposals(repos, details, config = null) {
 }
 
 /**
+ * Detect repos whose health tier is lower in the current weekly snapshot than
+ * in the previous one — the Gold ratchet (G7). The deliberate asymmetry with
+ * tier-uplift: uplift fires on opportunity, this fires on loss. A per-repo
+ * STATE finding (executor 'manual', like open-vulnerability) — the companion
+ * tier-uplift finding already carries the failing checks and the 'agent' route
+ * back, so this one stays lean: the loss signal, not a second remediation spec.
+ *
+ * Pure: both arguments are portfolio-weekly-shaped snapshots
+ * ({ repos: { name: { computed: { tier } } } }). runGovernance builds the
+ * current side with the same buildPortfolioSnapshot the REPORT phase persists,
+ * and reads the prior side from the previous WEEK's file (beforeWeek), so a
+ * regression finding persists for the remainder of its week rather than
+ * vanishing one run after it fired. The diff itself reuses detectTierChanges —
+ * the same core behind the dashboard's "since the last run" strip — filtered
+ * to downward moves.
+ *
+ * @param {{ repos: Object }} currentWeekly — this run's tiers, weekly-snapshot shape
+ * @param {{ repos: Object, _week?: string }|null} priorWeekly — the previous week's
+ *   snapshot from store.readLatestPortfolioWeekly({ beforeWeek }), or null on first run
+ * @returns {Array} tier-regression findings
+ */
+export function detectTierRegressions(currentWeekly, priorWeekly) {
+  if (!priorWeekly?.repos || !currentWeekly?.repos) return [];
+
+  const toTiers = (snap) => {
+    // Null-prototype map: repo names are external (see tier-change.js).
+    const tiers = Object.create(null);
+    for (const [name, s] of Object.entries(snap.repos)) {
+      // buildPortfolioSnapshot only drops archived/forks, so shadow/test repos
+      // are present in weekly snapshots — filter them here to match the
+      // eligibleRepos boundary every other detector applies.
+      if (REPO_EXCLUSION_PATTERNS.some(p => name.includes(p))) continue;
+      const t = s?.computed?.tier;
+      if (t) tiers[name] = t;
+    }
+    return tiers;
+  };
+
+  const { changes } = detectTierChanges(toTiers(currentWeekly), toTiers(priorWeekly));
+
+  return changes
+    .filter(c => (TIER_RANK[c.newTier] ?? 0) < (TIER_RANK[c.previousTier] ?? 0))
+    .map(c => ({
+      type: 'tier-regression',
+      repo: c.repo,
+      previousTier: c.previousTier,
+      currentTier: c.newTier,
+      priorWeek: priorWeekly._week ?? null,
+      // Losing gold is losing the portfolio standard — high. A slide further
+      // down the ladder matters, but those repos were already below the bar.
+      priority: c.previousTier === 'gold' ? 'high' : 'medium',
+    }));
+}
+
+/**
  * Detect eligible repos carrying open security alerts that the portfolio is not
  * driving to resolution. A per-repo STATE finding (like dependabot-stale), not a
  * cross-repo statistic — so it routes to executor 'manual' and is never wired to
@@ -562,6 +632,20 @@ export function buildRemediationPlan(finding) {
         intent: `Uplift ${finding.repo} from ${finding.currentTier} to ${finding.targetTier}`,
         rationale: `${checks.length} check(s) block ${finding.targetTier}: ${checks.join(', ') || 'none'}.`,
         acceptanceCriteria: checks.map(name => `Check "${name}" passes`),
+      };
+    }
+    case 'tier-regression': {
+      // executor 'manual': the loss is a state to surface, and the companion
+      // tier-uplift finding (which fires as soon as the repo sits below gold
+      // with ≤3 failing checks) carries the failing checks and the 'agent'
+      // route back up — duplicating them here would give one regression two
+      // competing remediation specs.
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Restore ${finding.repo} to ${finding.previousTier}`,
+        rationale: `Health tier regressed from ${finding.previousTier} to ${finding.currentTier}${finding.priorWeek ? ` since ${finding.priorWeek}` : ''}.`,
+        acceptanceCriteria: [`${finding.repo} is back at ${finding.previousTier} in a subsequent weekly snapshot`],
       };
     }
     case 'policy-drift': {

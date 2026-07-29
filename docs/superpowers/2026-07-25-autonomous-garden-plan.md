@@ -148,6 +148,8 @@ The `--test-name-pattern` is load-bearing. A bare `node --test` passes today, wi
 
 Prior art to build on rather than duplicate: `buildSinceLastSection` (`report-portfolio.js:899-928`, wired at `report.js:324-341`) already shows tier moves run-over-run on the dashboard. This goal adds a persistent finding channel, which is additive, but it should reuse that comparison rather than write a second one. Note the deliberate asymmetry with `tier-uplift`, which fires on opportunity; this fires on loss.
 
+Progress (2026-07-28): implemented in PR #354. `detectTierRegressions` reuses `detectTierChanges` over two weekly-snapshot-shaped inputs; `runGovernance` builds the current side with `buildPortfolioSnapshot` and reads the baseline via `readLatestPortfolioWeekly({ beforeWeek })`, so a finding persists for the remainder of its week across the 4×/day runs instead of clearing one run after it fired. One acceptance deviation, recorded here as the plan requires: the named W29/W30 real-data pair no longer contains the six regressions — weekly files are overwritten intra-week and that pair healed to uplifts-only when the advisory wave cleared on 2026-07-25 — so the committed real-shape fixture is the W26/W27 release-drift pair, which still carries nine actual gold→silver regressions. The verifier command is unchanged and green (nine named tests).
+
 ### G8 — The staleness guard
 
 Make the tooling report its own drift. The MCP server should fetch before reading, or failing that surface the age of the snapshot it read and whether its own code is behind the remote default branch, and warn rather than answer confidently when either exceeds a threshold.
