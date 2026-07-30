@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const DEFAULTS = {
   roadmap: { path: 'ROADMAP.md', compact_after_days: 60 },
@@ -70,6 +70,12 @@ const DEFAULTS = {
   release_exempt: '',
 };
 
+// Parse raw roadmap YAML over the defaults. Pure — shared by both the async
+// and sync loaders so neither can drift from the other's defaults.
+export function parseConfig(raw) {
+  return deepMerge(DEFAULTS, parseSimpleYaml(raw));
+}
+
 export async function loadConfig(path) {
   if (!existsSync(path)) {
     console.log(`Config not found at ${path}, using defaults.`);
@@ -77,8 +83,22 @@ export async function loadConfig(path) {
   }
 
   const raw = await readFile(path, 'utf-8');
-  const parsed = parseSimpleYaml(raw);
-  return deepMerge(DEFAULTS, parsed);
+  return parseConfig(raw);
+}
+
+// Synchronous twin of loadConfig, for the MCP server: callTool dispatches
+// synchronously, so an async read cannot be threaded through it. Deliberately
+// SILENT on a missing/unreadable config — mcp.js writes JSON-RPC frames to
+// stdout and has no console calls at all, so a stray log here would corrupt
+// the protocol. Falls back to DEFAULTS, which means an unreadable config
+// degrades to "no repo is release-exempt" rather than throwing.
+export function loadConfigSync(path) {
+  try {
+    if (!existsSync(path)) return DEFAULTS;
+    return parseConfig(readFileSync(path, 'utf-8'));
+  } catch {
+    return DEFAULTS;
+  }
 }
 
 // Keys that must never be assigned from parsed YAML — assigning them on a

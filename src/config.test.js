@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig, parseStandardsConfig } from './config.js';
+import { loadConfig, loadConfigSync, parseStandardsConfig } from './config.js';
 
 async function withTempYaml(content, fn) {
   const dir = await mkdtemp(join(tmpdir(), 'config-test-'));
@@ -222,5 +222,42 @@ observe:
       assert.equal(config.standards['license'], 'universal');
       assert.equal(config.standards['code-scanning'], 'universal');
     });
+  });
+});
+
+// loadConfigSync exists solely so the MCP server (whose callTool dispatch is
+// synchronous) can apply the same release_exempt list as every async caller.
+describe('loadConfigSync', () => {
+  it('parses release_exempt identically to the async loader', async () => {
+    const yaml = 'release_exempt: sound3fy,generator-atlassian-compass-event-catalog\n';
+    await withTempYaml(yaml, async (path) => {
+      const sync = loadConfigSync(path);
+      const async_ = await loadConfig(path);
+      assert.equal(sync.release_exempt, 'sound3fy,generator-atlassian-compass-event-catalog');
+      assert.deepEqual(sync, async_, 'sync and async loaders must not drift');
+    });
+  });
+
+  it('falls back to defaults for a missing config instead of throwing', () => {
+    const config = loadConfigSync(join(tmpdir(), 'definitely-absent-roadmap.yml'));
+    assert.equal(config.release_exempt, '');
+    assert.equal(config.limits.require_approval, true);
+  });
+
+  it('falls back to defaults when the path is a directory (unreadable)', () => {
+    const config = loadConfigSync(tmpdir());
+    assert.equal(config.release_exempt, '');
+  });
+
+  it('writes nothing to stdout — mcp.js speaks JSON-RPC there', () => {
+    const original = process.stdout.write;
+    let captured = '';
+    process.stdout.write = (chunk) => { captured += chunk.toString(); return true; };
+    try {
+      loadConfigSync(join(tmpdir(), 'definitely-absent-roadmap.yml'));
+    } finally {
+      process.stdout.write = original;
+    }
+    assert.equal(captured, '', 'a stray log here would corrupt the MCP protocol stream');
   });
 });

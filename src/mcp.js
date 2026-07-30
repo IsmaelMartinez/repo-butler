@@ -10,11 +10,35 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
+import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROTOCOL_VERSION = '2024-11-05';
+
+// --- Config ---
+
+// Every tier read must apply the same `release_exempt` list the dashboard,
+// store.js and the governance detectors apply. Without it this server
+// recomputes tiers with the exemption stripped and reports a repo as Silver
+// that the rest of the pipeline calls Gold — a phantom regression that also
+// skews get_weekly_trend's tier_distribution. Read from the working tree (the
+// config lives on the default branch, not the data branch) and memoised for
+// the process lifetime, matching how every other phase treats it as run-static.
+const ROADMAP_CONFIG_PATH = join(__dirname, '..', '.github', 'roadmap.yml');
+let cachedConfig;
+
+function roadmapConfig() {
+  if (cachedConfig === undefined) cachedConfig = loadConfigSync(ROADMAP_CONFIG_PATH);
+  return cachedConfig;
+}
+
+// Tier options for a named repo. Every computeHealthTier call in this file
+// must go through here so a new call site cannot silently omit the exemption.
+function tierOptions(repoName) {
+  return { releaseExempt: isReleaseExempt(repoName, roadmapConfig()) };
+}
 
 // --- Data loading ---
 
@@ -331,7 +355,7 @@ function toolGetHealthTier(repoName) {
     return { error: `Repo '${repoName}' not found. Available: ${available}` };
   }
 
-  const { tier, checks } = computeHealthTier(repoData);
+  const { tier, checks } = computeHealthTier(repoData, tierOptions(repoName));
   const failing = checks.filter(c => !c.passed);
   const next = nextTier(tier);
   const needed = next ? failing.filter(c => isCheckRequiredForTier(c, next)) : [];
@@ -355,7 +379,7 @@ function toolQueryPortfolio(filters) {
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
   let repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
-    const { tier } = computeHealthTier(data);
+    const { tier } = computeHealthTier(data, tierOptions(name));
     return { name, tier, ...data };
   });
 
@@ -579,9 +603,9 @@ function clampInt(value, fallback, min, max) {
 
 // --- New read-only tools ---
 
-function projectWeekRow(week, data) {
+function projectWeekRow(week, data, repoName) {
   if (!data) return null;
-  const { tier } = computeHealthTier(data);
+  const { tier } = computeHealthTier(data, tierOptions(repoName));
   return {
     week,
     open_issues: data.open_issues ?? null,
@@ -623,20 +647,20 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
     const findRepo = (repos) => repos[repoName]
       ?? (repoId ? Object.values(repos).find(r => r?.id === repoId) : undefined);
     const series = parsed
-      .map(({ week, repos }) => projectWeekRow(week, findRepo(repos)))
+      .map(({ week, repos }) => projectWeekRow(week, findRepo(repos), repoName))
       .filter(Boolean);
     return { repo: repoName, weeks: series.length, series };
   }
 
   // Portfolio-wide aggregate per week.
   const aggregate = parsed.map(({ week, repos }) => {
-    const entries = Object.values(repos);
+    const entries = Object.entries(repos);
     const tierCounts = { gold: 0, silver: 0, bronze: 0, none: 0 };
     let totalOpenIssues = 0;
     let ciSum = 0, ciCount = 0;
     let chSum = 0, chCount = 0;
-    for (const data of entries) {
-      const { tier } = computeHealthTier(data);
+    for (const [name, data] of entries) {
+      const { tier } = computeHealthTier(data, tierOptions(name));
       if (tierCounts[tier] !== undefined) tierCounts[tier]++;
       if (typeof data.open_issues === 'number') totalOpenIssues += data.open_issues;
       if (typeof data.ciPassRate === 'number') { ciSum += data.ciPassRate; ciCount++; }
@@ -762,7 +786,7 @@ function computePortfolioHealth() {
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
   const repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
-    const { tier, checks } = computeHealthTier(data);
+    const { tier, checks } = computeHealthTier(data, tierOptions(name));
     return { name, tier, checks };
   });
 

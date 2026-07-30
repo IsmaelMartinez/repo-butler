@@ -3,6 +3,7 @@
 
 import { describe, it, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // Capture stdout writes to verify JSON-RPC responses.
 let responses = [];
@@ -556,5 +557,58 @@ describe('MCP server', async () => {
       assert.deepEqual(result.personas, expected,
         'persona projection must match PERSONAS exactly and not leak the internal `system` field');
     });
+  });
+});
+
+// The MCP server recomputes health tiers from the weekly snapshot rather than
+// reading a stored tier, so it must apply the same `release_exempt` list the
+// dashboard, store.js and the governance detectors apply. It previously did
+// not: mcp.js never loaded roadmap.yml, so an exempt repo whose release aged
+// past 90 days was reported Silver while the rest of the pipeline called it
+// Gold — a phantom tier regression that also skewed the weekly trend's
+// tier_distribution.
+describe('MCP release-exempt handling', () => {
+  const mcpSource = readFileSync(new URL('./mcp.js', import.meta.url), 'utf8');
+
+  it('passes tier options to every computeHealthTier call site', () => {
+    const calls = [...mcpSource.matchAll(/computeHealthTier\(([^)]*)/g)].map(m => m[1]);
+    assert.ok(calls.length >= 5, `expected the known tier call sites, found ${calls.length}`);
+    for (const args of calls) {
+      assert.match(args, /,\s*tierOptions\(/,
+        `computeHealthTier called without tierOptions(...): "computeHealthTier(${args})"`);
+    }
+  });
+
+  it('resolves the release exemption from the real roadmap.yml', async () => {
+    const { loadConfigSync } = await import('./config.js');
+    const { isReleaseExempt } = await import('./report-shared.js');
+    const config = loadConfigSync(new URL('../.github/roadmap.yml', import.meta.url).pathname);
+
+    assert.ok(config.release_exempt, 'roadmap.yml must declare release_exempt for this wiring to matter');
+    const exempt = config.release_exempt.split(',').map(s => s.trim()).filter(Boolean);
+    for (const repo of exempt) {
+      assert.equal(isReleaseExempt(repo, config), true, `${repo} should read as release-exempt`);
+    }
+    assert.equal(isReleaseExempt('repo-butler', config), false);
+  });
+
+  it('exempts a stale-release repo from the gold release check', async () => {
+    const { computeHealthTier } = await import('./report-shared.js');
+    const { isReleaseExempt } = await import('./report-shared.js');
+    const config = { release_exempt: 'quiet-repo' };
+    // Everything gold-worthy except a release well past the 90-day window.
+    const data = {
+      ci: 3, license: 'MIT', open_bugs: 0, communityHealth: 100,
+      vulns: { max_severity: null }, codeScanning: { max_severity: null },
+      secretScanning: { count: 0 },
+      released_at: '2024-01-01T00:00:00Z',
+      pushed_at: new Date().toISOString(),
+    };
+
+    const exempt = computeHealthTier(data, { releaseExempt: isReleaseExempt('quiet-repo', config) });
+    const notExempt = computeHealthTier(data, { releaseExempt: isReleaseExempt('other-repo', config) });
+
+    assert.equal(exempt.tier, 'gold', 'an exempt repo keeps gold despite a stale release');
+    assert.equal(notExempt.tier, 'silver', 'a non-exempt repo drops to silver — the bug this guards');
   });
 });
