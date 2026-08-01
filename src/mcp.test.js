@@ -571,9 +571,14 @@ describe('MCP server', async () => {
 describe('MCP release-exempt handling', () => {
   const mcpSource = readFileSync(new URL('./mcp.js', import.meta.url), 'utf8');
 
+  // The floor exists so this cannot pass vacuously by matching nothing — not as
+  // a target. It dropped from 5 to 4 in G8, when projectWeekRow and the
+  // portfolio aggregate loop were consolidated into the single weekTier helper.
+  // If it drops again, check the call sites really did merge rather than lose
+  // their options argument.
   it('passes tier options to every computeHealthTier call site', () => {
     const calls = [...mcpSource.matchAll(/computeHealthTier\(([^)]*)/g)].map(m => m[1]);
-    assert.ok(calls.length >= 5, `expected the known tier call sites, found ${calls.length}`);
+    assert.ok(calls.length >= 4, `expected the known tier call sites, found ${calls.length}`);
     for (const args of calls) {
       assert.match(args, /,\s*tierOptions\(/,
         `computeHealthTier called without tierOptions(...): "computeHealthTier(${args})"`);
@@ -615,5 +620,141 @@ describe('MCP release-exempt handling', () => {
 
     assert.equal(exempt.tier, 'gold', 'an exempt repo keeps gold despite a stale release');
     assert.equal(notExempt.tier, 'silver', 'a non-exempt repo drops to silver — the bug this guards');
+  });
+});
+
+// G8 — the server answers from a local checkout and never fetches, so both the
+// data it reads and the code doing the reading can be arbitrarily stale without
+// the answer looking any different. Two failures came from exactly that: a
+// briefing claiming 12 Gold against a true 7, and a weekly trend whose
+// historical Gold counts decayed as the snapshots aged.
+describe('MCP staleness guard', async () => {
+  const { computeStaleness, TOOLS, callTool } = await import('./mcp.js');
+  const HOUR = 3600000;
+  const NOW = Date.parse('2026-08-01T12:00:00Z');
+  const iso = (hoursAgo) => new Date(NOW - hoursAgo * HOUR).toISOString();
+
+  describe('computeStaleness', () => {
+    it('warns about nothing when the data is recent and the checkout is current', () => {
+      const s = computeStaleness(iso(3), 0, NOW);
+      assert.deepEqual(s.warnings, [], 'a healthy setup must produce no warning at all');
+      assert.equal(s.data_age_hours, 3);
+      assert.equal(s.commits_behind_main, 0);
+    });
+
+    it('warns once the data crosses the 48h threshold', () => {
+      assert.deepEqual(computeStaleness(iso(47), 0, NOW).warnings, [], '47h is still inside the window');
+      const stale = computeStaleness(iso(60), 0, NOW);
+      assert.equal(stale.warnings.length, 1);
+      assert.match(stale.warnings[0], /60h old/);
+      assert.equal(stale.data_age_hours, 60);
+    });
+
+    it('warns when the checkout is behind origin/main, naming the distance', () => {
+      const s = computeStaleness(iso(1), 106, NOW);
+      assert.equal(s.warnings.length, 1);
+      assert.match(s.warnings[0], /106 commit\(s\) behind origin\/main/);
+    });
+
+    it('reports both problems at once rather than stopping at the first', () => {
+      const s = computeStaleness(iso(120), 12, NOW);
+      assert.equal(s.warnings.length, 2, 'stale data and stale code are independent failures');
+    });
+
+    // "We could not check" and "we checked and it is fine" must not look the
+    // same to a caller — an unreadable probe is itself a reason to distrust.
+    it('warns rather than staying silent when a probe could not be read', () => {
+      const s = computeStaleness(null, null, NOW);
+      assert.equal(s.warnings.length, 2);
+      assert.equal(s.data_age_hours, null);
+      assert.equal(s.data_committed_at, null);
+      assert.ok(s.warnings.every(w => /Could not/.test(w)));
+    });
+
+    it('treats an unparseable timestamp as unreadable, not as age zero', () => {
+      const s = computeStaleness('not-a-date', 0, NOW);
+      assert.equal(s.data_age_hours, null);
+      assert.equal(s.data_committed_at, null);
+      assert.match(s.warnings[0], /Could not read the age/);
+    });
+
+    it('never reports negative age when the data commit is clock-skewed ahead', () => {
+      assert.equal(computeStaleness(iso(-5), 0, NOW).data_age_hours, 0);
+    });
+  });
+
+  describe('envelope attachment', () => {
+    // Attached in callTool rather than per-handler so a new tool cannot ship
+    // without one. This asserts the exact opt-out set, so widening it is a
+    // deliberate edit to this list and not a silent omission.
+    it('attaches staleness to every tool that reads the data branch', () => {
+      const optedOut = TOOLS.filter(t => t.readsDataBranch === false).map(t => t.name).sort();
+      assert.deepEqual(optedOut, ['get_council_personas', 'trigger_refresh'],
+        'only tools reading nothing from the data branch may opt out');
+      assert.ok(TOOLS.length - optedOut.length >= 10, 'the rest must carry the envelope');
+    });
+
+    it('does not attach staleness to a tool that reads nothing from the branch', () => {
+      const result = callTool('get_council_personas', {});
+      assert.ok(result.personas, 'sanity: the handler still ran');
+      assert.equal(result.staleness, undefined);
+    });
+
+    it('attaches a well-formed envelope to a data-branch tool', () => {
+      const result = callTool('get_health_tier', { repo: 'repo-butler' });
+      assert.ok(result.staleness, 'a data-branch answer must say how old it is');
+      assert.ok(Array.isArray(result.staleness.warnings));
+      assert.ok('data_age_hours' in result.staleness);
+      assert.ok('commits_behind_main' in result.staleness);
+    });
+
+    // An error is exactly when the caller most wants to know the checkout
+    // might be the cause, so the envelope rides along with it.
+    it('annotates an error result too', () => {
+      const result = callTool('get_health_tier', { repo: 'definitely-not-a-repo' });
+      assert.ok(result.error, 'sanity: this repo does not exist');
+      assert.ok(result.staleness, 'an error still needs its staleness context');
+    });
+  });
+});
+
+// G8, second half — a weekly snapshot is a record, not an input to re-derive
+// from. computeHealthTier measures release and push age against Date.now(), so
+// recomputing an archived week re-scores it with today's clock and historical
+// Gold counts decay purely as the snapshots age.
+describe('MCP historical tiers are read, not recomputed', async () => {
+  const { weekTier } = await import('./mcp.js');
+
+  // Gold-worthy on every check except a release far outside the 90-day window,
+  // so a recompute today necessarily returns silver. The stored value is what
+  // the week actually was.
+  const archived = (storedTier) => ({
+    ci: 3, license: 'MIT', open_bugs: 0, communityHealth: 100,
+    vulns: { max_severity: null }, codeScanning: { max_severity: null },
+    secretScanning: { count: 0 },
+    released_at: '2024-01-01T00:00:00Z',
+    pushed_at: new Date().toISOString(),
+    computed: { tier: storedTier },
+  });
+
+  it('returns the stored tier even when a recompute today would disagree', () => {
+    assert.equal(weekTier(archived('gold'), 'some-repo'), 'gold',
+      'the week recorded gold; today\'s clock must not retroactively demote it');
+  });
+
+  it('does not invent a tier the snapshot never recorded', () => {
+    assert.equal(weekTier(archived('bronze'), 'some-repo'), 'bronze');
+  });
+
+  it('falls back to recomputing for snapshots written before computed existed', () => {
+    const legacy = { ...archived('gold') };
+    delete legacy.computed;
+    assert.equal(weekTier(legacy, 'some-repo'), 'silver',
+      'with nothing stored there is no record to read, so the recompute stands');
+  });
+
+  it('falls back when computed exists but carries no tier', () => {
+    const partial = { ...archived('gold'), computed: { checks: [] } };
+    assert.equal(weekTier(partial, 'some-repo'), 'silver');
   });
 });

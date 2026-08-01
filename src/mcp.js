@@ -40,6 +40,70 @@ function tierOptions(repoName) {
   return { releaseExempt: isReleaseExempt(repoName, roadmapConfig()) };
 }
 
+// --- Staleness (G8) ---
+
+// This server answers from a local checkout and never fetches: it reads
+// snapshots with `git show origin/repo-butler-data:<path>`, and its own logic
+// is whatever that checkout contains. Both can be arbitrarily far behind
+// without the answer looking any different, and both have produced materially
+// wrong answers — a briefing claiming 12 Gold against a true 7 (stale data
+// ref), and two exempt repos reported a tier low (stale code, fixed in #359).
+// So the answer carries how old it is. Reporting rather than fetching is
+// deliberate: a read-only tool should not perform network writes to the
+// caller's repository as a side effect of being asked a question.
+const STALE_DATA_HOURS = 48;
+
+// Run a plain git command in the checkout. Returns trimmed stdout, or null on
+// any failure (not a repo, missing ref, timeout) — a staleness probe must never
+// be able to break the tool call it is annotating.
+function runGit(args) {
+  try {
+    return execFileSync('git', args, { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000 }).trim();
+  } catch {
+    return null;
+  }
+}
+
+// Pure: turns the two raw readings into an envelope. Split out from the git
+// calls so the thresholds and the wording are testable without a fixture repo.
+// An unreadable probe warns rather than staying silent — "we could not check"
+// and "we checked and it is fine" must not look the same to a caller.
+export function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) {
+  const warnings = [];
+  let ageHours = null;
+
+  const committedMs = dataCommittedAt ? new Date(dataCommittedAt).getTime() : NaN;
+  if (Number.isFinite(committedMs)) {
+    ageHours = Math.max(0, Math.round((now - committedMs) / 3600000));
+    if (ageHours >= STALE_DATA_HOURS) {
+      warnings.push(`Snapshot data is ${ageHours}h old and the pipeline runs 4x/day, so this answer may not reflect the current portfolio.`);
+    }
+  } else {
+    warnings.push('Could not read the age of the snapshot data, so this answer is unverified.');
+  }
+
+  if (commitsBehindMain === null) {
+    warnings.push('Could not determine whether this checkout is behind the remote default branch.');
+  } else if (commitsBehindMain > 0) {
+    warnings.push(`This server is running ${commitsBehindMain} commit(s) behind origin/main, so its logic may predate fixes on the default branch.`);
+  }
+
+  return {
+    data_committed_at: Number.isFinite(committedMs) ? dataCommittedAt : null,
+    data_age_hours: ageHours,
+    commits_behind_main: commitsBehindMain,
+    warnings,
+  };
+}
+
+function readStaleness() {
+  const dataCommittedAt = runGit(['log', '-1', '--format=%cI', 'origin/repo-butler-data'])
+    ?? runGit(['log', '-1', '--format=%cI', 'repo-butler-data']);
+  const behindRaw = runGit(['rev-list', '--count', 'HEAD..origin/main']);
+  const behind = behindRaw !== null && /^\d+$/.test(behindRaw) ? Number(behindRaw) : null;
+  return computeStaleness(dataCommittedAt, behind);
+}
+
 // --- Data loading ---
 
 // Run a git subcommand against the repo-butler-data branch, trying the
@@ -280,6 +344,9 @@ const TOOLS = [
       },
     },
     handler: (args) => toolTriggerRefresh(args?.phase || 'report'),
+    // Dispatches a workflow; reads nothing from the data branch, so a
+    // staleness envelope on the response would describe nothing it returned.
+    readsDataBranch: false,
   },
   {
     name: 'get_monitor_events',
@@ -303,6 +370,8 @@ const TOOLS = [
     description: 'Get the agent council personas and their roles. Useful for understanding which perspectives evaluate events and proposals.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetCouncilPersonas(),
+    // Reads PERSONAS from council.js in this checkout, not the data branch.
+    readsDataBranch: false,
   },
   {
     name: 'get_weekly_trend',
@@ -335,10 +404,19 @@ const TOOLS = [
   },
 ];
 
+// Every tool answering from the data branch carries a staleness envelope, and
+// it is attached here rather than in each handler so a new tool cannot ship
+// without one. Opting out is explicit (`readsDataBranch: false`) and currently
+// applies only to the two tools that read nothing from the branch. Errors are
+// annotated too — an error is exactly when the caller most wants to know the
+// checkout might be the problem.
 function callTool(name, args = {}) {
   const tool = TOOLS.find(t => t.name === name);
   if (!tool) return null;
-  return tool.handler(args || {});
+  const result = tool.handler(args || {});
+  if (tool.readsDataBranch === false) return result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+  return { ...result, staleness: readStaleness() };
 }
 
 // --- Tool implementations ---
@@ -603,9 +681,24 @@ function clampInt(value, fallback, min, max) {
 
 // --- New read-only tools ---
 
+// The tier a weekly snapshot RECORDS, not one re-derived from it.
+// `computeHealthTier` measures release and push age against `Date.now()`, so
+// recomputing an archived week re-scores it with today's clock: a release that
+// was 30 days old in W22 reads as 100+ days old now, and that week
+// retroactively fails the Gold release check. Historical Gold counts therefore
+// decayed as the snapshots aged, which is not a trend — it is the clock moving.
+// `store.js` already wrote the correct tier at the time, with the exemption
+// applied, so read it. The recompute stays as the fallback for any snapshot
+// written before `computed` existed.
+function weekTier(data, repoName) {
+  const stored = data?.computed?.tier;
+  if (stored) return stored;
+  return computeHealthTier(data, tierOptions(repoName)).tier;
+}
+
 function projectWeekRow(week, data, repoName) {
   if (!data) return null;
-  const { tier } = computeHealthTier(data, tierOptions(repoName));
+  const tier = weekTier(data, repoName);
   return {
     week,
     open_issues: data.open_issues ?? null,
@@ -660,7 +753,7 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
     let ciSum = 0, ciCount = 0;
     let chSum = 0, chCount = 0;
     for (const [name, data] of entries) {
-      const { tier } = computeHealthTier(data, tierOptions(name));
+      const tier = weekTier(data, name);
       if (tierCounts[tier] !== undefined) tierCounts[tier]++;
       if (typeof data.open_issues === 'number') totalOpenIssues += data.open_issues;
       if (typeof data.ciPassRate === 'number') { ciSum += data.ciPassRate; ciCount++; }
@@ -909,4 +1002,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, TOOLS, RESOURCES };
