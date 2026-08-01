@@ -249,12 +249,16 @@ describe('loadConfigSync', () => {
     assert.equal(config.release_exempt, '');
   });
 
-  it('writes nothing to stdout — mcp.js speaks JSON-RPC there', () => {
+  // Both fallback branches, not just the missing-path one: the throwing branch
+  // is where a diagnostic log is most likely to get added later, and on stdout
+  // that would corrupt mcp.js's JSON-RPC frames rather than merely being noisy.
+  it('writes nothing to stdout on either fallback — mcp.js speaks JSON-RPC there', () => {
     const original = process.stdout.write;
     let captured = '';
     process.stdout.write = (chunk) => { captured += chunk.toString(); return true; };
     try {
       loadConfigSync(join(tmpdir(), 'definitely-absent-roadmap.yml'));
+      loadConfigSync(tmpdir());
     } finally {
       process.stdout.write = original;
     }

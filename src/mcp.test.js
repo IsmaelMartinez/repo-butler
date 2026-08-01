@@ -4,6 +4,7 @@
 import { describe, it, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // Capture stdout writes to verify JSON-RPC responses.
 let responses = [];
@@ -582,7 +583,12 @@ describe('MCP release-exempt handling', () => {
   it('resolves the release exemption from the real roadmap.yml', async () => {
     const { loadConfigSync } = await import('./config.js');
     const { isReleaseExempt } = await import('./report-shared.js');
-    const config = loadConfigSync(new URL('../.github/roadmap.yml', import.meta.url).pathname);
+    // fileURLToPath, not .pathname: the latter percent-encodes (a checkout
+    // under a directory with a space yields `%20`, which existsSync misses)
+    // and on Windows leaves a leading slash before the drive letter. Either
+    // way loadConfigSync would silently return DEFAULTS and this test would
+    // fail on the assertion below rather than on the real cause.
+    const config = loadConfigSync(fileURLToPath(new URL('../.github/roadmap.yml', import.meta.url)));
 
     assert.ok(config.release_exempt, 'roadmap.yml must declare release_exempt for this wiring to matter');
     const exempt = config.release_exempt.split(',').map(s => s.trim()).filter(Boolean);
@@ -593,8 +599,7 @@ describe('MCP release-exempt handling', () => {
   });
 
   it('exempts a stale-release repo from the gold release check', async () => {
-    const { computeHealthTier } = await import('./report-shared.js');
-    const { isReleaseExempt } = await import('./report-shared.js');
+    const { computeHealthTier, isReleaseExempt } = await import('./report-shared.js');
     const config = { release_exempt: 'quiet-repo' };
     // Everything gold-worthy except a release well past the 90-day window.
     const data = {
