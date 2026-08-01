@@ -119,14 +119,16 @@ summary: {
 
 ## Health Tier System
 
-Source: `computeHealthTier(r)` exported from `src/report-shared.js`.
+Source: `computeHealthTier(r, options)` exported from `src/report-shared.js`.
 
-Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (see field mapping below). Tiers are `'gold'`, `'silver'`, `'bronze'`, or `'none'`, evaluated top-down:
+Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (see field mapping below). Tiers are `'gold'`, `'silver'`, `'bronze'`, or `'none'`, evaluated top-down.
+
+`options.releaseExempt` waives the 90-day release check for a repo listed in `release_exempt` in `.github/roadmap.yml`, resolved with `isReleaseExempt(name, config)`. Every caller must pass it — a caller that omits it silently reports an exempt repo one tier lower than the rest of the pipeline does. Note also that the release and activity checks are measured against `Date.now()`, so recomputing a tier from an *archived* weekly snapshot re-scores it with today's clock rather than reproducing what that week actually was; the stored `computed.tier` in each weekly snapshot is the historical record.
 
 **Gold** — all silver checks pass AND all gold checks pass:
 - `ci >= 2` (2+ CI workflows)
-- `open_issues < 20`
-- `released_at` within 90 days
+- `open_issues < 20` (or `open_bugs < 10` when bug counts are available)
+- `released_at` within 90 days, unless `options.releaseExempt`
 - `communityHealth >= 80`
 - `vulns != null` (Dependabot/Renovate configured)
 - `vulns.max_severity` is not `'critical'` or `'high'`
