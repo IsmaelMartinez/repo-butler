@@ -71,8 +71,9 @@ const DEFAULTS = {
 };
 
 // Parse raw roadmap YAML over the defaults. Pure — shared by both the async
-// and sync loaders so neither can drift from the other's defaults.
-export function parseConfig(raw) {
+// and sync loaders so neither can drift from the other's defaults. Internal:
+// callers pick a loader, not the parse step.
+function parseConfig(raw) {
   return deepMerge(DEFAULTS, parseSimpleYaml(raw));
 }
 
