@@ -337,6 +337,20 @@ phase means writing the module, exporting its `runX`, and registering it in
 `PHASE_RUNNERS` — and in `PHASES` too if it should run under `--phase=all`
 (`apply` is deliberately kept out of `PHASES` so it stays dispatch-only).
 
+One pass sits deliberately outside all of that. `src/private-watch.js` reads each
+private repo's security alerts and delivers acute findings to a tracking issue on
+that private repo itself, and it is called from `index.js` after `runPhases`
+rather than being a phase. Private repos never enter the shared pipeline, because
+repo-butler is itself public and therefore has three world-readable sinks — the
+Pages dashboard, the data branch, and the Actions run logs. An earlier attempt to
+run them through the governance detectors with per-finding redaction was
+abandoned after review found fourteen disclosure paths: `context.repoDetails` and
+`context.governanceFindings` are shared across phases in one process and reach
+the report, the IDEATE prompt and the PROPOSE soak ledger without passing any
+filter. Redaction applied to a shared carrier is a convention, and conventions
+lose. A mutation-verified guard in `src/governance.test.js` fails if any detector
+call is widened to include private repos.
+
 A few rules keep the boundaries clean. `src/safety.js` is the only file allowed to
 interpolate untrusted data into prompts or GitHub-bound output; everything else
 routes through it. New GitHub API fetchers go in `observe.js` following the
@@ -352,8 +366,13 @@ and provides `request`, `paginate`, `getFileContent`, `listDir`, `putFile`, and
 
 - `SECURITY.md` — the trust model: GitHub App token scope, untrusted-data
   boundaries, the data-branch treatment, and the cross-repo write gates.
-- `docs/decisions/` — the ADRs behind the bigger choices (governance phase split,
-  cross-repo write trust model, MCP and slash commands, agents and execution,
-  event emission, settings-level writes).
+- `docs/decisions/` — the ADRs behind the bigger choices: the governance phase
+  split, the cross-repo write trust model, MCP and slash commands, agents and
+  execution, event emission and settings-level writes (ADR-004 to ADR-009);
+  cross-repo proposal destinations and portfolio-informed generic proposals
+  (ADR-010, ADR-011); the Dependabot security-updates settings write (ADR-012);
+  the content-transformation trust model that the trimmer breaks ADR-005's
+  fixed-string invariant under (ADR-013); and why there is no programmatic
+  Dependabot rescan (ADR-014).
 - `docs/consumer-guide.md` — the repo-owner's guide to reading a per-repo
   dashboard.

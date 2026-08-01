@@ -85,7 +85,7 @@ Repo Butler follows a seven-phase loop: **OBSERVE → ASSESS → UPDATE → GOVE
 - **OBSERVE** gathers project state via the GitHub API (issues, PRs, releases, labels, workflows, roadmap content) and classifies all portfolio repos by activity level. No LLM needed.
 - **ASSESS** diffs the current snapshot against the previous run, computes weekly trends (growing/shrinking/stable), and optionally summarises changes with Gemini Flash.
 - **UPDATE** generates an updated roadmap document, validates it through a safety layer, and opens a PR.
-- **GOVERNANCE** runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, open vulnerabilities, stale Dependabot PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.
+- **GOVERNANCE** runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, tier regressions, open vulnerabilities, stalled security alerts, stale Dependabot PRs, and the butler's own unmerged PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.
 - **IDEATE** generates improvement ideas using an LLM (Claude for deeper reasoning, Gemini Flash as default), feeding off the fresh governance findings.
 - **PROPOSE** safety-filters ideas (URL allowlist, @mention blocking, secret detection), then creates GitHub issues capped at `max_issues_per_run`, sorted by priority, labelled for human review.
 - **REPORT** generates HTML dashboards for every active repo in the portfolio, deployed to GitHub Pages.
@@ -135,8 +135,13 @@ src/
 ├── observe.js            # OBSERVE: GitHub API data gathering + portfolio classification
 ├── assess.js             # ASSESS: snapshot diffing, trend computation, LLM summarisation
 ├── update.js             # UPDATE: roadmap PR generation with safety validation
-├── governance.js         # GOVERNANCE: standards-gap, policy-drift, tier-uplift, open-vulnerability, dependabot-stale detection (deterministic)
+├── governance.js         # GOVERNANCE: standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability detection (deterministic)
 ├── dependabot-audit.js   # Stale Dependabot PR detector (called by governance)
+├── butler-pr-audit.js    # Stale-butler-pr detector: the butler's own PRs nobody landed (called by governance)
+├── stalled-alert.js      # Stalled-alert detector: open Dependabot alerts with no PR driving them (called by governance)
+├── trimmer.js            # Parent-scoped npm override decider for transitive vulns (ADR-013; no caller in the write path yet)
+├── private-watch.js      # Private-repo security watch — standalone pass, never enters the governance pipeline
+├── private-notify.js     # Tracking-issue delivery for private-watch findings
 ├── ideate.js             # IDEATE: LLM idea generation with structured parsing
 ├── propose.js            # PROPOSE: GitHub issue creation with safety filtering + approval gate
 ├── report.js             # REPORT: entry point, orchestrates report generation
@@ -207,7 +212,7 @@ claude mcp add repo-butler node src/mcp.js
 }
 ```
 
-Once connected, the AI gets nine tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier/language), `get_snapshot_diff` (what changed since last run), `get_governance_findings` (standards gaps, policy drift, tier-uplift proposals), `trigger_refresh` (dispatch the workflow via `gh` CLI), `get_monitor_events` (events captured between daily runs), `get_watchlist` (council-watchlisted proposals), and `get_council_personas` (the five reviewer personas). It also exposes three resources: the latest snapshot, portfolio health summary, and campaign status.
+Once connected, the AI gets twelve tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier/language), `get_snapshot_diff` (what changed since last run), `get_weekly_trend` (up to 12 weeks of per-repo or portfolio-wide history), `get_governance_findings` (every finding type, with autofix-not-driven and tier-regression counts), `get_open_governance_prs` (outstanding `repo-butler/apply-*` PRs across the portfolio), `list_stale_dependabot_prs` (stale dependency PRs by minimum age), `trigger_refresh` (dispatch the workflow via `gh` CLI), `get_monitor_events` (events captured between daily runs), `get_watchlist` (council-watchlisted proposals), and `get_council_personas` (the five reviewer personas). It also exposes three resources: the latest snapshot, portfolio health summary, and campaign status.
 
 ## A2A Agent Card
 

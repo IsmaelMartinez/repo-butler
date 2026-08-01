@@ -20,7 +20,7 @@ Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phas
 
 `UPDATE` — Rewrites `ROADMAP.md` and opens a PR. All LLM-generated content passes through `src/safety.js` validators before publication.
 
-`GOVERNANCE` — Runs deterministic detectors over the portfolio: standards-gap, policy-drift, tier-uplift proposals, open-vulnerability (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit), and stale Dependabot PR audits. No LLM cost. Findings persist to `snapshots/governance.json` on the data branch and feed both the IDEATE prompt and the `get_governance_findings` MCP tool. Daily pipeline runs it 4×/day.
+`GOVERNANCE` — Runs deterministic detectors over the portfolio, producing eight finding types: standards-gap, policy-drift, tier-uplift proposals, tier-regression (a repo's tier fell since the previous weekly snapshot), open-vulnerability (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit), stalled-alert (an open Dependabot alert at or above `medium`, older than 14 days, with no Dependabot PR addressing it), stale-butler-pr (the butler's own unmerged PRs on target repos), and dependabot-stale PR audits. `tier-regression`, `open-vulnerability` and `stalled-alert` are per-repo state findings routed to `executor: 'manual'` — never to the templated-PR path or cross-repo PROPOSE. No LLM cost. Findings persist to `snapshots/governance.json` on the data branch and feed both the IDEATE prompt and the `get_governance_findings` MCP tool. Daily pipeline runs it 4×/day.
 
 `IDEATE` — Generates improvement proposals. Uses deep LLM provider (Claude Sonnet if configured, else falls back to default). Input is snapshot + portfolio context + triage bot intelligence + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
 
@@ -119,14 +119,16 @@ summary: {
 
 ## Health Tier System
 
-Source: `computeHealthTier(r)` exported from `src/report-shared.js`.
+Source: `computeHealthTier(r, options)` exported from `src/report-shared.js`.
 
-Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (see field mapping below). Tiers are `'gold'`, `'silver'`, `'bronze'`, or `'none'`, evaluated top-down:
+Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (see field mapping below). Tiers are `'gold'`, `'silver'`, `'bronze'`, or `'none'`, evaluated top-down.
+
+`options.releaseExempt` waives the 90-day release check for a repo listed in `release_exempt` in `.github/roadmap.yml`, resolved with `isReleaseExempt(name, config)`. Every caller must pass it — a caller that omits it silently reports an exempt repo one tier lower than the rest of the pipeline does. Note also that the release and activity checks are measured against `Date.now()`, so recomputing a tier from an *archived* weekly snapshot re-scores it with today's clock rather than reproducing what that week actually was; the stored `computed.tier` in each weekly snapshot is the historical record.
 
 **Gold** — all silver checks pass AND all gold checks pass:
 - `ci >= 2` (2+ CI workflows)
-- `open_issues < 20`
-- `released_at` within 90 days
+- `open_issues < 20` (or `open_bugs < 10` when bug counts are available)
+- `released_at` within 90 days, unless `options.releaseExempt`
 - `communityHealth >= 80`
 - `vulns != null` (Dependabot/Renovate configured)
 - `vulns.max_severity` is not `'critical'` or `'high'`
