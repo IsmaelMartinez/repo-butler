@@ -270,7 +270,7 @@
         "ecosystem": "npm",
         "manifestPath": "docs-site/package-lock.json",
         "severity": "medium",
-        "ageDays": 37,
+        "ageDays": 38,
         "classification": "reachable-by-update",
         "detail": "every parent range already admits http-proxy-middleware@2.0.10; refresh the lockfile instead"
       }
@@ -280,7 +280,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 37 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
+      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 38 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
       "acceptanceCriteria": [
         "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
