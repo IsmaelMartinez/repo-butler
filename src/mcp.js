@@ -68,7 +68,7 @@ function runGit(args) {
 // calls so the thresholds and the wording are testable without a fixture repo.
 // An unreadable probe warns rather than staying silent — "we could not check"
 // and "we checked and it is fine" must not look the same to a caller.
-export function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) {
+function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) {
   const warnings = [];
   let ageHours = null;
 
@@ -97,8 +97,10 @@ export function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.
 }
 
 function readStaleness() {
+  // `||` not `??`: an empty string is as unusable as null here, and should
+  // fall through to the bare local ref rather than be reported as a timestamp.
   const dataCommittedAt = runGit(['log', '-1', '--format=%cI', 'origin/repo-butler-data'])
-    ?? runGit(['log', '-1', '--format=%cI', 'repo-butler-data']);
+    || runGit(['log', '-1', '--format=%cI', 'repo-butler-data']);
   const behindRaw = runGit(['rev-list', '--count', 'HEAD..origin/main']);
   const behind = behindRaw !== null && /^\d+$/.test(behindRaw) ? Number(behindRaw) : null;
   return computeStaleness(dataCommittedAt, behind);
@@ -1002,4 +1004,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, computeStaleness, TOOLS, RESOURCES };
