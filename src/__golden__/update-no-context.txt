@@ -22,6 +22,9 @@ New issues since last update:
 Resolved issues:
   #5: Old bug
 
+PRs merged since last update:
+  #20: Fix typo
+
 New releases:
   v1.2.1 (2026-04-01)
 

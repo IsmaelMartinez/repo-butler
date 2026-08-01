@@ -816,6 +816,24 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
     items.push('');
   }
 
+  // Merged PR titles — the one input this prompt asked the model to reason
+  // about but never supplied. The instructions below say "only create entries
+  // for genuinely new work visible in the data above (new merged PRs, …)"
+  // while the data above carried only a 90-day merged *count*, so the shipped
+  // log got written from whatever the assessment prose happened to name: G13
+  // earned an entry while the tier-regression detector (#354), the butler-PR
+  // audit (#355) and the trimmer (#356) were missed and had to be backfilled
+  // by hand in #360. ASSESS already computes this array (`newMergedPRs` in
+  // assess.js); it was simply never read. Same sanitiser and same 15-item cap
+  // as the issue blocks above.
+  if (assessment?.diff?.new_merged_prs?.length > 0) {
+    items.push('PRs merged since last update:');
+    for (const p of assessment.diff.new_merged_prs.slice(0, 15)) {
+      items.push(`  #${p.number}: ${sanitizeForPrompt(p.title)}`);
+    }
+    items.push('');
+  }
+
   if (assessment?.diff?.new_releases?.length > 0) {
     items.push('New releases:');
     for (const r of assessment.diff.new_releases) {
@@ -843,6 +861,7 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
       `  Correct: {"action": "append", "section": "Implemented", "text": "…"}`,
       `- Valid section names (for the "section" field): ${SECTION_NAMES.map(s => `"${s}"`).join(', ')}. No other section names are accepted.`,
       '- Only create entries for genuinely new work visible in the data above (new merged PRs, resolved issues, new releases).',
+      '- Group by capability, not by pull request. Several PRs delivering one capability are ONE entry citing all their numbers (e.g. "(PRs #357, #358)"); one PR delivering nothing user-visible — a dependency bump, a lint fix, a typo, a revert — gets no entry at all. This log is a record of what the project can now do, not a changelog.',
       '- Do not repeat or summarise anything already in the roadmap. Read the current roadmap carefully before deciding.',
       '- If nothing meaningful changed since the last update, return an empty array: []',
       '- Each "text" value should be a single markdown paragraph in the style of existing entries (e.g. "Feature X shipped 2026-05-26 (PR #N). Description of what changed.").',
@@ -884,6 +903,24 @@ export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectC
     items.push('Resolved issues:');
     for (const i of assessment.diff.resolved_issues.slice(0, 15)) {
       items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)}`);
+    }
+    items.push('');
+  }
+
+  // Merged PR titles — the one input this prompt asked the model to reason
+  // about but never supplied. The instructions below say "only create entries
+  // for genuinely new work visible in the data above (new merged PRs, …)"
+  // while the data above carried only a 90-day merged *count*, so the shipped
+  // log got written from whatever the assessment prose happened to name: G13
+  // earned an entry while the tier-regression detector (#354), the butler-PR
+  // audit (#355) and the trimmer (#356) were missed and had to be backfilled
+  // by hand in #360. ASSESS already computes this array (`newMergedPRs` in
+  // assess.js); it was simply never read. Same sanitiser and same 15-item cap
+  // as the issue blocks above.
+  if (assessment?.diff?.new_merged_prs?.length > 0) {
+    items.push('PRs merged since last update:');
+    for (const p of assessment.diff.new_merged_prs.slice(0, 15)) {
+      items.push(`  #${p.number}: ${sanitizeForPrompt(p.title)}`);
     }
     items.push('');
   }
