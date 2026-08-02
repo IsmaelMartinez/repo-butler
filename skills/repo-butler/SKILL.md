@@ -59,7 +59,9 @@ ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null
 echo "$ALMANAC"
 ```
 
-Two details are load-bearing. `cd -P` first, because Node collapses `..` lexically — handing the registry path straight to `node` never traverses the symlink and looks for the script beside the registry instead. And empty output is a *positive* signal, not a failure to check: a checkout old enough to lack `scripts/check-skills.js` predates this very check, which is exactly the stale case.
+The final `echo` is how *you* read the value, exactly as `echo "$PRIOR"` is in the continuity block below — it is not comic output, so it prints unconditionally and the decision about whether to show anything is made when you compose the frame.
+
+Two further details are load-bearing. `cd -P` first, because Node collapses `..` lexically — handing the registry path straight to `node` never traverses the symlink and looks for the script beside the registry instead. And empty output is a *positive* signal, not a failure to check: a checkout old enough to lack `scripts/check-skills.js` predates this very check, which is exactly the stale case.
 
 If `$ALMANAC` says the skill is current with `origin/main`, say nothing — a calm morning should stay calm. Otherwise Reginald mentions the almanac once, in the frame, quoting the reading verbatim so the counts survive the metaphor: `the almanac: {$ALMANAC}`. Never suppress it to keep the comic tidy, and never soften it into "possibly out of date" — the reading is precise and the whole point is that a stale skill used to look identical to a current one.
 

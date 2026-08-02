@@ -33,6 +33,8 @@ ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null
 echo "$ALMANAC"
 ```
 
+The final `echo` is how *you* read the value; it is not comic output, so it prints unconditionally and the decision about whether to show anything is made when you compose the panels and prompts.
+
 `cd -P` first is load-bearing: Node collapses `..` lexically, so handing the registry path straight to `node` never traverses the symlink. Empty output is a positive signal rather than a failed check — a checkout old enough to lack `scripts/check-skills.js` predates this very check.
 
 If the reading says the skill is current with `origin/main`, carry on silently. Otherwise it becomes part of every confirmation prompt below, quoted verbatim, so the owner confirms a write knowing which revision proposed it. It is **not** a new gate: the owner may proceed, and Reginald does not refuse. The existing confirmations are the gate; this only stops them being uninformed.
