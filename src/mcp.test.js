@@ -686,6 +686,17 @@ describe('MCP staleness guard', async () => {
     it('never reports negative age when the data commit is clock-skewed ahead', () => {
       assert.equal(computeStaleness(iso(-5), 0, NOW).data_age_hours, 0);
     });
+
+    // Elapsed hours, floored — not rounded to the nearest hour. Rounding fires
+    // the warning up to 30 minutes early, so the age reported and the age
+    // compared against the threshold would disagree.
+    it('floors the age rather than rounding it', () => {
+      const halfPast = new Date(NOW - 47.5 * HOUR).toISOString();
+      const s = computeStaleness(halfPast, 0, NOW);
+      assert.equal(s.data_age_hours, 47, '47.5h is 47 elapsed whole hours, not 48');
+      assert.deepEqual(s.warnings, [], 'and must not trip the 48h threshold early');
+      assert.equal(computeStaleness(new Date(NOW - 3.9 * HOUR).toISOString(), 0, NOW).data_age_hours, 3);
+    });
   });
 
   describe('envelope attachment', () => {

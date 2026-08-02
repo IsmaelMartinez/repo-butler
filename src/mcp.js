@@ -56,9 +56,29 @@ const STALE_DATA_HOURS = 48;
 // Run a plain git command in the checkout. Returns trimmed stdout, or null on
 // any failure (not a repo, missing ref, timeout) — a staleness probe must never
 // be able to break the tool call it is annotating.
+//
+// Non-interactive by construction. `ls-remote` talks to the network, and on an
+// HTTPS remote without cached credentials git would otherwise sit waiting for a
+// username at a terminal that, for a stdio MCP server, nobody is watching — one
+// tool call would hang for the whole timeout. GIT_TERMINAL_PROMPT=0 covers the
+// HTTPS path, BatchMode the SSH one, and the empty askpass vars stop a GUI
+// helper being summoned instead. A missing credential must fail immediately and
+// become `unknown`, which the envelope already reports honestly.
+const GIT_NONINTERACTIVE_ENV = {
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_ASKPASS: '',
+  SSH_ASKPASS: '',
+  GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new',
+};
+
 function runGit(args, timeout = 5000) {
   try {
-    return execFileSync('git', args, { encoding: 'utf8', cwd: join(__dirname, '..'), timeout }).trim();
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      cwd: join(__dirname, '..'),
+      timeout,
+      env: { ...process.env, ...GIT_NONINTERACTIVE_ENV },
+    }).trim();
   } catch {
     return null;
   }
@@ -74,7 +94,10 @@ function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) 
 
   const committedMs = dataCommittedAt ? new Date(dataCommittedAt).getTime() : NaN;
   if (Number.isFinite(committedMs)) {
-    ageHours = Math.max(0, Math.round((now - committedMs) / 3600000));
+    // floor, not round: rounding reports 47.5h as 48 and fires the warning up
+    // to half an hour before the documented threshold, so the number shown and
+    // the number compared would disagree.
+    ageHours = Math.max(0, Math.floor((now - committedMs) / 3600000));
     if (ageHours >= STALE_DATA_HOURS) {
       warnings.push(`Snapshot data is ${ageHours}h old and the pipeline runs 4x/day, so this answer may not reflect the current portfolio.`);
     }
