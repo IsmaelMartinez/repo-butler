@@ -1325,4 +1325,15 @@ describe('UPDATE prompts carry merged PR titles, not just a count', () => {
     assert.match(prompt, /Group by capability, not by pull request/);
     assert.match(prompt, /not a changelog/);
   });
+
+  // The instructions forbid citing PR numbers absent from the data, so no
+  // instruction may hand the model a concrete number to echo. The pre-existing
+  // style example uses "#N" for exactly this reason.
+  it('uses placeholders, not real PR numbers, in its instruction examples', () => {
+    const prompt = buildSectionEditPrompt('# Roadmap', snapshot, assessment, null);
+    const instructions = prompt.slice(prompt.indexOf('Instructions:'));
+    const concrete = [...instructions.matchAll(/e\.g\.[^\n]*?#(\d+)/g)].map(m => m[1]);
+    assert.deepEqual(concrete, [],
+      `instruction examples must not contain literal PR numbers, found: ${concrete.join(', ')}`);
+  });
 });

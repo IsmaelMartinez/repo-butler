@@ -867,7 +867,11 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
       `  Correct: {"action": "append", "section": "Implemented", "text": "…"}`,
       `- Valid section names (for the "section" field): ${SECTION_NAMES.map(s => `"${s}"`).join(', ')}. No other section names are accepted.`,
       '- Only create entries for genuinely new work visible in the data above (new merged PRs, resolved issues, new releases).',
-      '- Group by capability, not by pull request. Several PRs delivering one capability are ONE entry citing all their numbers (e.g. "(PRs #357, #358)"); one PR delivering nothing user-visible — a dependency bump, a lint fix, a typo, a revert — gets no entry at all. This log is a record of what the project can now do, not a changelog.',
+      // Placeholders, not real numbers: the rule two lines below forbids citing
+      // PR numbers absent from the data, and a concrete example is the easiest
+      // thing for a model to echo straight into an entry. The sibling example
+      // below already uses "#N" for the same reason.
+      '- Group by capability, not by pull request. Several PRs delivering one capability are ONE entry citing all their numbers (e.g. "(PRs #N, #M)"); one PR delivering nothing user-visible — a dependency bump, a lint fix, a typo, a revert — gets no entry at all. This log is a record of what the project can now do, not a changelog.',
       '- Do not repeat or summarise anything already in the roadmap. Read the current roadmap carefully before deciding.',
       '- If nothing meaningful changed since the last update, return an empty array: []',
       '- Each "text" value should be a single markdown paragraph in the style of existing entries (e.g. "Feature X shipped 2026-05-26 (PR #N). Description of what changed.").',
