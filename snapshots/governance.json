@@ -1,94 +1,6 @@
 [
   {
     "type": "standards-gap",
-    "tool": "code-scanning",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "yourear",
-      "sound3fy",
-      "teams-for-linux",
-      "ismaelmartinez.me.uk",
-      "generator-atlassian-compass-event-catalog",
-      "bonnie-wee-plot",
-      "betis-escocia",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "repo-butler",
-      "wifisentinel",
-      "lounge-tv",
-      "delegate-local"
-    ],
-    "nonCompliant": [
-      "skill-sources"
-    ],
-    "repoEcosystems": {
-      "skill-sources": null
-    },
-    "repoAutoMerge": {
-      "skill-sources": false
-    },
-    "adoptionRate": 0.9285714285714286,
-    "priority": "low",
-    "remediation": {
-      "executor": "template",
-      "targetFiles": [
-        ".github/workflows/codeql-analysis.yml"
-      ],
-      "intent": "Add code-scanning to 1 non-compliant repo(s)",
-      "rationale": "Standards gap: code-scanning adopted by 93% of in-scope repos; missing in skill-sources.",
-      "acceptanceCriteria": [
-        "Every non-compliant repo passes the code-scanning standard check"
-      ]
-    }
-  },
-  {
-    "type": "standards-gap",
-    "tool": "dependabot-auto-merge",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "yourear",
-      "sound3fy",
-      "teams-for-linux",
-      "ismaelmartinez.me.uk",
-      "generator-atlassian-compass-event-catalog",
-      "bonnie-wee-plot",
-      "betis-escocia",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "repo-butler",
-      "wifisentinel",
-      "lounge-tv",
-      "delegate-local"
-    ],
-    "nonCompliant": [
-      "skill-sources"
-    ],
-    "repoEcosystems": {
-      "skill-sources": null
-    },
-    "repoAutoMerge": {
-      "skill-sources": false
-    },
-    "adoptionRate": 0.9285714285714286,
-    "priority": "low",
-    "remediation": {
-      "executor": "template",
-      "targetFiles": [
-        ".github/workflows/dependabot-auto-merge.yml"
-      ],
-      "intent": "Add dependabot-auto-merge to 1 non-compliant repo(s)",
-      "rationale": "Standards gap: dependabot-auto-merge adopted by 93% of in-scope repos; missing in skill-sources.",
-      "acceptanceCriteria": [
-        "Every non-compliant repo passes the dependabot-auto-merge standard check"
-      ]
-    }
-  },
-  {
-    "type": "standards-gap",
     "tool": "codeowners",
     "scope": {
       "type": "universal"
@@ -177,48 +89,6 @@
   },
   {
     "type": "standards-gap",
-    "tool": "code-review-bot",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "yourear",
-      "sound3fy",
-      "teams-for-linux",
-      "ismaelmartinez.me.uk",
-      "generator-atlassian-compass-event-catalog",
-      "bonnie-wee-plot",
-      "betis-escocia",
-      "ai-model-advisor",
-      "github-issue-triage-bot",
-      "repo-butler",
-      "wifisentinel",
-      "lounge-tv",
-      "delegate-local"
-    ],
-    "nonCompliant": [
-      "skill-sources"
-    ],
-    "repoEcosystems": {
-      "skill-sources": null
-    },
-    "repoAutoMerge": {
-      "skill-sources": false
-    },
-    "adoptionRate": 0.9285714285714286,
-    "priority": "low",
-    "remediation": {
-      "executor": "settings",
-      "targetFiles": [],
-      "intent": "Add code-review-bot to 1 non-compliant repo(s)",
-      "rationale": "Standards gap: code-review-bot adopted by 93% of in-scope repos; missing in skill-sources.",
-      "acceptanceCriteria": [
-        "Every non-compliant repo passes the code-review-bot standard check"
-      ]
-    }
-  },
-  {
-    "type": "standards-gap",
     "tool": "release-cadence",
     "scope": {
       "type": "universal"
@@ -270,7 +140,7 @@
         "ecosystem": "npm",
         "manifestPath": "docs-site/package-lock.json",
         "severity": "medium",
-        "ageDays": 38,
+        "ageDays": 39,
         "classification": "reachable-by-update",
         "detail": "every parent range already admits http-proxy-middleware@2.0.10; refresh the lockfile instead"
       }
@@ -280,7 +150,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 38 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
+      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 39 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
       "acceptanceCriteria": [
         "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
