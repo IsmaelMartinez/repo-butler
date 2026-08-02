@@ -35,7 +35,11 @@ function usage(stream = process.stdout) {
 }
 
 const args = process.argv.slice(2);
-let skillsDir = join(process.env.HOME || '', '.claude', 'skills');
+// Null rather than a relative path when HOME is unset: a bare `.claude/skills`
+// would resolve against whatever directory the caller happened to be in and
+// report every skill `absent`, which reads as a finding rather than as "not
+// checked". inspectSkillCheckout skips install classification on null.
+let skillsDir = process.env.HOME ? join(process.env.HOME, '.claude', 'skills') : null;
 let format = 'report';
 
 while (args.length) {

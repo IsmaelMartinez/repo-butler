@@ -158,7 +158,7 @@ One fenced ASCII block, ~18–22 lines: a title bar, the backdrop label, Reginal
 |                                                    |
 |  {continuity opener — "since your last briefing…"} |
 |  {streak / saga line if any}                       |
-|  {almanac line — ONLY when the skill is not current}|
+|  {almanac line — only when not current}            |
 |                                                    |
 |  {N} repos · {gold} Gold · {concern stat} · {ci}   |
 +----------------------------------------------------+
