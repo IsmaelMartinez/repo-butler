@@ -1289,11 +1289,16 @@ describe('UPDATE prompts carry merged PR titles, not just a count', () => {
       assert.doesNotMatch(build('# Roadmap', snapshot, {}, null), /PRs merged since last update:/);
     });
 
-    it(`${label}: caps the list so a busy week cannot flood the prompt`, () => {
+    // Pin the boundary, not a value comfortably past it: asserting only that
+    // item 20 is absent passes with a cap of 20 as happily as with 15.
+    it(`${label}: caps the list at exactly 15, matching the issue blocks`, () => {
       const many = Array.from({ length: 40 }, (_, i) => ({ number: 500 + i, title: `PR number ${i}` }));
       const prompt = build('# Roadmap', snapshot, { diff: { new_merged_prs: many } }, null);
-      assert.match(prompt, /#500: PR number 0/);
-      assert.doesNotMatch(prompt, /#520: PR number 20/, 'the 15-item cap must hold');
+      assert.match(prompt, /#500: PR number 0\b/, 'the first item must survive');
+      assert.match(prompt, /#514: PR number 14\b/, 'the 15th item is the last kept');
+      assert.doesNotMatch(prompt, /#515: PR number 15\b/, 'the 16th must be dropped');
+      const listed = [...prompt.matchAll(/^ {2}#5\d\d: PR number /gm)].length;
+      assert.equal(listed, 15, `expected exactly 15 merged-PR lines, found ${listed}`);
     });
 
     // A PR title is attacker-controllable on any repo the butler observes, and
