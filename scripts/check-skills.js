@@ -29,7 +29,7 @@ function usage(stream = process.stdout) {
     'Usage: node scripts/check-skills.js [--headline|--json] [--skills-dir DIR]',
     '',
     'Reports whether the installed repo-butler skills are current with origin/main.',
-    'Exit 0 when there is nothing to report, 1 when there is.',
+    'Exit 0 when there is nothing to report, 1 when there is, 2 on a usage error.',
     '',
   ].join('\n'));
 }
