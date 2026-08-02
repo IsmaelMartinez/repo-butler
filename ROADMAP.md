@@ -95,6 +95,8 @@ G8 MCP staleness guard shipped 2026-08-02 (PR #361). Two changes with one cause:
 
 UPDATE prompt merged-PR context shipped 2026-08-02 (PR #362). The section-edit prompt is now given the titles and numbers of recently merged PRs rather than only a 90-day count, which is what its own instructions had always told the model to reason about. Entry generation no longer depends on the assessment prose happening to name the work. This entry is itself the first output of that change. It does not, on its own, stop entries being lost: a separate defect in the refresh path rebuilds the document from the default branch on every tick and overwrites the open PR, so each tick discards the previous tick's entry.
 
+Roadmap refresh baseline fixed 2026-08-02 (PR #364). When a roadmap PR was already open, UPDATE rebuilt the document from the default branch and pushed that over the PR, so each of the day's four ticks discarded the previous tick's entry. The refresh now reads the roadmap from the open PR's head ref and builds on that, falling back to the default-branch copy when the branch read fails. `update()` gained a `context.gh` test seam — nothing in the pipeline sets it — because the only function that writes `ROADMAP.md` had no test at all, and the helper-level tests all passed with the defect restored; only an end-to-end test of the refresh wiring fails.
+
 ---
 
 ## Next Up
@@ -127,11 +129,15 @@ The MCP half of this shipped as G8 (see the log above). The skills half has not.
 
 What the MCP half suggests for this one is that the fix is a staleness signal rather than an installer: something that reports how far the linked checkout is behind, and says so at the point of use. `computeStaleness` in `src/mcp.js` is the shape to reuse — a skill could surface the same `commits_behind_main` reading in its output rather than rendering confidently from an unknown revision.
 
-### UPDATE cannot see what shipped
+### ~~UPDATE loses what it records~~ SHIPPED
 
-The phase whose job is to record what landed is not given the list of what landed. `buildUpdatePrompt` (`src/update.js`) passes the model open issues, blocked and awaiting counts, new and resolved issues, new releases, high-reaction issues, top labels, the assessment prose, and a merged-PR *count* — never merged PR titles. So the shipped log is written from whatever the assessment prose happens to mention.
+Both halves have now shipped, and the first diagnosis was wrong in a way worth keeping on the record.
 
-The cost is visible above: G13 got an entry from the butler's own roadmap PR because the assessment named it, while G7, G12 and the trimmer were missed and had to be backfilled by hand on 2026-08-01, along with the private-watch section that had shipped four days earlier and was still sitting under Next Up. Compounding it, UPDATE appends forward and never backfills, so an entry missed on the run after a merge is missed permanently. The fix is small — surface recently-merged PR titles and numbers in the prompt, sanitised like every other external string — but it needs care that the roadmap does not become a changelog: the log's value is one paragraph per shipped *capability*, not one line per PR.
+The visible symptom was that #354, #355 and #356 never reached the shipped log and had to be backfilled by hand on 2026-08-01. The first explanation was that the prompt never carried merged PR titles — only a 90-day count — so entry generation depended on the assessment prose happening to name the work. That was a real defect and shipped as #362, but it was not the cause. Reading #353's commit history showed the LLM had written a correct entry on *every* tick: #354, then #355, then #356, then #357/#358, each one replacing the last.
+
+The actual cause was that a refresh rebuilt the document from the default branch. `snapshot.roadmap` is what OBSERVE read from `main`, and using it as the baseline meant each tick appended its entry to `main`'s copy and pushed that over the open PR, discarding the previous tick's work. Entries were never re-offered either, because ASSESS computes `new_merged_prs` against the previous snapshot, so a PR that was new last tick is not new this tick — lost meant lost. Fixed by reading the roadmap from the open PR's head ref before compaction and using that as the baseline, falling back to the snapshot when the branch copy is unreadable.
+
+The lesson is the one this codebase keeps relearning: a plausible cause that explains the symptom is not the same as the cause. The prompt gap was real, visible in a diff, and would have been accepted as the explanation if the commit history of the failing PR had not been read.
 
 ### Dashboard round-two follow-ons
 

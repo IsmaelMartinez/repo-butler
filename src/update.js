@@ -33,6 +33,21 @@ export function buildRoadmapPrBody(assessmentText) {
 
 const ROADMAP_BRANCH_PREFIX = 'repo-butler/roadmap-update-';
 
+// Read the roadmap as it exists on one ref. Returns { content, sha } or null
+// when the file is absent there or the read fails — callers decide the
+// fallback, because "no roadmap on this branch" and "GitHub said no" both mean
+// "use the default-branch copy" but neither should abort the run. Exported for
+// testing.
+export async function readRoadmapFromRef(gh, owner, repo, roadmapPath, ref) {
+  try {
+    const f = await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, { params: { ref } });
+    if (!f?.content) return null;
+    return { content: Buffer.from(f.content, 'base64').toString('utf8'), sha: f.sha };
+  } catch {
+    return null;
+  }
+}
+
 // Find an open roadmap-update PR. Returns the first match or null. Exported
 // for testing. Uses the paginate helper's default cap (500) — a stale roadmap
 // PR could otherwise be hidden behind 100+ unrelated PRs in busy consumer
@@ -255,9 +270,13 @@ export async function update(context) {
   }
 
   const roadmapPath = config.roadmap?.path || 'ROADMAP.md';
-  const currentRoadmap = snapshot.roadmap?.content || '';
 
-  const gh = createClient(token);
+  // `context.gh` is a test seam, not a feature: nothing in the pipeline sets
+  // it. This function is the only path that writes ROADMAP.md, and it had no
+  // test at all — which is how the refresh baseline defect below survived four
+  // ticks of silently discarding entries. A fake client is the only way to
+  // exercise the refresh wiring rather than just the helpers it calls.
+  const gh = context.gh || createClient(token);
 
   // Idempotency: the daily pipeline runs 4×/day. If a previous run's PR is
   // still open, refresh its branch with the latest output rather than open a
@@ -268,6 +287,34 @@ export async function update(context) {
   // the push without touching the open PR.
   const existing = await findOpenRoadmapPr(gh, owner, repo);
   const isRefresh = !!existing;
+
+  // The baseline every later step edits: the prompt's read-only context, the
+  // document applyEditOps appends to, and the "did anything change?" compare.
+  //
+  // On a refresh it MUST be the open PR branch's copy, not the default
+  // branch's. `snapshot.roadmap` is what OBSERVE read from the default branch,
+  // so using it here rebuilt the document from main every tick and pushed that
+  // over the PR — silently discarding the previous tick's entry. PR #353
+  // recorded the damage precisely: four refreshes, each writing one correct
+  // entry (#354, then #355, then #356, then #357/#358) and each replacing the
+  // last, so a PR that should have listed four shipped capabilities listed
+  // one. Entries are never re-offered either, because ASSESS computes
+  // `new_merged_prs` against the previous snapshot, so a PR that was new last
+  // tick is not new this tick. Lost meant lost.
+  //
+  // Fail-safe: an unreadable branch copy falls back to the snapshot, i.e. the
+  // old behaviour, rather than aborting the run.
+  let currentRoadmap = snapshot.roadmap?.content || '';
+  let branchFileSha;
+  if (isRefresh) {
+    const onBranch = await readRoadmapFromRef(gh, owner, repo, roadmapPath, existing.head.ref);
+    if (onBranch) {
+      currentRoadmap = onBranch.content;
+      branchFileSha = onBranch.sha;
+    } else {
+      console.warn(`SECTION-EDIT: could not read ${roadmapPath} from ${existing.head.ref}; falling back to the default-branch copy.`);
+    }
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -346,19 +393,19 @@ export async function update(context) {
     });
   }
 
-  // Read the current roadmap from whichever branch we're about to write to.
-  // For new PRs that's the default branch (we just forked from it); for a
-  // refresh that's the existing PR's branch (it may have diverged from main).
-  let fileSha;
-  let existingContent = null;
-  try {
-    const f = await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
-      params: { ref: branchName },
-    });
-    fileSha = f.sha;
-    existingContent = Buffer.from(f.content, 'base64').toString('utf8');
-  } catch {
-    // File doesn't exist on this branch.
+  // The blob SHA the PUT needs, plus the branch's current content for the
+  // no-op check below. On a refresh both were already read above — that read
+  // is now load-bearing (it is the baseline), so reuse it rather than paying a
+  // second round-trip. For a new PR the branch was just forked from the
+  // default branch, so this reads what we forked.
+  let fileSha = branchFileSha;
+  let existingContent = isRefresh && branchFileSha !== undefined ? currentRoadmap : null;
+  if (existingContent === null) {
+    const f = await readRoadmapFromRef(gh, owner, repo, roadmapPath, branchName);
+    if (f) {
+      fileSha = f.sha;
+      existingContent = f.content;
+    }
   }
 
   // No-op short-circuit: if the new output matches what's already on the

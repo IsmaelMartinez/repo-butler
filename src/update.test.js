@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEditOps, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, compactShippedLog, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { update, applyEditOps, readRoadmapFromRef, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, compactShippedLog, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
 import { validateRoadmap } from './safety.js';
 import { readFileSync } from 'node:fs';
 
@@ -1335,5 +1335,131 @@ describe('UPDATE prompts carry merged PR titles, not just a count', () => {
     const concrete = [...instructions.matchAll(/e\.g\.[^\n]*?#(\d+)/g)].map(m => m[1]);
     assert.deepEqual(concrete, [],
       `instruction examples must not contain literal PR numbers, found: ${concrete.join(', ')}`);
+  });
+});
+
+// The refresh baseline. On a refresh, every later step — the prompt's
+// read-only context, the document applyEditOps appends to, and the no-op
+// compare — must start from the OPEN PR BRANCH's copy, not the default
+// branch's. Using the snapshot rebuilt the document from main each tick and
+// pushed that over the PR, discarding the previous tick's entry: PR #353 ran
+// four refreshes, each writing one correct entry and each replacing the last.
+describe('readRoadmapFromRef', () => {
+  const b64 = (s) => Buffer.from(s).toString('base64');
+
+  it('decodes the file at the requested ref and returns its blob sha', async () => {
+    let asked = null;
+    const gh = { request: async (path, opts) => { asked = { path, ref: opts?.params?.ref }; return { content: b64('# On the branch'), sha: 'abc123' }; } };
+    const got = await readRoadmapFromRef(gh, 'o', 'r', 'ROADMAP.md', 'repo-butler/roadmap-update-1');
+    assert.deepEqual(got, { content: '# On the branch', sha: 'abc123' });
+    assert.equal(asked.path, '/repos/o/r/contents/ROADMAP.md');
+    assert.equal(asked.ref, 'repo-butler/roadmap-update-1', 'must read the PR branch, not the default branch');
+  });
+
+  it('returns null when the ref has no such file, so the caller can fall back', async () => {
+    const gh = { request: async () => { throw new Error('404'); } };
+    assert.equal(await readRoadmapFromRef(gh, 'o', 'r', 'ROADMAP.md', 'branch'), null);
+  });
+
+  it('returns null rather than throwing when the response carries no content', async () => {
+    const gh = { request: async () => ({ sha: 'abc' }) };
+    assert.equal(await readRoadmapFromRef(gh, 'o', 'r', 'ROADMAP.md', 'branch'), null);
+  });
+
+  it('never throws — an unreadable branch must not abort the run', async () => {
+    const gh = { request: async () => { throw Object.assign(new Error('403'), { status: 403 }); } };
+    await assert.doesNotReject(() => readRoadmapFromRef(gh, 'o', 'r', 'ROADMAP.md', 'branch'));
+  });
+
+  // The regression itself, stated as a property: appending tick N+1's entry to
+  // the BRANCH copy accumulates, appending it to the DEFAULT-BRANCH copy does
+  // not. This is what #353 got wrong four times in a row.
+  it('accumulating onto the branch copy keeps earlier entries; onto main it does not', () => {
+    const mainCopy = '## Implemented\n\nBase entry.\n';
+    const afterTick1 = applyEditOps(mainCopy, [{ action: 'append', section: 'Implemented', text: 'Entry for #354.' }], '2026-07-29').result;
+    assert.match(afterTick1, /#354/);
+
+    const fromBranch = applyEditOps(afterTick1, [{ action: 'append', section: 'Implemented', text: 'Entry for #355.' }], '2026-07-29').result;
+    assert.match(fromBranch, /#354/, 'tick 1 survives when tick 2 builds on the branch');
+    assert.match(fromBranch, /#355/);
+
+    const fromMain = applyEditOps(mainCopy, [{ action: 'append', section: 'Implemented', text: 'Entry for #355.' }], '2026-07-29').result;
+    assert.doesNotMatch(fromMain, /#354/, 'rebuilding from main is exactly how tick 1 was lost');
+    assert.match(fromMain, /#355/);
+  });
+});
+
+// End-to-end over update()'s refresh path with a fake client. The helper tests
+// above pass even with the defect restored, because the defect lives in the
+// WIRING: which copy update() hands to the prompt and to applyEditOps. This is
+// the only test that fails when the baseline reverts to the snapshot.
+describe('update() refresh builds on the open PR branch', () => {
+  const b64 = (s) => Buffer.from(s).toString('base64');
+  const MAIN = '# Roadmap\n\n**Last Updated:** 2026-07-28\n\n## Implemented\n\nBase entry.\n\n---\n';
+  const BRANCH = '# Roadmap\n\n**Last Updated:** 2026-07-29\n\n## Implemented\n\nBase entry.\n\nEntry for #354 from the previous tick.\n\n---\n';
+
+  function harness({ branchContent = BRANCH, ops = [{ action: 'append', section: 'Implemented', text: 'Entry for #355 from this tick.' }] } = {}) {
+    const puts = [];
+    let promptSeen = '';
+    const gh = {
+      paginate: async () => [{ head: { ref: 'repo-butler/roadmap-update-1' }, html_url: 'https://x/1', number: 1 }],
+      request: async (path, opts = {}) => {
+        if (opts.method === 'PUT') { puts.push({ path, body: opts.body }); return { commit: { sha: 'deadbee' } }; }
+        if (opts.method === 'PATCH') return {};
+        if (path.includes('/contents/')) {
+          const ref = opts.params?.ref;
+          if (ref === 'repo-butler/roadmap-update-1') {
+            return branchContent === null ? Promise.reject(new Error('404')) : { content: b64(branchContent), sha: 'branchsha' };
+          }
+          return { content: b64(MAIN), sha: 'mainsha' };
+        }
+        return {};
+      },
+    };
+    const context = {
+      owner: 'o', repo: 'r', token: 't', gh, dryRun: false,
+      config: { roadmap: { path: 'ROADMAP.md', compact_after_days: 60 } },
+      snapshot: {
+        repository: 'o/r', roadmap: { path: 'ROADMAP.md', content: MAIN },
+        meta: { default_branch: 'main' },
+        summary: { open_issues: 1, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 2, latest_release: 'v1', high_reaction_issues: [], top_open_labels: [] },
+      },
+      assessment: { assessment: 'Some assessment.' },
+      provider: { generate: async (p) => { promptSeen = p; return JSON.stringify(ops); } },
+    };
+    return { context, puts, prompt: () => promptSeen };
+  }
+
+  it('keeps the previous tick’s entry instead of rebuilding from the default branch', async () => {
+    const h = harness();
+    await update(h.context);
+    assert.equal(h.puts.length, 1, 'expected one content PUT');
+    const written = Buffer.from(h.puts[0].body.content, 'base64').toString('utf8');
+    assert.match(written, /Entry for #354 from the previous tick/,
+      'the previous tick’s entry must survive — losing it is the #353 defect');
+    assert.match(written, /Entry for #355 from this tick/, 'and this tick’s entry must be added');
+  });
+
+  it('writes to the existing PR branch, not a new one', async () => {
+    const h = harness();
+    await update(h.context);
+    assert.equal(h.puts[0].body.branch, 'repo-butler/roadmap-update-1');
+    assert.equal(h.puts[0].body.sha, 'branchsha', 'must PUT against the branch blob it read');
+  });
+
+  it('shows the model the branch copy, so it cannot re-propose an entry already there', async () => {
+    const h = harness();
+    await update(h.context);
+    assert.match(h.prompt(), /Entry for #354 from the previous tick/,
+      'the prompt’s read-only context must be the branch copy');
+  });
+
+  it('falls back to the default-branch copy when the branch file cannot be read', async () => {
+    const h = harness({ branchContent: null });
+    await update(h.context);
+    assert.equal(h.puts.length, 1);
+    const written = Buffer.from(h.puts[0].body.content, 'base64').toString('utf8');
+    assert.match(written, /Base entry/, 'a failed read degrades to the old behaviour rather than aborting');
+    assert.match(written, /Entry for #355 from this tick/);
   });
 });
