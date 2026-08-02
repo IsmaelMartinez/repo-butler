@@ -56,9 +56,9 @@ const STALE_DATA_HOURS = 48;
 // Run a plain git command in the checkout. Returns trimmed stdout, or null on
 // any failure (not a repo, missing ref, timeout) — a staleness probe must never
 // be able to break the tool call it is annotating.
-function runGit(args) {
+function runGit(args, timeout = 5000) {
   try {
-    return execFileSync('git', args, { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000 }).trim();
+    return execFileSync('git', args, { encoding: 'utf8', cwd: join(__dirname, '..'), timeout }).trim();
   } catch {
     return null;
   }
@@ -82,7 +82,14 @@ function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) 
     warnings.push('Could not read the age of the snapshot data, so this answer is unverified.');
   }
 
-  if (commitsBehindMain === null) {
+  // Three distinguishable states, because collapsing any two of them is how
+  // this guard would lie. `null` = the remote could not be reached at all.
+  // `'unfetched'` = the remote tip is real but absent from this object store,
+  // so we are definitely behind by an uncountable amount. A number = a true
+  // count against the remote tip, and 0 is then a genuine all-clear.
+  if (commitsBehindMain === 'unfetched') {
+    warnings.push('This checkout has not fetched since origin/main moved, so its logic may predate fixes on the default branch. Run `git pull` and restart the server.');
+  } else if (commitsBehindMain === null) {
     warnings.push('Could not determine whether this checkout is behind the remote default branch.');
   } else if (commitsBehindMain > 0) {
     warnings.push(`This server is running ${commitsBehindMain} commit(s) behind origin/main, so its logic may predate fixes on the default branch.`);
@@ -91,9 +98,64 @@ function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) 
   return {
     data_committed_at: Number.isFinite(committedMs) ? dataCommittedAt : null,
     data_age_hours: ageHours,
-    commits_behind_main: commitsBehindMain,
+    commits_behind_main: typeof commitsBehindMain === 'number' ? commitsBehindMain : null,
+    behind_main_state: commitsBehindMain === 'unfetched' ? 'unfetched'
+      : commitsBehindMain === null ? 'unknown' : 'measured',
     warnings,
   };
+}
+
+// How far behind the *real* origin/main this checkout is.
+//
+// `git rev-list --count HEAD..origin/main` alone is not enough, and getting
+// this wrong defeats the whole guard: `origin/main` is a remote-tracking ref
+// that only moves on fetch, and this server deliberately never fetches. On a
+// checkout that has not pulled in three weeks it returns 0 — an affirmative
+// all-clear for precisely the unpulled-checkout case the guard exists to
+// catch. "Could not check" and "checked, it is fine" must not look alike.
+//
+// So resolve the real tip first with `ls-remote`, which is a network READ that
+// mutates nothing in the caller's repository — the thing the no-fetch rule
+// forbids is a network *write* to their refs, not asking the remote a
+// question. Then:
+//   - remote tip unknown (offline, no auth, timeout) → null, and
+//     computeStaleness warns that it could not be determined;
+//   - remote tip not present locally → we are behind by an amount we cannot
+//     count without fetching, so report Infinity-as-unknown via null plus an
+//     explicit warning rather than a reassuring number;
+//   - remote tip present locally → count commits from HEAD to *that SHA*,
+//     which is correct whether or not the tracking ref has caught up.
+//
+// Cached for CACHE_MS so a burst of tool calls costs one round-trip; short
+// enough that a long-lived server still notices main moving.
+const REMOTE_PROBE_CACHE_MS = 60000;
+let remoteProbeCache = null;
+
+function readCommitsBehindMain(now = Date.now()) {
+  if (remoteProbeCache && now - remoteProbeCache.at < REMOTE_PROBE_CACHE_MS) {
+    return remoteProbeCache.value;
+  }
+
+  let value;
+  const line = runGit(['ls-remote', '--heads', 'origin', 'main'], 8000);
+  const remoteSha = line ? line.split(/\s+/)[0] : null;
+
+  if (!remoteSha || !/^[0-9a-f]{40}$/.test(remoteSha)) {
+    // Offline, unauthenticated, or the probe timed out. Unknown, not zero.
+    value = null;
+  } else if (runGit(['cat-file', '-e', `${remoteSha}^{commit}`]) === null) {
+    // The remote tip is not in this object store, so this checkout has not
+    // fetched since main moved. We know we are behind; we cannot say by how
+    // much without fetching. `unfetched` makes computeStaleness say exactly
+    // that instead of implying a count.
+    value = 'unfetched';
+  } else {
+    const raw = runGit(['rev-list', '--count', `HEAD..${remoteSha}`]);
+    value = raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
+  }
+
+  remoteProbeCache = { at: now, value };
+  return value;
 }
 
 function readStaleness() {
@@ -101,9 +163,7 @@ function readStaleness() {
   // fall through to the bare local ref rather than be reported as a timestamp.
   const dataCommittedAt = runGit(['log', '-1', '--format=%cI', 'origin/repo-butler-data'])
     || runGit(['log', '-1', '--format=%cI', 'repo-butler-data']);
-  const behindRaw = runGit(['rev-list', '--count', 'HEAD..origin/main']);
-  const behind = behindRaw !== null && /^\d+$/.test(behindRaw) ? Number(behindRaw) : null;
-  return computeStaleness(dataCommittedAt, behind);
+  return computeStaleness(dataCommittedAt, readCommitsBehindMain());
 }
 
 // --- Data loading ---

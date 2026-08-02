@@ -665,6 +665,7 @@ describe('MCP staleness guard', async () => {
     // same to a caller — an unreadable probe is itself a reason to distrust.
     it('warns rather than staying silent when a probe could not be read', () => {
       const s = computeStaleness(null, null, NOW);
+      assert.equal(s.behind_main_state, 'unknown');
       assert.equal(s.warnings.length, 2);
       assert.equal(s.data_age_hours, null);
       assert.equal(s.data_committed_at, null);
@@ -756,5 +757,48 @@ describe('MCP historical tiers are read, not recomputed', async () => {
   it('falls back when computed exists but carries no tier', () => {
     const partial = { ...archived('gold'), computed: { checks: [] } };
     assert.equal(weekTier(partial, 'some-repo'), 'silver');
+  });
+});
+
+// The behind-main probe must distinguish three states. Collapsing any two is
+// how the guard would lie: `git rev-list --count HEAD..origin/main` alone
+// returns 0 on a checkout that has never fetched, which is an affirmative
+// all-clear for exactly the case the guard exists to catch.
+describe('MCP behind-main probe distinguishes unfetched from up-to-date', async () => {
+  const { computeStaleness } = await import('./mcp.js');
+  const NOW = Date.parse('2026-08-01T12:00:00Z');
+  const fresh = new Date(NOW - 3600000).toISOString();
+
+  it('a measured 0 is a genuine all-clear', () => {
+    const s = computeStaleness(fresh, 0, NOW);
+    assert.equal(s.behind_main_state, 'measured');
+    assert.equal(s.commits_behind_main, 0);
+    assert.deepEqual(s.warnings, []);
+  });
+
+  it('an unfetched checkout warns and never reports a reassuring 0', () => {
+    const s = computeStaleness(fresh, 'unfetched', NOW);
+    assert.equal(s.behind_main_state, 'unfetched');
+    assert.equal(s.commits_behind_main, null, 'a count we cannot make must not be rendered as 0');
+    assert.equal(s.warnings.length, 1);
+    assert.match(s.warnings[0], /has not fetched since origin\/main moved/);
+  });
+
+  it('an unreachable remote is unknown, distinct from both', () => {
+    const s = computeStaleness(fresh, null, NOW);
+    assert.equal(s.behind_main_state, 'unknown');
+    assert.equal(s.commits_behind_main, null);
+    assert.match(s.warnings[0], /Could not determine/);
+  });
+
+  // The three states must be mutually distinguishable from the envelope alone,
+  // which is the property that makes "could not check" and "checked, it is
+  // fine" impossible to confuse.
+  it('renders the three states distinguishably', () => {
+    const states = ['measured', 'unfetched', 'unknown'];
+    const seen = [0, 'unfetched', null].map(v => computeStaleness(fresh, v, NOW).behind_main_state);
+    assert.deepEqual(seen, states);
+    const warned = [0, 'unfetched', null].map(v => computeStaleness(fresh, v, NOW).warnings.length);
+    assert.deepEqual(warned, [0, 1, 1], 'only the genuine all-clear is silent');
   });
 });
