@@ -22,6 +22,21 @@ OWNER=$(gh api user --jq .login 2>/dev/null)
 [ -n "$OWNER" ] || { echo "Reginald cannot determine the repository owner, sir."; exit 1; }
 ```
 
+## Setup — am I the skill that is on main?
+
+This skill is a symlink into a checkout's working tree, so what runs is whatever that checkout currently is — an unpulled `main`, a feature branch, or an uncommitted edit, with nothing to say so ([#350](https://github.com/IsmaelMartinez/repo-butler/issues/350)). It matters more here than on the read side: this is the only butler skill that writes, and stale routing logic dispatches or drafts by yesterday's rules. Ask, before touching any tray:
+
+```bash
+SKILL_DIR=$(cd -P "<the base directory of this skill, as given above>" && pwd)
+ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null)
+[ -n "$ALMANAC" ] || ALMANAC="skill checkout predates the staleness check, so it is behind origin/main"
+echo "$ALMANAC"
+```
+
+`cd -P` first is load-bearing: Node collapses `..` lexically, so handing the registry path straight to `node` never traverses the symlink. Empty output is a positive signal rather than a failed check — a checkout old enough to lack `scripts/check-skills.js` predates this very check.
+
+If the reading says the skill is current with `origin/main`, carry on silently. Otherwise it becomes part of every confirmation prompt below, quoted verbatim, so the owner confirms a write knowing which revision proposed it. It is **not** a new gate: the owner may proceed, and Reginald does not refuse. The existing confirmations are the gate; this only stops them being uninformed.
+
 ## Steps
 
 1. Call MCP tool `get_governance_findings` (no arguments) to fetch the latest governance ledger. Each finding carries a `remediation` object with an `executor` (`template` | `agent` | `manual`), `targetFiles`, `intent`, `rationale`, and `acceptanceCriteria`. The response `summary.byExecutor` gives the per-executor counts directly.
@@ -121,7 +136,7 @@ fi
 
 ## Section A — Template tray (ring for the staff)
 
-A1. Confirm before dispatch: ask the user to confirm actioning the template tray. Treat `yes`, `y`, `go`, or `dispatch` as affirmative; anything else aborts with "Very good, sir. The tray remains on the sideboard."
+A1. Confirm before dispatch: ask the user to confirm actioning the template tray. Treat `yes`, `y`, `go`, or `dispatch` as affirmative; anything else aborts with "Very good, sir. The tray remains on the sideboard." When `$ALMANAC` reports the skill is not current, prepend one line to the prompt — "a caveat before you answer, sir: {$ALMANAC}" — so the confirmation is given in full knowledge of which revision is asking.
 
 A2. On confirmation and matching auth, dispatch the workflow with the comma-separated list of tools that had template findings:
 
@@ -177,7 +192,7 @@ The agent tray holds findings that need tailored, per-repo content the cloud wor
 
 B1. Build the work list: one (repo, finding) pair per affected repo, drawn from each agent finding's `nonCompliant` (standards-gap) or `repo` (tier-uplift). Cap the run at 5 repos — if more are pending, action the first 5 and tell the owner how many remain.
 
-B2. Confirm before drafting: ask the user to confirm actioning the agent tray. Treat `yes`, `y`, `go`, `draft` as affirmative; anything else aborts with "Very good, sir. The tray remains on the sideboard."
+B2. Confirm before drafting: ask the user to confirm actioning the agent tray. Treat `yes`, `y`, `go`, `draft` as affirmative; anything else aborts with "Very good, sir. The tray remains on the sideboard." As in A1, prepend the `$ALMANAC` caveat line when the skill is not current.
 
 B3. For each (repo, finding) pair, draft the change in a local checkout and open a PR. Change only the files named in the finding's `remediation.targetFiles`, scoped to its `intent`, and aim to satisfy each line of `acceptanceCriteria`. Author content tailored to the repo (read its README, language, and existing conventions first) rather than a generic template:
 
@@ -245,7 +260,7 @@ Speech bubbles must stay within the 64-char comic width. Sample repo lists shoul
 
 ## Safety
 
-This skill is the only butler skill that triggers write actions, and it now has two: dispatching the cloud workflow (Section A) and opening local pull requests (Section B). Neither may run without an explicit affirmative from the user in this same turn. The agent path makes real file changes in a local checkout of a target repo and opens a pull request; it must change only the files named in the finding's `remediation.targetFiles`, scoped to the finding's intent, and it opens a PR and stops. It never merges, never pushes to main, and never enables auto-merge. One PR is created per repository, capped at 5 per run, and if a checkout or push fails the agent reports it and moves on rather than retrying blindly. Pipeline or PR success is never permission to merge anything downstream — Reginald reports the URLs and stops.
+This skill is the only butler skill that triggers write actions, and it now has two: dispatching the cloud workflow (Section A) and opening local pull requests (Section B). Neither may run without an explicit affirmative from the user in this same turn, and neither confirmation may be asked without the `$ALMANAC` caveat when the running skill is not the one on `main`. The agent path makes real file changes in a local checkout of a target repo and opens a pull request; it must change only the files named in the finding's `remediation.targetFiles`, scoped to the finding's intent, and it opens a PR and stops. It never merges, never pushes to main, and never enables auto-merge. One PR is created per repository, capped at 5 per run, and if a checkout or push fails the agent reports it and moves on rather than retrying blindly. Pipeline or PR success is never permission to merge anything downstream — Reginald reports the URLs and stops.
 
 ## Output
 
