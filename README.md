@@ -189,7 +189,17 @@ Two skills ship from `skills/` for use inside Claude Code: `repo-butler` (read-s
 
 The script symlinks both skills into `$HOME/.claude/skills/`, cleans up dead symlinks from earlier `butler-briefing`/`butler-debrief`/`butler-apply` layouts, and is idempotent. Pass `--uninstall` to remove the symlinks, or `--skills-dir DIR` to target a custom location. Restart your Claude Code session afterwards so the new skills appear in the registry.
 
-Because these are symlinks, the skill that runs is whatever is in **that checkout's working tree** — not whatever is on `main`. Merging a PR does not change what runs until you pull, an experiment on a feature branch becomes the live skill while you have it checked out, and editing the file through the registry path edits the repository itself. If a skill behaves like an older version, check the checkout is up to date before looking anywhere else. See [#350](https://github.com/IsmaelMartinez/repo-butler/issues/350) for the staleness signal that would make this visible.
+Because these are symlinks, the skill that runs is whatever is in **that checkout's working tree** — not whatever is on `main`. Merging a PR does not change what runs until you pull, an experiment on a feature branch becomes the live skill while you have it checked out, and editing the file through the registry path edits the repository itself.
+
+`scripts/check-skills.js` reports that state instead of leaving you to guess ([#350](https://github.com/IsmaelMartinez/repo-butler/issues/350)):
+
+```bash
+node scripts/check-skills.js              # human-readable report
+node scripts/check-skills.js --headline   # one line, what the skills render
+node scripts/check-skills.js --json       # full reading
+```
+
+It names how far the checkout is behind `origin/main`, which branch it is on, how many uncommitted changes under `skills/` are live, and where each registry entry actually points — a copy or a link into a *different* checkout both mean a merge can never reach the running skill. It exits 0 when there is nothing to report and 1 when there is. Like the MCP staleness envelope it reports rather than fetches, and it distinguishes "could not check" from "checked, it is fine": a checkout that has not fetched since `origin/main` moved is reported as exactly that, never as zero commits behind. Both skills run it themselves and surface the reading — the briefing as an almanac line in the frame, the apply skill as a caveat on every confirmation prompt.
 
 Both skills source their portfolio data via the repo-butler MCP server below — no local clone of the data branch is required. Install the MCP server first (next section) and the skills will work from any working directory. Optional config at `~/.config/repo-butler/config.sh` recognises `REPO_BUTLER_PROJECTS_DIRS` (newline-separated parent dirs to scan for local working state) — defaults to `$HOME/projects/github` and `$HOME/projects/gitlab`.
 

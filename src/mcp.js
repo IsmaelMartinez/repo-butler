@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
 import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
+import { runGit, readCommitsBehindMain } from './staleness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROTOCOL_VERSION = '2024-11-05';
@@ -53,36 +54,10 @@ function tierOptions(repoName) {
 // caller's repository as a side effect of being asked a question.
 const STALE_DATA_HOURS = 48;
 
-// Run a plain git command in the checkout. Returns trimmed stdout, or null on
-// any failure (not a repo, missing ref, timeout) — a staleness probe must never
-// be able to break the tool call it is annotating.
-//
-// Non-interactive by construction. `ls-remote` talks to the network, and on an
-// HTTPS remote without cached credentials git would otherwise sit waiting for a
-// username at a terminal that, for a stdio MCP server, nobody is watching — one
-// tool call would hang for the whole timeout. GIT_TERMINAL_PROMPT=0 covers the
-// HTTPS path, BatchMode the SSH one, and the empty askpass vars stop a GUI
-// helper being summoned instead. A missing credential must fail immediately and
-// become `unknown`, which the envelope already reports honestly.
-const GIT_NONINTERACTIVE_ENV = {
-  GIT_TERMINAL_PROMPT: '0',
-  GIT_ASKPASS: '',
-  SSH_ASKPASS: '',
-  GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new',
-};
-
-function runGit(args, timeout = 5000) {
-  try {
-    return execFileSync('git', args, {
-      encoding: 'utf8',
-      cwd: join(__dirname, '..'),
-      timeout,
-      env: { ...process.env, ...GIT_NONINTERACTIVE_ENV },
-    }).trim();
-  } catch {
-    return null;
-  }
-}
+// The checkout this server is running out of. The behind-main half of the
+// probe lives in staleness.js because the skills half of #350 asks the same
+// question of a different checkout.
+const CHECKOUT_DIR = join(__dirname, '..');
 
 // Pure: turns the two raw readings into an envelope. Split out from the git
 // calls so the thresholds and the wording are testable without a fixture repo.
@@ -128,74 +103,12 @@ function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) 
   };
 }
 
-// How far behind the *real* origin/main this checkout is.
-//
-// `git rev-list --count HEAD..origin/main` alone is not enough, and getting
-// this wrong defeats the whole guard: `origin/main` is a remote-tracking ref
-// that only moves on fetch, and this server deliberately never fetches. On a
-// checkout that has not pulled in three weeks it returns 0 — an affirmative
-// all-clear for precisely the unpulled-checkout case the guard exists to
-// catch. "Could not check" and "checked, it is fine" must not look alike.
-//
-// So resolve the real tip first with `ls-remote`, which is a network READ that
-// mutates nothing in the caller's repository — the thing the no-fetch rule
-// forbids is a network *write* to their refs, not asking the remote a
-// question. Then:
-//   - remote tip unknown (offline, no auth, timeout) → null, and
-//     computeStaleness warns that it could not be determined;
-//   - remote tip not present locally → we are behind by an amount we cannot
-//     count without fetching, so report Infinity-as-unknown via null plus an
-//     explicit warning rather than a reassuring number;
-//   - remote tip present locally → count commits from HEAD to *that SHA*,
-//     which is correct whether or not the tracking ref has caught up.
-//
-// Cached for CACHE_MS so a burst of tool calls costs one round-trip; short
-// enough that a long-lived server still notices main moving.
-const REMOTE_PROBE_CACHE_MS = 60000;
-let remoteProbeCache = null;
-
-// Pure decision, separated from the git I/O so the branch that must never
-// collapse `unfetched` into a reassuring 0 is unit-testable. Takes the raw
-// ls-remote line plus two probes as callbacks:
-//   isPresentLocally(sha) -> boolean   (does the object store have that commit)
-//   countTo(sha)          -> string|null  (`rev-list --count HEAD..<sha>`)
-function classifyBehindMain(lsRemoteLine, isPresentLocally, countTo) {
-  const remoteSha = lsRemoteLine ? String(lsRemoteLine).trim().split(/\s+/)[0] : null;
-
-  // Offline, unauthenticated, or the probe timed out. Unknown, never zero.
-  if (!remoteSha || !/^[0-9a-f]{40}$/.test(remoteSha)) return null;
-
-  // The remote tip is not in this object store, so this checkout has not
-  // fetched since main moved. We know we are behind; we cannot say by how much
-  // without fetching. 'unfetched' makes computeStaleness say exactly that
-  // instead of implying a count.
-  if (!isPresentLocally(remoteSha)) return 'unfetched';
-
-  const raw = countTo(remoteSha);
-  return raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
-}
-
-function readCommitsBehindMain(now = Date.now()) {
-  if (remoteProbeCache && now - remoteProbeCache.at < REMOTE_PROBE_CACHE_MS) {
-    return remoteProbeCache.value;
-  }
-
-  const value = classifyBehindMain(
-    runGit(['ls-remote', '--heads', 'origin', 'main'], 8000),
-    (sha) => runGit(['cat-file', '-e', `${sha}^{commit}`]) !== null,
-    (sha) => runGit(['rev-list', '--count', `HEAD..${sha}`]),
-  );
-
-  remoteProbeCache = { at: now, value };
-  return value;
-}
-
 function readStaleness() {
   // `||` not `??`: an empty string is as unusable as null here, and should
   // fall through to the bare local ref rather than be reported as a timestamp.
-  const dataCommittedAt = runGit(['log', '-1', '--format=%cI', 'origin/repo-butler-data'])
-    || runGit(['log', '-1', '--format=%cI', 'repo-butler-data']);
-  return computeStaleness(dataCommittedAt, readCommitsBehindMain());
+  const dataCommittedAt = runGit(['log', '-1', '--format=%cI', 'origin/repo-butler-data'], { cwd: CHECKOUT_DIR })
+    || runGit(['log', '-1', '--format=%cI', 'repo-butler-data'], { cwd: CHECKOUT_DIR });
+  return computeStaleness(dataCommittedAt, readCommitsBehindMain(CHECKOUT_DIR));
 }
 
 // --- Data loading ---
@@ -205,7 +118,7 @@ function readStaleness() {
 // caller supplies argsFor(ref) which builds the full git argv given a ref
 // name. Returns stdout, or throws if neither ref works.
 function runGitOnDataBranch(argsFor) {
-  const opts = { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000 };
+  const opts = { encoding: 'utf8', cwd: CHECKOUT_DIR, timeout: 5000 };
   try {
     return execFileSync('git', argsFor('origin/repo-butler-data'), opts);
   } catch {
@@ -1102,4 +1015,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, computeStaleness, classifyBehindMain, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, computeStaleness, TOOLS, RESOURCES };

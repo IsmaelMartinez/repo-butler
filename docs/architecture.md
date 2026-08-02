@@ -321,6 +321,18 @@ and `list_stale_dependabot_prs` list PRs per repo, and `trigger_refresh`
 dispatches the workflow. The readline listener only starts when the file is run
 directly, so importing it for tests does not open a server.
 
+Both agent-facing surfaces — the MCP server and the two Claude Code skills in
+`skills/` — answer from a working checkout that nothing fetches, so each carries
+a staleness reading rather than assuming freshness. They share one probe
+(`src/staleness.js`), which resolves the real `origin/main` tip with `ls-remote`
+and distinguishes "up to date" from "could not check" from "has not fetched at
+all"; collapsing those would let an unpulled checkout report a reassuring zero.
+The MCP server wraps it in a per-tool `staleness` envelope, while
+`src/skill-staleness.js` and the `scripts/check-skills.js` CLI answer the skills'
+version of the question — which checkout the registry symlink actually points
+at, which branch it is on, and whether uncommitted edits under `skills/` are
+live. Both report; neither fetches on the caller's behalf.
+
 The A2A AgentCard, served at
 `ismaelmartinez.github.io/repo-butler/.well-known/agent-card.json`, is
 discovery-only. Agents read it to learn what the butler can do, but the live
