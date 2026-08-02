@@ -131,28 +131,37 @@ function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) 
 const REMOTE_PROBE_CACHE_MS = 60000;
 let remoteProbeCache = null;
 
+// Pure decision, separated from the git I/O so the branch that must never
+// collapse `unfetched` into a reassuring 0 is unit-testable. Takes the raw
+// ls-remote line plus two probes as callbacks:
+//   isPresentLocally(sha) -> boolean   (does the object store have that commit)
+//   countTo(sha)          -> string|null  (`rev-list --count HEAD..<sha>`)
+function classifyBehindMain(lsRemoteLine, isPresentLocally, countTo) {
+  const remoteSha = lsRemoteLine ? String(lsRemoteLine).trim().split(/\s+/)[0] : null;
+
+  // Offline, unauthenticated, or the probe timed out. Unknown, never zero.
+  if (!remoteSha || !/^[0-9a-f]{40}$/.test(remoteSha)) return null;
+
+  // The remote tip is not in this object store, so this checkout has not
+  // fetched since main moved. We know we are behind; we cannot say by how much
+  // without fetching. 'unfetched' makes computeStaleness say exactly that
+  // instead of implying a count.
+  if (!isPresentLocally(remoteSha)) return 'unfetched';
+
+  const raw = countTo(remoteSha);
+  return raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
 function readCommitsBehindMain(now = Date.now()) {
   if (remoteProbeCache && now - remoteProbeCache.at < REMOTE_PROBE_CACHE_MS) {
     return remoteProbeCache.value;
   }
 
-  let value;
-  const line = runGit(['ls-remote', '--heads', 'origin', 'main'], 8000);
-  const remoteSha = line ? line.split(/\s+/)[0] : null;
-
-  if (!remoteSha || !/^[0-9a-f]{40}$/.test(remoteSha)) {
-    // Offline, unauthenticated, or the probe timed out. Unknown, not zero.
-    value = null;
-  } else if (runGit(['cat-file', '-e', `${remoteSha}^{commit}`]) === null) {
-    // The remote tip is not in this object store, so this checkout has not
-    // fetched since main moved. We know we are behind; we cannot say by how
-    // much without fetching. `unfetched` makes computeStaleness say exactly
-    // that instead of implying a count.
-    value = 'unfetched';
-  } else {
-    const raw = runGit(['rev-list', '--count', `HEAD..${remoteSha}`]);
-    value = raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
-  }
+  const value = classifyBehindMain(
+    runGit(['ls-remote', '--heads', 'origin', 'main'], 8000),
+    (sha) => runGit(['cat-file', '-e', `${sha}^{commit}`]) !== null,
+    (sha) => runGit(['rev-list', '--count', `HEAD..${sha}`]),
+  );
 
   remoteProbeCache = { at: now, value };
   return value;
@@ -1035,7 +1044,13 @@ function handleMessage(line) {
     }
 
     case 'tools/list':
-      respond(id, { tools: TOOLS });
+      // Project to the protocol's own fields. TOOLS entries also carry
+      // internals — `handler` (dropped by JSON.stringify anyway) and
+      // `readsDataBranch` (which would otherwise appear on the two tools that
+      // set it, as an undocumented field in a public MCP response). Listing
+      // the wire fields explicitly keeps any future internal flag from
+      // leaking the same way.
+      respond(id, { tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
       break;
 
     case 'tools/call': {
@@ -1064,4 +1079,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, computeStaleness, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, computeStaleness, classifyBehindMain, TOOLS, RESOURCES };

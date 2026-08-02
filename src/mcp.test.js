@@ -644,6 +644,10 @@ describe('MCP staleness guard', async () => {
 
     it('warns once the data crosses the 48h threshold', () => {
       assert.deepEqual(computeStaleness(iso(47), 0, NOW).warnings, [], '47h is still inside the window');
+      // Pin the boundary itself, not just a value either side of it: with 47
+      // and 60 alone, flipping `>=` to `>` survives untouched.
+      assert.equal(computeStaleness(iso(48), 0, NOW).warnings.length, 1,
+        'exactly 48h must warn — the threshold is inclusive');
       const stale = computeStaleness(iso(60), 0, NOW);
       assert.equal(stale.warnings.length, 1);
       assert.match(stale.warnings[0], /60h old/);
@@ -693,6 +697,21 @@ describe('MCP staleness guard', async () => {
       assert.deepEqual(optedOut, ['get_council_personas', 'trigger_refresh'],
         'only tools reading nothing from the data branch may opt out');
       assert.ok(TOOLS.length - optedOut.length >= 10, 'the rest must carry the envelope');
+    });
+
+    // The flag is an internal routing detail. TOOLS is the source for the
+    // tools/list JSON-RPC response, so anything on it reaches clients.
+    it('does not leak the readsDataBranch flag into the tools/list response', () => {
+      restoreStdout();
+      captureResponses();
+      handleMessage(JSON.stringify({ jsonrpc: '2.0', id: 99, method: 'tools/list' }));
+      restoreStdout();
+      const listed = responses.find(r => r.id === 99)?.result?.tools;
+      assert.ok(Array.isArray(listed) && listed.length > 0, 'tools/list must return tools');
+      for (const t of listed) {
+        assert.deepEqual(Object.keys(t).sort(), ['description', 'inputSchema', 'name'],
+          `tool "${t.name}" exposes internal fields: ${Object.keys(t).join(', ')}`);
+      }
     });
 
     it('does not attach staleness to a tool that reads nothing from the branch', () => {
@@ -800,5 +819,53 @@ describe('MCP behind-main probe distinguishes unfetched from up-to-date', async 
     assert.deepEqual(seen, states);
     const warned = [0, 'unfetched', null].map(v => computeStaleness(fresh, v, NOW).warnings.length);
     assert.deepEqual(warned, [0, 1, 1], 'only the genuine all-clear is silent');
+  });
+});
+
+// The deciding half of the behind-main probe. computeStaleness renders whatever
+// it is handed; THIS is what must never hand it a reassuring 0 for a checkout
+// that has not fetched. Kept pure (git reads injected) so that branch is
+// testable without a fixture repo.
+describe('classifyBehindMain', async () => {
+  const { classifyBehindMain } = await import('./mcp.js');
+  const SHA = 'a'.repeat(40);
+  const present = () => true;
+  const absent = () => false;
+  const counts = (n) => () => String(n);
+
+  it('counts against the real remote tip when we have that commit', () => {
+    assert.equal(classifyBehindMain(`${SHA}\trefs/heads/main`, present, counts(7)), 7);
+  });
+
+  it('a genuine zero is preserved as a number, not conflated with unknown', () => {
+    assert.strictEqual(classifyBehindMain(`${SHA}\trefs/heads/main`, present, counts(0)), 0);
+  });
+
+  // The defect this whole change exists to remove.
+  it('reports unfetched — never 0 — when the remote tip is absent locally', () => {
+    assert.equal(classifyBehindMain(`${SHA}\trefs/heads/main`, absent, counts(0)), 'unfetched',
+      'a checkout that cannot see the remote tip must not report a count');
+  });
+
+  it('does not even attempt a count when the tip is absent', () => {
+    let counted = false;
+    classifyBehindMain(`${SHA}\trefs/heads/main`, absent, () => { counted = true; return '0'; });
+    assert.equal(counted, false, 'counting against a commit we do not have is meaningless');
+  });
+
+  it('is unknown when the remote could not be reached', () => {
+    assert.equal(classifyBehindMain(null, present, counts(0)), null);
+    assert.equal(classifyBehindMain('', present, counts(0)), null);
+  });
+
+  it('is unknown when ls-remote returns something that is not a sha', () => {
+    assert.equal(classifyBehindMain('fatal: could not read from remote', present, counts(0)), null);
+    assert.equal(classifyBehindMain('deadbeef\trefs/heads/main', present, counts(0)), null,
+      'a short or malformed sha must not be trusted');
+  });
+
+  it('is unknown when the count itself is unreadable', () => {
+    assert.equal(classifyBehindMain(`${SHA}\trefs/heads/main`, present, () => null), null);
+    assert.equal(classifyBehindMain(`${SHA}\trefs/heads/main`, present, () => 'not-a-number'), null);
   });
 });
