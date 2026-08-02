@@ -32,12 +32,19 @@ export const GIT_NONINTERACTIVE_ENV = {
 // Run a plain git command in `cwd`. Returns trimmed stdout, or null on any
 // failure (not a repo, missing ref, timeout) — a staleness probe must never be
 // able to break the thing it is annotating.
+//
+// stderr is explicitly discarded. execFileSync forwards a child's stderr to the
+// parent's by default, and every failure here is one we handle by returning
+// null, so git's `fatal: not a git repository` would print above the report
+// that is about to say the same thing in its own words. Nothing reads the
+// stream: the outcome is carried entirely by the null.
 export function runGit(args, { cwd, timeout = 5000 } = {}) {
   try {
     return execFileSync('git', args, {
       encoding: 'utf8',
       cwd,
       timeout,
+      stdio: ['ignore', 'pipe', 'ignore'],
       env: { ...process.env, ...GIT_NONINTERACTIVE_ENV },
     }).trim();
   } catch {

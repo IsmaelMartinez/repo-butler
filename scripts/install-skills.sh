@@ -99,7 +99,7 @@ case "$ACTION" in
     echo
     echo "These are symlinks, so the skill that runs is whatever is in THIS"
     echo "checkout's working tree — not whatever is on main. Check with:"
-    echo "  node $REPO_DIR/scripts/check-skills.js"
+    echo "  node \"$REPO_DIR/scripts/check-skills.js\""
     ;;
   uninstall)
     echo "Removing repo-butler skills from $SKILLS_DIR"

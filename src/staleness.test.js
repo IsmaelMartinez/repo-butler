@@ -4,6 +4,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { classifyBehindMain, runGit, GIT_NONINTERACTIVE_ENV } from './staleness.js';
 
 // The deciding half of the behind-main probe. Callers render whatever they are
@@ -72,5 +73,18 @@ describe('runGit', () => {
   it('never lets git block on an interactive credential prompt', () => {
     assert.equal(GIT_NONINTERACTIVE_ENV.GIT_TERMINAL_PROMPT, '0');
     assert.match(GIT_NONINTERACTIVE_ENV.GIT_SSH_COMMAND, /BatchMode=yes/);
+  });
+
+  // execFileSync forwards a child's stderr to the parent's unless told not to,
+  // so a failing probe would print git's `fatal:` above the report that is
+  // about to explain the same thing. Asserted in a child process because the
+  // leak is to the OS-level stream, which an in-process spy cannot see.
+  it('does not leak git stderr to the caller', () => {
+    const probe = "import { runGit } from './src/staleness.js'; runGit(['rev-parse', 'HEAD'], { cwd: '/' });";
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', probe], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    });
+    assert.equal(child.stderr, '', `git stderr leaked: ${child.stderr}`);
   });
 });
