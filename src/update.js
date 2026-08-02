@@ -820,12 +820,18 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
   // about but never supplied. The instructions below say "only create entries
   // for genuinely new work visible in the data above (new merged PRs, …)"
   // while the data above carried only a 90-day merged *count*, so the shipped
-  // log got written from whatever the assessment prose happened to name: G13
-  // earned an entry while the tier-regression detector (#354), the butler-PR
-  // audit (#355) and the trimmer (#356) were missed and had to be backfilled
-  // by hand in #360. ASSESS already computes this array (`newMergedPRs` in
-  // assess.js); it was simply never read. Same sanitiser and same 15-item cap
-  // as the issue blocks above.
+  // log therefore depended on the assessment prose happening to name the work,
+  // rather than on the merge record itself. ASSESS already computes this array
+  // (`newMergedPRs` in assess.js); it was simply never read. Same sanitiser and
+  // same 15-item cap as the issue blocks above.
+  //
+  // This is NOT the cause of the entries missing from #353 — that was a
+  // separate defect in the refresh path, which rebuilds from the default
+  // branch and overwrites the open PR, so each tick destroyed the previous
+  // tick's entry. The commit history of #353 shows one correct entry written
+  // per tick (#354, then #355, then #356, then #357/#358), each replacing the
+  // last. This change removes a different fragility: an instruction that asked
+  // the model to reason about merged PRs it was never shown.
   if (assessment?.diff?.new_merged_prs?.length > 0) {
     items.push('PRs merged since last update:');
     for (const p of assessment.diff.new_merged_prs.slice(0, 15)) {
@@ -911,12 +917,18 @@ export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectC
   // about but never supplied. The instructions below say "only create entries
   // for genuinely new work visible in the data above (new merged PRs, …)"
   // while the data above carried only a 90-day merged *count*, so the shipped
-  // log got written from whatever the assessment prose happened to name: G13
-  // earned an entry while the tier-regression detector (#354), the butler-PR
-  // audit (#355) and the trimmer (#356) were missed and had to be backfilled
-  // by hand in #360. ASSESS already computes this array (`newMergedPRs` in
-  // assess.js); it was simply never read. Same sanitiser and same 15-item cap
-  // as the issue blocks above.
+  // log therefore depended on the assessment prose happening to name the work,
+  // rather than on the merge record itself. ASSESS already computes this array
+  // (`newMergedPRs` in assess.js); it was simply never read. Same sanitiser and
+  // same 15-item cap as the issue blocks above.
+  //
+  // This is NOT the cause of the entries missing from #353 — that was a
+  // separate defect in the refresh path, which rebuilds from the default
+  // branch and overwrites the open PR, so each tick destroyed the previous
+  // tick's entry. The commit history of #353 shows one correct entry written
+  // per tick (#354, then #355, then #356, then #357/#358), each replacing the
+  // last. This change removes a different fragility: an instruction that asked
+  // the model to reason about merged PRs it was never shown.
   if (assessment?.diff?.new_merged_prs?.length > 0) {
     items.push('PRs merged since last update:');
     for (const p of assessment.diff.new_merged_prs.slice(0, 15)) {

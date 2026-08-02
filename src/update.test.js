@@ -1242,9 +1242,13 @@ describe('bumpLastUpdated', () => {
 
 // The section-edit prompt told the model to "only create entries for genuinely
 // new work visible in the data above (new merged PRs, …)" while the data above
-// carried only a merged *count*. So the shipped log was written from whatever
-// the assessment prose happened to name, and #354, #355 and #356 were missed
-// entirely — backfilled by hand in #360.
+// carried only a merged *count* — an instruction referencing data the prompt
+// never supplied. Entry generation therefore depended on the assessment prose
+// naming the work rather than on the merge record itself.
+//
+// Note this is NOT why #353 lost its entries: its commit history shows one
+// correct entry per tick, each overwritten by the next, which is a separate
+// defect in the refresh path. This suite covers the prompt only.
 describe('UPDATE prompts carry merged PR titles, not just a count', () => {
   const snapshot = {
     repository: 'owner/repo',
