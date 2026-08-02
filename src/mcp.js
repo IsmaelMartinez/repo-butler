@@ -40,6 +40,164 @@ function tierOptions(repoName) {
   return { releaseExempt: isReleaseExempt(repoName, roadmapConfig()) };
 }
 
+// --- Staleness (G8) ---
+
+// This server answers from a local checkout and never fetches: it reads
+// snapshots with `git show origin/repo-butler-data:<path>`, and its own logic
+// is whatever that checkout contains. Both can be arbitrarily far behind
+// without the answer looking any different, and both have produced materially
+// wrong answers — a briefing claiming 12 Gold against a true 7 (stale data
+// ref), and two exempt repos reported a tier low (stale code, fixed in #359).
+// So the answer carries how old it is. Reporting rather than fetching is
+// deliberate: a read-only tool should not perform network writes to the
+// caller's repository as a side effect of being asked a question.
+const STALE_DATA_HOURS = 48;
+
+// Run a plain git command in the checkout. Returns trimmed stdout, or null on
+// any failure (not a repo, missing ref, timeout) — a staleness probe must never
+// be able to break the tool call it is annotating.
+//
+// Non-interactive by construction. `ls-remote` talks to the network, and on an
+// HTTPS remote without cached credentials git would otherwise sit waiting for a
+// username at a terminal that, for a stdio MCP server, nobody is watching — one
+// tool call would hang for the whole timeout. GIT_TERMINAL_PROMPT=0 covers the
+// HTTPS path, BatchMode the SSH one, and the empty askpass vars stop a GUI
+// helper being summoned instead. A missing credential must fail immediately and
+// become `unknown`, which the envelope already reports honestly.
+const GIT_NONINTERACTIVE_ENV = {
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_ASKPASS: '',
+  SSH_ASKPASS: '',
+  GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new',
+};
+
+function runGit(args, timeout = 5000) {
+  try {
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      cwd: join(__dirname, '..'),
+      timeout,
+      env: { ...process.env, ...GIT_NONINTERACTIVE_ENV },
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+// Pure: turns the two raw readings into an envelope. Split out from the git
+// calls so the thresholds and the wording are testable without a fixture repo.
+// An unreadable probe warns rather than staying silent — "we could not check"
+// and "we checked and it is fine" must not look the same to a caller.
+function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) {
+  const warnings = [];
+  let ageHours = null;
+
+  const committedMs = dataCommittedAt ? new Date(dataCommittedAt).getTime() : NaN;
+  if (Number.isFinite(committedMs)) {
+    // floor, not round: rounding reports 47.5h as 48 and fires the warning up
+    // to half an hour before the documented threshold, so the number shown and
+    // the number compared would disagree.
+    ageHours = Math.max(0, Math.floor((now - committedMs) / 3600000));
+    if (ageHours >= STALE_DATA_HOURS) {
+      warnings.push(`Snapshot data is ${ageHours}h old and the pipeline runs 4x/day, so this answer may not reflect the current portfolio.`);
+    }
+  } else {
+    warnings.push('Could not read the age of the snapshot data, so this answer is unverified.');
+  }
+
+  // Three distinguishable states, because collapsing any two of them is how
+  // this guard would lie. `null` = the remote could not be reached at all.
+  // `'unfetched'` = the remote tip is real but absent from this object store,
+  // so we are definitely behind by an uncountable amount. A number = a true
+  // count against the remote tip, and 0 is then a genuine all-clear.
+  if (commitsBehindMain === 'unfetched') {
+    warnings.push('This checkout has not fetched since origin/main moved, so its logic may predate fixes on the default branch. Run `git pull` and restart the server.');
+  } else if (commitsBehindMain === null) {
+    warnings.push('Could not determine whether this checkout is behind the remote default branch.');
+  } else if (commitsBehindMain > 0) {
+    warnings.push(`This server is running ${commitsBehindMain} commit(s) behind origin/main, so its logic may predate fixes on the default branch.`);
+  }
+
+  return {
+    data_committed_at: Number.isFinite(committedMs) ? dataCommittedAt : null,
+    data_age_hours: ageHours,
+    commits_behind_main: typeof commitsBehindMain === 'number' ? commitsBehindMain : null,
+    behind_main_state: commitsBehindMain === 'unfetched' ? 'unfetched'
+      : commitsBehindMain === null ? 'unknown' : 'measured',
+    warnings,
+  };
+}
+
+// How far behind the *real* origin/main this checkout is.
+//
+// `git rev-list --count HEAD..origin/main` alone is not enough, and getting
+// this wrong defeats the whole guard: `origin/main` is a remote-tracking ref
+// that only moves on fetch, and this server deliberately never fetches. On a
+// checkout that has not pulled in three weeks it returns 0 — an affirmative
+// all-clear for precisely the unpulled-checkout case the guard exists to
+// catch. "Could not check" and "checked, it is fine" must not look alike.
+//
+// So resolve the real tip first with `ls-remote`, which is a network READ that
+// mutates nothing in the caller's repository — the thing the no-fetch rule
+// forbids is a network *write* to their refs, not asking the remote a
+// question. Then:
+//   - remote tip unknown (offline, no auth, timeout) → null, and
+//     computeStaleness warns that it could not be determined;
+//   - remote tip not present locally → we are behind by an amount we cannot
+//     count without fetching, so report Infinity-as-unknown via null plus an
+//     explicit warning rather than a reassuring number;
+//   - remote tip present locally → count commits from HEAD to *that SHA*,
+//     which is correct whether or not the tracking ref has caught up.
+//
+// Cached for CACHE_MS so a burst of tool calls costs one round-trip; short
+// enough that a long-lived server still notices main moving.
+const REMOTE_PROBE_CACHE_MS = 60000;
+let remoteProbeCache = null;
+
+// Pure decision, separated from the git I/O so the branch that must never
+// collapse `unfetched` into a reassuring 0 is unit-testable. Takes the raw
+// ls-remote line plus two probes as callbacks:
+//   isPresentLocally(sha) -> boolean   (does the object store have that commit)
+//   countTo(sha)          -> string|null  (`rev-list --count HEAD..<sha>`)
+function classifyBehindMain(lsRemoteLine, isPresentLocally, countTo) {
+  const remoteSha = lsRemoteLine ? String(lsRemoteLine).trim().split(/\s+/)[0] : null;
+
+  // Offline, unauthenticated, or the probe timed out. Unknown, never zero.
+  if (!remoteSha || !/^[0-9a-f]{40}$/.test(remoteSha)) return null;
+
+  // The remote tip is not in this object store, so this checkout has not
+  // fetched since main moved. We know we are behind; we cannot say by how much
+  // without fetching. 'unfetched' makes computeStaleness say exactly that
+  // instead of implying a count.
+  if (!isPresentLocally(remoteSha)) return 'unfetched';
+
+  const raw = countTo(remoteSha);
+  return raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
+function readCommitsBehindMain(now = Date.now()) {
+  if (remoteProbeCache && now - remoteProbeCache.at < REMOTE_PROBE_CACHE_MS) {
+    return remoteProbeCache.value;
+  }
+
+  const value = classifyBehindMain(
+    runGit(['ls-remote', '--heads', 'origin', 'main'], 8000),
+    (sha) => runGit(['cat-file', '-e', `${sha}^{commit}`]) !== null,
+    (sha) => runGit(['rev-list', '--count', `HEAD..${sha}`]),
+  );
+
+  remoteProbeCache = { at: now, value };
+  return value;
+}
+
+function readStaleness() {
+  // `||` not `??`: an empty string is as unusable as null here, and should
+  // fall through to the bare local ref rather than be reported as a timestamp.
+  const dataCommittedAt = runGit(['log', '-1', '--format=%cI', 'origin/repo-butler-data'])
+    || runGit(['log', '-1', '--format=%cI', 'repo-butler-data']);
+  return computeStaleness(dataCommittedAt, readCommitsBehindMain());
+}
+
 // --- Data loading ---
 
 // Run a git subcommand against the repo-butler-data branch, trying the
@@ -280,6 +438,9 @@ const TOOLS = [
       },
     },
     handler: (args) => toolTriggerRefresh(args?.phase || 'report'),
+    // Dispatches a workflow; reads nothing from the data branch, so a
+    // staleness envelope on the response would describe nothing it returned.
+    readsDataBranch: false,
   },
   {
     name: 'get_monitor_events',
@@ -303,6 +464,8 @@ const TOOLS = [
     description: 'Get the agent council personas and their roles. Useful for understanding which perspectives evaluate events and proposals.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetCouncilPersonas(),
+    // Reads PERSONAS from council.js in this checkout, not the data branch.
+    readsDataBranch: false,
   },
   {
     name: 'get_weekly_trend',
@@ -335,10 +498,19 @@ const TOOLS = [
   },
 ];
 
+// Every tool answering from the data branch carries a staleness envelope, and
+// it is attached here rather than in each handler so a new tool cannot ship
+// without one. Opting out is explicit (`readsDataBranch: false`) and currently
+// applies only to the two tools that read nothing from the branch. Errors are
+// annotated too — an error is exactly when the caller most wants to know the
+// checkout might be the problem.
 function callTool(name, args = {}) {
   const tool = TOOLS.find(t => t.name === name);
   if (!tool) return null;
-  return tool.handler(args || {});
+  const result = tool.handler(args || {});
+  if (tool.readsDataBranch === false) return result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+  return { ...result, staleness: readStaleness() };
 }
 
 // --- Tool implementations ---
@@ -603,9 +775,24 @@ function clampInt(value, fallback, min, max) {
 
 // --- New read-only tools ---
 
+// The tier a weekly snapshot RECORDS, not one re-derived from it.
+// `computeHealthTier` measures release and push age against `Date.now()`, so
+// recomputing an archived week re-scores it with today's clock: a release that
+// was 30 days old in W22 reads as 100+ days old now, and that week
+// retroactively fails the Gold release check. Historical Gold counts therefore
+// decayed as the snapshots aged, which is not a trend — it is the clock moving.
+// `store.js` already wrote the correct tier at the time, with the exemption
+// applied, so read it. The recompute stays as the fallback for any snapshot
+// written before `computed` existed.
+function weekTier(data, repoName) {
+  const stored = data?.computed?.tier;
+  if (stored) return stored;
+  return computeHealthTier(data, tierOptions(repoName)).tier;
+}
+
 function projectWeekRow(week, data, repoName) {
   if (!data) return null;
-  const { tier } = computeHealthTier(data, tierOptions(repoName));
+  const tier = weekTier(data, repoName);
   return {
     week,
     open_issues: data.open_issues ?? null,
@@ -660,7 +847,7 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
     let ciSum = 0, ciCount = 0;
     let chSum = 0, chCount = 0;
     for (const [name, data] of entries) {
-      const { tier } = computeHealthTier(data, tierOptions(name));
+      const tier = weekTier(data, name);
       if (tierCounts[tier] !== undefined) tierCounts[tier]++;
       if (typeof data.open_issues === 'number') totalOpenIssues += data.open_issues;
       if (typeof data.ciPassRate === 'number') { ciSum += data.ciPassRate; ciCount++; }
@@ -880,7 +1067,13 @@ function handleMessage(line) {
     }
 
     case 'tools/list':
-      respond(id, { tools: TOOLS });
+      // Project to the protocol's own fields. TOOLS entries also carry
+      // internals — `handler` (dropped by JSON.stringify anyway) and
+      // `readsDataBranch` (which would otherwise appear on the two tools that
+      // set it, as an undocumented field in a public MCP response). Listing
+      // the wire fields explicitly keeps any future internal flag from
+      // leaking the same way.
+      respond(id, { tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
       break;
 
     case 'tools/call': {
@@ -909,4 +1102,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, computeStaleness, classifyBehindMain, TOOLS, RESOURCES };

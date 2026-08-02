@@ -123,7 +123,7 @@ Source: `computeHealthTier(r, options)` exported from `src/report-shared.js`.
 
 Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (see field mapping below). Tiers are `'gold'`, `'silver'`, `'bronze'`, or `'none'`, evaluated top-down.
 
-`options.releaseExempt` waives the 90-day release check for a repo listed in `release_exempt` in `.github/roadmap.yml`, resolved with `isReleaseExempt(name, config)`. Every caller must pass it — a caller that omits it silently reports an exempt repo one tier lower than the rest of the pipeline does. Note also that the release and activity checks are measured against `Date.now()`, so recomputing a tier from an *archived* weekly snapshot re-scores it with today's clock rather than reproducing what that week actually was; the stored `computed.tier` in each weekly snapshot is the historical record.
+`options.releaseExempt` waives the 90-day release check for a repo listed in `release_exempt` in `.github/roadmap.yml`, resolved with `isReleaseExempt(name, config)`. Every caller must pass it — a caller that omits it silently reports an exempt repo one tier lower than the rest of the pipeline does. Note also that the release and activity checks are measured against `Date.now()`, so recomputing a tier from an *archived* weekly snapshot re-scores it with today's clock rather than reproducing what that week actually was. The stored `computed.tier` in each weekly snapshot is the historical record, and `get_weekly_trend` reads it rather than re-deriving.
 
 **Gold** — all silver checks pass AND all gold checks pass:
 - `ci >= 2` (2+ CI workflows)
