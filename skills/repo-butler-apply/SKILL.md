@@ -28,12 +28,14 @@ This skill is a symlink into a checkout's working tree, so what runs is whatever
 
 ```bash
 SKILL_DIR=$(cd -P "<the base directory of this skill, as given above>" && pwd)
-ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null)
+ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null || true)
 [ -n "$ALMANAC" ] || ALMANAC="skill checkout predates the staleness check, so it is behind origin/main"
 echo "$ALMANAC"
 ```
 
 The final `echo` is how *you* read the value; it is not comic output, so it prints unconditionally and the decision about whether to show anything is made when you compose the panels and prompts.
+
+The `|| true` is not decoration: `check-skills.js` exits 1 when it has something to report, so under `set -e` the bare assignment aborts the block on exactly the stale reading this exists to surface, before the fallback line can run.
 
 `cd -P` first is load-bearing: Node collapses `..` lexically, so handing the registry path straight to `node` never traverses the symlink. Empty output is a positive signal rather than a failed check — a checkout old enough to lack `scripts/check-skills.js` predates this very check.
 

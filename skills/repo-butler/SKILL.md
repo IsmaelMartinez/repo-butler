@@ -54,14 +54,14 @@ This skill is a symlink into a checkout's working tree, so what runs is whatever
 
 ```bash
 SKILL_DIR=$(cd -P "<the base directory of this skill, as given above>" && pwd)
-ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null)
+ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null || true)
 [ -n "$ALMANAC" ] || ALMANAC="skill checkout predates the staleness check, so it is behind origin/main"
 echo "$ALMANAC"
 ```
 
 The final `echo` is how *you* read the value, exactly as `echo "$PRIOR"` is in the continuity block below — it is not comic output, so it prints unconditionally and the decision about whether to show anything is made when you compose the frame.
 
-Two further details are load-bearing. `cd -P` first, because Node collapses `..` lexically — handing the registry path straight to `node` never traverses the symlink and looks for the script beside the registry instead. And empty output is a *positive* signal, not a failure to check: a checkout old enough to lack `scripts/check-skills.js` predates this very check, which is exactly the stale case.
+Three further details are load-bearing. The `|| true` is not decoration: `check-skills.js` exits 1 when it has something to report, so under `set -e` the bare assignment aborts the whole block — and it aborts on exactly the stale reading this exists to surface, silently, before the fallback line can run. `cd -P` first, because Node collapses `..` lexically — handing the registry path straight to `node` never traverses the symlink and looks for the script beside the registry instead. And empty output is a *positive* signal, not a failure to check: a checkout old enough to lack `scripts/check-skills.js` predates this very check, which is exactly the stale case.
 
 If `$ALMANAC` says the skill is current with `origin/main`, say nothing — a calm morning should stay calm. Otherwise Reginald mentions the almanac once, in the frame, quoting the reading verbatim so the counts survive the metaphor: `the almanac: {$ALMANAC}`. Never suppress it to keep the comic tidy, and never soften it into "possibly out of date" — the reading is precise and the whole point is that a stale skill used to look identical to a current one.
 
