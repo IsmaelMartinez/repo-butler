@@ -186,5 +186,39 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-08-03T09:47:15.648Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Harden release-cadence workflow template against security vulnerabilities",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Establish Standards Compliance: Add CODEOWNERS, security.md, and release-cadence to skill-sources",
+        "target_repo": "skill-sources",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "not-allowlisted",
+        "number": null
+      },
+      {
+        "title": "Remediate Stalled Dependabot Alert",
+        "target_repo": "teams-for-linux",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-finding-anchor",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
