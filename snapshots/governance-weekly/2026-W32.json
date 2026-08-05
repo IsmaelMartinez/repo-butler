@@ -316,6 +316,32 @@
     },
     {
       "type": "stalled-alert",
+      "repo": "ai-model-advisor",
+      "alerts": [
+        {
+          "number": 50,
+          "package": "protobufjs",
+          "ecosystem": "npm",
+          "manifestPath": "package-lock.json",
+          "severity": "medium",
+          "ageDays": 15,
+          "classification": "reachable-by-update",
+          "detail": "every parent range already admits protobufjs@7.6.5; refresh the lockfile instead"
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Unblock 1 stalled Dependabot alert(s) in ai-model-advisor",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
+        "acceptanceCriteria": [
+          "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
+        ]
+      }
+    },
+    {
+      "type": "stalled-alert",
       "repo": "teams-for-linux",
       "alerts": [
         {
