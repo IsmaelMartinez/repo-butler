@@ -209,8 +209,8 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 16,
-      "open_bugs": 6,
+      "open_issues": 17,
+      "open_bugs": 7,
       "commits_6mo": 440,
       "stars": 4912,
       "license": "GPL-3.0",
@@ -958,7 +958,7 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-06T08:11:08Z",
+      "pushed_at": "2026-08-06T09:38:42Z",
       "traffic": {
         "views_14d": {
           "count": 8,
