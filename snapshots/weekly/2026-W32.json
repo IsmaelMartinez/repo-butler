@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-05T21:01:45.034Z",
+  "timestamp": "2026-08-06T09:36:11.219Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-08-05T19:10:07Z",
+    "pushed_at": "2026-08-06T08:11:08Z",
     "archived": false
   },
   "issues": {
@@ -110,6 +110,16 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 367,
+        "title": "chore(deps): bump the minor-and-patch group with 2 updates",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-08-06T01:36:39Z"
+      },
       {
         "number": 365,
         "title": "feat(skills): report when the running skill is not the one on main (#350)",
@@ -1187,48 +1197,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-05-08T08:39:13Z"
-      },
-      {
-        "number": 199,
-        "title": "docs: simplify docs/ tree by removing shipped artefacts",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-07T22:56:13Z"
-      },
-      {
-        "number": 197,
-        "title": "docs: fix broken links, stale facts, and Pages dotfile 404",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-07T22:51:50Z"
-      },
-      {
-        "number": 196,
-        "title": "docs(plans): deployed-page link surfacing implementation plan",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-07T21:37:02Z"
-      },
-      {
-        "number": 195,
-        "title": "feat(skills): switch read-side skills to MCP-first data sourcing",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-07T16:06:21Z"
-      },
-      {
-        "number": 194,
-        "title": "feat(skills): optional config file for path/branch/projects-dirs",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-07T13:22:07Z"
-      },
-      {
-        "number": 193,
-        "title": "feat(skills): add install-skills.sh helper for local skill registry symlinks",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-07T09:15:28Z"
       }
     ]
   },
@@ -1427,8 +1395,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 85,
-    "passed": 85,
+    "total_runs": 83,
+    "passed": 83,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1443,9 +1411,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 9,
-    "recently_merged_prs": 156,
-    "bot_prs": 8,
-    "human_prs": 148,
+    "recently_merged_prs": 151,
+    "bot_prs": 9,
+    "human_prs": 142,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
