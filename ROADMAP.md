@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-08-02
+**Last Updated:** 2026-08-06
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -100,6 +100,8 @@ Roadmap refresh baseline fixed 2026-08-02 (PR #364). When a roadmap PR was alrea
 Skill staleness signal shipped 2026-08-02 (PR #365), closing the second half of #350. The installed skills are symlinks into a checkout's working tree, so the live skill is whatever that checkout currently is — an unpulled `main`, a feature branch, or an uncommitted edit — and nothing reported the discrepancy, which is why PR #291's comic uplift kept rendering the old version for days after it merged. The behind-main probe moved out of `src/mcp.js` into `src/staleness.js` so both surfaces share one classification rather than growing a second hand-rolled copy that could report a reassuring zero; `src/skill-staleness.js` and the `scripts/check-skills.js` CLI answer the skills' version of the question, and both skills now run it and surface the reading — the briefing as an almanac line in the frame, the apply skill as a caveat prepended to every confirmation prompt. Two findings were worth the measuring. Node collapses `..` lexically, so handing the registry path straight to `node` never traverses the symlink and looks for the script beside the registry instead — the skill must `cd -P` first. And a checkout old enough to lack `scripts/check-skills.js` predates this very check, so empty output is a positive staleness signal rather than a failed one. The apply-side reading is deliberately not a new gate: refusing to act on a stale revision is the owner's call, and a skill that refuses is one more thing to work around.
 
 Skill staleness alerts and refresh-build stability shipped 2026-08-02 (PRs #364, #365). Fixes a critical workflow logic issue by ensuring roadmap refresh builds construct their baseline from the active pull request branch rather than defaulting to main, preventing subsequent ticks from overwriting unmerged entries. Additionally, introduces a feedback mechanism that alerts users when a running skill diverges from the version on the main branch, resolving the working-tree staleness gap (#350).
+
+Routine dependency update shipped 2026-08-06 (PR #367), updating minor and patch dependencies across the codebase to ensure ongoing stability and security.
 
 ---
 
