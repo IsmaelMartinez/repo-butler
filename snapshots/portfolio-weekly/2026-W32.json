@@ -209,20 +209,20 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 17,
-      "open_bugs": 7,
-      "commits_6mo": 441,
-      "stars": 4916,
+      "open_issues": 14,
+      "open_bugs": 5,
+      "commits_6mo": 452,
+      "stars": 4917,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.8840579710144928,
       "vulns": {
-        "count": 14,
+        "count": 1,
         "critical": 0,
-        "high": 5,
-        "medium": 9,
+        "high": 0,
+        "medium": 1,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -236,8 +236,8 @@
         "count": 0
       },
       "ci": 15,
-      "released_at": "2026-07-27T13:16:00Z",
-      "pushed_at": "2026-08-07T10:59:06Z",
+      "released_at": "2026-08-07T16:42:08Z",
+      "pushed_at": "2026-08-07T16:47:35Z",
       "traffic": {
         "views_14d": {
           "count": 9001,
@@ -249,7 +249,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -283,7 +283,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -307,7 +307,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "ismaelmartinez.me.uk": {
@@ -340,7 +340,7 @@
       },
       "ci": 11,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-07T02:37:26Z",
+      "pushed_at": "2026-08-07T12:57:31Z",
       "traffic": {
         "views_14d": {
           "count": 57,
@@ -862,8 +862,8 @@
           "uniques": 0
         },
         "clones_14d": {
-          "count": 228,
-          "uniques": 72
+          "count": 250,
+          "uniques": 76
         }
       },
       "computed": {
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9880952380952381,
+      "ciPassRate": 0.9882352941176471,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-07T08:47:09Z",
+      "pushed_at": "2026-08-07T12:35:40Z",
       "traffic": {
         "views_14d": {
           "count": 7,
