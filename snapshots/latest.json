@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-07T20:34:13.517Z",
+  "timestamp": "2026-08-08T07:43:08.850Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-08-07T18:36:31Z",
+    "pushed_at": "2026-08-08T06:30:26Z",
     "archived": false
   },
   "issues": {
@@ -1152,27 +1152,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-05-10T22:01:59Z"
-      },
-      {
-        "number": 207,
-        "title": "fix(report-portfolio): exclude blocked bugs from portfolio open_bugs too",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-09T22:23:20Z"
-      },
-      {
-        "number": 206,
-        "title": "fix(observe): exclude blocked bugs from open_bugs count",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-09T18:53:14Z"
-      },
-      {
-        "number": 205,
-        "title": "docs(consumer-guide): standardise deployed-page URL convention",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-09T06:57:01Z"
       }
     ]
   },
@@ -1387,9 +1366,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 8,
-    "recently_merged_prs": 149,
+    "recently_merged_prs": 146,
     "bot_prs": 9,
-    "human_prs": 140,
+    "human_prs": 137,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
