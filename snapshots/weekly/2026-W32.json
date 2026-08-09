@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-08T20:21:46.831Z",
+  "timestamp": "2026-08-09T07:49:19.571Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-08-08T18:19:04Z",
+    "pushed_at": "2026-08-09T06:34:40Z",
     "archived": false
   },
   "issues": {
@@ -87,14 +87,6 @@
         "labels": [],
         "closed_at": "2026-05-11T18:39:38Z",
         "created_at": "2026-05-11T13:17:38Z"
-      },
-      {
-        "number": 208,
-        "title": "apply phase swallows per-repo errors — workflow exits 0 despite 0 PRs created",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "closed_at": "2026-05-10T22:02:00Z",
-        "created_at": "2026-05-10T12:28:57Z"
       }
     ]
   },
@@ -1145,13 +1137,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-05-11T10:06:00Z"
-      },
-      {
-        "number": 209,
-        "title": "fix(apply): surface per-repo errors via exit code and GITHUB_OUTPUT",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-10T22:01:59Z"
       }
     ]
   },
@@ -1349,9 +1334,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9883720930232558,
-    "total_runs": 86,
-    "passed": 85,
+    "pass_rate": 0.9885057471264368,
+    "total_runs": 87,
+    "passed": 86,
     "failed": 1
   },
   "automated_security_fixes": {
@@ -1365,10 +1350,10 @@
     "open_features": 0,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 8,
-    "recently_merged_prs": 146,
+    "recently_closed": 7,
+    "recently_merged_prs": 145,
     "bot_prs": 9,
-    "human_prs": 137,
+    "human_prs": 136,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
@@ -1382,11 +1367,11 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 0.9883720930232558,
+    "ci_pass_rate": 0.9885057471264368,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 0.4,
-      "sample_size": 8
+      "sample_size": 7
     }
   }
 }
