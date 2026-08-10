@@ -1,6 +1,23 @@
 {
   "findings": [
     {
+      "type": "policy-drift",
+      "category": "ci-reliability",
+      "repo": "bonnie-wee-plot",
+      "expected": "95%",
+      "actual": "70%",
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Align bonnie-wee-plot ci-reliability with the portfolio norm",
+        "rationale": "Expected 95%, found 70%.",
+        "acceptanceCriteria": [
+          "bonnie-wee-plot ci-reliability matches 95%"
+        ]
+      }
+    },
+    {
       "type": "tier-uplift",
       "repo": "ismaelmartinez.me.uk",
       "currentTier": "silver",
@@ -92,7 +109,7 @@
       "type": "open-vulnerability",
       "repo": "bonnie-wee-plot",
       "critical": 0,
-      "high": 3,
+      "high": 1,
       "secretScanning": 0,
       "sources": [
         "dependabot"
@@ -104,7 +121,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in bonnie-wee-plot",
-        "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
