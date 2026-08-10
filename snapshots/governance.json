@@ -1,22 +1,5 @@
 [
   {
-    "type": "policy-drift",
-    "category": "ci-reliability",
-    "repo": "bonnie-wee-plot",
-    "expected": "95%",
-    "actual": "70%",
-    "priority": "medium",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Align bonnie-wee-plot ci-reliability with the portfolio norm",
-      "rationale": "Expected 95%, found 70%.",
-      "acceptanceCriteria": [
-        "bonnie-wee-plot ci-reliability matches 95%"
-      ]
-    }
-  },
-  {
     "type": "tier-uplift",
     "repo": "teams-for-linux",
     "currentTier": "silver",
@@ -61,118 +44,8 @@
     }
   },
   {
-    "type": "tier-uplift",
-    "repo": "bonnie-wee-plot",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift bonnie-wee-plot from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
-    "repo": "betis-escocia",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift betis-escocia from silver to gold",
-      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-      "acceptanceCriteria": [
-        "Check \"Zero critical/high security findings\" passes"
-      ]
-    }
-  },
-  {
     "type": "open-vulnerability",
     "repo": "teams-for-linux",
-    "critical": 0,
-    "high": 3,
-    "secretScanning": 0,
-    "sources": [
-      "dependabot"
-    ],
-    "max_severity": "high",
-    "priority": "medium",
-    "autofixEnabled": true,
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Remediate open security alerts in teams-for-linux",
-      "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
-      "acceptanceCriteria": [
-        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-      ]
-    }
-  },
-  {
-    "type": "open-vulnerability",
-    "repo": "ismaelmartinez.me.uk",
-    "critical": 0,
-    "high": 1,
-    "secretScanning": 0,
-    "sources": [
-      "dependabot"
-    ],
-    "max_severity": "high",
-    "priority": "medium",
-    "autofixEnabled": true,
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-      "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
-      "acceptanceCriteria": [
-        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-      ]
-    }
-  },
-  {
-    "type": "open-vulnerability",
-    "repo": "bonnie-wee-plot",
-    "critical": 0,
-    "high": 1,
-    "secretScanning": 0,
-    "sources": [
-      "dependabot"
-    ],
-    "max_severity": "high",
-    "priority": "medium",
-    "autofixEnabled": true,
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Remediate open security alerts in bonnie-wee-plot",
-      "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
-      "acceptanceCriteria": [
-        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-      ]
-    }
-  },
-  {
-    "type": "open-vulnerability",
-    "repo": "betis-escocia",
     "critical": 0,
     "high": 2,
     "secretScanning": 0,
@@ -185,7 +58,29 @@
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
-      "intent": "Remediate open security alerts in betis-escocia",
+      "intent": "Remediate open security alerts in teams-for-linux",
+      "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+      ]
+    }
+  },
+  {
+    "type": "open-vulnerability",
+    "repo": "ismaelmartinez.me.uk",
+    "critical": 0,
+    "high": 2,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "high",
+    "priority": "medium",
+    "autofixEnabled": true,
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
       "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
@@ -206,75 +101,6 @@
       "rationale": "Health tier regressed from gold to silver since 2026-W32.",
       "acceptanceCriteria": [
         "teams-for-linux is back at gold in a subsequent weekly snapshot"
-      ]
-    }
-  },
-  {
-    "type": "tier-regression",
-    "repo": "betis-escocia",
-    "previousTier": "gold",
-    "currentTier": "silver",
-    "priorWeek": "2026-W32",
-    "priority": "high",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Restore betis-escocia to gold",
-      "rationale": "Health tier regressed from gold to silver since 2026-W32.",
-      "acceptanceCriteria": [
-        "betis-escocia is back at gold in a subsequent weekly snapshot"
-      ]
-    }
-  },
-  {
-    "type": "stalled-alert",
-    "repo": "ai-model-advisor",
-    "alerts": [
-      {
-        "number": 50,
-        "package": "protobufjs",
-        "ecosystem": "npm",
-        "manifestPath": "package-lock.json",
-        "severity": "medium",
-        "ageDays": 20,
-        "classification": "reachable-by-update",
-        "detail": "every parent range already admits protobufjs@7.6.5; refresh the lockfile instead"
-      }
-    ],
-    "priority": "medium",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Unblock 1 stalled Dependabot alert(s) in ai-model-advisor",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 20 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
-      "acceptanceCriteria": [
-        "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
-      ]
-    }
-  },
-  {
-    "type": "stalled-alert",
-    "repo": "teams-for-linux",
-    "alerts": [
-      {
-        "number": 153,
-        "package": "http-proxy-middleware",
-        "ecosystem": "npm",
-        "manifestPath": "docs-site/package-lock.json",
-        "severity": "medium",
-        "ageDays": 47,
-        "classification": "reachable-by-update",
-        "detail": "every parent range already admits http-proxy-middleware@2.0.10; refresh the lockfile instead"
-      }
-    ],
-    "priority": "medium",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 47 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
-      "acceptanceCriteria": [
-        "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
     }
   }
