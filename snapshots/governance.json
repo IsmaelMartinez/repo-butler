@@ -91,7 +91,7 @@
     "type": "open-vulnerability",
     "repo": "bonnie-wee-plot",
     "critical": 0,
-    "high": 2,
+    "high": 3,
     "secretScanning": 0,
     "sources": [
       "dependabot"
@@ -103,7 +103,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in bonnie-wee-plot",
-      "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+      "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
@@ -184,7 +184,7 @@
         "ecosystem": "npm",
         "manifestPath": "docs-site/package-lock.json",
         "severity": "medium",
-        "ageDays": 46,
+        "ageDays": 47,
         "classification": "reachable-by-update",
         "detail": "every parent range already admits http-proxy-middleware@2.0.10; refresh the lockfile instead"
       }
@@ -194,7 +194,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 46 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
+      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 47 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
       "acceptanceCriteria": [
         "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
