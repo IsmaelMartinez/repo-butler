@@ -220,5 +220,23 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-08-10T07:43:16.449Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Harden release-cadence workflow template against privilege escalation",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
