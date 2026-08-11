@@ -108,7 +108,7 @@
       "id": 36797154,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 47,
+      "commits_6mo": 48,
       "stars": 5,
       "license": "MIT",
       "communityHealth": 100,
@@ -134,7 +134,7 @@
       },
       "ci": 8,
       "released_at": "2025-12-20T09:59:52Z",
-      "pushed_at": "2026-08-10T20:10:35Z",
+      "pushed_at": "2026-08-11T19:56:38Z",
       "traffic": {
         "views_14d": {
           "count": 4,
@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 17,
+      "open_issues": 23,
       "open_bugs": 7,
       "commits_6mo": 457,
-      "stars": 4921,
+      "stars": 4922,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9848484848484849,
       "vulns": {
         "count": 2,
         "critical": 0,
@@ -237,7 +237,7 @@
       },
       "ci": 15,
       "released_at": "2026-08-07T16:42:08Z",
-      "pushed_at": "2026-08-11T11:51:03Z",
+      "pushed_at": "2026-08-11T20:06:55Z",
       "traffic": {
         "views_14d": {
           "count": 9548,
@@ -318,7 +318,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9456521739130435,
+      "ciPassRate": 0.9431818181818182,
       "vulns": {
         "count": 2,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 11,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-11T13:07:47Z",
+      "pushed_at": "2026-08-11T20:07:46Z",
       "traffic": {
         "views_14d": {
           "count": 45,
@@ -421,7 +421,7 @@
       "stars": 4,
       "license": "MIT",
       "communityHealth": 85,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9489795918367347,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 13,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-11T12:36:02Z",
+      "pushed_at": "2026-08-11T18:42:43Z",
       "traffic": {
         "views_14d": {
           "count": 6,
