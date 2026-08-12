@@ -107,6 +107,8 @@ Roadmap update process reinforced 2026-08-11 (PR #368). Future updates leverage 
 
 OSV-Scanner governance migration and Snyk deprecation planned 2026-08-12 (PRs #370, #371). Initiated a strategic transition of the project's security posture by planning the removal of the Snyk integration and adopting `osv-scanner` as a new portfolio-wide standard for open-source vulnerability scanning.
 
+OSV-Scanner security migration initiated 2026-08-12 (PRs #370, #371, #372, #373). Established a strategic transition of the portfolio's security posture by planning the deprecation of Snyk integration, rolling out OSV-Scanner configuration, and targeting the scanner rollout specifically at the three repositories losing Snyk coverage to maintain uninterrupted dependency vulnerability scanning.
+
 ---
 
 ## Next Up
