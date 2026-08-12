@@ -283,6 +283,62 @@ jobs:
           gh release create "$next" --target "\${GITHUB_SHA}" --generate-notes
 `,
   },
+  'osv-scanner': {
+    // Unlike every neighbouring entry, this content is deliberately NOT a
+    // function of ecosystem: OSV-Scanner discovers lockfiles itself and the
+    // reusable workflows take no language input, so all three content()
+    // arguments (eco, owner, rootFiles) are ignored on purpose.
+    //
+    // `upload-sarif: false` is load-bearing. computeHealthTier
+    // (report-shared.js) and detectOpenVulnerabilities (governance.js) both read
+    // codeScanning.max_severity, and every repo's code-scanning signal today is
+    // CodeQL (SAST only). Uploading SCA advisories into code scanning would drop
+    // repos off Gold tier without a single new vulnerability existing.
+    //
+    // `security-events: write` is REQUIRED even though that upload is disabled.
+    // Both called reusable workflows declare it as a job-level permissions block
+    // and GitHub validates the caller's grant against that declaration BEFORE
+    // any step runs; `upload-sarif: false` gates STEPS, it cannot make a JOB's
+    // permission request conditional. Granting less fails the run at validation
+    // time on every repo. The rule is: add the permission, never enable the
+    // upload.
+    //
+    // The fork guard on scan-pr is not optional either. On a pull_request from a
+    // fork GitHub caps GITHUB_TOKEN at read-only regardless of the permissions
+    // key, so the static security-events: write request fails validation and the
+    // job never starts — without the guard every external contributor's PR gets
+    // a failing check.
+    path: '.github/workflows/osv-scanner.yml',
+    content: () => `name: OSV-Scanner
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  scan-pr:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
+    with:
+      upload-sarif: false
+      fail-on-vuln: true
+
+  scan-scheduled:
+    if: github.event_name == 'schedule'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
+    with:
+      upload-sarif: false
+      fail-on-vuln: false
+`,
+  },
 };
 
 // Tool-specific notes appended to the PR body. Used to document manual

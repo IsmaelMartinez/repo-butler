@@ -46,6 +46,7 @@ export function isExcludedRepo(name) {
 // v4: added hasCodeowners + hasSecurityPolicy to details (codeowners + security-md standards).
 // v5: added hasCopilotReview to details (code-review-bot standard).
 // v6: added hasReleaseWorkflow to details (release-cadence standard).
+// v7: added hasOsvScanner to details (osv-scanner standard).
 //
 // `autofix` (ADR-012 Phase 3) and `hasCopilotReview` are both repo-settings
 // toggles that can flip without a push or an open-issue-count change, so a
@@ -58,7 +59,7 @@ export function isExcludedRepo(name) {
 // This is the cache-refresh convention: a settings-toggle field gets a live
 // read on every cache hit instead of a fresh version bump each time the
 // underlying GitHub setting can change.
-export const REPO_CACHE_SCHEMA_VERSION = 6;
+export const REPO_CACHE_SCHEMA_VERSION = 7;
 
 // True for releases that are actually published. GitHub returns drafts (with
 // null published_at) at the top of /releases when ordered by created_at, so

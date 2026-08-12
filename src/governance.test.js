@@ -230,6 +230,34 @@ describe('detectStandardsGaps', () => {
     assert.deepEqual(result.findings[0].compliant, ['a']);
   });
 
+  it('detects osv-scanner gaps (missing the templated scanner workflow)', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasOsvScanner: true },
+      b: { hasOsvScanner: false },
+    });
+    const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+  });
+
+  it('treats an absent hasOsvScanner field as non-compliant', () => {
+    const repos = [makeRepo('a')];
+    const details = makeDetails(repos); // no hasOsvScanner key at all
+    const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.deepEqual(result.findings[0].nonCompliant, ['a']);
+  });
+
+  it('treats a repo with no details entry as osv-scanner non-compliant', () => {
+    const repos = [makeRepo('a')];
+    const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, {}); // detector sees undefined details
+    assert.deepEqual(result.findings[0].nonCompliant, ['a']);
+  });
+
   it('detects code-review-bot gaps (missing Copilot review ruleset)', () => {
     const repos = [makeRepo('a'), makeRepo('b')];
     const details = makeDetails(repos, {
@@ -696,6 +724,15 @@ describe('buildRemediationPlan', () => {
     const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'release-cadence', nonCompliant: ['r'], adoptionRate: 0.4 });
     assert.equal(plan.executor, 'template');
     assert.deepEqual(plan.targetFiles, ['.github/workflows/release.yml']);
+  });
+
+  // Regression guard: TEMPLATABLE_TOOLS is a separate list from apply.js's
+  // TEMPLATES, so a tool present in the latter but missing here falls through to
+  // executor 'manual' and no PR is ever opened.
+  it('routes osv-scanner to template with the scanner workflow target file', () => {
+    const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'osv-scanner', nonCompliant: ['r'] });
+    assert.equal(plan.executor, 'template');
+    assert.deepEqual(plan.targetFiles, ['.github/workflows/osv-scanner.yml']);
   });
 
   it('routes a content-tailored standards tool to the agent executor', () => {

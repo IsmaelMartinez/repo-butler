@@ -190,6 +190,13 @@ const STANDARD_DETECTORS = {
   // The two compose: this standard installs the cadence workflow, the workflow
   // keeps the "Release in the last 90 days" gold check passing.
   'release-cadence': (_repo, details) => !!details?.hasReleaseWorkflow,
+  // Presence of the TEMPLATED `.github/workflows/osv-scanner.yml`, matched by
+  // exact path. Not by display name and not by a substring of either: a name
+  // match would be satisfied by any unrelated workflow that merely mentions the
+  // scanner, and a substring path match would be satisfied by a repo's own
+  // hand-rolled variant that this template — which writes one fixed path —
+  // could then never satisfy, leaving the standard permanently non-compliant.
+  'osv-scanner': (_repo, details) => !!details?.hasOsvScanner,
 };
 
 // Minimum adoption rate to infer an implicit universal standard.
@@ -644,7 +651,9 @@ export function detectOpenVulnerabilities(repos, details) {
 // publishes artifacts, so it cannot go red on heterogeneous repos).
 // ci-workflows is deliberately NOT here: a static CI workflow fanned across
 // heterogeneous repos would open red-CI PRs, so it stays agent-routed.
-const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md', 'release-cadence']);
+// osv-scanner adds a dependency-scanning workflow that calls google's reusable
+// workflow (ecosystem-agnostic: OSV-Scanner discovers lockfiles itself).
+const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md', 'release-cadence', 'osv-scanner']);
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
 const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
@@ -667,6 +676,7 @@ const STANDARD_TARGET_FILES = {
   'codeowners': ['.github/CODEOWNERS'],
   'security-md': ['.github/SECURITY.md'],
   'release-cadence': ['.github/workflows/release.yml'],
+  'osv-scanner': ['.github/workflows/osv-scanner.yml'],
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],

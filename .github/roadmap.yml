@@ -67,12 +67,31 @@ standards:
   # apply.yml dispatch only for now (NOT on apply-schedule / apply-automerge
   # below); promotion follows the usual per-class track-record gate (ADR-007).
   release-cadence: universal
+  # Dependency scanning, replacing Snyk (whose free tier began refusing scans on
+  # 2026-08-10). Remediation is a templated .github/workflows/osv-scanner.yml
+  # (apply.js) calling Google's reusable workflows with upload-sarif DISABLED —
+  # see the TEMPLATES entry for why that line and the security-events grant are
+  # both load-bearing. Manual apply.yml dispatch only (NOT on apply-schedule /
+  # apply-automerge below); promotion follows the usual per-class track-record
+  # gate (ADR-007). Plan: docs/superpowers/2026-08-12-osv-scanner-standard-plan.md
+  osv-scanner: universal
 
 # Per-standard repo exclusions (comma-separated). sound3fy is release_exempt
 # from the 90-day gold check by design, so it must not be nudged into release
 # automation either.
+#
+# The osv-scanner list is TEMPORARY and is the canary mechanism, not a policy:
+# the apply path has no repo selector (apply.yml takes only dry-run / tools /
+# max-apply-per-run, and capPerTool keeps the first N in portfolio order), so
+# excluding everything except repo-butler is the only way to aim the first
+# dispatch. repo-butler is the canary precisely because it is zero-dependency,
+# which exercises the "no manifests to scan" path permanently rather than by
+# luck. REVERT THIS LIST once the canary PR is merged and its workflow is
+# confirmed green — leaving it in place would let governance report full
+# compliance while thirteen repos have no scanner at all.
 standards-exclude:
   release-cadence: sound3fy
+  osv-scanner: teams-for-linux,ismaelmartinez.me.uk,betis-escocia,sound3fy,bonnie-wee-plot,yourear,wifisentinel,github-issue-triage-bot,generator-atlassian-compass-event-catalog,ai-model-advisor,skill-sources,lounge-tv,delegate-local
 
 # generator-atlassian-compass-event-catalog added 2026-07-25. The package was
 # deliberately wound down in c234fd4 (#217, 2026-04-23): the README tells users

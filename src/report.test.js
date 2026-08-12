@@ -1799,6 +1799,93 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['err-wf'].hasReleaseWorkflow, true);
   });
 
+  // --- hasOsvScanner (osv-scanner standard) ---
+  //
+  // `workflowsResponse` is a thunk so a test can hand back a rejection as easily
+  // as a payload; every other path keeps the same benign stubs the surrounding
+  // fetchPortfolioDetails tests use, so only the workflows read varies.
+  const makeWorkflowsGh = (workflowsResponse) => ({
+    request: (path) => {
+      if (path.includes('/actions/workflows')) return workflowsResponse();
+      if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+      if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+      if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+      if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+      if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+      if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+      if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+      return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+    },
+    paginate: () => Promise.resolve([]),
+    getFileContent: () => Promise.resolve(null),
+  });
+  const osvRepos = [
+    { name: 'osv-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+  ];
+
+  it('derives hasOsvScanner from the exact templated workflow path', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = makeWorkflowsGh(() => Promise.resolve({
+      total_count: 2,
+      workflows: [
+        { name: 'CI', path: '.github/workflows/ci.yml' },
+        { name: 'OSV-Scanner', path: '.github/workflows/osv-scanner.yml' },
+      ],
+    }));
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, true);
+  });
+
+  it('reports hasOsvScanner false when the scanner workflow is absent', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = makeWorkflowsGh(() => Promise.resolve({
+      total_count: 1,
+      workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }],
+    }));
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, false);
+  });
+
+  it('does not satisfy hasOsvScanner from a workflow that merely mentions osv-scanner', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // Detection is an EXACT path match, unlike the deliberately broad
+    // hasReleaseWorkflow. A display name mentioning the scanner, and a
+    // neighbouring path that merely contains the string, are both gaps: the
+    // standard is satisfied only by the file the apply template writes.
+    const gh = makeWorkflowsGh(() => Promise.resolve({
+      total_count: 3,
+      workflows: [
+        { name: 'Run osv-scanner nightly', path: '.github/workflows/nightly.yml' },
+        { name: 'Security', path: '.github/workflows/my-osv-scanner.yml' },
+        { name: 'Security', path: '.github/workflows/osv-scanner.yaml' },
+      ],
+    }));
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, false);
+  });
+
+  it('fails hasOsvScanner toward present when the workflows page is truncated', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // 101 workflows on the repo, one non-matching entry on this single page —
+    // osv-scanner.yml may be on a later page, so an incomplete read must not be
+    // reported as a gap and turned into a remediation PR.
+    const gh = makeWorkflowsGh(() => Promise.resolve({
+      total_count: 101,
+      workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }],
+    }));
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, true);
+  });
+
+  it('fails hasOsvScanner toward present when the workflows request errors', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // A transient API failure is incomplete data, and this .catch fires per repo:
+    // reading it as "absent" would open an apply PR on the whole portfolio at once.
+    const gh = makeWorkflowsGh(() => Promise.reject(new Error('rate limited')));
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, true);
+  });
+
   it('surfaces hasCopilotReview through fetchPortfolioDetails (active Copilot ruleset → true)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // The shared detection helper lists rulesets via gh.paginate and reads each
