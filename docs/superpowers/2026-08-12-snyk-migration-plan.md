@@ -153,40 +153,129 @@ question with "No. Currently there is not a limit on the API." That was verified
 directly: an unauthenticated query returns real advisory data, and
 `google/osv-scanner-action` is at v2.5.0 published 2026-08-07, unarchived, pushed
 2026-08-11. Its lockfile coverage spans all four npm formats plus Python, Go and
-the rest of the portfolio's ecosystems, and it emits SARIF into the GitHub
-Security tab.
+the rest of the portfolio's ecosystems — which covers all 14 eligible repos,
+11 of which carry a root lockfile today.
 
-The pull-request reusable workflow diffs against the base branch and fails only
-on newly introduced vulnerabilities, so it will not retroactively redden a
-currently green build:
+## It goes everywhere, as a governance standard
+
+The scanner is not rolled out repo by repo. It becomes a **portfolio standard**,
+which is how every other baseline in this portfolio is installed and kept
+installed. That means five edits, following the `code-scanning` standard exactly:
+
+`osv-scanner: universal` under `standards:` in `.github/roadmap.yml`; a
+`STANDARD_DETECTORS['osv-scanner']` entry in `governance.js` reading
+`details?.hasOsvScanner`; that field populated in `report-portfolio.js`'s
+existing `actions/workflows` block beside `hasAutoMergeWorkflow`; a
+`TEMPLATES['osv-scanner']` entry in `apply.js` writing
+`.github/workflows/osv-scanner.yml`; and a bump of
+`REPO_CACHE_SCHEMA_VERSION` from 6 to 7, without which every cached repo keeps
+reporting the standard as missing until its next push.
+
+Two details are load-bearing. `hasOsvScanner` must **fail toward present** on a
+truncated workflow list or a request error, for the same reason
+`hasReleaseWorkflow` already does and documents: it gates a cross-repo write, so
+a transient API failure must never manufacture a remediation PR. And the new
+standard goes on neither `apply-schedule` nor `apply-automerge` — manual
+dispatch only, matching `release-cadence`, and earning promotion later on the
+usual ADR-007 per-class track record. `isAutoMergeAllowed` requires both an
+allow-list entry and a `TEMPLATES` entry, so adding the template alone cannot
+make it auto-merge.
+
+This is deliberately **not** wired into `onboard.js`. Onboarding runs once and
+writes only the CLAUDE.md consent marker; a standard is evaluated on every run,
+so a repo that never had the workflow *and* a repo that later loses it both get
+flagged. Continuous beats one-shot, and new repos join the set automatically the
+moment they appear, because `eligibleRepos` is recomputed each run.
+
+"Everywhere" therefore resolves by itself. `eligibleRepos` already filters
+archived repos, forks and `shadow`/`test-repo` names, which is why the four
+forks are excluded without a special case and why the private repo — which never
+enters the governance pipeline at all — is untouched. That leaves the 14 active
+public repos.
+
+## The workflow template
+
+Verified against the action's own source rather than its docs, because the input
+names matter: a wrong one would silently no-op on all 14 repos at once.
 
 ```yaml
-name: OSV-Scanner PR Scan
+name: OSV-Scanner
+
 on:
   pull_request:
-    branches: [main]
+  schedule:
+    - cron: '0 4 * * 1'
+
 permissions:
-  actions: read
-  security-events: write
   contents: read
+  actions: read
+
 jobs:
   scan-pr:
-    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.5.0"
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@06b2ab4348248b456ee06c9e953637f55e03504f # v2.5.0
+    with:
+      upload-sarif: false
+      fail-on-vuln: true
+
+  scan-scheduled:
+    if: github.event_name == 'schedule'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@06b2ab4348248b456ee06c9e953637f55e03504f # v2.5.0
+    with:
+      upload-sarif: false
+      fail-on-vuln: false
 ```
 
-That variant alone is not sufficient, and shipping only it would quietly lose
-coverage. Snyk tested the whole lockfile on every run; the PR variant tests only
-the diff. A vulnerability already sitting in a lockfile is then reported by
-nothing — no PR touches it, so the diff is empty, and Dependabot never raised it
-(the pnpm auto-installed-peer case is exactly this shape). The scheduled
-`osv-scanner-reusable.yml` must land alongside the PR one to cover the standing
-backlog.
+Every choice there is a decision, not boilerplate.
 
-Both must pin the reusable workflow by commit SHA rather than the `v2.5.0` tag
-shown above, because these jobs are granted `security-events: write` and a
-mutable third-party tag is a write-capable supply-chain surface. The
-`branches: [main]` filter also needs checking per repo before use — any repo
-whose default branch is not `main` would silently never run it.
+`upload-sarif: false` is the tier protection described in the next section. The
+input exists and genuinely works: it gates both the `upload-sarif` step and the
+code-scanning URL print in the reusable workflow's own definition. Using the
+reusable workflows rather than the bare `osv-scanner-action` also follows
+Google's explicit advice — that action's description warns its "behavior might
+change in a minor patch update" and recommends the reusable workflows instead.
+
+`fail-on-vuln: true` on the PR job is a real gate but a narrow one: the PR
+variant diffs against the base, so it fails only on vulnerabilities the PR
+*introduces*, never on the standing backlog. `fail-on-vuln: false` on the
+scheduled job is the deliberate opposite — a full-tree scan that reports without
+reddening anything, because a red weekly job on repos carrying a known backlog
+would depress `ciPassRate` and recreate the exact "failing builds impacting the
+metrics" problem this migration exists to end. Once a repo's backlog is clear,
+flipping its scheduled job to `fail-on-vuln: true` turns it into a standing gate
+at no cost. There is no native severity threshold on either variant, so this
+boolean is the whole control surface.
+
+No branch filter appears anywhere, which sidesteps the default-branch-name
+problem rather than hardcoding `main`. The action is pinned by commit SHA with
+the version in a trailing comment. `security-events: write` is deliberately
+absent because the upload step is skipped — this is the one line to confirm on
+the canary repo before the rollout, since a reusable workflow's permissions are
+capped by its caller.
+
+A repo with no manifests at all cannot fail this workflow. The reusable
+workflow's scanner step carries `continue-on-error: true` and delegates the
+failure decision entirely to the reporter's `--fail-on-vuln`, so "nothing to
+scan" is a pass. That is not a hypothetical: `repo-butler` is zero-dependency by
+project convention, and `lounge-tv` and `delegate-local` also carry no root
+lockfile, so three of the 14 are in that state permanently.
+
+Suppressions live in an `osv-scanner.toml` beside the lockfile and, unlike the
+`.snyk` file being removed, can expire:
+
+```toml
+[[IgnoredVulns]]
+id = "GHSA-xxxx-xxxx-xxxx"
+ignoreUntil = 2026-12-01
+reason = "Dev-only screenshot harness; never shipped or imported."
+```
+
+Both jobs are in the one template above for a reason. A PR-only scan would
+quietly lose coverage: Snyk tested the whole lockfile on every run, whereas the
+PR variant tests only the diff, so a vulnerability already sitting in a lockfile
+would be reported by nothing — no PR touches it, so the diff is empty, and
+Dependabot never raised it (the pnpm auto-installed-peer case is exactly this
+shape).
 
 For SAST, CodeQL already covers this and costs nothing on public repositories. It
 runs on fourteen repos today. The remaining four — `pr-agent`,
@@ -229,14 +318,13 @@ build status and false of the health tier, which is the signal actually watched.
 Getting this wrong reproduces precisely the metric damage this migration exists
 to stop.
 
-Three ways out, and the choice is the maintainer's. Land OSV-Scanner without the
-SARIF upload and let it fail the job instead, keeping the code-scanning channel
-CodeQL-only and the tier logic untouched. Or upload SARIF and accept a one-off
-tier dip while the backlog is worked down, which is honest but noisy. Or upload
-only `critical` findings and gate the rest at job level. The first is the
-conservative default and the one that preserves the existing meaning of the
-tier; nothing should ship until this is decided, because it is far easier to
-choose now than to unpick a portfolio-wide tier drop afterwards.
+This is settled above by `upload-sarif: false`, which keeps the code-scanning
+channel CodeQL-only and the tier logic untouched. Going the other way is a live
+option later — upload SARIF and accept a one-off tier dip while the backlog is
+worked down — but it should be a deliberate flip of one input on a portfolio
+that is already clean, not a side effect of the migration. Rolling the scanner
+out to all 14 repos multiplies the blast radius of getting this wrong, so the
+conservative default matters more here than it did when the plan covered three.
 
 Optionally, `actions/dependency-review-action` with `fail-on-severity: high` adds
 PR-time gating and licence checks, free on public repos.
@@ -265,13 +353,27 @@ judgement call, not a requirement of this migration.
 
 ## Sequence
 
-The emergency unblock is done. Decide the SARIF question above before anything
-else, because it determines how OSV-Scanner is configured everywhere.
+The emergency unblock is done.
 
-Then land OSV-Scanner — both the PR and scheduled variants — on the three
-previously-Snyk-covered repos first, since those are the ones losing coverage,
-and spread from there to the rest of the portfolio where Dependabot is currently
-the only dependency signal. Leave the four forks alone.
+First, land the standard itself — the five edits in `governance.js`, `apply.js`,
+`report-portfolio.js`, `report-shared.js` and `roadmap.yml`, with tests. That is
+its own reviewed PR and it opens nothing on its own: with the standard declared
+and no repo compliant, the next GOVERNANCE run simply emits one `standards-gap`
+finding listing 14 non-compliant repos.
+
+Then **canary one repo** by dispatching `apply.yml` for `osv-scanner` alone, and
+confirm three things on the resulting PR before going wider: that the workflow
+runs at all, that the absent `security-events: write` does not error given the
+upload step is skipped, and that a no-manifest repo passes rather than fails
+(`repo-butler` itself is the ideal canary for that last one, being permanently
+empty of dependencies). A canary matters more than usual here because a bad
+template applies identically to all 14 at once.
+
+Only then dispatch the rest, in batches under the per-run cap. The four forks
+and the private repo need no special handling — `eligibleRepos` excludes them.
+
+`teams-for-linux`, `betis-escocia` and `bonnie-wee-plot` should be in the first
+batch regardless of order, since they are the three actually losing coverage.
 
 **`betis-escocia` must then get its blocking gate back.** Removing the Snyk
 required check was the right emergency action, but it leaves the portfolio's only
@@ -285,6 +387,10 @@ will be visibly broken in the meantime.
 Only once those three repos have replacement coverage should the Snyk App be
 uninstalled, so dependency coverage never drops to nothing. The inert artefacts
 can be cleared at any point, independently, in ordinary pull requests.
+
+Promotion onto `apply-schedule` and then `apply-automerge` comes later, on the
+usual per-class track record, once the class has opened PRs that landed cleanly.
+It starts manual-dispatch-only.
 
 Nothing here should be merged without review.
 
