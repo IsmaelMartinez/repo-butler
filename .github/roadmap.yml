@@ -80,18 +80,27 @@ standards:
 # from the 90-day gold check by design, so it must not be nudged into release
 # automation either.
 #
-# The osv-scanner list is TEMPORARY and is the canary mechanism, not a policy:
-# the apply path has no repo selector (apply.yml takes only dry-run / tools /
-# max-apply-per-run, and capPerTool keeps the first N in portfolio order), so
-# excluding everything except repo-butler is the only way to aim the first
-# dispatch. repo-butler is the canary precisely because it is zero-dependency,
-# which exercises the "no manifests to scan" path permanently rather than by
-# luck. REVERT THIS LIST once the canary PR is merged and its workflow is
-# confirmed green — leaving it in place would let governance report full
-# compliance while thirteen repos have no scanner at all.
+# The osv-scanner list is TEMPORARY and is the rollout-targeting mechanism, not
+# a policy: the apply path has no repo selector (apply.yml takes only dry-run /
+# tools / max-apply-per-run, and capPerTool keeps the first N in portfolio
+# order), so narrowing this list is the only way to aim a dispatch at chosen
+# repos.
+#
+# Round 1 (done, PR #372, merged d1374d0b): repo-butler alone. Chosen because it
+# is zero-dependency, so it exercises the "no manifests to scan" path
+# permanently rather than by luck. Confirmed the reusable-workflow call
+# validates with the granted permissions and that an empty scan passes.
+#
+# Round 2 (this change): the three repos that actually lost Snyk coverage —
+# teams-for-linux, betis-escocia, bonnie-wee-plot. They carry real dependency
+# trees, so this is also the backlog measurement that decides whether
+# `fail-on-vuln: true` on the scheduled scan is quiet enough to keep.
+#
+# REVERT THIS LIST ENTIRELY once round 2 is assessed — leaving it in place would
+# let governance report full compliance while ten repos have no scanner at all.
 standards-exclude:
   release-cadence: sound3fy
-  osv-scanner: teams-for-linux,ismaelmartinez.me.uk,betis-escocia,sound3fy,bonnie-wee-plot,yourear,wifisentinel,github-issue-triage-bot,generator-atlassian-compass-event-catalog,ai-model-advisor,skill-sources,lounge-tv,delegate-local
+  osv-scanner: ismaelmartinez.me.uk,sound3fy,yourear,wifisentinel,github-issue-triage-bot,generator-atlassian-compass-event-catalog,ai-model-advisor,skill-sources,lounge-tv,delegate-local
 
 # generator-atlassian-compass-event-catalog added 2026-07-25. The package was
 # deliberately wound down in c234fd4 (#217, 2026-04-23): the README tells users
