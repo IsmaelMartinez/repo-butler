@@ -105,6 +105,8 @@ Roadmap update process reinforced 2026-08-11 (PR #368). Future updates leverage 
 
 Roadmap update process reinforced 2026-08-11 (PR #368). Future updates leverage enhanced pipeline context and baseline branch resolution to ensure continuous, accurate capture of portfolio and repository milestones.
 
+OSV-Scanner governance migration and Snyk deprecation planned 2026-08-12 (PRs #370, #371). Initiated a strategic transition of the project's security posture by planning the removal of the Snyk integration and adopting `osv-scanner` as a new portfolio-wide standard for open-source vulnerability scanning.
+
 ---
 
 ## Next Up
