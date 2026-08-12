@@ -1601,6 +1601,34 @@ describe('fetchPortfolioDetails incremental cache', () => {
     },
   });
 
+  it('treats an EMPTY cached details object as never-fetched, not as a cache hit', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // report.js persists `{ ...(repoDetails?.[name] || {}) }` for every active
+    // repo, so one skipped past PORTFOLIO_DETAIL_LIMIT is cached as `{}` under a
+    // current schema version. Taking the cache-hit branch would spread the
+    // live-refreshed fields onto that and hand governance a NON-EMPTY details
+    // object carrying no license, no codeowners and no security policy —
+    // defeating hasRepoDetails, which exists to reject exactly that entry, and
+    // making the repo a remediation-PR target on every allow-listed standard at
+    // once. It must fall through to a full fetch instead.
+    const gh = cachedWorkflowsGh(() => Promise.resolve([{ name: 'osv-scanner.yml' }]));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
+      cache: {
+        repos: {
+          'cached-repo': {
+            schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+            pushed_at: '2026-04-01T00:00:00Z',
+            open_issues_count: 5,
+            details: {},
+          },
+        },
+      },
+    });
+    const d = details['cached-repo'];
+    assert.ok(Object.keys(d).length > 4, 'must be a full fetch, not four refreshed keys spread onto {}');
+    assert.ok('license' in d, 'a full fetch populates license; the cache-hit branch cannot');
+  });
+
   it('re-derives a cached unknown hasOsvScanner into a real verdict without waiting for a push', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // The whole point of the cache-hit re-read. Last run's contents read failed

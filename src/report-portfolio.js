@@ -299,6 +299,18 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       && cached.schemaVersion === REPO_CACHE_SCHEMA_VERSION
       && cached.pushed_at === r.pushed_at
       && cached.open_issues_count === (r.open_issues || 0)
+      // An EMPTY cached details object is not a cache hit, it is a record that
+      // nobody ever fetched this repo: report.js persists
+      // `{ ...(repoDetails?.[name] || {}) }` for every active repo, including
+      // those skipped past PORTFOLIO_DETAIL_LIMIT. Taking the branch would spread
+      // the live-refreshed fields onto `{}` and hand governance a NON-EMPTY
+      // details object with no license, no codeowners, no security policy — and
+      // hasRepoDetails, which exists to reject exactly that, would pass it. Every
+      // `!!details?.x` detector then reads false and the repo becomes a
+      // remediation-PR target on every allow-listed class at once, on the
+      // unattended weekly cron, purely because nobody looked at it. Fall through
+      // to the full fetch instead.
+      && Object.keys(cached.details || {}).length > 0
     ) {
       // The Dependabot autofix setting (ADR-012 Phase 3) and the Copilot review
       // ruleset (ADR-009) are both repo-settings toggles that can flip without a
