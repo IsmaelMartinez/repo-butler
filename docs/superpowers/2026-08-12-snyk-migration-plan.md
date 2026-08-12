@@ -25,8 +25,10 @@ read. The integration is only visible through commit statuses on pull request
 head SHAs. A sweep of default-branch head commits also finds nothing, because
 the App posts on PR heads and not on `main`.
 
-Snyk reaches three repos: `teams-for-linux`, `betis-escocia`, `bonnie-wee-plot`.
-The other sixteen have no Snyk integration of any kind.
+The portfolio is 19 active repos, 18 of which contain workflow files at all — the
+90 figure above covers those 18. Snyk reaches three of the 19:
+`teams-for-linux`, `betis-escocia`, `bonnie-wee-plot`. The other 16 have no Snyk
+integration of any kind.
 
 The verbatim failure status, from `teams-for-linux` PR #2839:
 
@@ -222,12 +224,13 @@ consumed. `~/.claude-home/settings.json` sets `SNYK_TOKEN` and registers
 a scan cannot complete, that hook returns `{"decision": "block"}`, so an
 exhausted quota blocks the Stop event on every session. The Snyk MCP server and
 the `snyk-fix`, `snyk-batch-fix` and `secure-dependency-health-check` skills are
-also wired in, and `CLAUDE.md` line 43 names Snyk as a gate that must be green
-before a PR is marked ready.
+also wired in. The global user instructions at `~/.claude-home/CLAUDE.md` — not
+this repository's `CLAUDE.md`, which never mentions Snyk — name Snyk as a gate
+that must be green before a PR is marked ready.
 
 Because each `snyk test` here runs against a filesystem path, every one is billed
 as a private test — this hook is the most likely consumer of the 200-test
-allowance. Disabling the two hooks is what stops the session blocking; the
-`CLAUDE.md` gate line needs rewording to name the replacement tools. The work
+allowance. Disabling the two hooks is what stops the session blocking; that
+global gate line needs rewording to name the replacement tools. The work
 profile at `~/.claude-work` carries a separate `SNYK_TOKEN` and is deliberately
 out of scope here.
