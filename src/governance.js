@@ -190,6 +190,20 @@ const STANDARD_DETECTORS = {
   // The two compose: this standard installs the cadence workflow, the workflow
   // keeps the "Release in the last 90 days" gold check passing.
   'release-cadence': (_repo, details) => !!details?.hasReleaseWorkflow,
+  // Presence of the TEMPLATED `.github/workflows/osv-scanner.yml`, matched by
+  // exact path. Not by display name and not by a substring of either: a name
+  // match would be satisfied by any unrelated workflow that merely mentions the
+  // scanner, and a substring path match would be satisfied by a repo's own
+  // hand-rolled variant that this template — which writes one fixed path —
+  // could then never satisfy, leaving the standard permanently non-compliant.
+  // Tri-state, unlike every detector above it: `null` means the scanner's
+  // presence could not be determined this run, and detectStandardsGaps skips
+  // those repos rather than counting them either way. The alternative — the
+  // usual `!!` coercion — would turn an unreadable repo into a remediation-PR
+  // target, and its mirror (defaulting to true) would be worse still, because
+  // this details object is cached under a pushed_at key: one transient failure
+  // would record "compliant" and serve it until the repo's next push.
+  'osv-scanner': (_repo, details) => details?.hasOsvScanner ?? null,
 };
 
 // Minimum adoption rate to infer an implicit universal standard.
@@ -248,6 +262,19 @@ function adoptionPriority(rate) {
  * @param {Object} details — enriched details from fetchPortfolioDetails()
  * @returns {{ findings: Array, summary: { total: number, gaps: number } }}
  */
+// Do we actually have data for this repo? Deliberately not a bare
+// `!== undefined`: report.js caches `{ ...(repoDetails?.[name] || {}) }`, so a
+// repo skipped past PORTFOLIO_DETAIL_LIMIT is persisted as an EMPTY object
+// stamped with the current schema version. That entry is defined, so an
+// undefined check passes it through, and every `!!details?.x` detector then
+// returns false — reporting the repo non-compliant on every standard at once
+// and making it a remediation-PR target on all of them, purely because nobody
+// looked at it. An empty details object is no data, whoever wrote it.
+function hasRepoDetails(details, name) {
+  const d = details?.[name];
+  return d != null && typeof d === 'object' && Object.keys(d).length > 0;
+}
+
 export function detectStandardsGaps(standards, repos, details) {
   const eligible = eligibleRepos(repos);
   const findings = [];
@@ -256,25 +283,54 @@ export function detectStandardsGaps(standards, repos, details) {
     const detector = STANDARD_DETECTORS[standard.tool];
     if (!detector) continue; // Unknown tool — skip silently
 
-    // Filter by scope and exclusions.
+    // Filter by scope and exclusions, then drop repos we have no data for.
+    // fetchPortfolioDetails only fetches the first PORTFOLIO_DETAIL_LIMIT active
+    // repos, while this loop iterates the whole eligible list — so a repo past
+    // that cap has no `details` entry and every `!!details?.x` detector returns
+    // false for it. Without this guard such a repo is reported non-compliant on
+    // EVERY standard and becomes a remediation-PR target on all of them, purely
+    // because nobody looked at it. Absence of evidence is not evidence of
+    // absence, and here the difference is a cross-repo write.
     const applicable = eligible.filter(r =>
-      repoMatchesScope(r, standard.scope) && !standard.exclude.includes(r.name)
+      repoMatchesScope(r, standard.scope)
+      && !standard.exclude.includes(r.name)
+      && hasRepoDetails(details, r.name)
     );
 
     if (applicable.length === 0) continue;
 
+    // A detector may also return null for "I have details but still cannot
+    // tell" (an unreadable API, a truncated listing). That repo is neither
+    // compliant nor non-compliant: it is excluded from both arrays and from the
+    // adoption denominator, so an unknown never drags the rate down and never
+    // manufactures a PR.
     const compliant = [];
     const nonCompliant = [];
+    let unknown = 0;
     for (const r of applicable) {
-      if (detector(r, details?.[r.name])) {
+      const verdict = detector(r, details?.[r.name]);
+      if (verdict === null) { unknown++; continue; }
+      if (verdict) {
         compliant.push(r.name);
       } else {
         nonCompliant.push(r.name);
       }
     }
 
+    // Warn on ANY unknown, not only when every repo is unknown. An earlier
+    // version fired only in the all-unknown case and so missed the likelier
+    // shape: a shared failure mode leaves most repos unknown while the one or
+    // two that did resolve are compliant, so nonCompliant is empty, no finding
+    // is emitted, and the dashboard renders nothing — visually identical to full
+    // adoption, with nothing in the logs to say otherwise. Any unknown means the
+    // adoption figure below is measured over a smaller set than it appears.
+    if (unknown > 0) {
+      console.warn(`Governance: ${standard.tool} — ${unknown} of ${applicable.length} applicable repo(s) reported unknown and were excluded from the adoption figures.`);
+    }
+    if (compliant.length === 0 && nonCompliant.length === 0) continue;
+
     if (nonCompliant.length > 0) {
-      const adoptionRate = compliant.length / applicable.length;
+      const adoptionRate = compliant.length / (compliant.length + nonCompliant.length);
       const repoEcosystems = {};
       const repoAutoMerge = {};
       for (const name of nonCompliant) {
@@ -644,7 +700,9 @@ export function detectOpenVulnerabilities(repos, details) {
 // publishes artifacts, so it cannot go red on heterogeneous repos).
 // ci-workflows is deliberately NOT here: a static CI workflow fanned across
 // heterogeneous repos would open red-CI PRs, so it stays agent-routed.
-const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md', 'release-cadence']);
+// osv-scanner adds a dependency-scanning workflow that calls google's reusable
+// workflow (ecosystem-agnostic: OSV-Scanner discovers lockfiles itself).
+const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md', 'release-cadence', 'osv-scanner']);
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
 const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
@@ -667,6 +725,7 @@ const STANDARD_TARGET_FILES = {
   'codeowners': ['.github/CODEOWNERS'],
   'security-md': ['.github/SECURITY.md'],
   'release-cadence': ['.github/workflows/release.yml'],
+  'osv-scanner': ['.github/workflows/osv-scanner.yml'],
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],

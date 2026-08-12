@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
@@ -252,6 +252,73 @@ describe('generateTemplate', () => {
     assert.ok(result.content.includes('GH_TOKEN: ${{ github.token }}'));
     // Identical regardless of ecosystem or owner — reads git history only.
     assert.equal(generateTemplate('release-cadence', 'Go', 'someone-else').content, result.content);
+  });
+
+  it('generates an OSV-Scanner workflow pinned to the v2.5.0 tag SHA', () => {
+    const result = generateTemplate('osv-scanner', 'JavaScript', 'IsmaelMartinez');
+    assert.equal(result.path, '.github/workflows/osv-scanner.yml');
+    // The reusable workflows are pinned to the commit the v2.5.0 TAG points at.
+    // Lifting a SHA out of the reusable workflow's own `uses:` lines yields the
+    // inner composite-action pin, which is three commits behind and still calls
+    // the scanner at v2.3.8 — green either way, so only this assertion catches it.
+    assert.equal(
+      (result.content.match(/@8deb546fdb875b9996d27d4950be7312dac076a1/g) || []).length, 2,
+      'both reusable workflows must carry the v2.5.0 tag SHA');
+    assert.ok(result.content.includes('osv-scanner-reusable-pr.yml@'));
+    assert.ok(result.content.includes('osv-scanner-reusable.yml@'));
+    assert.ok(result.content.includes("cron: '0 4 * * 1'"));
+  });
+
+  it('never uploads SARIF from either OSV-Scanner job (health-tier protection)', () => {
+    const result = generateTemplate('osv-scanner', 'JavaScript');
+    // computeHealthTier and detectOpenVulnerabilities both read
+    // codeScanning.max_severity, whose only current source is CodeQL (SAST).
+    // Uploading SCA advisories there would drop repos off Gold with no new
+    // vulnerability, so BOTH jobs must opt out — not just the PR one.
+    assert.equal((result.content.match(/upload-sarif: false/g) || []).length, 2,
+      'both scan-pr and scan-scheduled must set upload-sarif: false');
+    assert.ok(!result.content.includes('upload-sarif: true'));
+  });
+
+  it('requests security-events: write even with the upload disabled', () => {
+    const result = generateTemplate('osv-scanner', 'JavaScript');
+    // The called reusable workflows declare security-events: write as a
+    // job-level permissions block and GitHub validates the caller's grant
+    // BEFORE any step runs. `upload-sarif: false` gates steps, not the job's
+    // permission request — granting less fails every run at validation time.
+    assert.ok(result.content.includes('security-events: write'));
+    assert.ok(result.content.includes('contents: read'));
+    assert.ok(result.content.includes('actions: read'));
+  });
+
+  it('guards scan-pr against fork pull requests', () => {
+    const result = generateTemplate('osv-scanner', 'JavaScript');
+    // A fork PR caps GITHUB_TOKEN at read-only regardless of the permissions
+    // key, so the static write request fails validation and the job never
+    // starts. Without the guard, every external contributor's PR gets a failing
+    // check. scan-scheduled needs no such guard (schedule never runs on a fork).
+    assert.ok(result.content.includes(
+      "github.event.pull_request.head.repo.full_name == github.repository"));
+    assert.ok(result.content.includes("github.event_name == 'pull_request' &&"));
+    assert.ok(result.content.includes("if: github.event_name == 'schedule'"));
+  });
+
+  it('ignores its ecosystem, owner and root-listing arguments', () => {
+    // Every neighbouring template branches on ecosystem; this one deliberately
+    // does not — OSV-Scanner discovers lockfiles itself and the reusable
+    // workflow takes no language input.
+    const base = generateTemplate('osv-scanner', 'JavaScript', 'IsmaelMartinez', ['package.json']);
+    for (const eco of ['', 'Go', 'Python', 'Rust', 'Java', 'Cobol', 'toString']) {
+      const result = generateTemplate('osv-scanner', eco, 'someone-else', null);
+      assert.equal(result.content, base.content, `content differed for eco='${eco}'`);
+      assert.equal(result.path, base.path);
+    }
+  });
+
+  it('renders byte-for-byte the golden OSV-Scanner workflow', () => {
+    const expected = readFileSync(
+      new URL('./__golden__/apply-osv-scanner.yml', import.meta.url).pathname, 'utf8');
+    assert.equal(generateTemplate('osv-scanner', 'JavaScript', 'IsmaelMartinez').content, expected);
   });
 
   it('returns null for unknown tool', () => {
@@ -1635,6 +1702,15 @@ describe('isAutoMergeAllowed', () => {
     assert.equal(isAutoMergeAllowed({ 'dependabot-rebase': true }, 'dependabot-rebase'), false);
     // an arbitrary unknown tool
     assert.equal(isAutoMergeAllowed({ 'made-up': true }, 'made-up'), false);
+  });
+
+  it('leaves osv-scanner default-closed despite it having a template', () => {
+    // The class ships manual-dispatch-only and earns promotion later on the
+    // usual ADR-007 per-class track record; the empty allow-list is what keeps
+    // it off the auto-merge path, so pin that rather than assume it.
+    assert.equal(isAutoMergeAllowed({}, 'osv-scanner'), false);
+    assert.equal(isAutoMergeAllowed(undefined, 'osv-scanner'), false);
+    assert.equal(isAutoMergeAllowed({ 'osv-scanner': false }, 'osv-scanner'), false);
   });
 });
 

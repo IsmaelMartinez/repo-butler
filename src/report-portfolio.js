@@ -213,13 +213,83 @@ export function analyzeDependencyInventory(details) {
 
 // --- Portfolio details fetcher ---
 
+// The one path the osv-scanner apply template writes. Detection is an exact
+// match on it, deliberately unlike hasReleaseWorkflow's deliberately-broad
+// regex: a hand-rolled release pipeline legitimately satisfies release-cadence,
+// whereas this standard is satisfied only by the file the template installs. A
+// looser match would let a repo's own variant read as compliant while the
+// template could never converge on it.
+export const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
+
+// How many active repos get a full details fetch. Each costs ~11 API calls, so
+// this bounds one portfolio pass; the original value was 15, chosen in the first
+// HTML-report commit when the portfolio was 8 repos and before GOVERNANCE
+// existed. It is a BUDGET guard, never a correctness boundary — a repo dropped
+// here simply has no details entry, and detectStandardsGaps now treats that as
+// unknown rather than non-compliant. Before that fix, the 16th repo would have
+// been reported non-compliant on every standard and become a remediation-PR
+// target on all of them at once.
+export const PORTFOLIO_DETAIL_LIMIT = 40;
+
+// Is the templated scanner workflow on the repo's DEFAULT BRANCH? Tri-state:
+//
+//   true  — the file is there
+//   false — the directory exists without it, or there is no directory at all
+//   null  — could not tell
+//
+// Only `false` opens a remediation PR, so every uncertain path lands on null.
+//
+// The workflows *registration* listing deliberately is not consulted. It
+// returns every workflow GitHub has ever registered, including from branches
+// that were never merged — verified on this repo, where `release-recovery.yml`
+// is listed `active` while existing on no branch. That gap is reachable by
+// construction here, because the templated workflow triggers `on: pull_request`
+// and so registers itself when it runs on the apply PR that introduces it: the
+// listing would report the repo compliant before that PR merged, and
+// permanently if it were closed unmerged.
+//
+// Nor does this check whether the workflow is ENABLED, and that is a deliberate
+// narrowing rather than an oversight. GitHub auto-disables schedule-triggered
+// workflows after 60 days of repository inactivity, and this template is
+// schedule-triggered — so on any quiet repo the scanner eventually flips to
+// `disabled_inactivity` through no one's decision. Treating that as a standards
+// gap routes the repo to the templated apply path, whose contents PUT supplies
+// no `sha`; the file already exists, so GitHub answers 422 and the same
+// unfixable finding retries on every run forever. Writing a file cannot
+// re-enable a workflow. Enablement is a settings concern needing a settings
+// executor, and conflating it with a file-presence standard produces a finding
+// whose remediation provably cannot succeed.
+async function fetchOsvScannerPresence(gh, owner, repo) {
+  return gh.request(`/repos/${owner}/${repo}/contents/.github/workflows`)
+    .then(d => Array.isArray(d) ? d.some(f => f.name === OSV_WORKFLOW_FILE) : false)
+    // A 404 is a real answer — no .github/workflows directory, so the scanner is
+    // genuinely absent. Anything else is unknown. Detected from the message, not
+    // `err.status`: github.js throws plain Errors and never sets a status
+    // property, so a `.status === 404` check silently never matches and would
+    // send every directory-less repo down the unknown arm — skipping precisely
+    // the repos most in need of the standard. Every other 404 consumer in this
+    // codebase uses this same message test.
+    .catch(err => (err?.message?.includes(': 404') ? false : null));
+}
+
 export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } = {}) {
   const details = {};
   const cachedRepos = new Set();
   const activeRepos = repos.filter(r => !r.archived && !r.fork);
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
-  const fetches = activeRepos.slice(0, 15).map(async (r) => {
+  // Never truncate silently: a dropped repo is invisible to every detector, and
+  // "no findings" and "never looked" must not read alike to an operator.
+  const detailed = activeRepos.slice(0, PORTFOLIO_DETAIL_LIMIT);
+  if (activeRepos.length > detailed.length) {
+    console.warn(
+      `fetchPortfolioDetails: ${activeRepos.length - detailed.length} repo(s) beyond the ` +
+      `${PORTFOLIO_DETAIL_LIMIT}-repo detail cap were not fetched; governance will skip them. ` +
+      `Raise PORTFOLIO_DETAIL_LIMIT.`
+    );
+  }
+
+  const fetches = detailed.map(async (r) => {
     // Incremental: skip API calls for repos unchanged since last cache.
     const cached = cache?.repos?.[r.name];
     if (
@@ -238,16 +308,38 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // mutate the cache. This is the cache-refresh convention: a settings-toggle
       // field that can't be tied to a cache key gets a live read on every cache
       // hit rather than a schema-version bump (which would only recompute once).
-      const [autofix, hasCopilotReview] = await Promise.all([
+      //
+      // hasOsvScanner is re-read here too, for a different reason: it is
+      // tri-state, and an UNKNOWN result must never become permanent. A repo
+      // whose contents read failed once would otherwise carry `null` in its
+      // cache entry until its next push — which on a quiet repo is indefinitely
+      // — and governance skips unknowns, so the standard would silently never
+      // apply to exactly the repos nobody touches. Re-deriving it costs one
+      // call and makes the verdict always current rather than only as current
+      // as the last push.
+      const [autofix, hasCopilotReview, hasOsvScanner] = await Promise.all([
         getAutomatedSecurityFixesState(gh, owner, r.name),
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
+        fetchOsvScannerPresence(gh, owner, r.name),
       ]);
-      details[r.name] = { ...cached.details, autofix, hasCopilotReview };
+      // An unknown live read must not destroy a known cached verdict — it is
+      // strictly less information than what is already on hand. Without the
+      // fallback, one 500 on the contents API turns a cached `false` (a real,
+      // actionable gap) into `null`, governance skips the repo, and the run
+      // reports no dependency-scanning gap at all: indistinguishable from full
+      // adoption. The re-read exists to stop an unknown becoming permanent, not
+      // to let a transient one erase a fact.
+      details[r.name] = {
+        ...cached.details,
+        autofix,
+        hasCopilotReview,
+        hasOsvScanner: hasOsvScanner ?? cached.details?.hasOsvScanner ?? null,
+      };
       cachedRepos.add(r.name);
-      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review refreshed)`);
+      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + osv-scanner refreshed)`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, hasOsvScanner, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -276,11 +368,16 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
               || (d.total_count || 0) > wfs.length,
           };
         })
-        // hasReleaseWorkflow fails toward present on a request error for the same
-        // reason as the truncation guard above: it gates a cross-repo write, so a
-        // transient API failure must never manufacture a remediation PR. The other
-        // fields keep their long-standing zero/false fallbacks (read-only signals).
+        // hasReleaseWorkflow fails toward present on a request error: it gates a
+        // cross-repo write, so a transient API failure must never manufacture a
+        // remediation PR. hasOsvScanner deliberately does NOT follow that
+        // pattern — it reports UNKNOWN instead. Fail-toward-present is wrong for
+        // anything cached: this details object is persisted under a pushed_at
+        // key, so a single blip would write "compliant" and serve it until the
+        // repo's next push, which on a quiet repo is indefinitely. Unknown is
+        // honest and, unlike `true`, cannot be mistaken for evidence.
         .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true })),
+      fetchOsvScannerPresence(gh, owner, r.name),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
           let hasIssueTemplate = !!d.files?.issue_template;
@@ -383,7 +480,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
     const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -395,7 +492,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
   // Batches of 3 repos give at most 15 concurrent fetches and let each repo
   // actually complete within its timeout. Settled (not all) so one repo's
   // rejection cannot propagate and abort the whole REPORT phase.
-  const libyearRepos = activeRepos.slice(0, 15).filter(r => details[r.name]?.sbom && !cachedRepos.has(r.name));
+  const libyearRepos = detailed.filter(r => details[r.name]?.sbom && !cachedRepos.has(r.name));
   const LIBYEAR_BATCH = 3;
   for (let i = 0; i < libyearRepos.length; i += LIBYEAR_BATCH) {
     const batch = libyearRepos.slice(i, i + LIBYEAR_BATCH);
@@ -502,6 +599,7 @@ const STANDARD_LABELS = {
   'security-md': 'Security policy',
   'code-review-bot': 'Copilot code review',
   'release-cadence': 'Release automation',
+  'osv-scanner': 'Dependency scanning',
 };
 
 // Human labels for the butler-PR staleness states (src/butler-pr-audit.js).
