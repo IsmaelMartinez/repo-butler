@@ -6,25 +6,33 @@
       "scope": {
         "type": "universal"
       },
-      "compliant": [],
-      "nonCompliant": [
+      "compliant": [
         "repo-butler"
       ],
+      "nonCompliant": [
+        "teams-for-linux",
+        "bonnie-wee-plot",
+        "betis-escocia"
+      ],
       "repoEcosystems": {
-        "repo-butler": null
+        "teams-for-linux": null,
+        "bonnie-wee-plot": null,
+        "betis-escocia": null
       },
       "repoAutoMerge": {
-        "repo-butler": true
+        "teams-for-linux": true,
+        "bonnie-wee-plot": true,
+        "betis-escocia": true
       },
-      "adoptionRate": 0,
+      "adoptionRate": 0.25,
       "priority": "high",
       "remediation": {
         "executor": "template",
         "targetFiles": [
           ".github/workflows/osv-scanner.yml"
         ],
-        "intent": "Add osv-scanner to 1 non-compliant repo(s)",
-        "rationale": "Standards gap: osv-scanner adopted by 0% of in-scope repos; missing in repo-butler.",
+        "intent": "Add osv-scanner to 3 non-compliant repo(s)",
+        "rationale": "Standards gap: osv-scanner adopted by 25% of in-scope repos; missing in teams-for-linux, bonnie-wee-plot, betis-escocia.",
         "acceptanceCriteria": [
           "Every non-compliant repo passes the osv-scanner standard check"
         ]
