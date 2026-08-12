@@ -1612,6 +1612,25 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['cached-repo'].hasOsvScanner, true, 'a cached unknown must be re-derived, never served');
   });
 
+  it('keeps a known cached hasOsvScanner when the live re-read fails for a reason other than 404', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // The re-read exists to stop an unknown becoming permanent, not to let a
+    // transient one erase a fact. An unknown live read is strictly less
+    // information than the cached verdict: without the fallback one 500 on the
+    // contents API turns a cached `false` — a real, actionable gap — into
+    // `null`, governance skips the repo as unknown, and the run reports no gap
+    // at all. The rejection is exactly what github.js throws: a plain Error
+    // carrying the status in its MESSAGE, with no `status` property, because a
+    // richer mock than the real client would make this test evidence of nothing.
+    const gh = cachedOsvGh(() => Promise.reject(
+      new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error')
+    ));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedOsvRepos, {
+      cache: cachedOsvCache({ hasOsvScanner: false }),
+    });
+    assert.equal(details['cached-repo'].hasOsvScanner, false, 'a transient unknown must not overwrite a known cached verdict');
+  });
+
   it('fetches fresh data when pushed_at differs', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     let apiCallCount = 0;

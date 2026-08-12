@@ -38,14 +38,24 @@ falls through to `executor: 'manual'` silently.
 
 1. `.github/roadmap.yml` — add `osv-scanner: universal` under `standards:`.
 2. `src/governance.js` — `STANDARD_DETECTORS['osv-scanner']`, reading
-   `(_repo, details) => !!details?.hasOsvScanner`.
+   `(_repo, details) => details?.hasOsvScanner ?? null`. Tri-state, **not** the
+   `!!` coercion every neighbouring detector uses: `null` means "could not
+   tell" and `detectStandardsGaps` skips those repos. `!!` would turn an
+   unreadable repo into a remediation-PR target.
 3. `src/governance.js` — add `'osv-scanner'` to `TEMPLATABLE_TOOLS`.
 4. `src/governance.js` — `STANDARD_TARGET_FILES['osv-scanner'] =
    ['.github/workflows/osv-scanner.yml']`.
-5. `src/report-portfolio.js` — populate `hasOsvScanner` inside the existing
-   `actions/workflows` request block, beside `hasAutoMergeWorkflow`, and add it
-   to the `details[r.name]` object literal.
-6. `src/report-shared.js` — bump `REPO_CACHE_SCHEMA_VERSION` from 6 to 7.
+5. `src/report-portfolio.js` — a `fetchOsvScannerPresence` helper reading
+   `/contents/.github/workflows` on the default branch, called from both the
+   full-fetch path and the cache-hit path, with its result in the
+   `details[r.name]` object literal. Deliberately **not** derived from the
+   `actions/workflows` listing beside `hasAutoMergeWorkflow` — see the detection
+   discussion below for why that listing cannot answer this question.
+6. `src/report-shared.js` — bump `REPO_CACHE_SCHEMA_VERSION` from 6 to 7. Note
+   this is now belt-and-braces rather than load-bearing: because the field is
+   re-read live on every cache hit, a stale entry would self-correct on the next
+   run regardless. It stays because the bump is free and a reader should not
+   have to reason about that to trust the field.
 7. `src/apply.js` — `TEMPLATES['osv-scanner']` with path
    `.github/workflows/osv-scanner.yml` and the content in Phase 2. The entry
    carries a comment naming *why* two lines are load-bearing: `upload-sarif:
@@ -132,12 +142,24 @@ finding whose fix provably cannot succeed. Detecting less is correct here.
 
 ### Acceptance criteria
 
-`npm test` passes with new tests covering: the detector returning false when the
-field is absent and true when present; `buildRemediationPlan` returning
-`executor: 'template'` and the correct `targetFiles` for an `osv-scanner`
-finding; `hasOsvScanner` failing toward present on both the truncation and the
-error path; and `isAutoMergeAllowed` returning false for `osv-scanner` given the
-empty allow-list, which pins the default-closed property.
+`npm test` passes with new tests covering: the detector returning `false` only
+for an explicit absence, `true` when installed, and `null` when unknown, with
+unknowns excluded from both arrays and from the adoption denominator; a repo
+with no details entry — or an empty one — excluded from every standard, which is
+the portfolio-wide slice fix and needs a test on an existing standard such as
+`codeowners`, since `osv-scanner`'s own `?? null` would mask a regression;
+`buildRemediationPlan` returning `executor: 'template'` and the correct
+`targetFiles`; `hasOsvScanner` resolving to `null` rather than `true` on a
+non-404 error, which is the cache-poisoning guard; a cached `null` being
+re-derived on the next run without waiting for a push; and `isAutoMergeAllowed`
+returning false for `osv-scanner` given the empty allow-list, which pins the
+default-closed property.
+
+Mock rejections must be exactly what `github.js` throws — a plain `Error` with
+the code only in its message and **no** `status` property. An earlier test set
+both and so passed against a `err.status === 404` check that could never match
+in production. A mock more capable than the real client turns a green test into
+evidence of nothing.
 
 ## Phase 2 — the workflow template
 

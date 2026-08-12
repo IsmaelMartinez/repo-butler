@@ -322,7 +322,19 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
         fetchOsvScannerPresence(gh, owner, r.name),
       ]);
-      details[r.name] = { ...cached.details, autofix, hasCopilotReview, hasOsvScanner };
+      // An unknown live read must not destroy a known cached verdict — it is
+      // strictly less information than what is already on hand. Without the
+      // fallback, one 500 on the contents API turns a cached `false` (a real,
+      // actionable gap) into `null`, governance skips the repo, and the run
+      // reports no dependency-scanning gap at all: indistinguishable from full
+      // adoption. The re-read exists to stop an unknown becoming permanent, not
+      // to let a transient one erase a fact.
+      details[r.name] = {
+        ...cached.details,
+        autofix,
+        hasCopilotReview,
+        hasOsvScanner: hasOsvScanner ?? cached.details?.hasOsvScanner ?? null,
+      };
       cachedRepos.add(r.name);
       console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + osv-scanner refreshed)`);
       return;

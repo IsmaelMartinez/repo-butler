@@ -262,6 +262,19 @@ function adoptionPriority(rate) {
  * @param {Object} details — enriched details from fetchPortfolioDetails()
  * @returns {{ findings: Array, summary: { total: number, gaps: number } }}
  */
+// Do we actually have data for this repo? Deliberately not a bare
+// `!== undefined`: report.js caches `{ ...(repoDetails?.[name] || {}) }`, so a
+// repo skipped past PORTFOLIO_DETAIL_LIMIT is persisted as an EMPTY object
+// stamped with the current schema version. That entry is defined, so an
+// undefined check passes it through, and every `!!details?.x` detector then
+// returns false — reporting the repo non-compliant on every standard at once
+// and making it a remediation-PR target on all of them, purely because nobody
+// looked at it. An empty details object is no data, whoever wrote it.
+function hasRepoDetails(details, name) {
+  const d = details?.[name];
+  return d != null && typeof d === 'object' && Object.keys(d).length > 0;
+}
+
 export function detectStandardsGaps(standards, repos, details) {
   const eligible = eligibleRepos(repos);
   const findings = [];
@@ -281,7 +294,7 @@ export function detectStandardsGaps(standards, repos, details) {
     const applicable = eligible.filter(r =>
       repoMatchesScope(r, standard.scope)
       && !standard.exclude.includes(r.name)
-      && details?.[r.name] !== undefined
+      && hasRepoDetails(details, r.name)
     );
 
     if (applicable.length === 0) continue;
@@ -293,9 +306,10 @@ export function detectStandardsGaps(standards, repos, details) {
     // manufactures a PR.
     const compliant = [];
     const nonCompliant = [];
+    let unknown = 0;
     for (const r of applicable) {
       const verdict = detector(r, details?.[r.name]);
-      if (verdict === null) continue;
+      if (verdict === null) { unknown++; continue; }
       if (verdict) {
         compliant.push(r.name);
       } else {
@@ -303,14 +317,17 @@ export function detectStandardsGaps(standards, repos, details) {
       }
     }
 
-    // A standard where nothing was knowable emits no finding, which on the
-    // dashboard and in MCP is indistinguishable from full adoption. Say so out
-    // loud — "every repo came back unknown" and "every repo is compliant" must
-    // not look alike to an operator mid-rollout.
-    if (compliant.length === 0 && nonCompliant.length === 0) {
-      console.warn(`Governance: ${standard.tool} — all ${applicable.length} applicable repo(s) reported unknown; emitting no finding.`);
-      continue;
+    // Warn on ANY unknown, not only when every repo is unknown. An earlier
+    // version fired only in the all-unknown case and so missed the likelier
+    // shape: a shared failure mode leaves most repos unknown while the one or
+    // two that did resolve are compliant, so nonCompliant is empty, no finding
+    // is emitted, and the dashboard renders nothing — visually identical to full
+    // adoption, with nothing in the logs to say otherwise. Any unknown means the
+    // adoption figure below is measured over a smaller set than it appears.
+    if (unknown > 0) {
+      console.warn(`Governance: ${standard.tool} — ${unknown} of ${applicable.length} applicable repo(s) reported unknown and were excluded from the adoption figures.`);
     }
+    if (compliant.length === 0 && nonCompliant.length === 0) continue;
 
     if (nonCompliant.length > 0) {
       const adoptionRate = compliant.length / (compliant.length + nonCompliant.length);

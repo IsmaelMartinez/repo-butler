@@ -288,6 +288,69 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.summary.gaps, 0);
   });
 
+  it('warns whenever ANY applicable repo is unknown, without changing finding emission', () => {
+    const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
+    const warnings = [];
+    const origWarn = console.warn;
+    console.warn = (msg) => { warnings.push(String(msg)); };
+    let quiet, mixed;
+    try {
+      // The shape an all-unknown condition misses: a shared failure leaves one
+      // repo unknown while the one that did resolve is compliant, so
+      // nonCompliant is empty, no finding is emitted and the dashboard renders
+      // nothing — visually identical to full adoption, with nothing in the logs.
+      const quietRepos = [makeRepo('resolved'), makeRepo('unreadable')];
+      quiet = detectStandardsGaps(standards, quietRepos, makeDetails(quietRepos, {
+        resolved: { hasOsvScanner: true },
+        unreadable: { hasOsvScanner: null },
+      }));
+      // And a run that does have a gap still emits it — the warning is additive.
+      const mixedRepos = [makeRepo('resolved'), makeRepo('unreadable'), makeRepo('missing')];
+      mixed = detectStandardsGaps(standards, mixedRepos, makeDetails(mixedRepos, {
+        resolved: { hasOsvScanner: true },
+        unreadable: { hasOsvScanner: null },
+        missing: { hasOsvScanner: false },
+      }));
+    } finally {
+      console.warn = origWarn;
+    }
+
+    assert.equal(warnings.length, 2, 'both runs warn — one unknown repo is enough, all-unknown is not required');
+    for (const w of warnings) {
+      assert.match(w, /osv-scanner/, 'the warning names the standard');
+      assert.match(w, /\b1 of \d+ applicable repo/, 'the warning states the count of unknowns');
+    }
+    assert.equal(quiet.findings.length, 0, 'unchanged: nothing non-compliant, so no finding');
+    assert.equal(mixed.findings.length, 1, 'unchanged: a non-compliant repo still yields a finding');
+    assert.deepEqual(mixed.findings[0].nonCompliant, ['missing']);
+  });
+
+  it('excludes a repo whose details entry is an empty object from every standard', () => {
+    // report.js caches `{ ...(repoDetails?.[name] || {}) }`, so a repo skipped
+    // past PORTFOLIO_DETAIL_LIMIT is persisted as an EMPTY object stamped with
+    // the current schema version. That entry is defined, so a bare
+    // `!== undefined` guard passes it through and every `!!details?.x` detector
+    // returns false — reporting it non-compliant on every standard at once and
+    // making it a remediation-PR target on all of them, purely because nobody
+    // looked at it. Asserted on codeowners deliberately, not osv-scanner: the
+    // osv detector's own `?? null` tri-state would mask the regression
+    // independently, so an osv-scanner case proves nothing here.
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('empty-cached')];
+    const details = makeDetails([repos[0], repos[1]], {
+      a: { hasCodeowners: true },
+      b: { hasCodeowners: false },
+    });
+    details['empty-cached'] = {};
+    const standards = [{ tool: 'codeowners', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.ok(!result.findings[0].nonCompliant.includes('empty-cached'), 'an empty details object is no data, not a gap');
+    assert.ok(!result.findings[0].compliant.includes('empty-cached'));
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+    assert.equal(result.findings[0].adoptionRate, 0.5); // 1/2, the empty entry not in the denominator
+  });
+
   it('excludes a repo with no details entry from every standard, not just osv-scanner', () => {
     // fetchPortfolioDetails stops at PORTFOLIO_DETAIL_LIMIT, so an eligible repo
     // past the cap has no details entry at all. It must not be reported
