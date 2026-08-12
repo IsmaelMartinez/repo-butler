@@ -303,6 +303,15 @@ export function detectStandardsGaps(standards, repos, details) {
       }
     }
 
+    // A standard where nothing was knowable emits no finding, which on the
+    // dashboard and in MCP is indistinguishable from full adoption. Say so out
+    // loud — "every repo came back unknown" and "every repo is compliant" must
+    // not look alike to an operator mid-rollout.
+    if (compliant.length === 0 && nonCompliant.length === 0) {
+      console.warn(`Governance: ${standard.tool} — all ${applicable.length} applicable repo(s) reported unknown; emitting no finding.`);
+      continue;
+    }
+
     if (nonCompliant.length > 0) {
       const adoptionRate = compliant.length / (compliant.length + nonCompliant.length);
       const repoEcosystems = {};

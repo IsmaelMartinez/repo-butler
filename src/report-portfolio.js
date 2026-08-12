@@ -220,7 +220,6 @@ export function analyzeDependencyInventory(details) {
 // looser match would let a repo's own variant read as compliant while the
 // template could never converge on it.
 export const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
-const OSV_WORKFLOW_PATH = `.github/workflows/${OSV_WORKFLOW_FILE}`;
 
 // How many active repos get a full details fetch. Each costs ~11 API calls, so
 // this bounds one portfolio pass; the original value was 15, chosen in the first
@@ -232,28 +231,45 @@ const OSV_WORKFLOW_PATH = `.github/workflows/${OSV_WORKFLOW_FILE}`;
 // target on all of them at once.
 export const PORTFOLIO_DETAIL_LIMIT = 40;
 
-// Combine the two osv-scanner signals into the tri-state the governance
-// detector reads. Pure, and shared by the full-fetch and cache-hit paths so the
-// two cannot drift.
+// Is the templated scanner workflow on the repo's DEFAULT BRANCH? Tri-state:
 //
-//   true  — installed on the default branch and not switched off
-//   false — genuinely absent, or present but disabled
+//   true  — the file is there
+//   false — the directory exists without it, or there is no directory at all
 //   null  — could not tell
 //
 // Only `false` opens a remediation PR, so every uncertain path lands on null.
-// `fileOnDefault` is authoritative for "installed": the workflows registration
-// listing is not, because it returns workflows from branches that were never
-// merged. `workflowState` is the listing's one genuine contribution — a
-// workflow disabled from the Actions UI keeps its path, so a path-only check
-// would count a scanner that runs nothing. A file present but not yet
-// registered (workflowState undefined) is `true`: registration follows a merge,
-// and the file is what the standard installs.
-export function resolveOsvScannerState({ fileOnDefault, workflowState, listingTruncated }) {
-  if (fileOnDefault == null) return null;
-  if (fileOnDefault === false) return false;
-  if (listingTruncated) return null; // cannot trust the disabled check
-  if (workflowState !== undefined && workflowState !== 'active') return false;
-  return true;
+//
+// The workflows *registration* listing deliberately is not consulted. It
+// returns every workflow GitHub has ever registered, including from branches
+// that were never merged — verified on this repo, where `release-recovery.yml`
+// is listed `active` while existing on no branch. That gap is reachable by
+// construction here, because the templated workflow triggers `on: pull_request`
+// and so registers itself when it runs on the apply PR that introduces it: the
+// listing would report the repo compliant before that PR merged, and
+// permanently if it were closed unmerged.
+//
+// Nor does this check whether the workflow is ENABLED, and that is a deliberate
+// narrowing rather than an oversight. GitHub auto-disables schedule-triggered
+// workflows after 60 days of repository inactivity, and this template is
+// schedule-triggered — so on any quiet repo the scanner eventually flips to
+// `disabled_inactivity` through no one's decision. Treating that as a standards
+// gap routes the repo to the templated apply path, whose contents PUT supplies
+// no `sha`; the file already exists, so GitHub answers 422 and the same
+// unfixable finding retries on every run forever. Writing a file cannot
+// re-enable a workflow. Enablement is a settings concern needing a settings
+// executor, and conflating it with a file-presence standard produces a finding
+// whose remediation provably cannot succeed.
+async function fetchOsvScannerPresence(gh, owner, repo) {
+  return gh.request(`/repos/${owner}/${repo}/contents/.github/workflows`)
+    .then(d => Array.isArray(d) ? d.some(f => f.name === OSV_WORKFLOW_FILE) : false)
+    // A 404 is a real answer — no .github/workflows directory, so the scanner is
+    // genuinely absent. Anything else is unknown. Detected from the message, not
+    // `err.status`: github.js throws plain Errors and never sets a status
+    // property, so a `.status === 404` check silently never matches and would
+    // send every directory-less repo down the unknown arm — skipping precisely
+    // the repos most in need of the standard. Every other 404 consumer in this
+    // codebase uses this same message test.
+    .catch(err => (err?.message?.includes(': 404') ? false : null));
 }
 
 export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } = {}) {
@@ -293,34 +309,25 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // field that can't be tied to a cache key gets a live read on every cache
       // hit rather than a schema-version bump (which would only recompute once).
       //
-      // hasOsvScanner joined them once it started reading a workflow's enabled
-      // state: a workflow can be disabled from the Actions UI in one click,
-      // which changes neither pushed_at nor the open-issue count, so without a
-      // live read the cache would keep reporting a switched-off scanner as
-      // compliant on any quiet repo. Only the STATE half is re-read — whether
-      // the file is on the default branch cannot change without a push, so that
-      // component is taken from the cache and recombined.
-      const [autofix, hasCopilotReview, osvWorkflowMeta] = await Promise.all([
+      // hasOsvScanner is re-read here too, for a different reason: it is
+      // tri-state, and an UNKNOWN result must never become permanent. A repo
+      // whose contents read failed once would otherwise carry `null` in its
+      // cache entry until its next push — which on a quiet repo is indefinitely
+      // — and governance skips unknowns, so the standard would silently never
+      // apply to exactly the repos nobody touches. Re-deriving it costs one
+      // call and makes the verdict always current rather than only as current
+      // as the last push.
+      const [autofix, hasCopilotReview, hasOsvScanner] = await Promise.all([
         getAutomatedSecurityFixesState(gh, owner, r.name),
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
-        gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
-          .then(d => ({
-            workflowState: (d.workflows || []).find(w => w.path === OSV_WORKFLOW_PATH)?.state,
-            listingTruncated: (d.total_count || 0) > (d.workflows || []).length,
-          }))
-          .catch(() => ({ workflowState: undefined, listingTruncated: true })),
+        fetchOsvScannerPresence(gh, owner, r.name),
       ]);
-      const hasOsvScanner = resolveOsvScannerState({
-        fileOnDefault: cached.details?.osvFileOnDefault,
-        workflowState: osvWorkflowMeta.workflowState,
-        listingTruncated: osvWorkflowMeta.listingTruncated,
-      });
       details[r.name] = { ...cached.details, autofix, hasCopilotReview, hasOsvScanner };
       cachedRepos.add(r.name);
-      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + osv-scanner state refreshed)`);
+      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + osv-scanner refreshed)`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, osvWorkflowFileOnDefault, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, hasOsvScanner, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -347,60 +354,18 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
             // "present" — a truncated read must never open a remediation PR.
             hasReleaseWorkflow: wfs.some(w => /release/i.test(w.path || '') || /release/i.test(w.name || ''))
               || (d.total_count || 0) > wfs.length,
-            // EXACT path match, unlike hasReleaseWorkflow directly above. That one
-            // is deliberately broad because a hand-rolled release pipeline is a
-            // legitimate way to satisfy release-cadence, so anything release-ish
-            // counts. This one is the opposite case: the osv-scanner standard is
-            // satisfied only by the exact file the apply template writes. A name
-            // match would be satisfied by an unrelated workflow that merely
-            // mentions the scanner, and a substring path match would be satisfied
-            // by a repo's own variant that the template could then never converge
-            // on — leaving a permanent phantom gap or a permanently redundant PR.
-            // Whether the REGISTERED osv-scanner workflow is disabled. This is
-            // only half the signal — see osvWorkflowFileOnDefault below for why
-            // the listing alone cannot answer "is it installed". Here it answers
-            // the other question the listing genuinely owns: a workflow can be
-            // switched off from the Actions UI in one click, leaving `path`
-            // untouched, and a disabled scanner satisfies the standard's letter
-            // while running nothing. `undefined` when no matching entry exists.
-            osvWorkflowState: wfs.find(w => w.path === OSV_WORKFLOW_PATH)?.state,
-            // Truncation makes the state read unreliable, not just incomplete.
-            osvListingTruncated: (d.total_count || 0) > wfs.length,
           };
         })
         // hasReleaseWorkflow fails toward present on a request error: it gates a
         // cross-repo write, so a transient API failure must never manufacture a
-        // remediation PR. The osv fields deliberately do NOT follow that pattern
-        // — they report UNKNOWN instead (see the hasOsvScanner assembly below).
-        // Fail-toward-present is wrong for anything cached: this details object
-        // is persisted under a pushed_at key, so a single blip would write
-        // "compliant" and serve it until the repo's next push, which on a quiet
-        // repo is indefinitely. Unknown is honest and, unlike `true`, cannot be
-        // mistaken for evidence.
-        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true, osvWorkflowState: undefined, osvListingTruncated: true })),
-      // Does the scanner workflow exist on the DEFAULT BRANCH? The workflows
-      // listing cannot answer this: it returns every workflow GitHub has ever
-      // registered, including ones from branches that were never merged and
-      // files that no longer exist anywhere (verified on this very repo, where
-      // `release-recovery.yml` is listed `active` while existing on no branch).
-      // That gap is reachable by construction here, because the templated
-      // workflow triggers `on: pull_request` and therefore registers itself when
-      // it runs on the apply PR that introduces it — so the listing would report
-      // the repo compliant before the PR merged, and permanently if it were
-      // closed unmerged. The contents API is the authoritative answer.
-      // null (not false) on error, so an unreadable repo is UNKNOWN, never
-      // "absent" — absent opens a remediation PR.
-      gh.request(`/repos/${owner}/${r.name}/contents/.github/workflows`)
-        .then(d => Array.isArray(d) ? d.some(f => f.name === OSV_WORKFLOW_FILE) : false)
-        // 404 is a real answer — the repo has no .github/workflows directory, so
-        // the scanner is genuinely absent. Anything else is unknown. Detected
-        // from the message, not `err.status`: github.js throws plain
-        // `new Error('GitHub API GET <path>: <code> ...')` and never sets a
-        // status property, so a `.status === 404` check silently never matches
-        // and would send every directory-less repo down the unknown arm —
-        // skipping precisely the repos most in need of the standard. Every other
-        // 404 consumer in this codebase uses this same message test.
-        .catch(err => (err?.message?.includes(': 404') ? false : null)),
+        // remediation PR. hasOsvScanner deliberately does NOT follow that
+        // pattern — it reports UNKNOWN instead. Fail-toward-present is wrong for
+        // anything cached: this details object is persisted under a pushed_at
+        // key, so a single blip would write "compliant" and serve it until the
+        // repo's next push, which on a quiet repo is indefinitely. Unknown is
+        // honest and, unlike `true`, cannot be mistaken for evidence.
+        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true })),
+      fetchOsvScannerPresence(gh, owner, r.name),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
           let hasIssueTemplate = !!d.files?.issue_template;
@@ -502,13 +467,8 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
-    const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow, osvWorkflowState, osvListingTruncated } = workflowsMeta;
-    const hasOsvScanner = resolveOsvScannerState({
-      fileOnDefault: osvWorkflowFileOnDefault,
-      workflowState: osvWorkflowState,
-      listingTruncated: osvListingTruncated,
-    });
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, osvFileOnDefault: osvWorkflowFileOnDefault, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
+    const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow } = workflowsMeta;
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);

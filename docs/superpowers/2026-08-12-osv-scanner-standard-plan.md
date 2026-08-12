@@ -113,9 +113,22 @@ introduces it: the repo would read as compliant before that PR merged, and
 permanently if it were closed unmerged. Presence is therefore read from the
 contents API on the default branch, matching the exact filename.
 
-The listing still contributes one thing it genuinely owns: whether the registered
-workflow has been **disabled**. A workflow switched off from the Actions UI keeps
-its `path`, so a path-only check would count a scanner that runs nothing.
+An intermediate draft also read the listing's `state` field, so that a workflow
+switched off from the Actions UI would not count as compliant. That was removed
+after review, and the reason generalises.
+
+GitHub auto-disables schedule-triggered workflows after 60 days of repository
+inactivity, and this template is schedule-triggered — so on any quiet repo the
+scanner eventually flips to `disabled_inactivity` through nobody's decision.
+Treating that as a standards gap routes the repo into the templated apply path,
+whose contents PUT supplies no `sha`; the file already exists, so GitHub answers
+422 and the same unfixable finding retries on every run forever.
+
+The principle worth keeping: **a standard must only detect conditions its own
+remediation can fix.** This standard's remediation is a file write, and writing
+a file cannot re-enable a workflow. Enablement is a settings concern needing a
+settings executor; conflating it with a file-presence standard manufactures a
+finding whose fix provably cannot succeed. Detecting less is correct here.
 
 ### Acceptance criteria
 
