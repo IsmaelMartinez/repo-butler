@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-08-11
+**Last Updated:** 2026-08-12
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -51,9 +51,7 @@ Governance is a first-class phase with five deterministic finding types, each ca
 
 Section-edit mode (PR #231, May 2026) is worth calling out separately, as the mechanism this document depends on: the LLM receives the roadmap as read-only context and emits a JSON array of append operations, which the code applies deterministically. It can add content but never delete or rewrite. Three models had previously proved unable to reproduce the document verbatim, and four safety guards correctly caught every bad edit — which meant no PR was ever created. Run time dropped from ~40s to ~6s.
 
-**2026-06** — 1 entry (#263). Full details in git history.
-
-Roadmap scheduled-action and reference-append refinements shipped 2026-06-13 (PRs #265, #266).
+**2026-06** — 2 entries (#263, #265, #266). Full details in git history.
 
 ADR-007 stage 5 auto-merge was armed class by class through mid-June: security-md 2026-06-16 (PR #278), codeowners 2026-06-16 (PR #282), and code-scanning 2026-06-17 (PR #284), joining dependabot-actions. A CI reliability fix for false-positive cache-hit failures landed alongside (PR #280), with documentation repointed at Copilot for ADR-009 go-live (PR #279).
 
@@ -102,6 +100,8 @@ Skill staleness signal shipped 2026-08-02 (PR #365), closing the second half of 
 Skill staleness alerts and refresh-build stability shipped 2026-08-02 (PRs #364, #365). Fixes a critical workflow logic issue by ensuring roadmap refresh builds construct their baseline from the active pull request branch rather than defaulting to main, preventing subsequent ticks from overwriting unmerged entries. Additionally, introduces a feedback mechanism that alerts users when a running skill diverges from the version on the main branch, resolving the working-tree staleness gap (#350).
 
 Routine dependency update shipped 2026-08-06 (PR #367), updating minor and patch dependencies across the codebase to ensure ongoing stability and security.
+
+Roadmap update process reinforced 2026-08-11 (PR #368). Future updates leverage enhanced pipeline context and baseline branch resolution to ensure continuous, accurate capture of portfolio and repository milestones.
 
 Roadmap update process reinforced 2026-08-11 (PR #368). Future updates leverage enhanced pipeline context and baseline branch resolution to ensure continuous, accurate capture of portfolio and repository milestones.
 
