@@ -25,4 +25,4 @@ jobs:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
     with:
       upload-sarif: false
-      fail-on-vuln: false
+      fail-on-vuln: true

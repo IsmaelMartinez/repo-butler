@@ -91,17 +91,31 @@ already uses — would be cleaner than the exclusion-list dance. It is deliberat
 shares, and that deserves its own reviewed PR rather than riding along with a new
 standard. The exclusion list is ugly but touches nothing shared.
 
-Detection must **fail toward present**: on a truncated workflow list
-(`total_count` greater than the returned array) or on a request error,
-`hasOsvScanner` is `true`. This mirrors `hasReleaseWorkflow`, which already
-documents the reason — the field gates a cross-repo write, so a transient API
-failure must never manufacture a remediation PR on 14 repos at once.
+Detection is **tri-state** — `true` / `false` / `null` — and only `false` opens a
+remediation PR. An earlier draft used the usual `!!` coercion with a
+fail-toward-present fallback, and review showed both halves were wrong.
 
-Detection matches on the workflow **path** `.github/workflows/osv-scanner.yml`,
-not on the display name, and not on a substring of either. A name-based match
-would be satisfied by an unrelated workflow that merely mentions the scanner, and
-a substring match on path risks matching a repo's own hand-rolled variant that
-this template would then never be able to satisfy.
+Fail-toward-present is right for `hasReleaseWorkflow` but wrong here, because
+this details object is persisted in a `pushed_at`-keyed cache: a `true` written
+during one transient API failure would be served until the repo's next push,
+which on a quiet repo is indefinitely. The repo would be reported compliant
+while running no scanner at all. `null` is honest, and unlike `true` it cannot be
+mistaken for evidence — governance skips unknowns rather than counting them
+either way.
+
+Detection also cannot use the workflows **registration listing**, which was the
+first draft's source. That listing returns every workflow GitHub has ever
+registered, including from branches never merged — verified on this repo, where
+`release-recovery.yml` is listed `active` while existing on no branch. The gap is
+reachable by construction, because the templated workflow triggers
+`on: pull_request` and so registers itself when it runs on the apply PR that
+introduces it: the repo would read as compliant before that PR merged, and
+permanently if it were closed unmerged. Presence is therefore read from the
+contents API on the default branch, matching the exact filename.
+
+The listing still contributes one thing it genuinely owns: whether the registered
+workflow has been **disabled**. A workflow switched off from the Actions UI keeps
+its `path`, so a path-only check would count a scanner that runs nothing.
 
 ### Acceptance criteria
 
@@ -156,8 +170,26 @@ jobs:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
     with:
       upload-sarif: false
-      fail-on-vuln: false
+      fail-on-vuln: true
 ```
+
+`fail-on-vuln: true` on the scheduled job is the whole reporting channel, and an
+earlier draft set it `false` — which left the weekly scan completely mute. That
+was caught in review, not in testing, because a mute job is green. At this pinned
+SHA the reusable workflow has exactly three outputs: the SARIF upload (gated on
+`upload-sarif`), GitHub annotations (hard-coded off upstream via
+`--gh-annotations=false`), and the process exit code (gated on `fail-on-vuln`).
+With the upload deliberately disabled to protect the health tier, the exit code
+is all that remains, so a red job *is* the report. `export-results` is not a
+fourth option: at this SHA the scanner writes `results.json` while the export
+step tests for `osv-results.json`, so it always yields nothing.
+
+The cost is that a repo carrying a vulnerability backlog shows a failing weekly
+run, which feeds `ciPassRate`. That is accepted deliberately — a scan nobody can
+hear is worse than a noisy one — and the canary measures how noisy it actually
+is before the rollout commits to it. Governance currently reports zero open
+vulnerabilities portfolio-wide, but OSV's database is broader than Dependabot's,
+so the real backlog is unmeasured until the first scan runs.
 
 The pin is `8deb546f…`, which is the commit the `v2.5.0` **tag** points at. An
 earlier draft pinned `06b2ab43…` because that SHA appears inside the reusable
@@ -296,6 +328,18 @@ pre-emptively.
 after Phase 1 re-derives details for every repo, which is slower and makes more
 API calls than a cached run. This is expected, one-off, and the mechanism the
 repo already documents for exactly this situation.
+
+## Fixed here: the fifteen-repo ceiling
+
+Originally recorded below as a precondition to live with. It is fixed in this
+change instead, because the same remedy the tri-state detection needed also
+closes it: `detectStandardsGaps` now drops repos with no `details` entry from
+`applicable`, so a repo nobody fetched is unknown rather than non-compliant. The
+cap itself moves from a bare `15` to a named `PORTFOLIO_DETAIL_LIMIT = 40`, and
+truncation now logs a warning instead of happening silently — "no findings" and
+"never looked" must not read alike.
+
+The original description follows, since it explains why it mattered.
 
 ## Precondition: the fifteen-repo ceiling
 

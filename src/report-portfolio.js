@@ -213,13 +213,67 @@ export function analyzeDependencyInventory(details) {
 
 // --- Portfolio details fetcher ---
 
+// The one path the osv-scanner apply template writes. Detection is an exact
+// match on it, deliberately unlike hasReleaseWorkflow's deliberately-broad
+// regex: a hand-rolled release pipeline legitimately satisfies release-cadence,
+// whereas this standard is satisfied only by the file the template installs. A
+// looser match would let a repo's own variant read as compliant while the
+// template could never converge on it.
+export const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
+const OSV_WORKFLOW_PATH = `.github/workflows/${OSV_WORKFLOW_FILE}`;
+
+// How many active repos get a full details fetch. Each costs ~11 API calls, so
+// this bounds one portfolio pass; the original value was 15, chosen in the first
+// HTML-report commit when the portfolio was 8 repos and before GOVERNANCE
+// existed. It is a BUDGET guard, never a correctness boundary — a repo dropped
+// here simply has no details entry, and detectStandardsGaps now treats that as
+// unknown rather than non-compliant. Before that fix, the 16th repo would have
+// been reported non-compliant on every standard and become a remediation-PR
+// target on all of them at once.
+export const PORTFOLIO_DETAIL_LIMIT = 40;
+
+// Combine the two osv-scanner signals into the tri-state the governance
+// detector reads. Pure, and shared by the full-fetch and cache-hit paths so the
+// two cannot drift.
+//
+//   true  — installed on the default branch and not switched off
+//   false — genuinely absent, or present but disabled
+//   null  — could not tell
+//
+// Only `false` opens a remediation PR, so every uncertain path lands on null.
+// `fileOnDefault` is authoritative for "installed": the workflows registration
+// listing is not, because it returns workflows from branches that were never
+// merged. `workflowState` is the listing's one genuine contribution — a
+// workflow disabled from the Actions UI keeps its path, so a path-only check
+// would count a scanner that runs nothing. A file present but not yet
+// registered (workflowState undefined) is `true`: registration follows a merge,
+// and the file is what the standard installs.
+export function resolveOsvScannerState({ fileOnDefault, workflowState, listingTruncated }) {
+  if (fileOnDefault == null) return null;
+  if (fileOnDefault === false) return false;
+  if (listingTruncated) return null; // cannot trust the disabled check
+  if (workflowState !== undefined && workflowState !== 'active') return false;
+  return true;
+}
+
 export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } = {}) {
   const details = {};
   const cachedRepos = new Set();
   const activeRepos = repos.filter(r => !r.archived && !r.fork);
 
   // Fetch commit counts and weekly data for active repos (parallel, batched).
-  const fetches = activeRepos.slice(0, 15).map(async (r) => {
+  // Never truncate silently: a dropped repo is invisible to every detector, and
+  // "no findings" and "never looked" must not read alike to an operator.
+  const detailed = activeRepos.slice(0, PORTFOLIO_DETAIL_LIMIT);
+  if (activeRepos.length > detailed.length) {
+    console.warn(
+      `fetchPortfolioDetails: ${activeRepos.length - detailed.length} repo(s) beyond the ` +
+      `${PORTFOLIO_DETAIL_LIMIT}-repo detail cap were not fetched; governance will skip them. ` +
+      `Raise PORTFOLIO_DETAIL_LIMIT.`
+    );
+  }
+
+  const fetches = detailed.map(async (r) => {
     // Incremental: skip API calls for repos unchanged since last cache.
     const cached = cache?.repos?.[r.name];
     if (
@@ -238,16 +292,35 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // mutate the cache. This is the cache-refresh convention: a settings-toggle
       // field that can't be tied to a cache key gets a live read on every cache
       // hit rather than a schema-version bump (which would only recompute once).
-      const [autofix, hasCopilotReview] = await Promise.all([
+      //
+      // hasOsvScanner joined them once it started reading a workflow's enabled
+      // state: a workflow can be disabled from the Actions UI in one click,
+      // which changes neither pushed_at nor the open-issue count, so without a
+      // live read the cache would keep reporting a switched-off scanner as
+      // compliant on any quiet repo. Only the STATE half is re-read — whether
+      // the file is on the default branch cannot change without a push, so that
+      // component is taken from the cache and recombined.
+      const [autofix, hasCopilotReview, osvWorkflowMeta] = await Promise.all([
         getAutomatedSecurityFixesState(gh, owner, r.name),
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
+        gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
+          .then(d => ({
+            workflowState: (d.workflows || []).find(w => w.path === OSV_WORKFLOW_PATH)?.state,
+            listingTruncated: (d.total_count || 0) > (d.workflows || []).length,
+          }))
+          .catch(() => ({ workflowState: undefined, listingTruncated: true })),
       ]);
-      details[r.name] = { ...cached.details, autofix, hasCopilotReview };
+      const hasOsvScanner = resolveOsvScannerState({
+        fileOnDefault: cached.details?.osvFileOnDefault,
+        workflowState: osvWorkflowMeta.workflowState,
+        listingTruncated: osvWorkflowMeta.listingTruncated,
+      });
+      details[r.name] = { ...cached.details, autofix, hasCopilotReview, hasOsvScanner };
       cachedRepos.add(r.name);
-      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review refreshed)`);
+      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + osv-scanner state refreshed)`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, osvWorkflowFileOnDefault, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -283,20 +356,51 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
             // mentions the scanner, and a substring path match would be satisfied
             // by a repo's own variant that the template could then never converge
             // on — leaving a permanent phantom gap or a permanently redundant PR.
-            // Same truncation guard as above, for the same reason: an incomplete
-            // page must never be read as "absent".
-            hasOsvScanner: wfs.some(w => w.path === '.github/workflows/osv-scanner.yml')
-              || (d.total_count || 0) > wfs.length,
+            // Whether the REGISTERED osv-scanner workflow is disabled. This is
+            // only half the signal — see osvWorkflowFileOnDefault below for why
+            // the listing alone cannot answer "is it installed". Here it answers
+            // the other question the listing genuinely owns: a workflow can be
+            // switched off from the Actions UI in one click, leaving `path`
+            // untouched, and a disabled scanner satisfies the standard's letter
+            // while running nothing. `undefined` when no matching entry exists.
+            osvWorkflowState: wfs.find(w => w.path === OSV_WORKFLOW_PATH)?.state,
+            // Truncation makes the state read unreliable, not just incomplete.
+            osvListingTruncated: (d.total_count || 0) > wfs.length,
           };
         })
-        // hasReleaseWorkflow and hasOsvScanner both fail toward present on a
-        // request error for the same reason as the truncation guard above: they
-        // gate cross-repo writes, so a transient API failure must never
-        // manufacture a remediation PR — and since this .catch fires per repo on a
-        // portfolio-wide outage, reading "absent" here would open one on all ~14 at
-        // once. The other fields keep their long-standing zero/false fallbacks
-        // (read-only signals).
-        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true, hasOsvScanner: true })),
+        // hasReleaseWorkflow fails toward present on a request error: it gates a
+        // cross-repo write, so a transient API failure must never manufacture a
+        // remediation PR. The osv fields deliberately do NOT follow that pattern
+        // — they report UNKNOWN instead (see the hasOsvScanner assembly below).
+        // Fail-toward-present is wrong for anything cached: this details object
+        // is persisted under a pushed_at key, so a single blip would write
+        // "compliant" and serve it until the repo's next push, which on a quiet
+        // repo is indefinitely. Unknown is honest and, unlike `true`, cannot be
+        // mistaken for evidence.
+        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true, osvWorkflowState: undefined, osvListingTruncated: true })),
+      // Does the scanner workflow exist on the DEFAULT BRANCH? The workflows
+      // listing cannot answer this: it returns every workflow GitHub has ever
+      // registered, including ones from branches that were never merged and
+      // files that no longer exist anywhere (verified on this very repo, where
+      // `release-recovery.yml` is listed `active` while existing on no branch).
+      // That gap is reachable by construction here, because the templated
+      // workflow triggers `on: pull_request` and therefore registers itself when
+      // it runs on the apply PR that introduces it — so the listing would report
+      // the repo compliant before the PR merged, and permanently if it were
+      // closed unmerged. The contents API is the authoritative answer.
+      // null (not false) on error, so an unreadable repo is UNKNOWN, never
+      // "absent" — absent opens a remediation PR.
+      gh.request(`/repos/${owner}/${r.name}/contents/.github/workflows`)
+        .then(d => Array.isArray(d) ? d.some(f => f.name === OSV_WORKFLOW_FILE) : false)
+        // 404 is a real answer — the repo has no .github/workflows directory, so
+        // the scanner is genuinely absent. Anything else is unknown. Detected
+        // from the message, not `err.status`: github.js throws plain
+        // `new Error('GitHub API GET <path>: <code> ...')` and never sets a
+        // status property, so a `.status === 404` check silently never matches
+        // and would send every directory-less repo down the unknown arm —
+        // skipping precisely the repos most in need of the standard. Every other
+        // 404 consumer in this codebase uses this same message test.
+        .catch(err => (err?.message?.includes(': 404') ? false : null)),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
           let hasIssueTemplate = !!d.files?.issue_template;
@@ -398,8 +502,13 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
-    const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner } = workflowsMeta;
-    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
+    const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow, osvWorkflowState, osvListingTruncated } = workflowsMeta;
+    const hasOsvScanner = resolveOsvScannerState({
+      fileOnDefault: osvWorkflowFileOnDefault,
+      workflowState: osvWorkflowState,
+      listingTruncated: osvListingTruncated,
+    });
+    details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, osvFileOnDefault: osvWorkflowFileOnDefault, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
   });
 
   await Promise.all(fetches);
@@ -411,7 +520,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
   // Batches of 3 repos give at most 15 concurrent fetches and let each repo
   // actually complete within its timeout. Settled (not all) so one repo's
   // rejection cannot propagate and abort the whole REPORT phase.
-  const libyearRepos = activeRepos.slice(0, 15).filter(r => details[r.name]?.sbom && !cachedRepos.has(r.name));
+  const libyearRepos = detailed.filter(r => details[r.name]?.sbom && !cachedRepos.has(r.name));
   const LIBYEAR_BATCH = 3;
   for (let i = 0; i < libyearRepos.length; i += LIBYEAR_BATCH) {
     const batch = libyearRepos.slice(i, i + LIBYEAR_BATCH);
@@ -518,6 +627,7 @@ const STANDARD_LABELS = {
   'security-md': 'Security policy',
   'code-review-bot': 'Copilot code review',
   'release-cadence': 'Release automation',
+  'osv-scanner': 'Dependency scanning',
 };
 
 // Human labels for the butler-PR staleness states (src/butler-pr-audit.js).

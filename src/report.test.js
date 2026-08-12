@@ -1516,16 +1516,100 @@ describe('report cache invalidation includes report.js', () => {
   });
 });
 
+describe('resolveOsvScannerState (osv-scanner tri-state)', () => {
+  // The pure core of the osv-scanner standard's detection, shared by the
+  // full-fetch and cache-hit paths so the two cannot drift. Two signals in, a
+  // tri-state out:
+  //   fileOnDefault    — is osv-scanner.yml on the DEFAULT BRANCH (authoritative
+  //                      for "installed"; null when the read failed)
+  //   workflowState    — the registered workflow's state, or undefined when the
+  //                      registration listing has no entry for it
+  //   listingTruncated — the registration listing was incomplete
+  // Only `false` opens a remediation PR, so every uncertain input must land on
+  // null. These tests walk the whole cross product of the three inputs.
+  const STATES = [undefined, 'active', 'disabled_manually', 'disabled_inactivity'];
+  const TRUNCATION = [false, true];
+
+  it('reports unknown when the default-branch read failed, whatever the listing said', async () => {
+    const { resolveOsvScannerState } = await import('./report-portfolio.js');
+    // The listing can look as healthy as it likes; without the authoritative
+    // read we do not know, and unknown is the only honest answer.
+    for (const fileOnDefault of [null, undefined]) {
+      for (const workflowState of STATES) {
+        for (const listingTruncated of TRUNCATION) {
+          assert.equal(
+            resolveOsvScannerState({ fileOnDefault, workflowState, listingTruncated }), null,
+            `fileOnDefault=${fileOnDefault} state=${workflowState} truncated=${listingTruncated}`,
+          );
+        }
+      }
+    }
+  });
+
+  it('reports a gap when the file is absent, even where the listing registers an active workflow', async () => {
+    const { resolveOsvScannerState } = await import('./report-portfolio.js');
+    // The phantom / self-registration case. GitHub lists workflows from branches
+    // that never merged, and the templated workflow triggers `on: pull_request`
+    // so it registers itself while the apply PR introducing it is still open.
+    // The file read wins outright.
+    for (const workflowState of STATES) {
+      for (const listingTruncated of TRUNCATION) {
+        assert.equal(
+          resolveOsvScannerState({ fileOnDefault: false, workflowState, listingTruncated }), false,
+          `state=${workflowState} truncated=${listingTruncated}`,
+        );
+      }
+    }
+  });
+
+  it('reports compliant when the file is installed and the workflow is active', async () => {
+    const { resolveOsvScannerState } = await import('./report-portfolio.js');
+    assert.equal(resolveOsvScannerState({ fileOnDefault: true, workflowState: 'active', listingTruncated: false }), true);
+  });
+
+  it('reports compliant when the file is installed but not yet registered', async () => {
+    const { resolveOsvScannerState } = await import('./report-portfolio.js');
+    // Registration follows a merge, so a just-merged file can be on the default
+    // branch with no listing entry yet. The file is what the standard installs.
+    assert.equal(resolveOsvScannerState({ fileOnDefault: true, workflowState: undefined, listingTruncated: false }), true);
+  });
+
+  it('reports a gap when the installed workflow is switched off', async () => {
+    const { resolveOsvScannerState } = await import('./report-portfolio.js');
+    // A workflow disabled from the Actions UI keeps its path, so a path-only
+    // check would count a scanner that scans nothing.
+    for (const workflowState of ['disabled_manually', 'disabled_inactivity']) {
+      assert.equal(resolveOsvScannerState({ fileOnDefault: true, workflowState, listingTruncated: false }), false, workflowState);
+    }
+  });
+
+  it('reports unknown when the listing is truncated, even with the file installed', async () => {
+    const { resolveOsvScannerState } = await import('./report-portfolio.js');
+    // Truncation does not merely omit entries — it makes the disabled check
+    // unreliable, since the scanner's entry may be on a page never read and may
+    // be switched off. Not a gap (the file IS there), but not a clean bill either.
+    for (const workflowState of STATES) {
+      assert.equal(
+        resolveOsvScannerState({ fileOnDefault: true, workflowState, listingTruncated: true }), null,
+        `state=${workflowState}`,
+      );
+    }
+  });
+});
+
 describe('fetchPortfolioDetails incremental cache', () => {
-  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix + copilot-review settings)', async () => {
+  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix + copilot-review + osv-scanner-state settings)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // On a cache hit, only the autofix GET and the copilot ruleset-list paginate
-    // should run (ADR-012 Phase 3 / ADR-009): both settings can flip without a
-    // push, so they're refreshed while every push-invariant field comes from
-    // cache. This mock's ruleset list is empty, so hasActiveCopilotReviewRuleset
-    // never needs a per-ruleset detail GET here — with active rulesets present
-    // it would also issue /rulesets/{id} GETs, which is expected and not a full
-    // re-fetch. No getFileContent / other network calls should occur either way.
+    // On a cache hit, only the three volatile reads should run: the autofix GET
+    // (ADR-012 Phase 3), the copilot ruleset-list paginate (ADR-009), and the
+    // workflows-listing GET that re-reads the osv-scanner workflow's enabled
+    // state. All three can flip WITHOUT a push — disabling a workflow from the
+    // Actions UI changes neither pushed_at nor the open-issue count — so they
+    // are refreshed while every push-invariant field comes from cache. This
+    // mock's ruleset list is empty, so hasActiveCopilotReviewRuleset never needs
+    // a per-ruleset detail GET here — with active rulesets present it would also
+    // issue /rulesets/{id} GETs, which is expected and not a full re-fetch. No
+    // getFileContent / other network calls should occur either way.
     const requestPaths = [];
     const paginatePaths = [];
     let getFileContentCalled = false;
@@ -1554,13 +1638,80 @@ describe('fetchPortfolioDetails incremental cache', () => {
       },
     };
     const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
-    assert.deepEqual(requestPaths, ['/repos/owner/cached-repo/automated-security-fixes'], 'only the autofix GET runs on a cache hit');
+    assert.deepEqual(requestPaths, [
+      '/repos/owner/cached-repo/automated-security-fixes',
+      '/repos/owner/cached-repo/actions/workflows',
+    ], 'only the volatile reads run on a cache hit: autofix + the osv-scanner workflow state');
     assert.deepEqual(paginatePaths, ['/repos/owner/cached-repo/rulesets'], 'only the copilot ruleset list paginate runs on a cache hit');
     assert.equal(getFileContentCalled, false, 'no getFileContent on a cache hit');
     assert.equal(details['cached-repo'].commits, 42, 'should use cached commits');
     assert.deepEqual(details['cached-repo'].autofix, { enabled: true, paused: false }, 'refreshes the stale autofix state from the live GET');
     assert.equal(details['cached-repo'].hasCopilotReview, false, 'refreshes the stale copilot-review state from the live read');
     assert.ok(details._cachedRepos.includes('cached-repo'), 'should mark as cached');
+  });
+
+  // Cache-hit osv-scanner recombination. The file-on-default-branch half cannot
+  // change without a push, so it is served from the cached `osvFileOnDefault`;
+  // the workflow's enabled state can, so it is re-read live and the two are
+  // recombined. Anything else would let a scanner switched off in the Actions UI
+  // read as compliant until the repo's next push — forever, on a quiet repo.
+  const cachedOsvGh = (workflowsPayload) => ({
+    request: (path) => {
+      if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+      if (path.includes('/actions/workflows')) return Promise.resolve(workflowsPayload);
+      return Promise.resolve({});
+    },
+    paginate: () => Promise.resolve([]),
+    getFileContent: () => Promise.resolve(null),
+  });
+  const cachedOsvRepos = [
+    { name: 'cached-repo', pushed_at: '2026-04-01T00:00:00Z', open_issues: 5, archived: false, fork: false, stars: 10 },
+  ];
+  const cachedOsvCache = (details) => ({
+    repos: {
+      'cached-repo': {
+        schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+        pushed_at: '2026-04-01T00:00:00Z',
+        open_issues_count: 5,
+        details: { commits: 42, hasCopilotReview: false, ...details },
+      },
+    },
+  });
+
+  it('flips a cached hasOsvScanner true to false when the workflow has since been disabled', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = cachedOsvGh({
+      total_count: 1,
+      workflows: [{ name: 'OSV-Scanner', path: '.github/workflows/osv-scanner.yml', state: 'disabled_manually' }],
+    });
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedOsvRepos, {
+      cache: cachedOsvCache({ hasOsvScanner: true, osvFileOnDefault: true }),
+    });
+    assert.equal(details['cached-repo'].hasOsvScanner, false, 'the live state read must override the cached compliant verdict');
+  });
+
+  it('keeps a cached hasOsvScanner true when the live workflow state is still active', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = cachedOsvGh({
+      total_count: 1,
+      workflows: [{ name: 'OSV-Scanner', path: '.github/workflows/osv-scanner.yml', state: 'active' }],
+    });
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedOsvRepos, {
+      cache: cachedOsvCache({ hasOsvScanner: true, osvFileOnDefault: true }),
+    });
+    assert.equal(details['cached-repo'].hasOsvScanner, true);
+  });
+
+  it('reports a cached hasOsvScanner as unknown when the cache predates osvFileOnDefault', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // A cache entry written before the file-on-default read existed carries no
+    // evidence about the default branch, and the workflows listing alone cannot
+    // supply it. Unknown, never `false` — an invented gap opens a remediation PR.
+    const gh = cachedOsvGh({ total_count: 0, workflows: [] });
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedOsvRepos, {
+      cache: cachedOsvCache({ hasOsvScanner: true }),
+    });
+    assert.equal(details['cached-repo'].hasOsvScanner, null);
   });
 
   it('fetches fresh data when pushed_at differs', async () => {
@@ -1801,12 +1952,25 @@ describe('fetchPortfolioDetails incremental cache', () => {
 
   // --- hasOsvScanner (osv-scanner standard) ---
   //
-  // `workflowsResponse` is a thunk so a test can hand back a rejection as easily
-  // as a payload; every other path keeps the same benign stubs the surrounding
-  // fetchPortfolioDetails tests use, so only the workflows read varies.
-  const makeWorkflowsGh = (workflowsResponse) => ({
+  // hasOsvScanner is TRI-STATE and assembled from two independent reads, so the
+  // mock serves both and either can fail on its own:
+  //   `workflowsResponse` — GET /actions/workflows, the REGISTRATION listing.
+  //     It answers only "is the registered scanner switched off", because it
+  //     also lists workflows from branches that never merged and files that
+  //     exist nowhere, and the templated workflow triggers `on: pull_request`
+  //     so it self-registers while the apply PR that introduces it is still open.
+  //   `contentsResponse` — GET /contents/.github/workflows, the AUTHORITATIVE
+  //     answer to "is the file installed on the default branch".
+  // Only `false` opens a remediation PR, so every uncertain read must land on
+  // null. Fail-toward-present is specifically wrong here: this details object is
+  // persisted under a pushed_at cache key, so one transient `true` would be
+  // served until the repo's next push — indefinitely on a quiet repo.
+  // Both are thunks so a test can hand back a rejection as easily as a payload;
+  // every other path keeps the benign stubs the surrounding tests use.
+  const makeWorkflowsGh = (workflowsResponse, contentsResponse = () => Promise.resolve([{ name: 'ci.yml' }])) => ({
     request: (path) => {
       if (path.includes('/actions/workflows')) return workflowsResponse();
+      if (path.includes('/contents/.github/workflows')) return contentsResponse();
       if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
       if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
       if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
@@ -1823,65 +1987,155 @@ describe('fetchPortfolioDetails incremental cache', () => {
     { name: 'osv-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
   ];
 
-  it('derives hasOsvScanner from the exact templated workflow path', async () => {
+  // The registration listing as it looks on a healthy repo: complete (total_count
+  // matches the page) and carrying an active osv-scanner entry.
+  const osvRegistered = (state = 'active') => () => Promise.resolve({
+    total_count: 2,
+    workflows: [
+      { name: 'CI', path: '.github/workflows/ci.yml', state: 'active' },
+      { name: 'OSV-Scanner', path: '.github/workflows/osv-scanner.yml', state },
+    ],
+  });
+  // A directory listing containing the templated file.
+  const contentsWithScanner = () => Promise.resolve([{ name: 'ci.yml' }, { name: 'osv-scanner.yml' }]);
+
+  it('reports hasOsvScanner true when the file is on the default branch and the workflow is active', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    const gh = makeWorkflowsGh(() => Promise.resolve({
-      total_count: 2,
-      workflows: [
-        { name: 'CI', path: '.github/workflows/ci.yml' },
-        { name: 'OSV-Scanner', path: '.github/workflows/osv-scanner.yml' },
-      ],
-    }));
+    const gh = makeWorkflowsGh(osvRegistered(), contentsWithScanner);
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
     assert.equal(details['osv-repo'].hasOsvScanner, true);
   });
 
-  it('reports hasOsvScanner false when the scanner workflow is absent', async () => {
+  it('reports hasOsvScanner false when the scanner file is absent from the default branch', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    const gh = makeWorkflowsGh(() => Promise.resolve({
-      total_count: 1,
-      workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }],
-    }));
+    const gh = makeWorkflowsGh(
+      () => Promise.resolve({ total_count: 1, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml', state: 'active' }] }),
+      () => Promise.resolve([{ name: 'ci.yml' }]),
+    );
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
     assert.equal(details['osv-repo'].hasOsvScanner, false);
   });
 
-  it('does not satisfy hasOsvScanner from a workflow that merely mentions osv-scanner', async () => {
+  it('reports hasOsvScanner false when the workflows directory 404s (no workflows at all)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // Detection is an EXACT path match, unlike the deliberately broad
-    // hasReleaseWorkflow. A display name mentioning the scanner, and a
-    // neighbouring path that merely contains the string, are both gaps: the
-    // standard is satisfied only by the file the apply template writes.
-    const gh = makeWorkflowsGh(() => Promise.resolve({
-      total_count: 3,
-      workflows: [
-        { name: 'Run osv-scanner nightly', path: '.github/workflows/nightly.yml' },
-        { name: 'Security', path: '.github/workflows/my-osv-scanner.yml' },
-        { name: 'Security', path: '.github/workflows/osv-scanner.yaml' },
-      ],
-    }));
+    // A 404 on the contents listing is a genuine answer, not a failure: the repo
+    // has no .github/workflows directory, so the scanner is definitively absent
+    // and the standard is a real gap worth a remediation PR.
+    // The error is EXACTLY what github.js throws — a plain Error whose message
+    // embeds the code, with no `status` property. Deliberately not a richer
+    // fake: an earlier version of this test set `err.status = 404` as well, and
+    // so passed against an assembly keyed on `err.status === 404` that could
+    // never match in production. A mock more capable than the real client turns
+    // a green test into evidence of nothing.
+    const notFound = () => Promise.reject(
+      new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 404 Not Found')
+    );
+    const gh = makeWorkflowsGh(osvRegistered(), notFound);
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
     assert.equal(details['osv-repo'].hasOsvScanner, false);
   });
 
-  it('fails hasOsvScanner toward present when the workflows page is truncated', async () => {
+  it('reports hasOsvScanner null when the contents read fails for any reason other than 404', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // 101 workflows on the repo, one non-matching entry on this single page —
-    // osv-scanner.yml may be on a later page, so an incomplete read must not be
-    // reported as a gap and turned into a remediation PR.
-    const gh = makeWorkflowsGh(() => Promise.resolve({
-      total_count: 101,
-      workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }],
-    }));
+    // Rate limit, 403, network blip: we do not know what is on the default
+    // branch. Unknown is honest; governance skips unknowns, and `false` here
+    // would open an apply PR on every repo the failure touched.
+    const serverError = () => {
+      const err = new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 500');
+      err.status = 500;
+      return Promise.reject(err);
+    };
+    const gh = makeWorkflowsGh(osvRegistered(), serverError);
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
-    assert.equal(details['osv-repo'].hasOsvScanner, true);
+    assert.equal(details['osv-repo'].hasOsvScanner, null);
   });
 
-  it('fails hasOsvScanner toward present when the workflows request errors', async () => {
+  it('reports hasOsvScanner false when the installed workflow is disabled', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
-    // A transient API failure is incomplete data, and this .catch fires per repo:
-    // reading it as "absent" would open an apply PR on the whole portfolio at once.
-    const gh = makeWorkflowsGh(() => Promise.reject(new Error('rate limited')));
+    // The file is on the default branch, so the contents read alone says
+    // "installed" — but a workflow can be switched off from the Actions UI in one
+    // click with its path untouched, and a disabled scanner satisfies the
+    // standard's letter while scanning nothing.
+    const gh = makeWorkflowsGh(osvRegistered('disabled_manually'), contentsWithScanner);
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, false);
+  });
+
+  it('reports hasOsvScanner null when the workflows listing is truncated', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // 101 workflows on the repo, one page returned. The file IS on the default
+    // branch, but the disabled-check half of the signal cannot be trusted: the
+    // registered entry may be on a page we never saw, and it may be off.
+    const gh = makeWorkflowsGh(
+      () => Promise.resolve({ total_count: 101, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml', state: 'active' }] }),
+      contentsWithScanner,
+    );
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, null);
+  });
+
+  it('reports hasOsvScanner null — never true — when the workflows request fails', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // The cache-poisoning case, and the reason fail-toward-present was removed.
+    // hasReleaseWorkflow (asserted above) still fails toward present because a
+    // spurious `true` there only suppresses a PR for one pass. hasOsvScanner is
+    // read back out of a pushed_at-keyed cache, so a `true` written during one
+    // blip is served on every later run until the repo is pushed to — on a quiet
+    // repo, forever. The workflows .catch reports truncated/unknown instead.
+    const gh = makeWorkflowsGh(() => Promise.reject(new Error('rate limited')), contentsWithScanner);
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, null);
+  });
+
+  it('reports hasOsvScanner false for a workflow registered from a branch that never merged', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // The phantom / self-registration case, and the reason the listing cannot be
+    // the presence signal. GitHub lists every workflow it has ever registered,
+    // including from unmerged branches — and the templated workflow triggers
+    // `on: pull_request`, so it registers itself while the apply PR that
+    // introduces it is still open. Trusting the listing would report the repo
+    // compliant before that PR merged, and permanently if it were closed unmerged.
+    const gh = makeWorkflowsGh(osvRegistered(), () => Promise.resolve([{ name: 'ci.yml' }]));
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, false);
+  });
+
+  it('does not satisfy hasOsvScanner from a file that merely mentions osv-scanner', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // Detection is an EXACT filename match, unlike the deliberately broad
+    // hasReleaseWorkflow. A near-miss name and a workflow whose display name
+    // mentions the scanner are both gaps: the standard is satisfied only by the
+    // file the apply template writes, and a looser match would leave the
+    // template unable to converge on the repo's own variant.
+    const gh = makeWorkflowsGh(
+      () => Promise.resolve({
+        total_count: 1,
+        workflows: [{ name: 'Run osv-scanner nightly', path: '.github/workflows/nightly.yml', state: 'active' }],
+      }),
+      () => Promise.resolve([
+        { name: 'nightly.yml' },
+        { name: 'my-osv-scanner.yml' },
+        { name: 'osv-scanner.yaml' },
+      ]),
+    );
+    const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
+    assert.equal(details['osv-repo'].hasOsvScanner, false);
+  });
+
+  it('ignores a different disabled workflow when the scanner itself is installed and active', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // The disabled check is anchored to the exact templated path; some unrelated
+    // workflow being switched off must not read as the scanner being off.
+    const gh = makeWorkflowsGh(
+      () => Promise.resolve({
+        total_count: 2,
+        workflows: [
+          { name: 'Old release', path: '.github/workflows/release-old.yml', state: 'disabled_manually' },
+          { name: 'OSV-Scanner', path: '.github/workflows/osv-scanner.yml', state: 'active' },
+        ],
+      }),
+      contentsWithScanner,
+    );
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
     assert.equal(details['osv-repo'].hasOsvScanner, true);
   });

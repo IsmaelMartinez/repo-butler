@@ -243,19 +243,68 @@ describe('detectStandardsGaps', () => {
     assert.deepEqual(result.findings[0].compliant, ['a']);
   });
 
-  it('treats an absent hasOsvScanner field as non-compliant', () => {
-    const repos = [makeRepo('a')];
-    const details = makeDetails(repos); // no hasOsvScanner key at all
+  it('treats an absent hasOsvScanner field as unknown, counting it in neither array', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    // 'a' has a details entry but no hasOsvScanner key: the repo was looked at,
+    // the workflow listing was not readable. Not evidence of absence.
+    const details = makeDetails(repos, { b: { hasOsvScanner: false } });
     const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
     const result = detectStandardsGaps(standards, repos, details);
-    assert.deepEqual(result.findings[0].nonCompliant, ['a']);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, []);
   });
 
-  it('treats a repo with no details entry as osv-scanner non-compliant', () => {
+  it('emits no osv-scanner finding when no repo has a details entry', () => {
     const repos = [makeRepo('a')];
     const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
-    const result = detectStandardsGaps(standards, repos, {}); // detector sees undefined details
-    assert.deepEqual(result.findings[0].nonCompliant, ['a']);
+    const result = detectStandardsGaps(standards, repos, {}); // nothing applicable
+    assert.equal(result.findings.length, 0);
+    assert.equal(result.summary.gaps, 0);
+  });
+
+  it('reports only an explicit hasOsvScanner false as non-compliant across the tri-state', () => {
+    const repos = [makeRepo('yes'), makeRepo('no'), makeRepo('unknown')];
+    const details = makeDetails(repos, {
+      yes: { hasOsvScanner: true },
+      no: { hasOsvScanner: false },
+      unknown: { hasOsvScanner: null },
+    });
+    const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].compliant, ['yes']);
+    assert.deepEqual(result.findings[0].nonCompliant, ['no']);
+    // The unknown is excluded from the denominator: 1/2, not 1/3.
+    assert.equal(result.findings[0].adoptionRate, 0.5);
+  });
+
+  it('emits no finding when every applicable repo is unknown', () => {
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, { a: { hasOsvScanner: null }, b: { hasOsvScanner: null } });
+    const standards = [{ tool: 'osv-scanner', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 0);
+    assert.equal(result.summary.gaps, 0);
+  });
+
+  it('excludes a repo with no details entry from every standard, not just osv-scanner', () => {
+    // fetchPortfolioDetails stops at PORTFOLIO_DETAIL_LIMIT, so an eligible repo
+    // past the cap has no details entry at all. It must not be reported
+    // non-compliant on a standard nobody checked it against.
+    const repos = [makeRepo('a'), makeRepo('b'), makeRepo('unfetched')];
+    const details = makeDetails([repos[0], repos[1]], {
+      a: { hasCodeowners: true },
+      b: { hasCodeowners: false },
+    });
+    const standards = [{ tool: 'codeowners', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].nonCompliant, ['b']);
+    assert.deepEqual(result.findings[0].compliant, ['a']);
+    assert.ok(!result.findings[0].nonCompliant.includes('unfetched'));
+    assert.ok(!result.findings[0].compliant.includes('unfetched'));
+    assert.equal(result.findings[0].adoptionRate, 0.5); // 1/2, unfetched not in the denominator
   });
 
   it('detects code-review-bot gaps (missing Copilot review ruleset)', () => {

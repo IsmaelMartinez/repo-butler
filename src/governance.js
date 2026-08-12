@@ -196,7 +196,14 @@ const STANDARD_DETECTORS = {
   // scanner, and a substring path match would be satisfied by a repo's own
   // hand-rolled variant that this template — which writes one fixed path —
   // could then never satisfy, leaving the standard permanently non-compliant.
-  'osv-scanner': (_repo, details) => !!details?.hasOsvScanner,
+  // Tri-state, unlike every detector above it: `null` means the scanner's
+  // presence could not be determined this run, and detectStandardsGaps skips
+  // those repos rather than counting them either way. The alternative — the
+  // usual `!!` coercion — would turn an unreadable repo into a remediation-PR
+  // target, and its mirror (defaulting to true) would be worse still, because
+  // this details object is cached under a pushed_at key: one transient failure
+  // would record "compliant" and serve it until the repo's next push.
+  'osv-scanner': (_repo, details) => details?.hasOsvScanner ?? null,
 };
 
 // Minimum adoption rate to infer an implicit universal standard.
@@ -263,17 +270,33 @@ export function detectStandardsGaps(standards, repos, details) {
     const detector = STANDARD_DETECTORS[standard.tool];
     if (!detector) continue; // Unknown tool — skip silently
 
-    // Filter by scope and exclusions.
+    // Filter by scope and exclusions, then drop repos we have no data for.
+    // fetchPortfolioDetails only fetches the first PORTFOLIO_DETAIL_LIMIT active
+    // repos, while this loop iterates the whole eligible list — so a repo past
+    // that cap has no `details` entry and every `!!details?.x` detector returns
+    // false for it. Without this guard such a repo is reported non-compliant on
+    // EVERY standard and becomes a remediation-PR target on all of them, purely
+    // because nobody looked at it. Absence of evidence is not evidence of
+    // absence, and here the difference is a cross-repo write.
     const applicable = eligible.filter(r =>
-      repoMatchesScope(r, standard.scope) && !standard.exclude.includes(r.name)
+      repoMatchesScope(r, standard.scope)
+      && !standard.exclude.includes(r.name)
+      && details?.[r.name] !== undefined
     );
 
     if (applicable.length === 0) continue;
 
+    // A detector may also return null for "I have details but still cannot
+    // tell" (an unreadable API, a truncated listing). That repo is neither
+    // compliant nor non-compliant: it is excluded from both arrays and from the
+    // adoption denominator, so an unknown never drags the rate down and never
+    // manufactures a PR.
     const compliant = [];
     const nonCompliant = [];
     for (const r of applicable) {
-      if (detector(r, details?.[r.name])) {
+      const verdict = detector(r, details?.[r.name]);
+      if (verdict === null) continue;
+      if (verdict) {
         compliant.push(r.name);
       } else {
         nonCompliant.push(r.name);
@@ -281,7 +304,7 @@ export function detectStandardsGaps(standards, repos, details) {
     }
 
     if (nonCompliant.length > 0) {
-      const adoptionRate = compliant.length / applicable.length;
+      const adoptionRate = compliant.length / (compliant.length + nonCompliant.length);
       const repoEcosystems = {};
       const repoAutoMerge = {};
       for (const name of nonCompliant) {

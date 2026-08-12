@@ -308,6 +308,19 @@ jobs:
     // key, so the static security-events: write request fails validation and the
     // job never starts — without the guard every external contributor's PR gets
     // a failing check.
+    //
+    // `fail-on-vuln: true` on scan-scheduled is the ONLY reporting channel that
+    // job has, and an earlier draft set it false — which left the weekly scan
+    // completely mute. At this pinned SHA the reusable workflow's three outputs
+    // are the SARIF upload (gated on upload-sarif), GitHub annotations
+    // (hard-coded off upstream via --gh-annotations=false) and the process exit
+    // code (gated on fail-on-vuln). With the first two unavailable to us, the
+    // exit code is all that is left, so a red job IS the report. `export-results`
+    // is not a fourth option: at this SHA the scanner writes results.json while
+    // the export step tests for osv-results.json, so it always yields nothing.
+    // The cost is that a repo carrying a vulnerability backlog shows a failing
+    // weekly run, which feeds ciPassRate — accepted deliberately, because a scan
+    // nobody can hear is worse than a noisy one.
     path: '.github/workflows/osv-scanner.yml',
     content: () => `name: OSV-Scanner
 
@@ -336,7 +349,7 @@ jobs:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
     with:
       upload-sarif: false
-      fail-on-vuln: false
+      fail-on-vuln: true
 `,
   },
 };
