@@ -7,17 +7,17 @@
         "type": "universal"
       },
       "compliant": [
+        "yourear",
+        "sound3fy",
         "teams-for-linux",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
         "bonnie-wee-plot",
         "betis-escocia",
+        "ai-model-advisor",
         "repo-butler"
       ],
       "nonCompliant": [
-        "yourear",
-        "sound3fy",
-        "ismaelmartinez.me.uk",
-        "generator-atlassian-compass-event-catalog",
-        "ai-model-advisor",
         "github-issue-triage-bot",
         "wifisentinel",
         "lounge-tv",
@@ -25,11 +25,6 @@
         "skill-sources"
       ],
       "repoEcosystems": {
-        "yourear": null,
-        "sound3fy": null,
-        "ismaelmartinez.me.uk": null,
-        "generator-atlassian-compass-event-catalog": null,
-        "ai-model-advisor": null,
         "github-issue-triage-bot": null,
         "wifisentinel": null,
         "lounge-tv": null,
@@ -37,26 +32,21 @@
         "skill-sources": null
       },
       "repoAutoMerge": {
-        "yourear": true,
-        "sound3fy": true,
-        "ismaelmartinez.me.uk": true,
-        "generator-atlassian-compass-event-catalog": true,
-        "ai-model-advisor": true,
         "github-issue-triage-bot": true,
         "wifisentinel": true,
         "lounge-tv": true,
         "delegate-local": true,
         "skill-sources": true
       },
-      "adoptionRate": 0.2857142857142857,
-      "priority": "high",
+      "adoptionRate": 0.6428571428571429,
+      "priority": "medium",
       "remediation": {
         "executor": "template",
         "targetFiles": [
           ".github/workflows/osv-scanner.yml"
         ],
-        "intent": "Add osv-scanner to 10 non-compliant repo(s)",
-        "rationale": "Standards gap: osv-scanner adopted by 29% of in-scope repos; missing in yourear, sound3fy, ismaelmartinez.me.uk, generator-atlassian-compass-event-catalog, ai-model-advisor, github-issue-triage-bot, wifisentinel, lounge-tv, delegate-local, skill-sources.",
+        "intent": "Add osv-scanner to 5 non-compliant repo(s)",
+        "rationale": "Standards gap: osv-scanner adopted by 64% of in-scope repos; missing in github-issue-triage-bot, wifisentinel, lounge-tv, delegate-local, skill-sources.",
         "acceptanceCriteria": [
           "Every non-compliant repo passes the osv-scanner standard check"
         ]
