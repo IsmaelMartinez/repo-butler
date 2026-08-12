@@ -103,8 +103,14 @@ removed from its required status checks. This was the only place Snyk blocked a
 merge, and it was blocking on a quota error rather than a finding. The remaining
 five rules (deletion, pull_request, non_fast_forward, required_linear_history,
 copilot_code_review) and the other two required checks are untouched and verified
-in place. A full pre-change copy of the ruleset was taken so the check can be
-restored with a single `PUT` if this decision is reversed.
+in place.
+
+To reverse it, re-add the context to ruleset `7682156` on that repo — the
+required checks before the change were exactly
+`Tests (Required)` (integration_id 15368), `CodeQL`, and
+`security/snyk (IsmaelMartinez)`, in that order. Recording them here rather than
+pointing at a scratch file, since a rollback note that outlives its backup is
+worse than none.
 
 PR #470 on that repo remains blocked afterwards, correctly, on a genuine
 `Tests (Required)` failure.
