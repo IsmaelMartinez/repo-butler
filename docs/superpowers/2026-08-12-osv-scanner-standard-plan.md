@@ -30,7 +30,7 @@ Any change to `computeHealthTier` or to the meaning of an existing standard.
 
 ## Phase 1 — the standard
 
-Seven edits. The count matters: an earlier draft said five and would have
+Eight edits. The count matters: an earlier draft said five and would have
 produced a standard that detects a gap and then never opens a PR, because
 `buildRemediationPlan` routes on `TEMPLATABLE_TOOLS` in `governance.js`, which is
 a separate list from `TEMPLATES` in `apply.js`. A tool missing from the former
@@ -47,7 +47,49 @@ falls through to `executor: 'manual'` silently.
    to the `details[r.name]` object literal.
 6. `src/report-shared.js` — bump `REPO_CACHE_SCHEMA_VERSION` from 6 to 7.
 7. `src/apply.js` — `TEMPLATES['osv-scanner']` with path
-   `.github/workflows/osv-scanner.yml` and the content in Phase 2.
+   `.github/workflows/osv-scanner.yml` and the content in Phase 2. The entry
+   carries a comment naming *why* two lines are load-bearing: `upload-sarif:
+   false` because `computeHealthTier` and `detectOpenVulnerabilities` both read
+   `codeScanning.max_severity`, so uploading SCA advisories drops repos off Gold
+   with no new vulnerability; and `security-events: write` because the call
+   fails validation without it — the rule being "add the permission, never
+   enable the upload". Every other `TEMPLATES` entry already carries a why
+   comment, and a golden test pins the string without explaining it.
+8. `.github/roadmap.yml` — a temporary `standards-exclude: osv-scanner:` entry
+   listing every repo except the canary. This is the targeting mechanism, and
+   without it Phases 3 and 4 cannot be executed as written.
+
+### Targeting: the apply path has no repo selector
+
+This is the single most important operational fact in the plan and it was
+missing from the first draft. `apply.yml` exposes only `dry-run`, `tools` and
+`max-apply-per-run`; `index.js` forwards only those; `apply.js` expands a
+finding's `nonCompliant` array wholesale into pairs; and `capPerTool` keeps the
+first N **in portfolio order**. That order comes from
+`/installation/repositories`, which is fetched with no sort — so a dispatch with
+`max-apply-per-run: 1` opens its PR on whichever repo GitHub happens to list
+first, not on the one the operator intended.
+
+The only existing per-repo lever sits one stage upstream: `standards-exclude`,
+already in production use for `release-cadence: sound3fy`. `detectStandardsGaps`
+filters on it before `nonCompliant` is built, so excluding the other thirteen
+repos is what aims a dispatch at one.
+
+The sequencing is easy to trip over: `runApply` reads *stored* findings from the
+data branch, so an edit to the exclusion list only takes effect after the next
+GOVERNANCE run rewrites `snapshots/governance.json`. Edit, wait for a governance
+run, then dispatch.
+
+One further consequence worth knowing during Phase 4: `applyToRepo`'s
+open-PR idempotency skip runs *after* `capPerTool`, so a repo with an already-open
+apply PR still consumes a cap slot. Batches only advance when PRs merge and the
+repo drops out of `nonCompliant`.
+
+Adding a `repos` input to `apply.yml` — following the pattern `onboard.yml`
+already uses — would be cleaner than the exclusion-list dance. It is deliberately
+**not** taken here: it changes the apply path itself, which every other standard
+shares, and that deserves its own reviewed PR rather than riding along with a new
+standard. The exclusion list is ugly but touches nothing shared.
 
 Detection must **fail toward present**: on a truncated workflow list
 (`total_count` greater than the returned array) or on a request error,
@@ -84,25 +126,53 @@ on:
   schedule:
     - cron: '0 4 * * 1'
 
+# security-events: write is REQUIRED even though the SARIF upload is disabled.
+# Both called workflows declare it as a job-level permissions block, and GitHub
+# validates the caller's grant against that declaration before any step runs.
+# `upload-sarif: false` gates two STEPS; it cannot make a JOB's permission
+# request conditional. Granting less fails the run at validation time on every
+# repo. Granting it does NOT cause an upload — the upload step stays gated.
 permissions:
   contents: read
   actions: read
+  security-events: write
 
 jobs:
   scan-pr:
-    if: github.event_name == 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@06b2ab4348248b456ee06c9e953637f55e03504f # v2.5.0
+    # The fork guard is not optional. On a pull_request from a fork GitHub caps
+    # GITHUB_TOKEN at read-only regardless of the permissions key, so the static
+    # security-events: write request fails validation and the job never starts.
+    # Without this, every external contributor's PR gets a failing check.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
     with:
       upload-sarif: false
       fail-on-vuln: true
 
   scan-scheduled:
     if: github.event_name == 'schedule'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@06b2ab4348248b456ee06c9e953637f55e03504f # v2.5.0
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
     with:
       upload-sarif: false
       fail-on-vuln: false
 ```
+
+The pin is `8deb546f…`, which is the commit the `v2.5.0` **tag** points at. An
+earlier draft pinned `06b2ab43…` because that SHA appears inside the reusable
+workflow's own `uses:` lines labelled `# v2.5.0` — but that is the inner
+composite-action pin, three commits behind the tag, and at that ref the reusable
+workflows still call the scanner at `# v2.3.8`. The template would have run a
+scanner three versions old under a v2.5.0 label, and no phase would have caught
+it because the workflow is green either way. When pinning a reusable workflow,
+resolve the tag itself (`gh api repos/OWNER/REPO/git/ref/tags/vX.Y.Z`); never
+lift a SHA out of the file's own contents.
+
+Fork PRs get no scan as a consequence of the guard. That is a real coverage gap
+and the alternative — a hard-failing check on every external contribution, which
+Phase 5 would then escalate to a merge block — is worse. The scheduled full-tree
+scan still covers whatever those PRs merge.
 
 Unlike every other entry in `TEMPLATES`, this content is **not** a function of
 ecosystem. OSV-Scanner detects lockfiles itself and the reusable workflow takes
@@ -125,38 +195,52 @@ future edit that drops either should fail loudly rather than silently.
 
 ## Phase 3 — canary
 
-Dispatch `apply.yml` for `osv-scanner` against exactly one repo, review the PR by
-hand, merge it, and then confirm the workflow actually runs.
-
 `repo-butler` itself is the canary. It is the strongest test available because it
 is zero-dependency by project convention, so it exercises the no-manifest path
 permanently rather than incidentally — and if the "nothing to scan" case is going
 to fail a job, it will fail here.
 
-Three things to confirm before going wider, each of which would otherwise repeat
-identically across 14 repos:
+Aiming the dispatch at it takes three steps, in this order. Set
+`standards-exclude: osv-scanner:` to every eligible repo except `repo-butler`.
+Wait for a GOVERNANCE run to rewrite the stored findings, because `runApply`
+reads them from the data branch rather than recomputing. Then dispatch `apply.yml`
+with `tools: osv-scanner` and `dry-run: false`. Review the PR by hand, merge it,
+and confirm the workflow runs.
 
-The workflow parses and the job starts at all. The omitted
-`security-events: write` does not error, given a reusable workflow's permissions
-are capped by its caller and the upload step is skipped — this is the single
-least-certain line in the template. And a no-manifest repo reports success rather
-than failure.
+Two things to confirm before going wider, each of which would otherwise repeat
+identically across 14 repos: that the workflow parses and the job actually starts,
+and that a no-manifest repo reports success rather than failure.
+
+The permissions question is no longer among them — it is settled in the template
+above rather than deferred to this phase. What this canary structurally *cannot*
+test is the fork-PR path, because `repo-butler` receives no fork PRs. That has to
+be confirmed separately on `teams-for-linux`, which does, and it must be
+confirmed before Phase 5 turns a failing check into a merge block.
 
 ### Acceptance criteria
 
 A green `OSV-Scanner` check on a pull request in `repo-butler`, and a green
-scheduled run or a successful `workflow_dispatch` equivalent. If the permissions
-line does error, the fix is to add `security-events: write` to the template's
-`permissions` block and re-run Phase 2's golden test — not to enable the upload.
+scheduled run. Should any permissions error still appear, the fix is always to
+adjust the `permissions` block and re-run Phase 2's golden test — never to enable
+the SARIF upload.
+
+The `standards-exclude` entry is reverted before Phase 4 begins. Forgetting to
+revert it is the most likely way this plan stalls silently: governance would keep
+reporting full compliance while thirteen repos have no scanner at all.
 
 ## Phase 4 — rollout
 
-Dispatch the remaining eligible repos in batches under the per-run cap, then
-review, merge and verify each PR one at a time.
+Revert the `standards-exclude` entry so all eligible repos are back in scope, wait
+for a GOVERNANCE run, then dispatch in batches under the per-run cap and review,
+merge and verify each PR one at a time.
 
-`teams-for-linux`, `betis-escocia` and `bonnie-wee-plot` go in the first batch:
-they are the three losing Snyk coverage, so their gap is real rather than
-notional.
+Batch order cannot be chosen directly — `capPerTool` takes the first N in
+portfolio order. To front-load `teams-for-linux`, `betis-escocia` and
+`bonnie-wee-plot`, which are the three actually losing Snyk coverage, keep the
+other repos on the exclusion list for the first batch and drop them in
+afterwards. Alternatively accept whatever order the portfolio list yields, which
+is fine for correctness and only affects which repo is covered first. State which
+route is being taken rather than assuming the named order will happen.
 
 Stop and escalate rather than continue if any repo's PR fails CI for a reason
 that is not obviously local to that repo, if the scan surfaces a large number of
@@ -198,8 +282,11 @@ The template is applied identically to every repo, so a defect in it is a
 portfolio-wide defect. Phase 3 exists solely to bound that, and Phase 4 is
 sequenced one repo at a time rather than fanned out for the same reason.
 
-The `security-events` permission question is genuinely unresolved and is the most
-likely cause of a Phase 3 failure.
+The `security-events` permission question is resolved in the template rather than
+deferred: the grant is required for the call to validate at all, and the fork
+guard exists because a fork PR cannot receive it. Both were caught in review
+before any repo was touched; unedited, the original template would have failed on
+every repo before running a step.
 
 A repo with an unparseable or very large lockfile may fail the scan for reasons
 unrelated to vulnerabilities. This is handled per-repo in Phase 4, not
@@ -209,3 +296,22 @@ pre-emptively.
 after Phase 1 re-derives details for every repo, which is slower and makes more
 API calls than a cached run. This is expected, one-off, and the mechanism the
 repo already documents for exactly this situation.
+
+## Precondition: the fifteen-repo ceiling
+
+`fetchPortfolioDetails` populates `details` for `activeRepos.slice(0, 15)` only,
+while `detectStandardsGaps` iterates the unsliced eligible list. A repo past that
+index has no `details` entry, so every detector reading `details?.x` returns
+false and the repo is reported non-compliant on **every** standard — and
+`apply.js` treats that as a genuine PR target.
+
+This is a pre-existing defect affecting all twelve current standards, not
+something this plan introduces. It matters here because this plan's headline
+promise is that a repo joining later gets the scanner without anyone
+remembering to act, and the portfolio currently sits at exactly 14 active
+non-fork repos. There is one slot of headroom.
+
+So the promise holds to fifteen repos and then inverts: the sixteenth repo is
+silently reported non-compliant on everything. Raising or removing that slice is
+its own change and should be sequenced ahead of the portfolio growing, not
+bundled here. Recorded so it is a known precondition rather than a surprise.
