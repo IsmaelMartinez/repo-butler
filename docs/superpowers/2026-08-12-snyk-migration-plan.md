@@ -150,9 +150,9 @@ directly: an unauthenticated query returns real advisory data, and
 the rest of the portfolio's ecosystems, and it emits SARIF into the GitHub
 Security tab.
 
-The pull-request reusable workflow is the one that protects build health, because
-it diffs against the base branch and fails only on newly introduced
-vulnerabilities — it will not retroactively redden a currently green portfolio:
+The pull-request reusable workflow diffs against the base branch and fails only
+on newly introduced vulnerabilities, so it will not retroactively redden a
+currently green build:
 
 ```yaml
 name: OSV-Scanner PR Scan
@@ -168,15 +168,69 @@ jobs:
     uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.5.0"
 ```
 
+That variant alone is not sufficient, and shipping only it would quietly lose
+coverage. Snyk tested the whole lockfile on every run; the PR variant tests only
+the diff. A vulnerability already sitting in a lockfile is then reported by
+nothing — no PR touches it, so the diff is empty, and Dependabot never raised it
+(the pnpm auto-installed-peer case is exactly this shape). The scheduled
+`osv-scanner-reusable.yml` must land alongside the PR one to cover the standing
+backlog.
+
+Both must pin the reusable workflow by commit SHA rather than the `v2.5.0` tag
+shown above, because these jobs are granted `security-events: write` and a
+mutable third-party tag is a write-capable supply-chain surface. The
+`branches: [main]` filter also needs checking per repo before use — any repo
+whose default branch is not `main` would silently never run it.
+
 For SAST, CodeQL already covers this and costs nothing on public repositories. It
-runs on thirteen repos today; `pr-agent`, `flatpak-builder-lint`, `skills` and
-`com.github.IsmaelMartinez.teams_for_linux` have no code scanning at all and are
-the gap. Snyk Code was only ever meaningfully used on `ismaelmartinez.me.uk`,
-whose sole finding set is the one the `.snyk` file suppresses.
+runs on fourteen repos today. The remaining four — `pr-agent`,
+`flatpak-builder-lint`, `skills` and `com.github.IsmaelMartinez.teams_for_linux` —
+are **not** a gap to close: all four are upstream forks, and `eligibleRepos` in
+`governance.js` filters `!r.fork` by design, so governance deliberately excludes
+them. Their security ownership sits upstream. The Flathub manifest repo is the
+clearest case: `/languages` returns `{}`, so a CodeQL workflow there would fail
+with "no source code was seen during the build" in perpetuity on a repo that
+contains no code. Leave them alone.
+
+Snyk Code was only ever meaningfully used on `ismaelmartinez.me.uk`, whose sole
+finding set is the one the `.snyk` file suppresses.
 
 Dependabot alerts and security updates stay exactly as they are. They are the
 only free source of automated fix PRs, and the existing G12/G13 governance
 machinery already reasons about their behaviour.
+
+## The SARIF upload is a tier decision, not a display choice
+
+This is the trap in the whole migration and it must be settled before
+OSV-Scanner lands anywhere. Uploading SARIF into the GitHub Security tab is not
+a neutral reporting convenience here, because repo-butler reads that same
+surface to score itself.
+
+`computeHealthTier` in `report-shared.js` sets `codeScanningOk` false when
+`r.codeScanning.max_severity` is `critical` or `high`, which fails the
+"Zero critical/high security findings" gold check. `detectOpenVulnerabilities`
+in `governance.js` reads the same field and emits `high`-priority
+`open-vulnerability` findings. Today every repo's code-scanning signal comes from
+CodeQL, which reports SAST findings only — no repo has ever had SCA advisories in
+that channel.
+
+So the moment OSV-Scanner uploads SARIF for pre-existing transitive npm
+advisories, `teams-for-linux`, `betis-escocia` and `bonnie-wee-plot` drop off
+Gold on the public dashboard and the governance banner flips to `attention` —
+without a single new vulnerability being introduced. The claim above that the PR
+variant "will not retroactively redden a currently green portfolio" is true of
+build status and false of the health tier, which is the signal actually watched.
+Getting this wrong reproduces precisely the metric damage this migration exists
+to stop.
+
+Three ways out, and the choice is the maintainer's. Land OSV-Scanner without the
+SARIF upload and let it fail the job instead, keeping the code-scanning channel
+CodeQL-only and the tier logic untouched. Or upload SARIF and accept a one-off
+tier dip while the backlog is worked down, which is honest but noisy. Or upload
+only `critical` findings and gate the rest at job level. The first is the
+conservative default and the one that preserves the existing meaning of the
+tier; nothing should ship until this is decided, because it is far easier to
+choose now than to unpick a portfolio-wide tier drop afterwards.
 
 Optionally, `actions/dependency-review-action` with `fail-on-severity: high` adds
 PR-time gating and licence checks, free on public repos.
@@ -205,16 +259,28 @@ judgement call, not a requirement of this migration.
 
 ## Sequence
 
-The emergency unblock is done. The Snyk App uninstall is the next step and is a
-maintainer action. OSV-Scanner should land on the three previously-Snyk-covered
-repos first, since those are the ones losing coverage, and can then spread to the
-rest of the portfolio where Dependabot is currently the only dependency signal.
-CodeQL should be extended to the four repos that lack code scanning. The inert
-artefacts can be cleared at any point, independently, in ordinary pull requests.
+The emergency unblock is done. Decide the SARIF question above before anything
+else, because it determines how OSV-Scanner is configured everywhere.
 
-Nothing here should be merged without review, and the Snyk App should not be
-uninstalled until OSV-Scanner is landed on `teams-for-linux`, `betis-escocia` and
-`bonnie-wee-plot`, so that dependency coverage never drops to nothing.
+Then land OSV-Scanner — both the PR and scheduled variants — on the three
+previously-Snyk-covered repos first, since those are the ones losing coverage,
+and spread from there to the rest of the portfolio where Dependabot is currently
+the only dependency signal. Leave the four forks alone.
+
+**`betis-escocia` must then get its blocking gate back.** Removing the Snyk
+required check was the right emergency action, but it leaves the portfolio's only
+merge-blocking dependency check retired rather than replaced. Until the
+OSV-Scanner check is added to that ruleset's `required_status_checks`, a PR
+introducing a critical advisory merges green on `Tests (Required)` and `CodeQL`
+alone, and the repo ends this migration with weaker protection than it had on
+2026-08-09. This step is not optional and it is easy to forget, because nothing
+will be visibly broken in the meantime.
+
+Only once those three repos have replacement coverage should the Snyk App be
+uninstalled, so dependency coverage never drops to nothing. The inert artefacts
+can be cleared at any point, independently, in ordinary pull requests.
+
+Nothing here should be merged without review.
 
 ## Local Claude Code profile
 
@@ -231,6 +297,15 @@ that must be green before a PR is marked ready.
 Because each `snyk test` here runs against a filesystem path, every one is billed
 as a private test — this hook is the most likely consumer of the 200-test
 allowance. Disabling the two hooks is what stops the session blocking; that
-global gate line needs rewording to name the replacement tools. The work
+global gate line needs rewording to name the replacement tools.
+
+Decommissioning is not complete when the hooks come out. The `SNYK_TOKEN` in
+that file is a live credential sitting in plaintext, and it should be revoked at
+Snyk rather than merely left unused — a token that outlives the integration it
+served is a credential nobody is watching. The Snyk MCP server registration and
+the three Snyk skills should come out at the same time, or a later session will
+happily re-authenticate against a vendor the portfolio has formally dropped. The
+orphaned `SNYK_TOKEN` repository secret on `bonnie-wee-plot` belongs to the same
+sweep. The work
 profile at `~/.claude-work` carries a separate `SNYK_TOKEN` and is deliberately
 out of scope here.
