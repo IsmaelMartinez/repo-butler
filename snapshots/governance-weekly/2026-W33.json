@@ -7,32 +7,56 @@
         "type": "universal"
       },
       "compliant": [
+        "teams-for-linux",
+        "bonnie-wee-plot",
+        "betis-escocia",
         "repo-butler"
       ],
       "nonCompliant": [
-        "teams-for-linux",
-        "bonnie-wee-plot",
-        "betis-escocia"
+        "yourear",
+        "sound3fy",
+        "ismaelmartinez.me.uk",
+        "generator-atlassian-compass-event-catalog",
+        "ai-model-advisor",
+        "github-issue-triage-bot",
+        "wifisentinel",
+        "lounge-tv",
+        "delegate-local",
+        "skill-sources"
       ],
       "repoEcosystems": {
-        "teams-for-linux": null,
-        "bonnie-wee-plot": null,
-        "betis-escocia": null
+        "yourear": null,
+        "sound3fy": null,
+        "ismaelmartinez.me.uk": null,
+        "generator-atlassian-compass-event-catalog": null,
+        "ai-model-advisor": null,
+        "github-issue-triage-bot": null,
+        "wifisentinel": null,
+        "lounge-tv": null,
+        "delegate-local": null,
+        "skill-sources": null
       },
       "repoAutoMerge": {
-        "teams-for-linux": true,
-        "bonnie-wee-plot": true,
-        "betis-escocia": true
+        "yourear": true,
+        "sound3fy": true,
+        "ismaelmartinez.me.uk": true,
+        "generator-atlassian-compass-event-catalog": true,
+        "ai-model-advisor": true,
+        "github-issue-triage-bot": true,
+        "wifisentinel": true,
+        "lounge-tv": true,
+        "delegate-local": true,
+        "skill-sources": true
       },
-      "adoptionRate": 0.25,
+      "adoptionRate": 0.2857142857142857,
       "priority": "high",
       "remediation": {
         "executor": "template",
         "targetFiles": [
           ".github/workflows/osv-scanner.yml"
         ],
-        "intent": "Add osv-scanner to 3 non-compliant repo(s)",
-        "rationale": "Standards gap: osv-scanner adopted by 25% of in-scope repos; missing in teams-for-linux, bonnie-wee-plot, betis-escocia.",
+        "intent": "Add osv-scanner to 10 non-compliant repo(s)",
+        "rationale": "Standards gap: osv-scanner adopted by 29% of in-scope repos; missing in yourear, sound3fy, ismaelmartinez.me.uk, generator-atlassian-compass-event-catalog, ai-model-advisor, github-issue-triage-bot, wifisentinel, lounge-tv, delegate-local, skill-sources.",
         "acceptanceCriteria": [
           "Every non-compliant repo passes the osv-scanner standard check"
         ]
