@@ -1,57 +1,5 @@
 [
   {
-    "type": "standards-gap",
-    "tool": "osv-scanner",
-    "scope": {
-      "type": "universal"
-    },
-    "compliant": [
-      "yourear",
-      "sound3fy",
-      "teams-for-linux",
-      "ismaelmartinez.me.uk",
-      "generator-atlassian-compass-event-catalog",
-      "bonnie-wee-plot",
-      "betis-escocia",
-      "ai-model-advisor",
-      "repo-butler"
-    ],
-    "nonCompliant": [
-      "github-issue-triage-bot",
-      "wifisentinel",
-      "lounge-tv",
-      "delegate-local",
-      "skill-sources"
-    ],
-    "repoEcosystems": {
-      "github-issue-triage-bot": null,
-      "wifisentinel": null,
-      "lounge-tv": null,
-      "delegate-local": null,
-      "skill-sources": null
-    },
-    "repoAutoMerge": {
-      "github-issue-triage-bot": true,
-      "wifisentinel": true,
-      "lounge-tv": true,
-      "delegate-local": true,
-      "skill-sources": true
-    },
-    "adoptionRate": 0.6428571428571429,
-    "priority": "medium",
-    "remediation": {
-      "executor": "template",
-      "targetFiles": [
-        ".github/workflows/osv-scanner.yml"
-      ],
-      "intent": "Add osv-scanner to 5 non-compliant repo(s)",
-      "rationale": "Standards gap: osv-scanner adopted by 64% of in-scope repos; missing in github-issue-triage-bot, wifisentinel, lounge-tv, delegate-local, skill-sources.",
-      "acceptanceCriteria": [
-        "Every non-compliant repo passes the osv-scanner standard check"
-      ]
-    }
-  },
-  {
     "type": "tier-uplift",
     "repo": "teams-for-linux",
     "currentTier": "silver",
