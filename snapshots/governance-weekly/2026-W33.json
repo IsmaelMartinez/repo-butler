@@ -1,6 +1,36 @@
 {
   "findings": [
     {
+      "type": "standards-gap",
+      "tool": "osv-scanner",
+      "scope": {
+        "type": "universal"
+      },
+      "compliant": [],
+      "nonCompliant": [
+        "repo-butler"
+      ],
+      "repoEcosystems": {
+        "repo-butler": null
+      },
+      "repoAutoMerge": {
+        "repo-butler": true
+      },
+      "adoptionRate": 0,
+      "priority": "high",
+      "remediation": {
+        "executor": "template",
+        "targetFiles": [
+          ".github/workflows/osv-scanner.yml"
+        ],
+        "intent": "Add osv-scanner to 1 non-compliant repo(s)",
+        "rationale": "Standards gap: osv-scanner adopted by 0% of in-scope repos; missing in repo-butler.",
+        "acceptanceCriteria": [
+          "Every non-compliant repo passes the osv-scanner standard check"
+        ]
+      }
+    },
+    {
       "type": "tier-uplift",
       "repo": "teams-for-linux",
       "currentTier": "silver",
