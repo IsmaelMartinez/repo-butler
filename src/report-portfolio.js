@@ -400,7 +400,18 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         // key, so a single blip would write "compliant" and serve it until the
         // repo's next push, which on a quiet repo is indefinitely. Unknown is
         // honest and, unlike `true`, cannot be mistaken for evidence.
-        .catch(() => ({ ci: 0, hasReleaseWorkflow: true })),
+        // `ci` falls back to the cached count and only reaches `null` for a repo
+        // that has never been read successfully. It must NOT fail to 0: `ci`
+        // feeds computeHealthTier's "Has CI workflows (2+)" gold check, so a
+        // single 500 on this endpoint used to demote a healthy repo — and the
+        // G7 detector then filed a high-priority tier-regression finding about
+        // a regression that never happened. That is worse than the spurious
+        // remediation PR the templated standards guard against, because it
+        // moves the portfolio's headline metric and persists into the weekly
+        // snapshot as a stored tier. Unlike hasReleaseWorkflow above, `ci` must
+        // not fail toward present either: it is a COUNT, and inventing one
+        // would award gold on no evidence. Last known value, else unknown.
+        .catch(() => ({ ci: cached?.details?.ci ?? null, hasReleaseWorkflow: true })),
       fetchDefaultBranchWorkflows(gh, owner, r.name),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {

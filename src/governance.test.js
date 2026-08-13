@@ -218,6 +218,27 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings[0].adoptionRate, 0.5);
   });
 
+  it('treats an unread ci count as unknown, not as zero CI workflows', () => {
+    // `ci` is a COUNT, so the tri-state edge is different from the boolean
+    // file-presence standards: `|| 0` silently turned "never read" into the
+    // strongest possible claim of non-compliance. The same null also reaches
+    // computeHealthTier's gold check, so a repo that simply failed a fetch used
+    // to be reported as having no CI at all.
+    const repos = [makeRepo('has-ci'), makeRepo('no-ci'), makeRepo('unread')];
+    const details = makeDetails(repos, {
+      'has-ci': { ci: 3 },
+      'no-ci': { ci: 0 },
+      unread: { ci: null },
+    });
+    const standards = [{ tool: 'ci-workflows', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].compliant, ['has-ci']);
+    // A real zero is still a real gap — only the unread repo drops out.
+    assert.deepEqual(result.findings[0].nonCompliant, ['no-ci']);
+    assert.equal(result.findings[0].adoptionRate, 0.5);
+  });
+
   it('emits no dependabot-auto-merge finding when every applicable repo is unknown', () => {
     // The transient-outage shape. One bad window on the contents API must not
     // produce a portfolio-wide gap finding, because this standard's findings

@@ -188,7 +188,11 @@ const STANDARD_DETECTORS = {
   'contributing-guide': (_repo, details) => (details?.communityHealth ?? 0) >= 50,
   'license': (_repo, details) => !!(details?.license && details.license !== 'None'),
   'dependabot-actions': (_repo, details) => details?.vulns != null,
-  'ci-workflows': (_repo, details) => (details?.ci || 0) >= 1,
+  // Tri-state: `ci` is null when the workflow listing has never been read
+  // successfully for this repo (report-portfolio falls back to the cached count
+  // first). `|| 0` would read that as "no CI workflows" and report a gap the
+  // repo does not have.
+  'ci-workflows': (_repo, details) => (details?.ci == null ? null : details.ci >= 1),
   'code-scanning': (_repo, details) => details?.codeScanning != null,
   'secret-scanning': (_repo, details) => details?.secretScanning != null,
   'codeowners': (_repo, details) => !!details?.hasCodeowners,

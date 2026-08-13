@@ -1940,6 +1940,52 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['err-wf'].hasReleaseWorkflow, true);
   });
 
+  it('keeps the last known ci count when the workflows request errors, rather than reporting zero', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { REPO_CACHE_SCHEMA_VERSION } = await import('./report-shared.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) return Promise.reject(new Error('rate limited'));
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'err-ci', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    // A stale cache entry (pushed_at differs, so this is NOT a cache hit and the
+    // full fetch runs) still holds the last count that was actually observed.
+    const cache = {
+      repos: {
+        'err-ci': {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+          pushed_at: '2026-01-01T00:00:00Z',
+          open_issues_count: 0,
+          details: { ci: 9 },
+        },
+      },
+    };
+    // ci feeds computeHealthTier's "Has CI workflows (2+)" gold check. Failing to
+    // 0 demoted a healthy repo on one 500 and then filed a G7 tier-regression
+    // finding about the demotion.
+    const withCache = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
+    assert.equal(withCache['err-ci'].ci, 9);
+
+    // With nothing ever observed, the honest answer is unknown — not zero, which
+    // is an assertion of non-compliance, and not a count, which would award gold
+    // on no evidence.
+    const noCache = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(noCache['err-ci'].ci, null);
+  });
+
   // --- hasOsvScanner (osv-scanner standard) ---
   //
   // hasOsvScanner is TRI-STATE and comes from ONE read: GET

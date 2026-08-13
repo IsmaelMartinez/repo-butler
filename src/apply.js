@@ -368,6 +368,30 @@ const TOOL_PR_NOTES = {
 // forgeable by anyone with push access. Single source of truth for both sites.
 export const APPLY_PR_MARKER = 'Opened automatically by [Repo Butler]';
 
+// How long a closed-unmerged apply PR suppresses a re-open. Matches PROPOSE's
+// includeClosedDays: 30 so the two lanes decline on the same clock.
+export const APPLY_DECLINE_COOLDOWN_DAYS = 30;
+
+/**
+ * True when `pr` is an apply PR the maintainer closed WITHOUT merging, recently
+ * enough to still count as a decline.
+ *
+ * Merged PRs return false by design — the work landed, so a reappearing gap
+ * should be re-applied, not suppressed.
+ *
+ * An unparseable or missing `closed_at` returns false (not suppressive): the
+ * alternative is a PR with a broken timestamp muting its standard forever, and
+ * unlike the fetch failure above there is nothing here to be cautious about —
+ * the open-PR check has already run, so the worst case is one duplicate PR
+ * attempt against an existing branch rather than a silently disabled standard.
+ */
+export function isRecentlyDeclined(pr, now = Date.now()) {
+  if (!pr || pr.state !== 'closed' || pr.merged_at) return false;
+  const closedAt = new Date(pr.closed_at ?? '').getTime();
+  if (Number.isNaN(closedAt)) return false;
+  return (now - closedAt) <= APPLY_DECLINE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export function generateTemplate(tool, ecosystem, owner, rootFiles = null) {
   const tmpl = TEMPLATES[tool];
   if (!tmpl) return null;
@@ -534,19 +558,47 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
 async function applyToRepo(gh, owner, repo, tool, ecosystem) {
   const branchName = `repo-butler/apply-${tool}`;
 
-  let existingPRs;
+  // `state: 'all'`, not 'open': an open PR is not the only reason to stay away.
+  // A PR the maintainer CLOSED without merging is a decline, and re-opening it
+  // on the next unattended cron is how an automation earns a mute. PROPOSE has
+  // had this since G7 (findDuplicates' 30-day cooldown); apply never did, and
+  // the branch name is deterministic per tool, so the signal is unambiguous
+  // here — no title-similarity guessing needed. A cooldown rather than
+  // permanent suppression, matching PROPOSE: an accidental close should not
+  // disable a standard for a repo forever and invisibly.
+  let branchPRs;
   try {
-    existingPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
-      params: { state: 'open', head: `${owner}:${branchName}`, per_page: 10 },
+    branchPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'all', head: `${owner}:${branchName}`, per_page: 10 },
       max: 10,
     });
-  } catch {
-    existingPRs = [];
+  } catch (err) {
+    // Fail CLOSED. This read is now the only thing carrying the decline signal,
+    // so treating an unreadable history as "nothing there" would re-open the
+    // very PR the maintainer just closed — the failure this guard exists to
+    // prevent. Apply is idempotent and runs weekly, so skipping one run costs a
+    // week; re-opening a declined PR costs trust. Same posture as ADR-012's
+    // unreadable-state skip below.
+    console.log(`apply: ${owner}/${repo} PR history unreadable for ${tool}, skipping (fail-closed): ${err.message}`);
+    return { repo, tool, status: 'skipped', reason: 'PR history unreadable' };
   }
 
-  if (existingPRs.length > 0) {
+  // Anything not DEFINITIVELY closed blocks. The query used to filter
+  // `state: 'open'` server-side, so every row returned was open by
+  // construction; now that it asks for 'all', the open/closed split is made
+  // here, and a missing or unrecognised state must not be read as "no open PR"
+  // — that would try to re-open a PR whose branch already exists.
+  if (branchPRs.some(pr => pr.state !== 'closed')) {
     console.log(`apply: ${owner}/${repo} already has open PR for ${tool}, skipping`);
     return { repo, tool, status: 'skipped', reason: 'PR already open' };
+  }
+
+  // Merged PRs are deliberately NOT suppressive: the work landed, and if the
+  // gap has reappeared since, re-applying is the correct response.
+  const declined = branchPRs.find(pr => isRecentlyDeclined(pr));
+  if (declined) {
+    console.log(`apply: ${owner}/${repo} PR #${declined.number} for ${tool} was closed unmerged within ${APPLY_DECLINE_COOLDOWN_DAYS}d, skipping`);
+    return { repo, tool, status: 'skipped', reason: 'recently declined' };
   }
 
   const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
