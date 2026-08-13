@@ -104,6 +104,33 @@
           "teams-for-linux is back at gold in a subsequent weekly snapshot"
         ]
       }
+    },
+    {
+      "type": "stale-butler-pr",
+      "repo": "lounge-tv",
+      "stalePRs": [
+        {
+          "number": 21,
+          "age": 31,
+          "branch": "repo-butler/onboard",
+          "prClass": "onboard",
+          "draft": false,
+          "verified": true,
+          "author": "repo-butler-app[bot]",
+          "state": "awaiting-human",
+          "failing": []
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Land or close 1 stale repo-butler PR(s) in lounge-tv",
+        "rationale": "1 butler-opened PR(s) unmerged beyond the staleness threshold (oldest 31 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
+        "acceptanceCriteria": [
+          "Each stale repo-butler PR is merged or closed"
+        ]
+      }
     }
   ]
 }
