@@ -1570,14 +1570,15 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.ok(details._cachedRepos.includes('cached-repo'), 'should mark as cached');
   });
 
-  // Cache-hit osv-scanner re-derivation. hasOsvScanner is never served from the
-  // cache entry — it is recomputed from a live contents listing on every cache
-  // hit. The reason is the tri-state: a single failed read writes `null`, and a
-  // cached `null` would be served until the repo's next push, which on a quiet
-  // repo is never. Governance skips unknowns, so the standard would silently
-  // never apply to exactly the repos nobody touches — the ones most likely to be
-  // missing it. One extra call buys a verdict that is always current.
-  const cachedOsvGh = (contentsResponse) => ({
+  // Cache-hit re-derivation of the two templated-workflow flags. Neither
+  // hasOsvScanner nor hasAutoMergeWorkflow is ever served from the cache entry —
+  // both are recomputed from ONE live contents listing on every cache hit. The
+  // reason is the tri-state: a single failed read writes `null`, and a cached
+  // `null` would be served until the repo's next push, which on a quiet repo is
+  // never. Governance skips unknowns, so the standard would silently never apply
+  // to exactly the repos nobody touches — the ones most likely to be missing it.
+  // One extra call buys a verdict that is always current, for both flags.
+  const cachedWorkflowsGh = (contentsResponse) => ({
     request: (path) => {
       if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
       if (path.includes('/contents/.github/workflows')) return contentsResponse();
@@ -1586,10 +1587,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     paginate: () => Promise.resolve([]),
     getFileContent: () => Promise.resolve(null),
   });
-  const cachedOsvRepos = [
+  const cachedWorkflowsRepos = [
     { name: 'cached-repo', pushed_at: '2026-04-01T00:00:00Z', open_issues: 5, archived: false, fork: false, stars: 10 },
   ];
-  const cachedOsvCache = (details) => ({
+  const cachedWorkflowsCache = (details) => ({
     repos: {
       'cached-repo': {
         schemaVersion: REPO_CACHE_SCHEMA_VERSION,
@@ -1600,14 +1601,42 @@ describe('fetchPortfolioDetails incremental cache', () => {
     },
   });
 
+  it('treats an EMPTY cached details object as never-fetched, not as a cache hit', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // report.js persists `{ ...(repoDetails?.[name] || {}) }` for every active
+    // repo, so one skipped past PORTFOLIO_DETAIL_LIMIT is cached as `{}` under a
+    // current schema version. Taking the cache-hit branch would spread the
+    // live-refreshed fields onto that and hand governance a NON-EMPTY details
+    // object carrying no license, no codeowners and no security policy —
+    // defeating hasRepoDetails, which exists to reject exactly that entry, and
+    // making the repo a remediation-PR target on every allow-listed standard at
+    // once. It must fall through to a full fetch instead.
+    const gh = cachedWorkflowsGh(() => Promise.resolve([{ name: 'osv-scanner.yml' }]));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
+      cache: {
+        repos: {
+          'cached-repo': {
+            schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+            pushed_at: '2026-04-01T00:00:00Z',
+            open_issues_count: 5,
+            details: {},
+          },
+        },
+      },
+    });
+    const d = details['cached-repo'];
+    assert.ok(Object.keys(d).length > 4, 'must be a full fetch, not four refreshed keys spread onto {}');
+    assert.ok('license' in d, 'a full fetch populates license; the cache-hit branch cannot');
+  });
+
   it('re-derives a cached unknown hasOsvScanner into a real verdict without waiting for a push', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // The whole point of the cache-hit re-read. Last run's contents read failed
     // and cached `null`; this run's succeeds and finds the file. Serving the
     // cached value would strand the repo as unknown indefinitely.
-    const gh = cachedOsvGh(() => Promise.resolve([{ name: 'ci.yml' }, { name: 'osv-scanner.yml' }]));
-    const details = await fetchPortfolioDetails(gh, 'owner', cachedOsvRepos, {
-      cache: cachedOsvCache({ hasOsvScanner: null }),
+    const gh = cachedWorkflowsGh(() => Promise.resolve([{ name: 'ci.yml' }, { name: 'osv-scanner.yml' }]));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
+      cache: cachedWorkflowsCache({ hasOsvScanner: null }),
     });
     assert.equal(details['cached-repo'].hasOsvScanner, true, 'a cached unknown must be re-derived, never served');
   });
@@ -1622,13 +1651,48 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // at all. The rejection is exactly what github.js throws: a plain Error
     // carrying the status in its MESSAGE, with no `status` property, because a
     // richer mock than the real client would make this test evidence of nothing.
-    const gh = cachedOsvGh(() => Promise.reject(
+    const gh = cachedWorkflowsGh(() => Promise.reject(
       new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error')
     ));
-    const details = await fetchPortfolioDetails(gh, 'owner', cachedOsvRepos, {
-      cache: cachedOsvCache({ hasOsvScanner: false }),
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
+      cache: cachedWorkflowsCache({ hasOsvScanner: false }),
     });
     assert.equal(details['cached-repo'].hasOsvScanner, false, 'a transient unknown must not overwrite a known cached verdict');
+  });
+
+  it('re-derives a cached hasAutoMergeWorkflow live rather than serving the cached verdict', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // The stale-compliant case, and the one that motivated moving this verdict
+    // off the registration listing. The cache says the auto-merge workflow is
+    // present; the default branch says otherwise — an apply PR that registered
+    // the workflow and was then closed unmerged, or a file since deleted. Under
+    // a pushed_at cache key a deletion does bump pushed_at, but a PR closed
+    // unmerged does not, so serving `true` would hide the gap indefinitely on a
+    // quiet repo. The live contents listing is the only verdict.
+    const gh = cachedWorkflowsGh(() => Promise.resolve([{ name: 'ci.yml' }]));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
+      cache: cachedWorkflowsCache({ hasAutoMergeWorkflow: true }),
+    });
+    assert.equal(details['cached-repo'].hasAutoMergeWorkflow, false, 'the cached verdict must be re-derived from the live listing, never served');
+  });
+
+  it('keeps a known cached hasAutoMergeWorkflow when the live re-read fails for a reason other than 404', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // Same asymmetry as hasOsvScanner, with a sharper edge: dependabot-auto-merge
+    // is BOTH templatable and on the apply-schedule allow-list, so what happens
+    // to this field on a bad read decides whether an unattended scheduled run
+    // opens a PR. An unknown live read is strictly less information than the
+    // cached verdict, so the cached `true` stands rather than decaying to null.
+    // The rejection is exactly what github.js throws — a plain Error carrying
+    // the code in its MESSAGE, with no `status` property — because a mock richer
+    // than the real client would make this test evidence of nothing.
+    const gh = cachedWorkflowsGh(() => Promise.reject(
+      new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error')
+    ));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
+      cache: cachedWorkflowsCache({ hasAutoMergeWorkflow: true }),
+    });
+    assert.equal(details['cached-repo'].hasAutoMergeWorkflow, true, 'a transient unknown must not overwrite a known cached verdict');
   });
 
   it('fetches fresh data when pushed_at differs', async () => {
@@ -1722,14 +1786,22 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.deepEqual(details._cachedRepos, [], 'no repos should be cached');
   });
 
-  it('derives hasAutoMergeWorkflow and allowAutoMerge from the reused fetchers', async () => {
+  it('derives hasAutoMergeWorkflow from the default-branch contents listing, and allowAutoMerge from repo settings', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     const gh = {
       // Order matters: the bare /repos/{owner}/{repo} path is a prefix of the
       // /actions/workflows path, so match the more-specific subpaths first.
       request: (path) => {
+        if (path.includes('/contents/.github/workflows')) {
+          return Promise.resolve([{ name: 'ci.yml' }, { name: 'dependabot-auto-merge.yml' }]);
+        }
+        // The workflows REGISTRATION listing deliberately does NOT carry the
+        // auto-merge workflow here. The verdict below is `true` regardless, and
+        // that is the assertion: presence comes from the file on the default
+        // branch, never from what GitHub has registered. See the tri-state block
+        // further down for why the listing cannot be trusted.
         if (path.includes('/actions/workflows')) {
-          return Promise.resolve({ total_count: 1, workflows: [{ name: 'Dependabot auto-merge', path: '.github/workflows/dependabot-auto-merge.yml' }] });
+          return Promise.resolve({ total_count: 1, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }] });
         }
         if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
         if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
@@ -1756,6 +1828,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     const gh = {
       request: (path) => {
+        if (path.includes('/contents/.github/workflows')) return Promise.resolve([{ name: 'ci.yml' }]);
         if (path.includes('/actions/workflows')) {
           return Promise.resolve({ total_count: 1, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }] });
         }
@@ -2018,6 +2091,110 @@ describe('fetchPortfolioDetails incremental cache', () => {
     );
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
     assert.equal(details['osv-repo'].hasOsvScanner, false);
+  });
+
+  // --- hasAutoMergeWorkflow (dependabot-auto-merge standard) ---
+  //
+  // Same shape as hasOsvScanner, from the same single read, and for the same
+  // two reasons — but the stakes are higher, so it gets its own coverage rather
+  // than riding on the scanner's.
+  //
+  // It is TRI-STATE and comes from GET /contents/.github/workflows, the
+  // directory listing on the DEFAULT BRANCH. The workflows REGISTRATION listing
+  // (GET /actions/workflows) is deliberately not consulted: GitHub lists every
+  // workflow it has ever registered, including from branches that never merged.
+  // Verified on this repository — `release-recovery.yml` is listed `active`
+  // while existing on no branch. An apply PR opened and then closed unmerged
+  // therefore left the repo reading compliant forever, so its gap never
+  // reappeared and no further PR was ever offered.
+  //
+  // And `false` is not the safe default for an unreadable read.
+  // dependabot-auto-merge is both templatable and on the apply-schedule
+  // allow-list, so a `false` manufactured from one transient API error opens a
+  // remediation PR on an unattended scheduled run. Unknown is reported instead,
+  // and governance skips unknowns. Fail-toward-present would be wrong too: this
+  // details object is persisted under a pushed_at cache key, so one transient
+  // `true` would be served until the repo's next push.
+  //
+  // The registration listing below therefore carries the auto-merge workflow,
+  // active and complete, in every case except the clean-absence one: it always
+  // says "compliant" while the verdicts vary, so no assertion here can be
+  // quietly reading it.
+  const amRegistered = () => Promise.resolve({
+    total_count: 2,
+    workflows: [
+      { name: 'CI', path: '.github/workflows/ci.yml', state: 'active' },
+      { name: 'Dependabot auto-merge', path: '.github/workflows/dependabot-auto-merge.yml', state: 'active' },
+    ],
+  });
+  const amRepos = [
+    { name: 'am-tri', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+  ];
+
+  it('reports hasAutoMergeWorkflow true when the templated file is on the default branch', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = makeWorkflowsGh(
+      () => Promise.resolve([{ name: 'ci.yml' }, { name: 'dependabot-auto-merge.yml' }]),
+      amRegistered,
+    );
+    const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
+    assert.equal(details['am-tri'].hasAutoMergeWorkflow, true);
+  });
+
+  it('reports hasAutoMergeWorkflow false when the file is absent from the default branch', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // Clean absence: nothing registered, nothing on the branch. A real gap, and
+    // the only verdict that may open a remediation PR.
+    const gh = makeWorkflowsGh(
+      () => Promise.resolve([{ name: 'ci.yml' }]),
+      () => Promise.resolve({ total_count: 1, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml', state: 'active' }] }),
+    );
+    const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
+    assert.equal(details['am-tri'].hasAutoMergeWorkflow, false);
+  });
+
+  it('reports hasAutoMergeWorkflow false for a workflow REGISTERED but absent from the default branch', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // The phantom case — the regression this whole change exists to prevent.
+    // The registration listing says the auto-merge workflow is there and active;
+    // the default branch does not have the file. That is precisely what an apply
+    // PR opened and then closed unmerged leaves behind, and reading the listing
+    // reported the repo compliant from then on, permanently. The contents
+    // listing is the only thing that can tell the difference.
+    const gh = makeWorkflowsGh(() => Promise.resolve([{ name: 'ci.yml' }]), amRegistered);
+    const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
+    assert.equal(details['am-tri'].hasAutoMergeWorkflow, false, 'a registered-but-unmerged workflow is a gap, not compliance');
+  });
+
+  it('reports hasAutoMergeWorkflow false when the workflows directory 404s (no workflows at all)', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // A 404 on the contents listing is a genuine answer, not a failure: there is
+    // no .github/workflows directory, so the workflow is definitively absent and
+    // this is a real gap. The error is EXACTLY what github.js throws — a plain
+    // Error whose message embeds the code, with NO `status` property — so the
+    // message test in the `.catch` is the only thing that can classify it. A
+    // mock richer than the real client would turn a green test into evidence of
+    // nothing.
+    const gh = makeWorkflowsGh(
+      () => Promise.reject(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 404 Not Found')),
+      amRegistered,
+    );
+    const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
+    assert.equal(details['am-tri'].hasAutoMergeWorkflow, false);
+  });
+
+  it('reports hasAutoMergeWorkflow null when the contents read fails for any reason other than 404', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    // Rate limit, 403, network blip: we do not know what is on the default
+    // branch. `false` here would open an apply PR on every repo the failure
+    // touched, unattended, on the apply schedule. Unknown is honest, and
+    // governance excludes unknowns from both compliance arrays.
+    const gh = makeWorkflowsGh(
+      () => Promise.reject(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 500 Internal Server Error')),
+      amRegistered,
+    );
+    const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
+    assert.equal(details['am-tri'].hasAutoMergeWorkflow, null);
   });
 
   it('surfaces hasCopilotReview through fetchPortfolioDetails (active Copilot ruleset → true)', async () => {

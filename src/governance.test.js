@@ -192,6 +192,47 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings[0].repoAutoMerge.b, false);
   });
 
+  it('reports only an explicit hasAutoMergeWorkflow false as non-compliant across the tri-state', () => {
+    // dependabot-auto-merge is tri-state for the same reason osv-scanner is, but
+    // with a sharper edge: it is BOTH templatable and on the apply-schedule
+    // allow-list, so a repo landing in nonCompliant gets a remediation PR opened
+    // on an unattended scheduled run. The `!!` coercion this replaced turned
+    // every uncertain read into exactly that. `unknown` carries an explicit null
+    // (the contents listing failed); `absent` has a populated details entry with
+    // no verdict key at all (the repo was looked at, this field was not
+    // resolvable) — neither is evidence of absence, and neither may be a PR
+    // target.
+    const repos = [makeRepo('yes'), makeRepo('no'), makeRepo('unknown'), makeRepo('absent')];
+    const details = makeDetails(repos, {
+      yes: { hasAutoMergeWorkflow: true },
+      no: { hasAutoMergeWorkflow: false },
+      unknown: { hasAutoMergeWorkflow: null },
+      absent: {},
+    });
+    const standards = [{ tool: 'dependabot-auto-merge', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].compliant, ['yes']);
+    assert.deepEqual(result.findings[0].nonCompliant, ['no']);
+    // Both unknowns are excluded from the denominator too: 1/2, not 1/4.
+    assert.equal(result.findings[0].adoptionRate, 0.5);
+  });
+
+  it('emits no dependabot-auto-merge finding when every applicable repo is unknown', () => {
+    // The transient-outage shape. One bad window on the contents API must not
+    // produce a portfolio-wide gap finding, because this standard's findings
+    // feed the scheduled apply path.
+    const repos = [makeRepo('a'), makeRepo('b')];
+    const details = makeDetails(repos, {
+      a: { hasAutoMergeWorkflow: null },
+      b: { hasAutoMergeWorkflow: null },
+    });
+    const standards = [{ tool: 'dependabot-auto-merge', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 0);
+    assert.equal(result.summary.gaps, 0);
+  });
+
   it('detects codeowners gaps', () => {
     const repos = [makeRepo('a'), makeRepo('b')];
     const details = makeDetails(repos, {

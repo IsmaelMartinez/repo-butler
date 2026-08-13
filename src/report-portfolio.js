@@ -220,6 +220,7 @@ export function analyzeDependencyInventory(details) {
 // looser match would let a repo's own variant read as compliant while the
 // template could never converge on it.
 export const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
+export const AUTOMERGE_WORKFLOW_FILE = 'dependabot-auto-merge.yml';
 
 // How many active repos get a full details fetch. Each costs ~11 API calls, so
 // this bounds one portfolio pass; the original value was 15, chosen in the first
@@ -231,45 +232,46 @@ export const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
 // target on all of them at once.
 export const PORTFOLIO_DETAIL_LIMIT = 40;
 
-// Is the templated scanner workflow on the repo's DEFAULT BRANCH? Tri-state:
+// Templated-workflow presence is read from the DEFAULT BRANCH via the contents
+// API, never from the workflows registration listing. That listing returns every
+// workflow GitHub has ever registered, including from branches that were never
+// merged — verified on this repo, where `release-recovery.yml` is listed
+// `active` while existing on no branch. The gap is reachable by construction,
+// because a templated workflow triggering `on: pull_request` registers itself
+// when it runs on the apply PR that introduces it: the listing would report the
+// repo compliant before that PR merged, and permanently if it were closed
+// unmerged.
 //
-//   true  — the file is there
-//   false — the directory exists without it, or there is no directory at all
-//   null  — could not tell
-//
-// Only `false` opens a remediation PR, so every uncertain path lands on null.
-//
-// The workflows *registration* listing deliberately is not consulted. It
-// returns every workflow GitHub has ever registered, including from branches
-// that were never merged — verified on this repo, where `release-recovery.yml`
-// is listed `active` while existing on no branch. That gap is reachable by
-// construction here, because the templated workflow triggers `on: pull_request`
-// and so registers itself when it runs on the apply PR that introduces it: the
-// listing would report the repo compliant before that PR merged, and
-// permanently if it were closed unmerged.
-//
-// Nor does this check whether the workflow is ENABLED, and that is a deliberate
+// Nor is a workflow's ENABLED state consulted, and that is a deliberate
 // narrowing rather than an oversight. GitHub auto-disables schedule-triggered
-// workflows after 60 days of repository inactivity, and this template is
-// schedule-triggered — so on any quiet repo the scanner eventually flips to
-// `disabled_inactivity` through no one's decision. Treating that as a standards
-// gap routes the repo to the templated apply path, whose contents PUT supplies
-// no `sha`; the file already exists, so GitHub answers 422 and the same
-// unfixable finding retries on every run forever. Writing a file cannot
-// re-enable a workflow. Enablement is a settings concern needing a settings
-// executor, and conflating it with a file-presence standard produces a finding
-// whose remediation provably cannot succeed.
-async function fetchOsvScannerPresence(gh, owner, repo) {
+// workflows after 60 days of repository inactivity, so on a quiet repo one flips
+// to `disabled_inactivity` through no one's decision. Treating that as a
+// standards gap routes the repo to the templated apply path, whose contents PUT
+// supplies no `sha`; the file already exists, so GitHub answers 422 and the same
+// unfixable finding retries forever. Writing a file cannot re-enable a workflow.
+// A standard must only detect conditions its own remediation can fix.
+//
+// Returns the Set of workflow FILENAMES on the default branch, or null when the
+// listing could not be read. A 404 is a real answer — no .github/workflows
+// directory — and yields an empty Set, so every templated workflow reads as
+// genuinely absent. Anything else is `null`, i.e. unknown.
+//
+// The 404 is detected from the message, not `err.status`: github.js throws plain
+// Errors and never sets a status property, so a `.status === 404` check silently
+// never matches and would send every directory-less repo down the unknown arm —
+// skipping precisely the repos most in need of these standards. Every other 404
+// consumer in this codebase uses this same message test.
+async function fetchDefaultBranchWorkflows(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/contents/.github/workflows`)
-    .then(d => Array.isArray(d) ? d.some(f => f.name === OSV_WORKFLOW_FILE) : false)
-    // A 404 is a real answer — no .github/workflows directory, so the scanner is
-    // genuinely absent. Anything else is unknown. Detected from the message, not
-    // `err.status`: github.js throws plain Errors and never sets a status
-    // property, so a `.status === 404` check silently never matches and would
-    // send every directory-less repo down the unknown arm — skipping precisely
-    // the repos most in need of the standard. Every other 404 consumer in this
-    // codebase uses this same message test.
-    .catch(err => (err?.message?.includes(': 404') ? false : null));
+    .then(d => new Set(Array.isArray(d) ? d.map(f => f.name) : []))
+    .catch(err => (err?.message?.includes(': 404') ? new Set() : null));
+}
+
+// Presence of a templated workflow file, as the tri-state the governance
+// detectors read: true installed, false genuinely absent, null could not tell.
+// Only `false` opens a remediation PR, so every uncertain path lands on null.
+function workflowPresence(names, filename) {
+  return names == null ? null : names.has(filename);
 }
 
 export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } = {}) {
@@ -297,6 +299,18 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       && cached.schemaVersion === REPO_CACHE_SCHEMA_VERSION
       && cached.pushed_at === r.pushed_at
       && cached.open_issues_count === (r.open_issues || 0)
+      // An EMPTY cached details object is not a cache hit, it is a record that
+      // nobody ever fetched this repo: report.js persists
+      // `{ ...(repoDetails?.[name] || {}) }` for every active repo, including
+      // those skipped past PORTFOLIO_DETAIL_LIMIT. Taking the branch would spread
+      // the live-refreshed fields onto `{}` and hand governance a NON-EMPTY
+      // details object with no license, no codeowners, no security policy — and
+      // hasRepoDetails, which exists to reject exactly that, would pass it. Every
+      // `!!details?.x` detector then reads false and the repo becomes a
+      // remediation-PR target on every allow-listed class at once, on the
+      // unattended weekly cron, purely because nobody looked at it. Fall through
+      // to the full fetch instead.
+      && Object.keys(cached.details || {}).length > 0
     ) {
       // The Dependabot autofix setting (ADR-012 Phase 3) and the Copilot review
       // ruleset (ADR-009) are both repo-settings toggles that can flip without a
@@ -309,37 +323,40 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // field that can't be tied to a cache key gets a live read on every cache
       // hit rather than a schema-version bump (which would only recompute once).
       //
-      // hasOsvScanner is re-read here too, for a different reason: it is
-      // tri-state, and an UNKNOWN result must never become permanent. A repo
-      // whose contents read failed once would otherwise carry `null` in its
-      // cache entry until its next push — which on a quiet repo is indefinitely
-      // — and governance skips unknowns, so the standard would silently never
-      // apply to exactly the repos nobody touches. Re-deriving it costs one
-      // call and makes the verdict always current rather than only as current
-      // as the last push.
-      const [autofix, hasCopilotReview, hasOsvScanner] = await Promise.all([
+      // The two templated-workflow flags are re-read here too, for a different
+      // reason: they are tri-state, and an UNKNOWN result must never become
+      // permanent. A repo whose contents read failed once would otherwise carry
+      // `null` in its cache entry until its next push — which on a quiet repo is
+      // indefinitely — and governance skips unknowns, so those standards would
+      // silently never apply to exactly the repos nobody touches. One call
+      // serves both and makes the verdicts always current rather than only as
+      // current as the last push.
+      const [autofix, hasCopilotReview, workflowFiles] = await Promise.all([
         getAutomatedSecurityFixesState(gh, owner, r.name),
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
-        fetchOsvScannerPresence(gh, owner, r.name),
+        fetchDefaultBranchWorkflows(gh, owner, r.name),
       ]);
       // An unknown live read must not destroy a known cached verdict — it is
       // strictly less information than what is already on hand. Without the
       // fallback, one 500 on the contents API turns a cached `false` (a real,
       // actionable gap) into `null`, governance skips the repo, and the run
-      // reports no dependency-scanning gap at all: indistinguishable from full
-      // adoption. The re-read exists to stop an unknown becoming permanent, not
-      // to let a transient one erase a fact.
+      // reports no gap at all: indistinguishable from full adoption. The re-read
+      // exists to stop an unknown becoming permanent, not to let a transient one
+      // erase a fact.
       details[r.name] = {
         ...cached.details,
         autofix,
         hasCopilotReview,
-        hasOsvScanner: hasOsvScanner ?? cached.details?.hasOsvScanner ?? null,
+        hasOsvScanner: workflowPresence(workflowFiles, OSV_WORKFLOW_FILE)
+          ?? cached.details?.hasOsvScanner ?? null,
+        hasAutoMergeWorkflow: workflowPresence(workflowFiles, AUTOMERGE_WORKFLOW_FILE)
+          ?? cached.details?.hasAutoMergeWorkflow ?? null,
       };
       cachedRepos.add(r.name);
-      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + osv-scanner refreshed)`);
+      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + templated workflows refreshed)`);
       return;
     }
-    const [commits, weekly, repoMeta, workflowsMeta, hasOsvScanner, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
+    const [commits, weekly, repoMeta, workflowsMeta, workflowFiles, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
       }).then(d => d.total_count).catch(() => 0),
@@ -354,7 +371,11 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
           const wfs = d.workflows || [];
           return {
             ci: d.total_count || 0,
-            hasAutoMergeWorkflow: wfs.some(w => w.path === '.github/workflows/dependabot-auto-merge.yml'),
+            // hasAutoMergeWorkflow used to be derived here and no longer is: the
+            // registration listing reports workflows from branches that were
+            // never merged, so an apply PR opened and then closed unmerged left
+            // the repo reading compliant forever. It now comes from the
+            // default-branch contents read below, like hasOsvScanner.
             // Any workflow whose path or display name mentions "release" counts as
             // release automation — deliberately broader than the templated
             // .github/workflows/release.yml so hand-rolled release/publish
@@ -370,14 +391,17 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         })
         // hasReleaseWorkflow fails toward present on a request error: it gates a
         // cross-repo write, so a transient API failure must never manufacture a
-        // remediation PR. hasOsvScanner deliberately does NOT follow that
-        // pattern — it reports UNKNOWN instead. Fail-toward-present is wrong for
+        // remediation PR. It stays on the registration listing because it matches
+        // a workflow's DISPLAY NAME as well as its path, deliberately, so that
+        // hand-rolled release pipelines count — and the contents listing carries
+        // filenames only. The two file-presence standards report UNKNOWN instead
+        // of failing toward present, because fail-toward-present is wrong for
         // anything cached: this details object is persisted under a pushed_at
         // key, so a single blip would write "compliant" and serve it until the
         // repo's next push, which on a quiet repo is indefinitely. Unknown is
         // honest and, unlike `true`, cannot be mistaken for evidence.
-        .catch(() => ({ ci: 0, hasAutoMergeWorkflow: false, hasReleaseWorkflow: true })),
-      fetchOsvScannerPresence(gh, owner, r.name),
+        .catch(() => ({ ci: 0, hasReleaseWorkflow: true })),
+      fetchDefaultBranchWorkflows(gh, owner, r.name),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
           let hasIssueTemplate = !!d.files?.issue_template;
@@ -479,7 +503,9 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
     const communityHealth = communityProfile?.health_percentage ?? null;
     const hasIssueTemplate = communityProfile?.has_issue_template ?? false;
     const { license, allowAutoMerge } = repoMeta;
-    const { ci, hasAutoMergeWorkflow, hasReleaseWorkflow } = workflowsMeta;
+    const { ci, hasReleaseWorkflow } = workflowsMeta;
+    const hasOsvScanner = workflowPresence(workflowFiles, OSV_WORKFLOW_FILE);
+    const hasAutoMergeWorkflow = workflowPresence(workflowFiles, AUTOMERGE_WORKFLOW_FILE);
     details[r.name] = { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
   });
 

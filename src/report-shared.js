@@ -47,6 +47,9 @@ export function isExcludedRepo(name) {
 // v5: added hasCopilotReview to details (code-review-bot standard).
 // v6: added hasReleaseWorkflow to details (release-cadence standard).
 // v7: added hasOsvScanner to details (osv-scanner standard).
+// v8: hasAutoMergeWorkflow moved from the workflows registration listing to the
+//     default-branch contents read, and became tri-state — a cached v7 boolean
+//     would otherwise be trusted as a known verdict when it may be a phantom.
 //
 // `autofix` (ADR-012 Phase 3) and `hasCopilotReview` are both repo-settings
 // toggles that can flip without a push or an open-issue-count change, so a
@@ -59,7 +62,7 @@ export function isExcludedRepo(name) {
 // This is the cache-refresh convention: a settings-toggle field gets a live
 // read on every cache hit instead of a fresh version bump each time the
 // underlying GitHub setting can change.
-export const REPO_CACHE_SCHEMA_VERSION = 7;
+export const REPO_CACHE_SCHEMA_VERSION = 8;
 
 // True for releases that are actually published. GitHub returns drafts (with
 // null published_at) at the top of /releases when ordered by created_at, so
