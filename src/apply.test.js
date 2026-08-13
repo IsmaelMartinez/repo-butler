@@ -31,6 +31,14 @@ describe('isRecentlyDeclined', () => {
     assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: undefined }, now), false);
     assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: 'not-a-date' }, now), false);
   });
+
+  it('does not treat a future closed_at as a decline', () => {
+    // The window is `now - closedAt <= cooldown`, which a NEGATIVE age satisfies
+    // just as well as a recent one — so a skewed clock would mute the standard
+    // for the full cooldown, and a far-future timestamp until the date passed.
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(-1) }, now), false);
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(-9999) }, now), false);
+  });
 });
 
 describe('validateFindings', () => {

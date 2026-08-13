@@ -379,23 +379,31 @@ export const APPLY_DECLINE_COOLDOWN_DAYS = 30;
  * Merged PRs return false by design — the work landed, so a reappearing gap
  * should be re-applied, not suppressed.
  *
- * An unparseable or missing `closed_at` returns false (not suppressive): the
- * alternative is a PR with a broken timestamp muting its standard forever, and
- * unlike the fetch failure above there is nothing here to be cautious about —
- * the open-PR check has already run, so the worst case is one duplicate PR
- * attempt against an existing branch rather than a silently disabled standard.
+ * An unparseable, missing or FUTURE `closed_at` returns false (not
+ * suppressive). A future timestamp matters because the window is measured as
+ * `now - closedAt <= cooldown`, and a negative age satisfies that just as well
+ * as a recent one — so a skewed clock would mute the standard for the full
+ * cooldown, and a far-future value would mute it until the date passed. All
+ * three are the same judgement: a timestamp we cannot believe must not be read
+ * as a decline. Unlike the fetch failure above there is nothing to be cautious
+ * about here — the open-PR check has already run, so the worst case is one
+ * duplicate PR attempt against an existing branch rather than a silently
+ * disabled standard.
  */
 export function isRecentlyDeclined(pr, now = Date.now()) {
   if (!pr || pr.state !== 'closed' || pr.merged_at) return false;
   const closedAt = new Date(pr.closed_at ?? '').getTime();
   if (Number.isNaN(closedAt)) return false;
-  return (now - closedAt) <= APPLY_DECLINE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+  const age = now - closedAt;
+  return age >= 0 && age <= APPLY_DECLINE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
 }
 
 /**
  * Decide whether an apply PR may be opened for (repo, tool), from the branch's
- * PR history alone. Read-only, so dry-run runs it too — a preview that does not
- * consult the same evidence as the live run is a preview of a different run.
+ * PR history alone. Read-only, but NOT run in dry-run: applyGovernanceFindings
+ * returns before this to preserve dry-run's no-API-calls guarantee, so the
+ * dry-run preview is an upper bound on what a live run opens rather than a
+ * forecast, and says so.
  *
  * Runs BEFORE capPerTool deliberately. Screening after the cap would let repos
  * that can produce nothing — declined, already-open, unreadable — hold cap slots
