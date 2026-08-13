@@ -1237,6 +1237,32 @@ describe('detectTierRegressions', () => {
     }]);
   });
 
+  it('does not report a regression for a repo whose tier was scored without a ci reading', () => {
+    // The false-alarm shape. `ci: null` means the workflow listing was never
+    // read, and computeHealthTier's `(r.ci || 0)` then fails both CI checks —
+    // correct for withholding gold, but it drops the tier, and diffing that
+    // drop would file a HIGH-priority regression from one failed request.
+    const prior = { ...weeklySnap({ 'repo-a': 'gold', 'repo-b': 'gold' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'bronze', 'repo-b': 'bronze' });
+    current.repos['repo-a'].ci = null;   // unread this run
+    current.repos['repo-b'].ci = 4;      // genuinely observed
+
+    const findings = detectTierRegressions(current, prior);
+
+    // Only the evidenced decline is reported.
+    assert.deepEqual(findings.map(f => f.repo), ['repo-b']);
+  });
+
+  it('still reports regressions for snapshot shapes with no ci key at all', () => {
+    // An ABSENT key is an older snapshot format, not an unknown. Treating it as
+    // unknown would switch regression detection off for every archived week.
+    const prior = { ...weeklySnap({ 'repo-a': 'gold' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'silver' });
+    assert.equal('ci' in current.repos['repo-a'], false);
+
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
+  });
+
   it('emits no tier-regression finding for an unchanged pair', () => {
     const tiers = { 'repo-a': 'gold', 'repo-b': 'silver', 'repo-c': 'bronze' };
     assert.deepEqual(detectTierRegressions(weeklySnap(tiers), weeklySnap(tiers)), []);

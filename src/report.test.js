@@ -1283,6 +1283,46 @@ describe('calm dashboard hero, delta strip, and butler voice', () => {
   });
 });
 
+describe('ci_workflows rendering is tri-state', () => {
+  const baseSnapshot = () => ({
+    repository: 'owner/test', meta: { stars: 5, forks: 1, watchers: 2 },
+    issues: { open: [] }, releases: [{ tag: 'v1', published_at: new Date().toISOString() }],
+    community_profile: { health_percentage: 90, files: { readme: true, license: true } },
+    dependabot_alerts: { count: 0, critical: 0, high: 0, medium: 0, low: 0, max_severity: null },
+    code_scanning_alerts: null, secret_scanning_alerts: { count: 0 },
+    ci_pass_rate: { pass_rate: 0.98, total_runs: 100, passed: 98, failed: 2 },
+    pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
+    summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 10, human_prs: 8, bot_prs: 2, releases: 1, latest_release: 'v1', ci_workflows: null, bus_factor: 2, time_to_close_median: { median_days: 3, sample_size: 10 } },
+  });
+  const render = async (snapshot) => {
+    const { generateRepoReport } = await import('./report-repo.js');
+    return generateRepoReport(snapshot, [{ month: 'Jan', count: 5 }], [{ month: 'Jan', opened: 2, closed: 3 }], [{ author: 'dev', count: 8, firstTime: false }], { direction: 'stable', weeks: [] }, [], null, [], null, null, {});
+  };
+
+  it('never states "0 workflows" for a repo whose workflow listing was not read', async () => {
+    // The dashboard was asserting a fact nobody observed: an unread listing and
+    // a repo with genuinely no CI both rendered as "0 workflows", and that
+    // string was shown as the REASON for the tier the repo had just been given.
+    const html = await render(baseSnapshot());
+    assert.ok(!html.includes('0 workflows'), 'must not claim zero workflows on an unknown');
+    assert.ok(html.includes('unavailable'), 'renders the same vocabulary open_bugs uses');
+  });
+
+  it('still shows a real count when the listing was read', async () => {
+    const snap = baseSnapshot();
+    snap.summary.ci_workflows = 4;
+    const html = await render(snap);
+    assert.ok(html.includes('4 workflows'));
+  });
+
+  it('shows a genuine zero as zero — an observed absence is still a fact', async () => {
+    const snap = baseSnapshot();
+    snap.summary.ci_workflows = 0;
+    const html = await render(snap);
+    assert.ok(html.includes('0 workflows'));
+  });
+});
+
 describe('generateRepoReport restructure', () => {
   it('has trends before activity history and no health grid', async () => {
     const { generateRepoReport } = await import('./report-repo.js');
@@ -1984,6 +2024,105 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // on no evidence.
     const noCache = await fetchPortfolioDetails(gh, 'owner', repos);
     assert.equal(noCache['err-ci'].ci, null);
+
+    // A cache entry from a SUPERSEDED schema version must not be read either.
+    // The version bump is the one mechanism that invalidates details whose
+    // meaning has changed, and this value is written straight back into the
+    // fresh entry under the new pushed_at — so an ungated read would launder a
+    // pre-bump count into something indistinguishable from a fresh observation.
+    const staleSchema = {
+      repos: {
+        'err-ci': {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION - 1,
+          pushed_at: '2026-01-01T00:00:00Z',
+          open_issues_count: 0,
+          details: { ci: 9 },
+        },
+      },
+    };
+    const oldSchema = await fetchPortfolioDetails(gh, 'owner', repos, { cache: staleSchema });
+    assert.equal(oldSchema['err-ci'].ci, null);
+  });
+
+  it('re-reads a cached ci of null on a cache hit, so an unknown cannot become permanent', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { REPO_CACHE_SCHEMA_VERSION } = await import('./report-shared.js');
+    let workflowCalls = 0;
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) {
+          workflowCalls++;
+          return Promise.resolve({ total_count: 6, workflows: [] });
+        }
+        if (path.includes('/rulesets')) return Promise.resolve([]);
+        if (path.includes('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+        if (path.includes('/contents/.github/workflows')) return Promise.resolve([]);
+        return Promise.resolve({});
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'quiet', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    // A genuine cache HIT (schema, pushed_at and issue count all match) whose
+    // stored ci is unknown. Without the conditional re-read this null would be
+    // served until the repo's next push — indefinitely on a quiet repo — so the
+    // repo would score bronze and drop out of the ci-workflows denominator on
+    // every run thereafter.
+    const cache = {
+      repos: {
+        quiet: {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+          pushed_at: '2026-04-10T00:00:00Z',
+          open_issues_count: 0,
+          details: { ci: null, license: 'MIT' },
+        },
+      },
+    };
+    const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
+    assert.equal(details.quiet.ci, 6, 'the unknown must be refreshed, not served');
+    assert.equal(workflowCalls, 1, 'and refreshed with exactly one extra call');
+    // The rest of the cached entry is still served from cache.
+    assert.equal(details.quiet.license, 'MIT');
+  });
+
+  it('does not spend a call re-reading a ci that is already known on a cache hit', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { REPO_CACHE_SCHEMA_VERSION } = await import('./report-shared.js');
+    let workflowCalls = 0;
+    const gh = {
+      request: (path) => {
+        if (path.includes('/actions/workflows')) {
+          workflowCalls++;
+          return Promise.resolve({ total_count: 6, workflows: [] });
+        }
+        if (path.includes('/rulesets')) return Promise.resolve([]);
+        if (path.includes('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+        if (path.includes('/contents/.github/workflows')) return Promise.resolve([]);
+        return Promise.resolve({});
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'quiet', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    const cache = {
+      repos: {
+        quiet: {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+          pushed_at: '2026-04-10T00:00:00Z',
+          open_issues_count: 0,
+          details: { ci: 3, license: 'MIT' },
+        },
+      },
+    };
+    const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
+    assert.equal(details.quiet.ci, 3);
+    // ci is push-invariant, so refreshing a KNOWN count would buy nothing for a
+    // call per repo per run. Only the unknown is worth spending on.
+    assert.equal(workflowCalls, 0);
   });
 
   // --- hasOsvScanner (osv-scanner standard) ---
@@ -2824,7 +2963,12 @@ describe('buildRepoSnapshot', () => {
     assert.equal(snap.summary.recently_merged_prs, 0);
     assert.equal(snap.summary.releases, 0);
     assert.equal(snap.summary.latest_release, 'none');
-    assert.equal(snap.summary.ci_workflows, 0);
+    // null, not 0: `ci` is tri-state, and this fixture supplies no count. The
+    // neutral value for "we did not look" is unknown — 0 would assert the repo
+    // has no CI, which is what demoted repos past PORTFOLIO_DETAIL_LIMIT (whose
+    // details object is `{}`) and fed a tier-regression finding for a decline
+    // nobody observed.
+    assert.equal(snap.summary.ci_workflows, null);
 
     // The snapshot must be consumable by buildActionItems.
     const items = buildActionItems(snap, []);

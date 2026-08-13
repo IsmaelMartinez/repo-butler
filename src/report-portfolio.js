@@ -331,10 +331,23 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // silently never apply to exactly the repos nobody touches. One call
       // serves both and makes the verdicts always current rather than only as
       // current as the last push.
-      const [autofix, hasCopilotReview, workflowFiles] = await Promise.all([
+      //
+      // `ci` joins them conditionally, and only when it is UNKNOWN. It is a
+      // push-invariant count, so re-reading it on every cache hit would buy
+      // nothing for a call per repo per run — but a null is not a count, it is
+      // the absence of one, and left alone it would be served until the repo's
+      // next push, which on a quiet repo is indefinitely. That is the same
+      // "an unknown must never become permanent" rule as the two flags above,
+      // applied only where the unknown actually exists.
+      const [autofix, hasCopilotReview, workflowFiles, ci] = await Promise.all([
         getAutomatedSecurityFixesState(gh, owner, r.name),
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
         fetchDefaultBranchWorkflows(gh, owner, r.name),
+        cached.details?.ci == null
+          ? gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
+            .then(d => d.total_count ?? null)
+            .catch(() => null)
+          : Promise.resolve(cached.details.ci),
       ]);
       // An unknown live read must not destroy a known cached verdict — it is
       // strictly less information than what is already on hand. Without the
@@ -345,6 +358,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // erase a fact.
       details[r.name] = {
         ...cached.details,
+        ci,
         autofix,
         hasCopilotReview,
         hasOsvScanner: workflowPresence(workflowFiles, OSV_WORKFLOW_FILE)
@@ -356,6 +370,19 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + templated workflows refreshed)`);
       return;
     }
+    // Last-known `ci`, used ONLY as the workflow-listing catch's fallback. Gated
+    // on the cache schema version for the same reason the cache-hit branch above
+    // is: a details object written under a superseded version may mean something
+    // different, and the version bump is the one mechanism that invalidates it.
+    // Reading it ungated would let a pre-bump count survive every bump — and,
+    // because this value is then written into the fresh cache entry under the
+    // NEW pushed_at, be laundered into something indistinguishable from a
+    // current observation. Deliberately NOT gated on pushed_at: a stale count is
+    // the whole point of a last-known-value fallback, and it is corrected by the
+    // next successful fetch, so the exposure is one run.
+    const lastKnownCi = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
+      ? (cached.details?.ci ?? null)
+      : null;
     const [commits, weekly, repoMeta, workflowsMeta, workflowFiles, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
@@ -411,7 +438,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         // snapshot as a stored tier. Unlike hasReleaseWorkflow above, `ci` must
         // not fail toward present either: it is a COUNT, and inventing one
         // would award gold on no evidence. Last known value, else unknown.
-        .catch(() => ({ ci: cached?.details?.ci ?? null, hasReleaseWorkflow: true })),
+        .catch(() => ({ ci: lastKnownCi, hasReleaseWorkflow: true })),
       fetchDefaultBranchWorkflows(gh, owner, r.name),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {

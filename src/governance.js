@@ -562,6 +562,20 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
       // are present in weekly snapshots — filter them here to match the
       // eligibleRepos boundary every other detector applies.
       if (REPO_EXCLUSION_PATTERNS.some(p => name.includes(p))) continue;
+      // A snapshot whose `ci` is null was scored on incomplete evidence: the
+      // workflow listing was never read for that repo, and computeHealthTier's
+      // `(r.ci || 0)` reads the unknown as zero, failing both CI checks. That is
+      // the right call for AWARDING a tier — gold is not given on no evidence —
+      // but it cannot substantiate a REGRESSION, which is a claim that something
+      // got worse. Diffing it would turn one failed request into a high-priority
+      // finding about a decline nobody observed. Excluded from BOTH sides: as
+      // the current side it would manufacture a regression, and as the prior
+      // side it would manufacture a recovery that hides a real one.
+      // `=== null`, not `== null`: buildPortfolioSnapshot always writes the key,
+      // so a persisted unknown is an explicit null. An ABSENT key means a
+      // snapshot shape that predates this field, and treating that as unknown
+      // would silently switch regression detection off for every archived week.
+      if (s?.ci === null) continue;
       const t = s?.computed?.tier;
       if (t) tiers[name] = t;
     }

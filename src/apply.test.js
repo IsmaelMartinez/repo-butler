@@ -735,6 +735,44 @@ describe('applyGovernanceFindings', () => {
     }
   });
 
+  it('does not let declined repos consume cap slots and starve the repos behind them', async () => {
+    // The regression the pre-cap screen exists to prevent: capPerTool used to
+    // allocate slots before any PR-history read, so repos whose PRs the
+    // maintainer had already closed held every slot each run and the repos
+    // queued behind them — which had never been offered anything — got nothing
+    // for the whole cooldown.
+    const declinedRepos = new Set(['r1', 'r2']);
+    const gh = {
+      ...mockGh,
+      paginate: async (path) => {
+        const name = path.match(/\/repos\/owner\/([^/]+)\//)?.[1];
+        if (declinedRepos.has(name)) {
+          return [{
+            number: 1,
+            state: 'closed',
+            merged_at: null,
+            closed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          }];
+        }
+        return [];
+      },
+    };
+    const findings = [{
+      type: 'standards-gap',
+      tool: 'code-scanning',
+      nonCompliant: ['r1', 'r2', 'r3', 'r4'],
+      repoEcosystems: { r1: 'JavaScript', r2: 'JavaScript', r3: 'JavaScript', r4: 'JavaScript' },
+    }];
+    const result = await applyGovernanceFindings(gh, 'owner', findings, baseConfig, { dryRun: false, maxPerRun: 2 });
+
+    // Cap is 2. r1/r2 are declined, so the two slots must go to r3 and r4 —
+    // under the old ordering they went to r1/r2 and produced nothing.
+    const created = result.results.filter(r => r.status === 'created').map(r => r.repo).sort();
+    assert.deepEqual(created, ['r3', 'r4']);
+    const declined = result.results.filter(r => r.reason === 'recently declined').map(r => r.repo).sort();
+    assert.deepEqual(declined, ['r1', 'r2']);
+  });
+
   it('fails closed when the PR history cannot be read', async () => {
     const brokenGh = {
       ...mockGh,
@@ -744,8 +782,14 @@ describe('applyGovernanceFindings', () => {
       },
     };
     const result = await applyGovernanceFindings(brokenGh, 'owner', baseFindings, baseConfig, { dryRun: false });
-    assert.equal(result.results[0].status, 'skipped');
+    // 'error', not 'skipped': a repo dropped because the PR listing failed must
+    // not be tallied beside deliberate declines, or a run that is inert because
+    // the token lost pull-request read looks like a healthy run with nothing to
+    // do. The run summary counts it under errors.
+    assert.equal(result.results[0].status, 'error');
     assert.equal(result.results[0].reason, 'PR history unreadable');
+    assert.equal(result.summary.errors, 1);
+    assert.equal(result.summary.created, 0);
   });
 
   it('handles per-repo error without aborting batch', async () => {

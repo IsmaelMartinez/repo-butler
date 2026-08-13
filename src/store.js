@@ -58,7 +58,13 @@ export function buildPortfolioSnapshot(repos, repoDetails, config) {
       vulns: details?.vulns ?? null,
       codeScanning: details?.codeScanning ?? null,
       secretScanning: details?.secretScanning ?? null,
-      ci: details?.ci ?? 0,
+      // `?? null`, not `?? 0`, matching communityHealth/ciPassRate above: `ci`
+      // is tri-state and a null means the workflow listing was never read for
+      // this repo. Coercing to 0 here makes an unread repo indistinguishable
+      // from one with genuinely no CI, and this snapshot is what
+      // detectTierRegressions diffs — so the 0 would substantiate a regression
+      // finding that nothing actually observed.
+      ci: details?.ci ?? null,
       released_at: details?.released_at ?? null,
       pushed_at: r.pushed_at ?? null,
       traffic: details?.traffic ?? null,
