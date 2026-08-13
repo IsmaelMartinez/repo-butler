@@ -1115,6 +1115,29 @@ describe('buildPortfolioAttentionSection', () => {
   });
 });
 
+describe('portfolio table ci cell is tri-state', () => {
+  const mkPortfolio = () => ({ repos: [
+    { name: 'a', stars: 5, forks: 1, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+  ]});
+  const mkDetails = ci => ({ a: { commits: 20, weekly: [1, 2], license: 'MIT', ci, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: null, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } });
+
+  it('does not flag an unread workflow listing as "none" in danger red', async () => {
+    // This cell had the loudest wrong answer of any render site: `|| 0` made an
+    // unread listing render as "none" in DANGER RED — the table asserting the
+    // repo has no CI at all, on the strength of one failed request.
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const html = generatePortfolioReport('test', mkPortfolio(), mkDetails(null), null, null, {});
+    assert.ok(!html.includes('>none<'), 'must not claim the repo has no CI');
+    assert.ok(html.includes('Workflow listing could not be read'), 'says why it is unknown');
+  });
+
+  it('still shows an observed zero as "none" — that is a real fact', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const html = generatePortfolioReport('test', mkPortfolio(), mkDetails(0), null, null, {});
+    assert.ok(html.includes('>none<'));
+  });
+});
+
 describe('generatePortfolioReport restructure', () => {
   it('has the status hero with tier mix instead of vanity stats', async () => {
     const { generatePortfolioReport } = await import('./report-portfolio.js');

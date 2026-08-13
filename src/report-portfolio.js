@@ -1347,12 +1347,20 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     const tier = r._tier;
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
     const communityColor = colorByThreshold(r.communityHealth, PCT_HIGH_GOOD_RANGES);
-    const ciCount = r.ci || 0;
+    // Tri-state, and this cell had the loudest wrong answer of any render site:
+    // `|| 0` turned an unread listing into "none" in DANGER RED, i.e. the table
+    // asserted the repo has no CI — the strongest possible claim — on the
+    // strength of one failed request. Unknown renders like the `vulns == null`
+    // cell below: faint, with a tooltip saying why. An observed 0 still gets
+    // the red "none", because that IS a fact.
+    const ciCount = r.ci ?? null;
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
     const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
-    const ciDisplay = ciCount === 0
-      ? `<span style="color:${COLOR_DANGER}">none</span>`
-      : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
+    const ciDisplay = ciCount == null
+      ? '<span title="Workflow listing could not be read for this repo" style="color:var(--faint);cursor:help">n/a</span>'
+      : ciCount === 0
+        ? `<span style="color:${COLOR_DANGER}">none</span>`
+        : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
     const vulnDisplay = r.vulns == null
       ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>'
       : r.vulns.count === 0
