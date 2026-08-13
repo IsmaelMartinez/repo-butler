@@ -172,7 +172,11 @@ export function priorAutofixNotDrivenCount(priorWeekly) {
 }
 
 // Built-in detectors map standard tool names to compliance checks.
-// Each detector receives (repo, details) and returns boolean.
+// Each detector receives (repo, details) and returns `true` (compliant),
+// `false` (non-compliant) or — for the tri-state detectors marked below —
+// `null`, meaning presence could not be determined this run. Only `false`
+// makes a repo a remediation target; detectStandardsGaps drops `null` repos
+// from the adoption figures entirely rather than counting them either way.
 const STANDARD_DETECTORS = {
   'issue-form-templates': (_repo, details) => !!details?.hasIssueTemplate,
   // Tri-state, like osv-scanner below: `null` means presence could not be
