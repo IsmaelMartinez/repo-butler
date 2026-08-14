@@ -357,6 +357,22 @@ describe('hasActiveCopilotReviewRuleset', () => {
     assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), true);
   });
 
+  it('stays total — a malformed ruleset element degrades to null, never throws', async () => {
+    // Converting this to tri-state moved the loop out of the original outer
+    // try. Both report-portfolio call sites sit bare inside a Promise.all with
+    // no .catch, so a throw here aborts the entire REPORT/GOVERNANCE run for
+    // every repo rather than degrading one field on one repo.
+    const gh = { paginate: async () => [null, undefined], request: async () => ({}) };
+    const result = await hasActiveCopilotReviewRuleset(gh, 'o', 'r');
+    assert.equal(result, false, 'null elements are not active rulesets, so the scan completes');
+
+    const throwing = {
+      paginate: async () => ({ [Symbol.iterator]() { throw new Error('boom'); } }),
+      request: async () => ({}),
+    };
+    assert.equal(await hasActiveCopilotReviewRuleset(throwing, 'o', 'r'), null);
+  });
+
   it('returns false only when the scan completed and found nothing', async () => {
     const gh = {
       paginate: async () => [{ id: 1, enforcement: 'active' }],

@@ -2067,6 +2067,53 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(oldSchema['err-ci'].ci, null);
   });
 
+  it('keeps the last known hasCopilotReview on the FULL-FETCH path, not just the cache hit', async () => {
+    // The path a repo takes the moment it PUSHES. Applying the fallback only to
+    // the cache-hit branch leaves this one persisting a raw null, and governance
+    // drops a null repo from BOTH sides of the adoption figures — so a repo with
+    // a genuine gap silently leaves the standard for the week and the dashboard
+    // is indistinguishable from full adoption.
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { REPO_CACHE_SCHEMA_VERSION } = await import('./report-shared.js');
+    const gh = {
+      request: (path) => {
+        if (path.includes('/rulesets')) return Promise.reject(new Error('403'));
+        if (path.includes('/actions/workflows')) return Promise.resolve({ total_count: 2, workflows: [] });
+        if (path.includes('/community/profile')) return Promise.resolve({ health_percentage: 80, files: {} });
+        if (path.includes('/dependabot/alerts')) return Promise.resolve([]);
+        if (path.includes('/code-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/secret-scanning/alerts')) return Promise.resolve([]);
+        if (path.includes('/actions/runs')) return Promise.resolve({ workflow_runs: [] });
+        if (path.includes('/stats/participation')) return Promise.resolve({ owner: [] });
+        if (path.includes('/search/commits')) return Promise.resolve({ total_count: 0 });
+        return Promise.resolve({ license: { spdx_id: 'MIT' }, allow_auto_merge: false });
+      },
+      paginate: (path) => (path.includes('/rulesets') ? Promise.reject(new Error('403')) : Promise.resolve([])),
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [
+      { name: 'pushed', pushed_at: '2026-04-10T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 },
+    ];
+    // pushed_at differs from the cache, so this is NOT a cache hit — the full
+    // fetch runs, and the ruleset read fails.
+    const cache = {
+      repos: {
+        pushed: {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+          pushed_at: '2026-01-01T00:00:00Z',
+          open_issues_count: 0,
+          details: { hasCopilotReview: false },
+        },
+      },
+    };
+    const withCache = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
+    assert.equal(withCache.pushed.hasCopilotReview, false, 'a known false must survive an unreadable live scan');
+
+    // Nothing ever observed → honestly unknown.
+    const noCache = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.equal(noCache.pushed.hasCopilotReview, null);
+  });
+
   it('re-reads a cached ci of null on a cache hit, so an unknown cannot become permanent', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     const { REPO_CACHE_SCHEMA_VERSION } = await import('./report-shared.js');

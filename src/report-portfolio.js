@@ -386,6 +386,9 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
     const lastKnownCi = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
       ? (cached.details?.ci ?? null)
       : null;
+    const lastKnownCopilotReview = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
+      ? (cached.details?.hasCopilotReview ?? null)
+      : null;
     const [commits, weekly, repoMeta, workflowsMeta, workflowFiles, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
@@ -529,7 +532,14 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // rule inside a repository ruleset, not a committed file. Detection is shared
       // with the settings-apply idempotency guard (apply.js) via github.js so both
       // agree on what "already enabled" means. Drives the code-review-bot standard.
-      hasActiveCopilotReviewRuleset(gh, owner, r.name).then(hasCopilotReview => ({ hasCopilotReview })),
+      // Same schema-gated last-known-value fallback as the cache-hit branch and
+      // as `ci`. Applying it there only is not enough: this is the path a repo
+      // takes the moment it PUSHES, so a repo that pushed and had one bad
+      // ruleset read would persist a raw null, governance would drop it from
+      // both sides of the adoption figures, and a genuine gap would vanish for
+      // the week while the dashboard looked like full adoption.
+      hasActiveCopilotReviewRuleset(gh, owner, r.name)
+        .then(hasCopilotReview => ({ hasCopilotReview: hasCopilotReview ?? lastKnownCopilotReview })),
       // GitHub's Dependabot automated security fixes state (ADR-012 Phase 3):
       // { enabled, paused } | null. Feeds the deterministic open-vulnerability
       // detector (governance.js) so a dependabot-sourced finding can distinguish

@@ -1067,20 +1067,35 @@ export async function applyCopilotReviewRulesets(gh, owner, findings, config, op
   const created = results.filter(r => r.status === 'created').length;
   const skipped = results.filter(r => r.status === 'skipped').length;
   const errors = results.filter(r => r.status === 'error').length;
-  console.log(`copilot-review: done — ${created} created, ${skipped} skipped, ${errors} errors`);
-  return { status: 'completed', results, summary: { created, skipped, errors } };
+  // `unreadable` is reported SEPARATELY, and the summary is what apply.yml
+  // prints as its run notice. Before the fail-closed guard, an installation
+  // that could not read /rulesets attempted the POST and surfaced the 403 as
+  // errors:N. Now it skips — so without this count, a run where nothing could
+  // be read is byte-identical in the notice to a run where every repo was
+  // already enabled, and the operator reads success while the standard is
+  // never applied and is re-skipped every week.
+  const unreadable = results.filter(r => r.reason === 'ruleset state unreadable').length;
+  console.log(`copilot-review: done — ${created} created, ${skipped} skipped (${unreadable} unreadable), ${errors} errors`);
+  if (unreadable > 0) {
+    console.warn(`copilot-review: ${unreadable} repo(s) skipped because their ruleset state could not be read — this run wrote nothing for them and will repeat until the token can read /rulesets.`);
+  }
+  return { status: 'completed', results, summary: { created, skipped, errors, unreadable } };
 }
 
 // Find the butler's Copilot-review ruleset on a repo by its distinctive name.
-// Returns the ruleset id, or null if absent / on error. Paginated.
+// Returns the ruleset id, or null if genuinely ABSENT. Paginated.
+//
+// THROWS when the list cannot be read, rather than returning null. Collapsing
+// "unreadable" into the same null as "absent" made the rollback path report
+// `skipped: no butler ruleset` for a repo whose ruleset is still live — an
+// operator running the ADR-009 reversal would read a clean skip and believe the
+// ruleset was gone. removeCopilotReviewRuleset catches this and records a
+// per-repo `error`, which is the honest answer: the rollback did not happen.
 export async function findButlerCopilotRuleset(gh, owner, repo) {
-  let rulesets;
-  try {
-    rulesets = await gh.paginate(`/repos/${owner}/${repo}/rulesets`, { max: 200 });
-  } catch {
-    return null;
+  const rulesets = await gh.paginate(`/repos/${owner}/${repo}/rulesets`, { max: 200 });
+  if (!Array.isArray(rulesets)) {
+    throw new Error(`rulesets listing for ${owner}/${repo} was not an array`);
   }
-  if (!Array.isArray(rulesets)) return null;
   const match = rulesets.find(rs => rs?.name === COPILOT_RULESET_NAME);
   return match ? match.id : null;
 }
