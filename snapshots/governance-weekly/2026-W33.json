@@ -27,7 +27,7 @@
       "stalePRs": [
         {
           "number": 21,
-          "age": 31,
+          "age": 32,
           "branch": "repo-butler/onboard",
           "prClass": "onboard",
           "draft": false,
@@ -42,7 +42,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Land or close 1 stale repo-butler PR(s) in lounge-tv",
-        "rationale": "1 butler-opened PR(s) unmerged beyond the staleness threshold (oldest 31 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
+        "rationale": "1 butler-opened PR(s) unmerged beyond the staleness threshold (oldest 32 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
         "acceptanceCriteria": [
           "Each stale repo-butler PR is merged or closed"
         ]
