@@ -119,6 +119,8 @@ Dependabot auto-merge governance fix shipped 2026-08-13 (PR #375). Refined repos
 
 Transient failure reporting stability improvement shipped 2026-08-14 (PR #378). Prevents false positives in compliance monitoring by ensuring transient detection failures are no longer reported as non-compliance.
 
+Copilot review ruleset detection guard tri-state logic fix shipped 2026-08-14 (PR #380). Resolves a critical logic bug where a tri-state boolean check in `hasActiveCopilotReviewRuleset` failed closed, ensuring that repository security and compliance rulesets are evaluated with high precision and stability.
+
 ---
 
 ## Next Up
