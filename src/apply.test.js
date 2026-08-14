@@ -1396,6 +1396,27 @@ describe('applyCopilotReviewRulesets', () => {
     assert.equal(posts.length, 0, 'must not POST a duplicate ruleset');
   });
 
+  it('fails closed and writes nothing when the ruleset state cannot be read', async () => {
+    // The write-consequence case. hasActiveCopilotReviewRuleset is tri-state,
+    // and `null` is FALSY — so a bare truthiness guard read "could not
+    // determine" as "not enabled" and POSTed, which is how a duplicate ruleset
+    // lands on a repo that already had one. Only an explicit false authorises
+    // the write.
+    const posts = [];
+    const gh = {
+      paginate: async () => { throw new Error('GitHub API GET /rulesets: 403'); },
+      request: async (path, opts) => {
+        if (opts?.method === 'POST') posts.push(path);
+        return {};
+      },
+    };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { created: 0, skipped: 1, errors: 0 });
+    assert.equal(posts.length, 0, 'an unreadable state must never authorise a write');
+    assert.equal(result.results[0].reason, 'ruleset state unreadable');
+  });
+
   it('isolates a per-repo write error and continues to the next repo', async () => {
     const findings = [{ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a', 'repo-b'] }];
     const gh = {

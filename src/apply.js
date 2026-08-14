@@ -1038,7 +1038,19 @@ export async function applyCopilotReviewRulesets(gh, owner, findings, config, op
       // Idempotency guard, LIVE at apply time (not the stale OBSERVE snapshot):
       // skip if an active Copilot-review ruleset already exists, so re-runs and
       // hand-enabled repos never get a duplicate.
-      if (await hasActiveCopilotReviewRuleset(gh, owner, repo)) {
+      // Tri-state, and the null case must FAIL CLOSED. `null` is falsy, so a
+      // bare truthiness test would treat "could not determine" as "not
+      // enabled" and POST a ruleset — potentially a duplicate on a repo that
+      // already has one, which is the exact outcome this guard exists to
+      // prevent. Only an explicit `false` authorises the write. Same posture as
+      // ADR-012's unreadable-state skip.
+      const existing = await hasActiveCopilotReviewRuleset(gh, owner, repo);
+      if (existing === null) {
+        console.log(`copilot-review: ${owner}/${repo} ruleset state unreadable, skipping (fail-closed)`);
+        results.push({ repo, status: 'skipped', reason: 'ruleset state unreadable' });
+        continue;
+      }
+      if (existing) {
         console.log(`copilot-review: ${owner}/${repo} already has Copilot review, skipping`);
         results.push({ repo, status: 'skipped', reason: 'already enabled' });
         continue;

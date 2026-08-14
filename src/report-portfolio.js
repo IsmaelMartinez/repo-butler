@@ -360,7 +360,10 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         ...cached.details,
         ci,
         autofix,
-        hasCopilotReview,
+        // Now tri-state too, so it takes the same fallback as the two below:
+        // an unreadable live scan must not erase a cached verdict. It was
+        // exempt only because it could never return null.
+        hasCopilotReview: hasCopilotReview ?? cached.details?.hasCopilotReview ?? null,
         hasOsvScanner: workflowPresence(workflowFiles, OSV_WORKFLOW_FILE)
           ?? cached.details?.hasOsvScanner ?? null,
         hasAutoMergeWorkflow: workflowPresence(workflowFiles, AUTOMERGE_WORKFLOW_FILE)

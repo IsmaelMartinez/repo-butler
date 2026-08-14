@@ -197,7 +197,11 @@ const STANDARD_DETECTORS = {
   'secret-scanning': (_repo, details) => details?.secretScanning != null,
   'codeowners': (_repo, details) => !!details?.hasCodeowners,
   'security-md': (_repo, details) => !!details?.hasSecurityPolicy,
-  'code-review-bot': (_repo, details) => !!details?.hasCopilotReview,
+  // Tri-state: null when the ruleset scan could not complete. The `!!` this
+  // replaced turned an unreadable repo into a reported gap, and this standard
+  // routes to a settings WRITE (applyCopilotReviewRulesets), so the gap was a
+  // write target.
+  'code-review-bot': (_repo, details) => details?.hasCopilotReview ?? null,
   // Checks for release automation MACHINERY (any workflow named/pathed
   // "release"), not release recency — recency is the tier-uplift check's job.
   // The two compose: this standard installs the cadence workflow, the workflow

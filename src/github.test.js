@@ -318,13 +318,50 @@ describe('hasActiveCopilotReviewRuleset', () => {
     assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), true);
   });
 
-  it('returns false when the rulesets list is not an array', async () => {
+  // These two previously asserted `false`, which is what made a transient
+  // failure the STRONGEST claim available: that the repo has no code-review
+  // bot. The governance detector then reported a gap, and this standard routes
+  // to a settings write — so the guard that is meant to prevent a duplicate
+  // ruleset read the same false as permission to create one.
+  it('returns null when the rulesets list is not an array', async () => {
     const gh = { paginate: async () => ({}), request: async () => ({}) };
-    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), null);
   });
 
-  it('returns false when listing rulesets throws (no access / no scope)', async () => {
+  it('returns null when listing rulesets throws (no access / no scope)', async () => {
     const gh = { paginate: async () => { throw new Error('403'); }, request: async () => ({}) };
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), null);
+  });
+
+  it('returns null when an active ruleset detail could not be read and no rule was found', async () => {
+    // The subtle case: the scan completed, but the one ruleset it could not
+    // open is exactly where the rule might have been. Reporting false here
+    // asserts an absence that was never observed.
+    const gh = {
+      paginate: async () => [{ id: 1, enforcement: 'active' }],
+      request: async () => { throw new Error('500'); },
+    };
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), null);
+  });
+
+  it('still returns true when a later ruleset carries the rule despite an earlier unreadable one', async () => {
+    // An unreadable ruleset does not weaken a positive find — true is
+    // definitive evidence regardless of what else could not be read.
+    const gh = {
+      paginate: async () => [{ id: 1, enforcement: 'active' }, { id: 2, enforcement: 'active' }],
+      request: async (path) => {
+        if (path.endsWith('/1')) throw new Error('500');
+        return { rules: [{ type: 'copilot_code_review' }] };
+      },
+    };
+    assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), true);
+  });
+
+  it('returns false only when the scan completed and found nothing', async () => {
+    const gh = {
+      paginate: async () => [{ id: 1, enforcement: 'active' }],
+      request: async () => ({ rules: [{ type: 'pull_request' }] }),
+    };
     assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
   });
 });
