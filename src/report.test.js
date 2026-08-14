@@ -2112,6 +2112,24 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // Nothing ever observed → honestly unknown.
     const noCache = await fetchPortfolioDetails(gh, 'owner', repos);
     assert.equal(noCache.pushed.hasCopilotReview, null);
+
+    // A cache entry from a SUPERSEDED schema version must not be read. The old
+    // code absorbed every unreadable scan into `false`, so a pre-bump `false`
+    // may be a phantom; resolving today's honest null to it would report a
+    // code-review-bot gap for a compliant repo — and it could never clear,
+    // because the apply path now fail-closed-skips rather than correcting it.
+    const staleSchema = {
+      repos: {
+        pushed: {
+          schemaVersion: REPO_CACHE_SCHEMA_VERSION - 1,
+          pushed_at: '2026-01-01T00:00:00Z',
+          open_issues_count: 0,
+          details: { hasCopilotReview: false },
+        },
+      },
+    };
+    const oldSchema = await fetchPortfolioDetails(gh, 'owner', repos, { cache: staleSchema });
+    assert.equal(oldSchema.pushed.hasCopilotReview, null);
   });
 
   it('re-reads a cached ci of null on a cache hit, so an unknown cannot become permanent', async () => {
