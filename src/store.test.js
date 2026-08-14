@@ -418,6 +418,30 @@ describe('writeGovernanceWeekly / readLatestGovernanceWeekly', () => {
   });
 });
 
+describe('buildPortfolioSnapshot — ci tri-state', () => {
+  it('preserves an unknown ci as null rather than coercing it to zero', async () => {
+    // This snapshot is what detectTierRegressions diffs. Coercing an unread ci
+    // to 0 here makes it indistinguishable from a repo with genuinely no CI,
+    // which is enough on its own to substantiate a high-priority tier-regression
+    // finding for a decline nobody observed — the tri-state has to survive the
+    // whole way from the fetch to the persisted snapshot to be worth anything.
+    const { buildPortfolioSnapshot } = await import('./store.js');
+    const mk = name => ({ name, archived: false, fork: false, stars: 0, pushed_at: new Date().toISOString(), open_issues: 0 });
+    const repos = [mk('unread'), mk('observed'), mk('uncapped')];
+    const details = {
+      unread: { ci: null, license: 'MIT' },
+      observed: { ci: 0, license: 'MIT' },
+      uncapped: {},   // past PORTFOLIO_DETAIL_LIMIT — never fetched at all
+    };
+    const snapshot = buildPortfolioSnapshot(repos, details, {});
+    assert.equal(snapshot.repos.unread.ci, null);
+    // A real zero is an observation and must stay one.
+    assert.equal(snapshot.repos.observed.ci, 0);
+    // A repo nobody fetched is unknown too, not zero.
+    assert.equal(snapshot.repos.uncapped.ci, null);
+  });
+});
+
 describe('buildPortfolioSnapshot — repo ID propagation', () => {
   it('includes repo id in snapshot data when present', async () => {
     const { buildPortfolioSnapshot } = await import('./store.js');

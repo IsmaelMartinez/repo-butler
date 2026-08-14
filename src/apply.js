@@ -368,6 +368,96 @@ const TOOL_PR_NOTES = {
 // forgeable by anyone with push access. Single source of truth for both sites.
 export const APPLY_PR_MARKER = 'Opened automatically by [Repo Butler]';
 
+// How long a closed-unmerged apply PR suppresses a re-open. Matches PROPOSE's
+// includeClosedDays: 30 so the two lanes decline on the same clock.
+export const APPLY_DECLINE_COOLDOWN_DAYS = 30;
+
+/**
+ * True when `pr` is an apply PR the maintainer closed WITHOUT merging, recently
+ * enough to still count as a decline.
+ *
+ * Merged PRs return false by design — the work landed, so a reappearing gap
+ * should be re-applied, not suppressed.
+ *
+ * An unparseable, missing or FUTURE `closed_at` returns false (not
+ * suppressive). A future timestamp matters because the window is measured as
+ * `now - closedAt <= cooldown`, and a negative age satisfies that just as well
+ * as a recent one — so a skewed clock would mute the standard for the full
+ * cooldown, and a far-future value would mute it until the date passed. All
+ * three are the same judgement: a timestamp we cannot believe must not be read
+ * as a decline. Unlike the fetch failure above there is nothing to be cautious
+ * about here — the open-PR check has already run, so the worst case is one
+ * duplicate PR attempt against an existing branch rather than a silently
+ * disabled standard.
+ */
+export function isRecentlyDeclined(pr, now = Date.now()) {
+  if (!pr || pr.state !== 'closed' || pr.merged_at) return false;
+  const closedAt = new Date(pr.closed_at ?? '').getTime();
+  if (Number.isNaN(closedAt)) return false;
+  const age = now - closedAt;
+  return age >= 0 && age <= APPLY_DECLINE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * Decide whether an apply PR may be opened for (repo, tool), from the branch's
+ * PR history alone. Read-only, but NOT run in dry-run: applyGovernanceFindings
+ * returns before this to preserve dry-run's no-API-calls guarantee, so the
+ * dry-run preview is an upper bound on what a live run opens rather than a
+ * forecast, and says so.
+ *
+ * Runs BEFORE capPerTool deliberately. Screening after the cap would let repos
+ * that can produce nothing — declined, already-open, unreadable — hold cap slots
+ * every run and starve the repos queued behind them for the whole cooldown.
+ *
+ * `state: 'all'`, not 'open': an open PR is not the only reason to stay away. A
+ * PR the maintainer CLOSED without merging is a decline, and re-opening it on
+ * the next unattended cron is how an automation earns a mute. PROPOSE has had
+ * this since G7 (findDuplicates' 30-day cooldown); apply never did, and the
+ * branch name is deterministic per tool, so the signal needs no title matching.
+ *
+ * @returns {{eligible: true} | {eligible: false, status: string, reason: string}}
+ */
+export async function screenApplyTarget(gh, owner, repo, tool) {
+  const branchName = `repo-butler/apply-${tool}`;
+  let branchPRs;
+  try {
+    branchPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'all', head: `${owner}:${branchName}`, per_page: 10 },
+      max: 10,
+    });
+  } catch (err) {
+    // Fail CLOSED: this read is the only thing carrying the decline signal, so
+    // treating an unreadable history as "nothing there" would re-open the very
+    // PR the maintainer just closed. Reported as 'error', NOT 'skipped', because
+    // a repo silently dropped for an infrastructure reason must not be tallied
+    // beside deliberate declines — otherwise a run that is inert because the
+    // token lost pull-request read looks exactly like a healthy run with
+    // nothing to do.
+    console.log(`apply: ${owner}/${repo} PR history unreadable for ${tool}, skipping (fail-closed): ${err.message}`);
+    return { eligible: false, status: 'error', reason: 'PR history unreadable' };
+  }
+
+  // Anything not DEFINITIVELY closed blocks. The query used to filter
+  // `state: 'open'` server-side, so every row returned was open by construction;
+  // now that it asks for 'all', the open/closed split is made here, and a
+  // missing or unrecognised state must not be read as "no open PR" — that would
+  // try to re-open a PR whose branch already exists.
+  if (branchPRs.some(pr => pr.state !== 'closed')) {
+    console.log(`apply: ${owner}/${repo} already has open PR for ${tool}, skipping`);
+    return { eligible: false, status: 'skipped', reason: 'PR already open' };
+  }
+
+  // Merged PRs are deliberately NOT suppressive: the work landed, and if the
+  // gap has reappeared since, re-applying is the correct response.
+  const declined = branchPRs.find(pr => isRecentlyDeclined(pr));
+  if (declined) {
+    console.log(`apply: ${owner}/${repo} PR #${declined.number} for ${tool} was closed unmerged within ${APPLY_DECLINE_COOLDOWN_DAYS}d, skipping`);
+    return { eligible: false, status: 'skipped', reason: 'recently declined' };
+  }
+
+  return { eligible: true };
+}
+
 export function generateTemplate(tool, ecosystem, owner, rootFiles = null) {
   const tmpl = TEMPLATES[tool];
   if (!tmpl) return null;
@@ -490,26 +580,63 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
   // default without an explicit, reviewed config entry. This replaces the single
   // global slice; every other ADR-005 gate is unchanged.
   const applyCap = config?.['apply-cap'] || {};
-  const capped = capPerTool(pairs, applyCap, maxPerRun);
-  const deferred = pairs.length - capped.length;
 
-  // Dry-run fail-closed: only literal false disables dry-run
+  // Dry-run fail-closed: only literal false disables dry-run.
+  //
+  // Deliberately returns BEFORE the screen below, because dry-run makes no API
+  // calls at all — a property three tests pin, and the cheapest possible way to
+  // verify that an ADR-005 gate is inert. The cost is that this preview cannot
+  // see which pairs the screen will drop, so it is an upper bound rather than a
+  // forecast; the caveat below says so instead of letting the count imply
+  // certainty. Making dry-run read (a preview that consults the same evidence
+  // as the live run) is a defensible change, but it changes what a governance
+  // gate guarantees and belongs in its own reviewed PR, not bundled here.
   if (dryRun !== false) {
-    console.log(`apply [DRY RUN]: would open PRs for ${capped.length} (repo, tool) pairs`);
-    for (const p of capped) {
+    const preview = capPerTool(pairs, applyCap, maxPerRun);
+    const previewDeferred = pairs.length - preview.length;
+    console.log(`apply [DRY RUN]: up to ${preview.length} (repo, tool) pairs are candidates`);
+    for (const p of preview) {
       console.log(`  - ${owner}/${p.repo}: ${p.tool}`);
     }
-    if (deferred > 0) {
-      console.log(`  ... ${deferred} more deferred to next run (per-tool cap)`);
+    if (previewDeferred > 0) {
+      console.log(`  ... ${previewDeferred} more deferred to next run (per-tool cap)`);
     }
-    return { status: 'dry-run', pairs: capped };
+    console.log('  note: a live run additionally skips pairs with an open PR, a decline inside the '
+      + `${APPLY_DECLINE_COOLDOWN_DAYS}d cooldown, or an unreadable PR history — so it may open fewer than this.`);
+    return { status: 'dry-run', pairs: preview };
   }
+
+  // Screen BEFORE capping. A pair that cannot produce a PR — already open,
+  // recently declined, history unreadable — must not hold a cap slot, or the
+  // repos queued behind it get nothing for the whole cooldown while the summary
+  // reports a tidy "0 created, N skipped".
+  const screenResults = [];
+  const eligible = [];
+  for (let i = 0; i < pairs.length; i += SCREEN_BATCH_SIZE) {
+    const batch = pairs.slice(i, i + SCREEN_BATCH_SIZE);
+    const verdicts = await Promise.all(
+      batch.map(p => screenApplyTarget(gh, owner, p.repo, p.tool).catch(err => {
+        // Same fail-closed posture as the guard itself.
+        console.error(`apply: screen error on ${p.repo}/${p.tool}: ${err.message}`);
+        return { eligible: false, status: 'error', reason: 'PR history unreadable' };
+      }))
+    );
+    batch.forEach((p, j) => {
+      const v = verdicts[j];
+      if (v.eligible) eligible.push(p);
+      else screenResults.push({ repo: p.repo, tool: p.tool, status: v.status, reason: v.reason });
+    });
+  }
+
+  const capped = capPerTool(eligible, applyCap, maxPerRun);
+  const deferred = eligible.length - capped.length;
 
   if (deferred > 0) {
     console.log(`apply: per-tool cap deferred ${deferred} (repo, tool) pair(s) to next run`);
   }
 
-  const results = [];
+  // Screening verdicts are part of the run's results, not a silent filter.
+  const results = [...screenResults];
   const BATCH_SIZE = 3;
 
   for (let i = 0; i < capped.length; i += BATCH_SIZE) {
@@ -533,21 +660,6 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
 
 async function applyToRepo(gh, owner, repo, tool, ecosystem) {
   const branchName = `repo-butler/apply-${tool}`;
-
-  let existingPRs;
-  try {
-    existingPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
-      params: { state: 'open', head: `${owner}:${branchName}`, per_page: 10 },
-      max: 10,
-    });
-  } catch {
-    existingPRs = [];
-  }
-
-  if (existingPRs.length > 0) {
-    console.log(`apply: ${owner}/${repo} already has open PR for ${tool}, skipping`);
-    return { repo, tool, status: 'skipped', reason: 'PR already open' };
-  }
 
   const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
   const defaultBranch = repoMeta.default_branch || 'main';
@@ -706,6 +818,11 @@ async function alreadyNudged(gh, owner, repo, number) {
 // and changed nothing. Requiring an unchanged SHA threw that evidence away and
 // left the guard firing only on the rarer, weaker case of repeated re-runs of
 // one identical commit — which is why it never fired in production.
+// Concurrency for the read-only pre-cap screen. Higher than the write batch
+// (3) because these are cheap list calls with no side effects, but still
+// bounded so a large portfolio cannot burst the secondary rate limit.
+const SCREEN_BATCH_SIZE = 5;
+
 const DETERMINISTIC_ATTEMPTS = 3;
 
 // Pure predicate over prCiHistory() output (newest attempt first). True only on

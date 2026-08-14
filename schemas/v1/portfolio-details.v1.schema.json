@@ -41,8 +41,9 @@
           "description": "SPDX license identifier, or 'None' when unlicensed"
         },
         "ci": {
-          "type": "integer",
-          "description": "Total number of GitHub Actions workflows (total_count from /actions/workflows)"
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Total number of GitHub Actions workflows (total_count from /actions/workflows). Null when the listing has never been read successfully for this repo — distinct from 0, which asserts the repo has no workflows."
         },
         "communityHealth": {
           "type": ["integer", "null"],

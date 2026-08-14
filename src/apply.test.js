@@ -4,7 +4,42 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER, isRecentlyDeclined, APPLY_DECLINE_COOLDOWN_DAYS } from './apply.js';
+
+describe('isRecentlyDeclined', () => {
+  const now = Date.parse('2026-08-13T00:00:00Z');
+  const daysAgo = d => new Date(now - d * 24 * 60 * 60 * 1000).toISOString();
+
+  it('treats a recent closed-unmerged PR as a decline', () => {
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(1) }, now), true);
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(APPLY_DECLINE_COOLDOWN_DAYS - 1) }, now), true);
+  });
+
+  it('does not suppress once the cooldown has elapsed', () => {
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(APPLY_DECLINE_COOLDOWN_DAYS + 1) }, now), false);
+  });
+
+  it('never suppresses on a merged PR — the work landed, a recurrence should re-apply', () => {
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: daysAgo(1), closed_at: daysAgo(1) }, now), false);
+  });
+
+  it('never suppresses on an open PR — that is the other guard\'s job', () => {
+    assert.equal(isRecentlyDeclined({ state: 'open', merged_at: null, closed_at: null }, now), false);
+  });
+
+  it('does not let a broken closed_at mute the standard forever', () => {
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: undefined }, now), false);
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: 'not-a-date' }, now), false);
+  });
+
+  it('does not treat a future closed_at as a decline', () => {
+    // The window is `now - closedAt <= cooldown`, which a NEGATIVE age satisfies
+    // just as well as a recent one — so a skewed clock would mute the standard
+    // for the full cooldown, and a far-future timestamp until the date passed.
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(-1) }, now), false);
+    assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(-9999) }, now), false);
+  });
+});
 
 describe('validateFindings', () => {
   it('filters to standards-gap findings with tool and nonCompliant', () => {
@@ -668,6 +703,101 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.status, 'completed');
     assert.equal(result.results[0].status, 'skipped');
     assert.equal(result.results[0].reason, 'PR already open');
+  });
+
+  it('skips a repo whose apply PR was closed unmerged inside the cooldown', async () => {
+    const declinedGh = {
+      ...mockGh,
+      paginate: async (path, opts) => {
+        calls.push({ type: 'paginate', path, opts });
+        if (path.includes('repo-a')) {
+          return [{
+            number: 7,
+            state: 'closed',
+            merged_at: null,
+            closed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          }];
+        }
+        return [];
+      },
+    };
+    const result = await applyGovernanceFindings(declinedGh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'skipped');
+    assert.equal(result.results[0].reason, 'recently declined');
+    // The query must ask for every state — 'open' alone cannot see a decline.
+    const prQuery = calls.find(c => c.type === 'paginate' && c.path.includes('repo-a'));
+    assert.equal(prQuery.opts.params.state, 'all');
+  });
+
+  it('re-applies when the closed PR is older than the cooldown, or was merged', async () => {
+    for (const pr of [
+      { number: 8, state: 'closed', merged_at: null, closed_at: new Date(Date.now() - (APPLY_DECLINE_COOLDOWN_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString() },
+      { number: 9, state: 'closed', merged_at: new Date().toISOString(), closed_at: new Date().toISOString() },
+    ]) {
+      const gh = {
+        ...mockGh,
+        paginate: async (path) => (path.includes('repo-a') ? [pr] : []),
+      };
+      const result = await applyGovernanceFindings(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+      assert.equal(result.results[0].status, 'created', `PR #${pr.number} must not suppress`);
+    }
+  });
+
+  it('does not let declined repos consume cap slots and starve the repos behind them', async () => {
+    // The regression the pre-cap screen exists to prevent: capPerTool used to
+    // allocate slots before any PR-history read, so repos whose PRs the
+    // maintainer had already closed held every slot each run and the repos
+    // queued behind them — which had never been offered anything — got nothing
+    // for the whole cooldown.
+    const declinedRepos = new Set(['r1', 'r2']);
+    const gh = {
+      ...mockGh,
+      paginate: async (path) => {
+        const name = path.match(/\/repos\/owner\/([^/]+)\//)?.[1];
+        if (declinedRepos.has(name)) {
+          return [{
+            number: 1,
+            state: 'closed',
+            merged_at: null,
+            closed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          }];
+        }
+        return [];
+      },
+    };
+    const findings = [{
+      type: 'standards-gap',
+      tool: 'code-scanning',
+      nonCompliant: ['r1', 'r2', 'r3', 'r4'],
+      repoEcosystems: { r1: 'JavaScript', r2: 'JavaScript', r3: 'JavaScript', r4: 'JavaScript' },
+    }];
+    const result = await applyGovernanceFindings(gh, 'owner', findings, baseConfig, { dryRun: false, maxPerRun: 2 });
+
+    // Cap is 2. r1/r2 are declined, so the two slots must go to r3 and r4 —
+    // under the old ordering they went to r1/r2 and produced nothing.
+    const created = result.results.filter(r => r.status === 'created').map(r => r.repo).sort();
+    assert.deepEqual(created, ['r3', 'r4']);
+    const declined = result.results.filter(r => r.reason === 'recently declined').map(r => r.repo).sort();
+    assert.deepEqual(declined, ['r1', 'r2']);
+  });
+
+  it('fails closed when the PR history cannot be read', async () => {
+    const brokenGh = {
+      ...mockGh,
+      paginate: async (path) => {
+        if (path.includes('repo-a')) throw new Error('GitHub API GET /pulls: 500');
+        return [];
+      },
+    };
+    const result = await applyGovernanceFindings(brokenGh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    // 'error', not 'skipped': a repo dropped because the PR listing failed must
+    // not be tallied beside deliberate declines, or a run that is inert because
+    // the token lost pull-request read looks like a healthy run with nothing to
+    // do. The run summary counts it under errors.
+    assert.equal(result.results[0].status, 'error');
+    assert.equal(result.results[0].reason, 'PR history unreadable');
+    assert.equal(result.summary.errors, 1);
+    assert.equal(result.summary.created, 0);
   });
 
   it('handles per-repo error without aborting batch', async () => {

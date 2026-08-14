@@ -328,7 +328,10 @@ export function buildRepoSnapshot({
       bot_prs: prAuthors.filter(a => isBotAuthor(a.author)).reduce((s, a) => s + a.count, 0),
       releases: releases.length,
       latest_release: releases[0]?.tag_name || 'none',
-      ci_workflows: details?.ci || 0,
+      // Tri-state: null means unread, and the render sites distinguish it from
+      // a real 0 so the dashboard never asserts "0 workflows" about a repo whose
+      // workflow listing simply failed to load.
+      ci_workflows: details?.ci ?? null,
       bus_factor: busFactor,
       time_to_close_median: timeToCloseMedian,
       automated_security_fixes_active: details?.autofix == null ? null : (details.autofix.enabled === true && details.autofix.paused !== true),

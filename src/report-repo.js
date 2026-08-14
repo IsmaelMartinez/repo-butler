@@ -392,7 +392,10 @@ function snapshotToTierInput(snapshot) {
   const cp = snapshot.community_profile;
   const da = snapshot.dependabot_alerts;
   return {
-    ci: snapshot.summary?.ci_workflows || 0,
+    // `?? null` preserves the tri-state into computeHealthTier, where an unknown
+    // fails both CI checks (correctly — gold is not awarded without evidence)
+    // but stays distinguishable from a real 0 for the render and regression paths.
+    ci: snapshot.summary?.ci_workflows ?? null,
     license: snapshot.license ?? (cp?.files?.license ? 'present' : 'None'),
     open_issues: snapshot.summary?.open_issues || 0,
     open_bugs: snapshot.summary?.open_bugs ?? null,
@@ -802,8 +805,12 @@ new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${tr
   const ss = snapshot.secret_scanning_alerts;
   const cipr = snapshot.ci_pass_rate;
   const healthData = {
-    'Has CI workflows (2+)': `${s.ci_workflows || 0} workflows${cipr?.pass_rate != null ? ', ' + Math.round(cipr.pass_rate * 100) + '% pass' : ''}`,
-    'Has CI workflows': `${s.ci_workflows || 0} workflows`,
+    // ci_workflows is tri-state: null means the workflow listing was never read,
+    // and the check fails for want of evidence rather than because the repo has
+    // no CI. Saying "0 workflows" there states a fact nobody observed — same
+    // reason open_bugs renders 'unavailable' below.
+    'Has CI workflows (2+)': s.ci_workflows == null ? 'unavailable' : `${s.ci_workflows} workflows${cipr?.pass_rate != null ? ', ' + Math.round(cipr.pass_rate * 100) + '% pass' : ''}`,
+    'Has CI workflows': s.ci_workflows == null ? 'unavailable' : `${s.ci_workflows} workflows`,
     'Has a license': snapshot.license || '—',
     'Fewer than 10 open bugs': s.open_bugs != null ? `${s.open_bugs} bugs` : 'unavailable',
     'Fewer than 20 open issues': `${s.open_issues} issues`,
@@ -857,7 +864,9 @@ export function generateLightRepoReport(owner, repo, details) {
   const now = new Date().toISOString().split('T')[0];
   const pushed = repo.pushed_at?.split('T')[0] || 'unknown';
   const commits = details?.commits || 0;
-  const ci = details?.ci || 0;
+  // Tri-state, like autofix below: an unread workflow listing renders as '—',
+  // never as 0, which would assert the repo has no CI.
+  const ci = details?.ci ?? null;
   const license = details?.license || 'None';
   // details.autofix is the raw { enabled, paused } | null state (fetchPortfolioDetails);
   // derive the same tri-state buildRepoSnapshot computes for the full-dashboard path.
@@ -872,7 +881,7 @@ export function generateLightRepoReport(owner, repo, details) {
   <div class="card"><h3>Stars</h3><div class="stat">${repo.stars}</div><div class="stat-label">${repo.forks} forks</div></div>
   <div class="card"><h3>Open Issues</h3><div class="stat">${repo.open_issues || 0}</div></div>
   <div class="card"><h3>Commits (6mo)</h3><div class="stat">${commits}</div></div>
-  <div class="card"><h3>CI Workflows</h3><div class="stat">${ci}</div></div>
+  <div class="card"><h3>CI Workflows</h3><div class="stat">${ci ?? '—'}</div></div>
   <div class="card"><h3>Last Push</h3><div class="stat stat-sm">${pushed}</div></div>
   ${buildDependabotAutofixCard(autofixActive)}
 </div>

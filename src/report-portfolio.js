@@ -331,10 +331,23 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // silently never apply to exactly the repos nobody touches. One call
       // serves both and makes the verdicts always current rather than only as
       // current as the last push.
-      const [autofix, hasCopilotReview, workflowFiles] = await Promise.all([
+      //
+      // `ci` joins them conditionally, and only when it is UNKNOWN. It is a
+      // push-invariant count, so re-reading it on every cache hit would buy
+      // nothing for a call per repo per run — but a null is not a count, it is
+      // the absence of one, and left alone it would be served until the repo's
+      // next push, which on a quiet repo is indefinitely. That is the same
+      // "an unknown must never become permanent" rule as the two flags above,
+      // applied only where the unknown actually exists.
+      const [autofix, hasCopilotReview, workflowFiles, ci] = await Promise.all([
         getAutomatedSecurityFixesState(gh, owner, r.name),
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
         fetchDefaultBranchWorkflows(gh, owner, r.name),
+        cached.details?.ci == null
+          ? gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
+            .then(d => d.total_count ?? null)
+            .catch(() => null)
+          : Promise.resolve(cached.details.ci),
       ]);
       // An unknown live read must not destroy a known cached verdict — it is
       // strictly less information than what is already on hand. Without the
@@ -345,6 +358,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // erase a fact.
       details[r.name] = {
         ...cached.details,
+        ci,
         autofix,
         hasCopilotReview,
         hasOsvScanner: workflowPresence(workflowFiles, OSV_WORKFLOW_FILE)
@@ -356,6 +370,19 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + templated workflows refreshed)`);
       return;
     }
+    // Last-known `ci`, used ONLY as the workflow-listing catch's fallback. Gated
+    // on the cache schema version for the same reason the cache-hit branch above
+    // is: a details object written under a superseded version may mean something
+    // different, and the version bump is the one mechanism that invalidates it.
+    // Reading it ungated would let a pre-bump count survive every bump — and,
+    // because this value is then written into the fresh cache entry under the
+    // NEW pushed_at, be laundered into something indistinguishable from a
+    // current observation. Deliberately NOT gated on pushed_at: a stale count is
+    // the whole point of a last-known-value fallback, and it is corrected by the
+    // next successful fetch, so the exposure is one run.
+    const lastKnownCi = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
+      ? (cached.details?.ci ?? null)
+      : null;
     const [commits, weekly, repoMeta, workflowsMeta, workflowFiles, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix] = await Promise.all([
       gh.request('/search/commits', {
         params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
@@ -400,7 +427,18 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         // key, so a single blip would write "compliant" and serve it until the
         // repo's next push, which on a quiet repo is indefinitely. Unknown is
         // honest and, unlike `true`, cannot be mistaken for evidence.
-        .catch(() => ({ ci: 0, hasReleaseWorkflow: true })),
+        // `ci` falls back to the cached count and only reaches `null` for a repo
+        // that has never been read successfully. It must NOT fail to 0: `ci`
+        // feeds computeHealthTier's "Has CI workflows (2+)" gold check, so a
+        // single 500 on this endpoint used to demote a healthy repo — and the
+        // G7 detector then filed a high-priority tier-regression finding about
+        // a regression that never happened. That is worse than the spurious
+        // remediation PR the templated standards guard against, because it
+        // moves the portfolio's headline metric and persists into the weekly
+        // snapshot as a stored tier. Unlike hasReleaseWorkflow above, `ci` must
+        // not fail toward present either: it is a COUNT, and inventing one
+        // would award gold on no evidence. Last known value, else unknown.
+        .catch(() => ({ ci: lastKnownCi, hasReleaseWorkflow: true })),
       fetchDefaultBranchWorkflows(gh, owner, r.name),
       gh.request(`/repos/${owner}/${r.name}/community/profile`)
         .then(async d => {
@@ -1309,12 +1347,20 @@ export function generatePortfolioReport(owner, portfolio, details, mainWeekly, d
     const tier = r._tier;
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
     const communityColor = colorByThreshold(r.communityHealth, PCT_HIGH_GOOD_RANGES);
-    const ciCount = r.ci || 0;
+    // Tri-state, and this cell had the loudest wrong answer of any render site:
+    // `|| 0` turned an unread listing into "none" in DANGER RED, i.e. the table
+    // asserted the repo has no CI — the strongest possible claim — on the
+    // strength of one failed request. Unknown renders like the `vulns == null`
+    // cell below: faint, with a tooltip saying why. An observed 0 still gets
+    // the red "none", because that IS a fact.
+    const ciCount = r.ci ?? null;
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
     const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
-    const ciDisplay = ciCount === 0
-      ? `<span style="color:${COLOR_DANGER}">none</span>`
-      : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
+    const ciDisplay = ciCount == null
+      ? '<span title="Workflow listing could not be read for this repo" style="color:var(--faint);cursor:help">n/a</span>'
+      : ciCount === 0
+        ? `<span style="color:${COLOR_DANGER}">none</span>`
+        : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
     const vulnDisplay = r.vulns == null
       ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>'
       : r.vulns.count === 0

@@ -218,6 +218,27 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings[0].adoptionRate, 0.5);
   });
 
+  it('treats an unread ci count as unknown, not as zero CI workflows', () => {
+    // `ci` is a COUNT, so the tri-state edge is different from the boolean
+    // file-presence standards: `|| 0` silently turned "never read" into the
+    // strongest possible claim of non-compliance. The same null also reaches
+    // computeHealthTier's gold check, so a repo that simply failed a fetch used
+    // to be reported as having no CI at all.
+    const repos = [makeRepo('has-ci'), makeRepo('no-ci'), makeRepo('unread')];
+    const details = makeDetails(repos, {
+      'has-ci': { ci: 3 },
+      'no-ci': { ci: 0 },
+      unread: { ci: null },
+    });
+    const standards = [{ tool: 'ci-workflows', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].compliant, ['has-ci']);
+    // A real zero is still a real gap — only the unread repo drops out.
+    assert.deepEqual(result.findings[0].nonCompliant, ['no-ci']);
+    assert.equal(result.findings[0].adoptionRate, 0.5);
+  });
+
   it('emits no dependabot-auto-merge finding when every applicable repo is unknown', () => {
     // The transient-outage shape. One bad window on the contents API must not
     // produce a portfolio-wide gap finding, because this standard's findings
@@ -1214,6 +1235,32 @@ describe('detectTierRegressions', () => {
       priorWeek: '2026-W26',
       priority: 'high',
     }]);
+  });
+
+  it('does not report a regression for a repo whose tier was scored without a ci reading', () => {
+    // The false-alarm shape. `ci: null` means the workflow listing was never
+    // read, and computeHealthTier's `(r.ci || 0)` then fails both CI checks —
+    // correct for withholding gold, but it drops the tier, and diffing that
+    // drop would file a HIGH-priority regression from one failed request.
+    const prior = { ...weeklySnap({ 'repo-a': 'gold', 'repo-b': 'gold' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'bronze', 'repo-b': 'bronze' });
+    current.repos['repo-a'].ci = null;   // unread this run
+    current.repos['repo-b'].ci = 4;      // genuinely observed
+
+    const findings = detectTierRegressions(current, prior);
+
+    // Only the evidenced decline is reported.
+    assert.deepEqual(findings.map(f => f.repo), ['repo-b']);
+  });
+
+  it('still reports regressions for snapshot shapes with no ci key at all', () => {
+    // An ABSENT key is an older snapshot format, not an unknown. Treating it as
+    // unknown would switch regression detection off for every archived week.
+    const prior = { ...weeklySnap({ 'repo-a': 'gold' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'silver' });
+    assert.equal('ci' in current.repos['repo-a'], false);
+
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
   });
 
   it('emits no tier-regression finding for an unchanged pair', () => {
