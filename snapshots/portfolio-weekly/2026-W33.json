@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 27,
+      "open_issues": 25,
       "open_bugs": 10,
       "commits_6mo": 424,
-      "stars": 4931,
+      "stars": 4932,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9761904761904762,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -237,14 +237,14 @@
       },
       "ci": 16,
       "released_at": "2026-08-07T16:42:08Z",
-      "pushed_at": "2026-08-14T08:05:35Z",
+      "pushed_at": "2026-08-14T16:08:49Z",
       "traffic": {
         "views_14d": {
-          "count": 9843,
-          "uniques": 4419
+          "count": 9905,
+          "uniques": 4388
         },
         "clones_14d": {
-          "count": 8096,
+          "count": 8151,
           "uniques": 433
         }
       },
@@ -312,9 +312,9 @@
     },
     "ismaelmartinez.me.uk": {
       "id": 786898753,
-      "open_issues": 19,
-      "open_bugs": 7,
-      "commits_6mo": 212,
+      "open_issues": 16,
+      "open_bugs": 3,
+      "commits_6mo": 218,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -340,15 +340,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-14T11:17:07Z",
+      "pushed_at": "2026-08-14T13:50:20Z",
       "traffic": {
         "views_14d": {
-          "count": 49,
+          "count": 55,
           "uniques": 5
         },
         "clones_14d": {
-          "count": 890,
-          "uniques": 338
+          "count": 1057,
+          "uniques": 391
         }
       },
       "computed": {
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-14T08:44:11Z",
+      "pushed_at": "2026-08-14T12:35:48Z",
       "traffic": {
         "views_14d": {
           "count": 20,
