@@ -1375,7 +1375,7 @@ describe('applyCopilotReviewRulesets', () => {
     };
     const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
     assert.equal(result.status, 'completed');
-    assert.deepEqual(result.summary, { created: 1, skipped: 0, errors: 0 });
+    assert.deepEqual(result.summary, { created: 1, skipped: 0, errors: 0, unreadable: 0 });
     const post = calls.find(c => c.method === 'POST');
     assert.ok(post && post.path === '/repos/owner/repo-a/rulesets', 'POSTs the ruleset to the repo');
   });
@@ -1392,8 +1392,43 @@ describe('applyCopilotReviewRulesets', () => {
     };
     const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
     assert.equal(result.status, 'completed');
-    assert.deepEqual(result.summary, { created: 0, skipped: 1, errors: 0 });
+    assert.deepEqual(result.summary, { created: 0, skipped: 1, errors: 0, unreadable: 0 });
     assert.equal(posts.length, 0, 'must not POST a duplicate ruleset');
+  });
+
+  it('fails closed and writes nothing when the ruleset state cannot be read', async () => {
+    // The write-consequence case. hasActiveCopilotReviewRuleset is tri-state,
+    // and `null` is FALSY — so a bare truthiness guard read "could not
+    // determine" as "not enabled" and POSTed, which is how a duplicate ruleset
+    // lands on a repo that already had one. Only an explicit false authorises
+    // the write.
+    const posts = [];
+    const gh = {
+      paginate: async () => { throw new Error('GitHub API GET /rulesets: 403'); },
+      request: async (path, opts) => {
+        if (opts?.method === 'POST') posts.push(path);
+        return {};
+      },
+    };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(result.summary, { created: 0, skipped: 1, errors: 0, unreadable: 1 });
+    assert.equal(posts.length, 0, 'an unreadable state must never authorise a write');
+    assert.equal(result.results[0].reason, 'ruleset state unreadable');
+  });
+
+  it('reports unreadable repos separately so an inert run is not a clean success', async () => {
+    // apply.yml prints this summary as its run notice. Without the separate
+    // count, a run where NOTHING could be read is byte-identical to a run where
+    // every repo was already enabled — so the operator reads success while the
+    // standard is silently never applied, week after week.
+    const gh = {
+      paginate: async () => { throw new Error('GitHub API GET /rulesets: 403'); },
+      request: async () => ({}),
+    };
+    const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.summary.unreadable, 1);
+    assert.notEqual(result.summary.unreadable, 0, 'must not look like a healthy no-op');
   });
 
   it('isolates a per-repo write error and continues to the next repo', async () => {
@@ -1406,7 +1441,7 @@ describe('applyCopilotReviewRulesets', () => {
       },
     };
     const result = await applyCopilotReviewRulesets(gh, 'owner', findings, baseConfig, { dryRun: false });
-    assert.deepEqual(result.summary, { created: 1, skipped: 0, errors: 1 });
+    assert.deepEqual(result.summary, { created: 1, skipped: 0, errors: 1, unreadable: 0 });
   });
 
   it('scheduled run skips: code-review-bot is not on the apply-schedule allow-list', async () => {
@@ -1453,6 +1488,21 @@ describe('findButlerCopilotRuleset / removeCopilotReviewRuleset', () => {
     const gh = { paginate: async () => [{ id: 5, name: 'someone-elses-ruleset' }], request: async () => ({}) };
     const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
     assert.equal(result.status, 'skipped');
+    assert.equal(result.reason, 'no butler ruleset');
+  });
+
+  it('reports an error, not a clean skip, when the ruleset list cannot be read', async () => {
+    // The rollback path's worst failure: findButlerCopilotRuleset used to
+    // collapse "unreadable" into the same null as "absent", so an operator
+    // running the ADR-009 reversal on a repo whose ruleset is still LIVE read
+    // `skipped: no butler ruleset` and believed it was gone.
+    const gh = {
+      paginate: async () => { throw new Error('GitHub API GET /rulesets: 403'); },
+      request: async () => ({}),
+    };
+    const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
+    assert.equal(result.status, 'error');
+    assert.notEqual(result.reason, 'no butler ruleset');
   });
 
   it('returns a structured error (does not throw) when a delete API call fails', async () => {

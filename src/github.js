@@ -390,18 +390,39 @@ export function createClient(token, options = {}) {
 // rule (GitHub Copilot automatic code review). The rulesets list omits rule
 // bodies, so each active ruleset's detail is fetched and scanned for the rule;
 // the list is paginated so a repo with many rulesets cannot hide the match.
-// Returns false on any error (no rulesets, or the token lacks the scope) and on a
-// single ruleset's detail failing — a later active ruleset may still carry the
-// rule. Single source of truth shared by the code-review-bot governance detection
+// Single source of truth shared by the code-review-bot governance detection
 // (report-portfolio.js) and the settings-apply idempotency guard (apply.js), so
 // both agree on what "Copilot review already enabled" means. Detects repo-level
 // rulesets only (org-inherited rulesets are not surfaced).
+//
+// TRI-STATE: true / false / null, where null means "could not determine".
+// `false` used to absorb every failure, which made a transient error state the
+// strongest available claim — that the repo has NO code-review bot — to a
+// governance detector that then reported a gap, and to an apply guard that
+// reads it as permission to write. Only an actually-completed scan may say
+// false. See the `ci` tri-state in report-portfolio.js for the same rule
+// applied to a count.
 export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
+  let rulesets;
   try {
-    const rulesets = await gh.paginate(`/repos/${owner}/${repo}/rulesets`, { max: 200 });
-    if (!Array.isArray(rulesets)) return false;
+    rulesets = await gh.paginate(`/repos/${owner}/${repo}/rulesets`, { max: 200 });
+  } catch {
+    return null;
+  }
+  // An unexpected shape is not an absence of rulesets; we simply cannot read it.
+  if (!Array.isArray(rulesets)) return null;
+
+  // The scan stays inside a try. Converting this function to tri-state moved
+  // the loop out of the original outer try, which quietly made it non-total: a
+  // null element in the array (a sparse page, a test double) would throw on
+  // `rs.enforcement` and propagate, and BOTH report-portfolio call sites sit
+  // bare inside a Promise.all with no .catch — so one malformed page would
+  // abort the entire REPORT/GOVERNANCE run for every repo instead of degrading
+  // one field. It must still degrade to a value; that value is now null.
+  try {
+    let anyDetailUnread = false;
     for (const rs of rulesets) {
-      if (rs.enforcement !== 'active') continue;
+      if (rs?.enforcement !== 'active') continue;
       try {
         const detail = await gh.request(`/repos/${owner}/${repo}/rulesets/${rs.id}`);
         if (detail && Array.isArray(detail.rules) && detail.rules.some(rule => rule.type === 'copilot_code_review')) {
@@ -409,12 +430,16 @@ export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
         }
       } catch {
         // A single ruleset's detail failing (transient/permissions) must not
-        // abort the scan — a later active ruleset may still carry the rule.
+        // abort the scan — a later active ruleset may still carry the rule, and
+        // finding it is still a definitive `true`. But if the scan ends without
+        // one, an unread ruleset is exactly where the rule could have been, so
+        // the answer is unknown rather than false.
+        anyDetailUnread = true;
       }
     }
-    return false;
+    return anyDetailUnread ? null : false;
   } catch {
-    return false;
+    return null;
   }
 }
 

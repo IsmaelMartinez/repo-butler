@@ -218,6 +218,24 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings[0].adoptionRate, 0.5);
   });
 
+  it('reports only an explicit hasCopilotReview false as non-compliant', () => {
+    // code-review-bot routes to a settings WRITE (applyCopilotReviewRulesets),
+    // so a repo landing in nonCompliant is a write target. The `!!` this
+    // replaced turned an unreadable ruleset scan into exactly that.
+    const repos = [makeRepo('yes'), makeRepo('no'), makeRepo('unknown')];
+    const details = makeDetails(repos, {
+      yes: { hasCopilotReview: true },
+      no: { hasCopilotReview: false },
+      unknown: { hasCopilotReview: null },
+    });
+    const standards = [{ tool: 'code-review-bot', scope: { type: 'universal' }, exclude: [] }];
+    const result = detectStandardsGaps(standards, repos, details);
+    assert.equal(result.findings.length, 1);
+    assert.deepEqual(result.findings[0].compliant, ['yes']);
+    assert.deepEqual(result.findings[0].nonCompliant, ['no']);
+    assert.equal(result.findings[0].adoptionRate, 0.5);
+  });
+
   it('treats an unread ci count as unknown, not as zero CI workflows', () => {
     // `ci` is a COUNT, so the tri-state edge is different from the boolean
     // file-presence standards: `|| 0` silently turned "never read" into the

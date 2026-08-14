@@ -62,7 +62,17 @@ export function isExcludedRepo(name) {
 // This is the cache-refresh convention: a settings-toggle field gets a live
 // read on every cache hit instead of a fresh version bump each time the
 // underlying GitHub setting can change.
-export const REPO_CACHE_SCHEMA_VERSION = 8;
+// v9: hasCopilotReview became TRI-STATE. Same reason v8 was needed for
+// hasAutoMergeWorkflow — a cached v8 `false` may be a PHANTOM, written by the
+// old code which absorbed every unreadable ruleset scan into `false`. Without
+// the bump the new last-known-value fallback would resolve today's honest
+// `null` to that phantom and serve it as a known verdict, reporting a
+// code-review-bot gap for a compliant repo — one that can never clear, because
+// the cache entry survives until the repo's next push and the apply path now
+// fail-closed-skips rather than correcting anything. A tri-state conversion of
+// a cached field always needs the bump; the live re-read convention below
+// keeps it current AFTERWARDS, it cannot launder what is already stored.
+export const REPO_CACHE_SCHEMA_VERSION = 9;
 
 // True for releases that are actually published. GitHub returns drafts (with
 // null published_at) at the top of /releases when ordered by created_at, so
