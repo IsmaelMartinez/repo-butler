@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-08-13
+**Last Updated:** 2026-08-14
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -116,6 +116,8 @@ OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #37
 OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
 
 Dependabot auto-merge governance fix shipped 2026-08-13 (PR #375). Refined repository governance automation by ensuring the presence of the dependabot-auto-merge configuration is read reliably from the default branch.
+
+Transient failure reporting stability improvement shipped 2026-08-14 (PR #378). Prevents false positives in compliance monitoring by ensuring transient detection failures are no longer reported as non-compliance.
 
 ---
 
