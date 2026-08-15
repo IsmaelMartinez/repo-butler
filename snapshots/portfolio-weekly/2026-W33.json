@@ -209,9 +209,9 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 24,
-      "open_bugs": 10,
-      "commits_6mo": 406,
+      "open_issues": 21,
+      "open_bugs": 9,
+      "commits_6mo": 410,
       "stars": 4933,
       "license": "GPL-3.0",
       "communityHealth": 100,
@@ -236,8 +236,8 @@
         "count": 0
       },
       "ci": 17,
-      "released_at": "2026-08-07T16:42:08Z",
-      "pushed_at": "2026-08-14T22:35:16Z",
+      "released_at": "2026-08-15T08:14:10Z",
+      "pushed_at": "2026-08-15T10:30:23Z",
       "traffic": {
         "views_14d": {
           "count": 9972,
@@ -249,7 +249,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -263,7 +263,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -307,14 +307,14 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Fewer than 10 open bugs"
+        "next_step": null
       }
     },
     "ismaelmartinez.me.uk": {
       "id": 786898753,
-      "open_issues": 16,
+      "open_issues": 17,
       "open_bugs": 3,
-      "commits_6mo": 219,
+      "commits_6mo": 222,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-14T22:58:02Z",
+      "pushed_at": "2026-08-15T10:55:51Z",
       "traffic": {
         "views_14d": {
           "count": 20,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-15T07:09:12Z",
+      "pushed_at": "2026-08-15T07:26:51Z",
       "traffic": {
         "views_14d": {
           "count": 26,
@@ -1241,11 +1241,11 @@
       "id": 1223288066,
       "open_issues": 7,
       "open_bugs": 2,
-      "commits_6mo": 314,
+      "commits_6mo": 315,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.8888888888888888,
+      "ciPassRate": 0.8873239436619719,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1267,7 +1267,7 @@
       },
       "ci": 8,
       "released_at": "2026-06-14T21:21:39Z",
-      "pushed_at": "2026-08-12T15:33:30Z",
+      "pushed_at": "2026-08-15T08:26:54Z",
       "traffic": {
         "views_14d": {
           "count": 26,
