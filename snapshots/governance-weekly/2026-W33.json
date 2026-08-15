@@ -1,6 +1,45 @@
 {
   "findings": [
     {
+      "type": "tier-uplift",
+      "repo": "teams-for-linux",
+      "currentTier": "silver",
+      "targetTier": "gold",
+      "failingChecks": [
+        {
+          "name": "Fewer than 10 open bugs",
+          "required_for": "gold"
+        }
+      ],
+      "priority": "high",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [],
+        "intent": "Uplift teams-for-linux from silver to gold",
+        "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
+        "acceptanceCriteria": [
+          "Check \"Fewer than 10 open bugs\" passes"
+        ]
+      }
+    },
+    {
+      "type": "tier-regression",
+      "repo": "teams-for-linux",
+      "previousTier": "gold",
+      "currentTier": "silver",
+      "priorWeek": "2026-W32",
+      "priority": "high",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Restore teams-for-linux to gold",
+        "rationale": "Health tier regressed from gold to silver since 2026-W32.",
+        "acceptanceCriteria": [
+          "teams-for-linux is back at gold in a subsequent weekly snapshot"
+        ]
+      }
+    },
+    {
       "type": "dependabot-stale",
       "repo": "betis-escocia",
       "stalePRs": [
