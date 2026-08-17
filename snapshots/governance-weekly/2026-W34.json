@@ -1,0 +1,47 @@
+{
+  "findings": [
+    {
+      "type": "tier-uplift",
+      "repo": "teams-for-linux",
+      "currentTier": "silver",
+      "targetTier": "gold",
+      "failingChecks": [
+        {
+          "name": "Fewer than 10 open bugs",
+          "required_for": "gold"
+        }
+      ],
+      "priority": "high",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [],
+        "intent": "Uplift teams-for-linux from silver to gold",
+        "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
+        "acceptanceCriteria": [
+          "Check \"Fewer than 10 open bugs\" passes"
+        ]
+      }
+    },
+    {
+      "type": "dependabot-stale",
+      "repo": "betis-escocia",
+      "stalePRs": [
+        {
+          "number": 470,
+          "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
+          "age": 34
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
+        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 34 days).",
+        "acceptanceCriteria": [
+          "Each stale Dependabot PR is merged or closed"
+        ]
+      }
+    }
+  ]
+}
