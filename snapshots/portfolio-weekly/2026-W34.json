@@ -212,7 +212,7 @@
       "open_issues": 26,
       "open_bugs": 13,
       "commits_6mo": 409,
-      "stars": 4937,
+      "stars": 4938,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 1,
@@ -520,11 +520,11 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 299,
+      "commits_6mo": 308,
       "stars": 1,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.78125,
+      "ciPassRate": 0.88,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -546,7 +546,7 @@
       },
       "ci": 9,
       "released_at": "2026-07-13T06:39:40Z",
-      "pushed_at": "2026-08-12T14:54:39Z",
+      "pushed_at": "2026-08-17T08:53:25Z",
       "traffic": {
         "views_14d": {
           "count": 5,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-17T06:56:46Z",
+      "pushed_at": "2026-08-17T07:48:50Z",
       "traffic": {
         "views_14d": {
           "count": 30,
