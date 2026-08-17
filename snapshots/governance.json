@@ -22,23 +22,6 @@
     }
   },
   {
-    "type": "tier-regression",
-    "repo": "teams-for-linux",
-    "previousTier": "gold",
-    "currentTier": "silver",
-    "priorWeek": "2026-W32",
-    "priority": "high",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Restore teams-for-linux to gold",
-      "rationale": "Health tier regressed from gold to silver since 2026-W32.",
-      "acceptanceCriteria": [
-        "teams-for-linux is back at gold in a subsequent weekly snapshot"
-      ]
-    }
-  },
-  {
     "type": "dependabot-stale",
     "repo": "betis-escocia",
     "stalePRs": [
