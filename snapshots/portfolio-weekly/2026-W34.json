@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 26,
+      "open_issues": 28,
       "open_bugs": 13,
       "commits_6mo": 409,
-      "stars": 4938,
+      "stars": 4937,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9818181818181818,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -318,7 +318,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9887640449438202,
+      "ciPassRate": 0.9888888888888889,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-17T01:11:26Z",
+      "pushed_at": "2026-08-17T12:45:17Z",
       "traffic": {
         "views_14d": {
           "count": 23,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-17T07:48:50Z",
+      "pushed_at": "2026-08-17T12:17:44Z",
       "traffic": {
         "views_14d": {
           "count": 30,
@@ -1035,7 +1035,7 @@
       "id": 1196601911,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 315,
+      "commits_6mo": 317,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
@@ -1061,7 +1061,7 @@
       },
       "ci": 8,
       "released_at": "2026-07-12T13:00:13Z",
-      "pushed_at": "2026-08-12T15:32:25Z",
+      "pushed_at": "2026-08-17T14:18:25Z",
       "traffic": {
         "views_14d": {
           "count": 21,
@@ -1239,8 +1239,8 @@
     },
     "delegate-local": {
       "id": 1223288066,
-      "open_issues": 10,
-      "open_bugs": 2,
+      "open_issues": 11,
+      "open_bugs": null,
       "commits_6mo": 319,
       "stars": 3,
       "license": "MIT",
@@ -1267,7 +1267,7 @@
       },
       "ci": 8,
       "released_at": "2026-06-14T21:21:39Z",
-      "pushed_at": "2026-08-17T07:09:14Z",
+      "pushed_at": "2026-08-17T11:33:19Z",
       "traffic": {
         "views_14d": {
           "count": 29,
@@ -1292,7 +1292,7 @@
             "required_for": "silver"
           },
           {
-            "name": "Fewer than 10 open bugs",
+            "name": "Fewer than 20 open issues",
             "passed": true,
             "required_for": "gold"
           },
