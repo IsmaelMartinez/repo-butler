@@ -113,6 +113,8 @@ Transient failure reporting stability improvement shipped 2026-08-14 (PR #378). 
 
 Copilot review ruleset detection made tri-state, shipped 2026-08-14 (PR #380). `hasActiveCopilotReviewRuleset` absorbed every failure into `false`, so a transient error became the strongest claim available — that a repo has no code-review bot. Governance reported a gap, and the apply guard that exists to prevent a duplicate ruleset read the same `false` as permission to write. It now returns `true`/`false`/`null`, and only an explicit `false` authorises the write.
 
+Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore updated the project's roadmap to reflect future planning directions and document current progress as the repository enters a temporary maintenance phase following a highly productive period of feature development.
+
 ---
 
 ## Next Up
