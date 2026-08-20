@@ -211,8 +211,8 @@
       "id": 151476958,
       "open_issues": 22,
       "open_bugs": 10,
-      "commits_6mo": 404,
-      "stars": 4946,
+      "commits_6mo": 405,
+      "stars": 4947,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 1,
@@ -236,8 +236,8 @@
         "count": 0
       },
       "ci": 17,
-      "released_at": "2026-08-19T13:55:02Z",
-      "pushed_at": "2026-08-20T09:47:53Z",
+      "released_at": "2026-08-20T15:22:45Z",
+      "pushed_at": "2026-08-20T15:22:44Z",
       "traffic": {
         "views_14d": {
           "count": 10653,
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-20T01:08:52Z",
+      "pushed_at": "2026-08-20T12:48:53Z",
       "traffic": {
         "views_14d": {
           "count": 45,
@@ -553,8 +553,8 @@
           "uniques": 6
         },
         "clones_14d": {
-          "count": 2154,
-          "uniques": 449
+          "count": 2087,
+          "uniques": 436
         }
       },
       "computed": {
@@ -755,12 +755,12 @@
       "pushed_at": "2026-08-17T02:47:59Z",
       "traffic": {
         "views_14d": {
-          "count": 7,
-          "uniques": 3
+          "count": 9,
+          "uniques": 4
         },
         "clones_14d": {
           "count": 249,
-          "uniques": 119
+          "uniques": 124
         }
       },
       "computed": {
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-20T07:37:53Z",
+      "pushed_at": "2026-08-20T12:21:07Z",
       "traffic": {
         "views_14d": {
           "count": 41,
@@ -1242,7 +1242,7 @@
       "open_issues": 6,
       "open_bugs": 1,
       "commits_6mo": 365,
-      "stars": 4,
+      "stars": 5,
       "license": "MIT",
       "communityHealth": 100,
       "ciPassRate": 0.9830508474576272,
