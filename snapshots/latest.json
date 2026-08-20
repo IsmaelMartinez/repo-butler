@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-19T20:19:43.016Z",
+  "timestamp": "2026-08-20T07:35:43.140Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-08-19T18:15:39Z",
+    "pushed_at": "2026-08-20T06:22:42Z",
     "archived": false
   },
   "issues": {
@@ -52,6 +52,16 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 383,
+        "title": "chore(deps): bump the minor-and-patch group with 4 updates",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-08-20T01:35:51Z"
+      },
       {
         "number": 381,
         "title": "chore: update roadmap (repo-butler)",
@@ -1128,13 +1138,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-05-26T06:03:47Z"
-      },
-      {
-        "number": 221,
-        "title": "fix(libyear): per-fetch timeouts replace cascading abort (#220)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-21T06:52:36Z"
       }
     ]
   },
@@ -1338,8 +1341,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 90,
-    "passed": 90,
+    "total_runs": 88,
+    "passed": 88,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1355,8 +1358,8 @@
     "awaiting_feedback": 0,
     "recently_closed": 2,
     "recently_merged_prs": 151,
-    "bot_prs": 7,
-    "human_prs": 144,
+    "bot_prs": 8,
+    "human_prs": 143,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
