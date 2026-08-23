@@ -34,12 +34,12 @@
       "pushed_at": "2026-08-12T15:27:31Z",
       "traffic": {
         "views_14d": {
-          "count": 7,
+          "count": 9,
           "uniques": 2
         },
         "clones_14d": {
-          "count": 96,
-          "uniques": 43
+          "count": 97,
+          "uniques": 44
         }
       },
       "computed": {
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-23T01:16:01Z",
+      "pushed_at": "2026-08-23T12:41:48Z",
       "traffic": {
         "views_14d": {
           "count": 68,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-23T07:30:14Z",
+      "pushed_at": "2026-08-23T12:15:10Z",
       "traffic": {
         "views_14d": {
           "count": 43,
