@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-08-22
+**Last Updated:** 2026-08-23
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -51,9 +51,7 @@ Governance is a first-class phase with five deterministic finding types, each ca
 
 Section-edit mode (PR #231, May 2026) is worth calling out separately, as the mechanism this document depends on: the LLM receives the roadmap as read-only context and emits a JSON array of append operations, which the code applies deterministically. It can add content but never delete or rewrite. Three models had previously proved unable to reproduce the document verbatim, and four safety guards correctly caught every bad edit — which meant no PR was ever created. Run time dropped from ~40s to ~6s.
 
-**2026-06** — 7 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291, #298, #300, #301, #302, #303). Full details in git history.
-
-Cross-repo issue format shipped 2026-06-24 (PR #304). A deterministic body composed from the anchoring finding's statistic rather than LLM free text, a distinct `portfolio-nudge` label, an onboarding-marker precondition that falls back to the host backlog, and a host-side umbrella tracking issue back-linked by bare URL.
+**2026-06** — 8 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291, #298, #300, #301, #302, #303, #304). Full details in git history.
 
 Cross-repo PROPOSE graduated its first class 2026-07-21 (PR #326). `standards-gap` became the first enabled cross-repo class, with `github-issue-triage-bot` the first enabled target.
 
