@@ -211,7 +211,7 @@
       "id": 151476958,
       "open_issues": 21,
       "open_bugs": 9,
-      "commits_6mo": 402,
+      "commits_6mo": 404,
       "stars": 4966,
       "license": "GPL-3.0",
       "communityHealth": 100,
@@ -235,9 +235,9 @@
       "secretScanning": {
         "count": 0
       },
-      "ci": 17,
+      "ci": 18,
       "released_at": "2026-08-20T15:22:45Z",
-      "pushed_at": "2026-08-23T07:32:15Z",
+      "pushed_at": "2026-08-23T19:44:07Z",
       "traffic": {
         "views_14d": {
           "count": 11588,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-23T12:15:10Z",
+      "pushed_at": "2026-08-23T18:12:17Z",
       "traffic": {
         "views_14d": {
           "count": 43,
