@@ -256,5 +256,39 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-08-24T06:59:46.511Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Harden release-cadence workflow template against security vulnerabilities",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Remediate stale Dependabot pull requests in betis-escocia",
+        "target_repo": "betis-escocia",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-finding-anchor",
+        "number": null
+      },
+      {
+        "title": "Formalize Cross-Repo PROPOSE Phase to Graduate Feature to Stable",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
