@@ -46,7 +46,7 @@
         {
           "number": 470,
           "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
-          "age": 42
+          "age": 43
         }
       ],
       "priority": "medium",
@@ -54,7 +54,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 42 days).",
+        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 43 days).",
         "acceptanceCriteria": [
           "Each stale Dependabot PR is merged or closed"
         ]
