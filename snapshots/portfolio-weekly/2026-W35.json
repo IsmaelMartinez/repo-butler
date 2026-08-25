@@ -211,11 +211,11 @@
       "id": 151476958,
       "open_issues": 18,
       "open_bugs": 10,
-      "commits_6mo": 400,
-      "stars": 4974,
+      "commits_6mo": 404,
+      "stars": 4976,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.975,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -237,7 +237,7 @@
       },
       "ci": 18,
       "released_at": "2026-08-24T20:21:33Z",
-      "pushed_at": "2026-08-25T10:24:09Z",
+      "pushed_at": "2026-08-25T16:05:08Z",
       "traffic": {
         "views_14d": {
           "count": 11937,
@@ -318,7 +318,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9595959595959596,
+      "ciPassRate": 0.96,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-24T18:43:00Z",
+      "pushed_at": "2026-08-25T13:07:18Z",
       "traffic": {
         "views_14d": {
           "count": 73,
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9887640449438202,
+      "ciPassRate": 0.9775280898876404,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-25T07:40:53Z",
+      "pushed_at": "2026-08-25T12:22:12Z",
       "traffic": {
         "views_14d": {
           "count": 45,
@@ -1241,7 +1241,7 @@
       "id": 1223288066,
       "open_issues": 5,
       "open_bugs": 0,
-      "commits_6mo": 368,
+      "commits_6mo": 369,
       "stars": 5,
       "license": "MIT",
       "communityHealth": 100,
@@ -1267,7 +1267,7 @@
       },
       "ci": 8,
       "released_at": "2026-08-19T08:57:48Z",
-      "pushed_at": "2026-08-21T10:01:27Z",
+      "pushed_at": "2026-08-25T15:37:19Z",
       "traffic": {
         "views_14d": {
           "count": 105,
