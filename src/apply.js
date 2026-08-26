@@ -229,15 +229,16 @@ concurrency:
   group: \${{ github.workflow }}
   cancel-in-progress: false
 
+# Deliberately only contents: write. \`--generate-notes\` summarises merged pull
+# requests, so a \`pull-requests: read\` grant was considered (#327 finding 4) and
+# rejected: neither the REST reference nor the release-notes guide documents the
+# scope, and the path has never executed here — every scheduled run so far
+# skipped on a healthy cadence, so nothing on the estate is evidence either way.
+# A declared permissions block sets every unlisted scope to none, so granting on
+# an unproven hypothesis widens the token on every repo carrying this template.
+# If a first live run fails on it, add it then, with the failure as the evidence.
 permissions:
   contents: write
-  # \`--generate-notes\` summarises merged pull requests. Neither the REST
-  # reference nor the release-notes guide documents a permission for it, and the
-  # path has never executed on this estate (every scheduled run so far skipped
-  # on a healthy cadence), so this is precautionary rather than proven. It is
-  # read-only, and the failure it prevents would land on the first real release
-  # — exactly the run the standard exists to make succeed.
-  pull-requests: read
 
 jobs:
   release:
@@ -256,21 +257,43 @@ jobs:
       - name: Cut a patch release when the cadence has lapsed
         env:
           GH_TOKEN: \${{ github.token }}
+          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
+          # A release must come from the default branch. The schedule always
+          # runs there, but workflow_dispatch lets any writer choose a ref, and
+          # a feature branch cut from the latest tag passes every downstream
+          # gate — ancestor, commit count, semver — and ships unmerged work.
+          # Fails closed when the default branch cannot be determined.
+          if [ -z "\${DEFAULT_BRANCH:-}" ]; then
+            echo "Could not determine the default branch — skipping."
+            exit 0
+          fi
+          if [ "\${GITHUB_REF_NAME:-}" != "$DEFAULT_BRANCH" ]; then
+            echo "Running on \${GITHUB_REF_NAME:-unknown}, not the default branch ($DEFAULT_BRANCH) — skipping."
+            exit 0
+          fi
           # Keep stderr: discarding it made a 404 (no release yet) and a 500
           # (outage) arrive identically as an empty string, so a real failure
           # reported itself as "the first release stays a human decision" and
           # was undiagnosable from the log. Both still skip — that is correct —
           # but they must say which happened.
-          err=$(mktemp)
-          if release=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq '[.tag_name, .published_at] | join(",")' 2>"$err"); then
-            rm -f "$err"
-          else
-            details=$(cat "$err")
-            rm -f "$err"
+          # mktemp failing must skip like every other error here, not go red.
+          if ! err=$(mktemp); then
+            echo "Could not create a temporary file — skipping."
+            exit 0
+          fi
+          trap 'rm -f "$err"' EXIT
+          if ! release=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq '[.tag_name, .published_at] | join(",")' 2>"$err"); then
+            # gh's stderr is remote text landing in a public Actions log. Flatten
+            # it to one line and neutralise "::" so an error body cannot inject
+            # an Actions workflow command (::error::, ::add-mask::), then cap it.
+            details=$(tr '\\n\\r' '  ' < "$err" | sed 's/::/:./g' | cut -c1-200)
+            # Anchor on gh's rendered status, not a bare "404": a request id or
+            # rate-limit body containing those digits was reported as "no
+            # release yet", re-creating the conflation this exists to remove.
             case "$details" in
-              *404*|*"Not Found"*)
+              *"(HTTP 404)"*)
                 echo "No published release yet — skipping; the first release stays a human decision." ;;
               *)
                 echo "Could not read the latest release — skipping rather than guessing. gh reported: \${details:-no detail}" ;;
@@ -278,7 +301,7 @@ jobs:
             exit 0
           fi
           if [ -z "$release" ]; then
-            echo "No published release yet — skipping; the first release stays a human decision."
+            echo "Latest release lookup returned nothing — skipping."
             exit 0
           fi
           IFS=',' read -r tag published <<< "$release"
@@ -302,13 +325,25 @@ jobs:
           # unrelated history. Verified: without this, a side-branch v2.0.0
           # produced "release create v2.0.1". Fails closed, since a merge-base
           # error is also a reason not to release.
-          if ! git merge-base --is-ancestor "$tag" HEAD; then
+          # merge-base exits 1 for a genuine non-ancestor and something else
+          # (128) when the ref will not resolve at all. Reporting both as "not
+          # an ancestor" would assert a branch topology that may not exist —
+          # the same false-cause defect findings 2 and 3 exist to remove.
+          set +e
+          git merge-base --is-ancestor "$tag" HEAD 2>/dev/null
+          ancestry=$?
+          set -e
+          if [ "$ancestry" -eq 1 ]; then
             echo "Latest tag $tag is not an ancestor of HEAD — skipping; releasing from here would ship unrelated history."
             exit 0
+          elif [ "$ancestry" -ne 0 ]; then
+            echo "Could not resolve $tag against HEAD (git exited $ancestry) — skipping."
+            exit 0
           fi
-          # Distinguish a failed count from a genuine zero. Defaulting the
-          # failure branch to a literal zero reported a resolution failure as
-          # "nothing to release", which names the wrong cause in the log.
+          # Defence in depth. With the ancestry check above passing, rev-list
+          # has no remaining way to fail, so this branch is unreachable by
+          # construction — kept because it costs nothing and the alternative
+          # (defaulting a failure to zero) reported the wrong cause.
           if ! commits=$(git rev-list --count "$tag..HEAD"); then
             echo "Could not count commits since $tag — skipping."
             exit 0
@@ -403,7 +438,7 @@ jobs:
 const TOOL_PR_NOTES = {
   'dependabot-actions': 'Notes: a language entry (npm, gomod, pip, cargo, maven, or gradle) is included only when its manifest was found at the repo root; otherwise the config covers github-actions only. If your manifests live outside the root, add an entry with the matching `directory`.',
   'dependabot-auto-merge': 'Prerequisites: this workflow only takes effect once **Allow auto-merge** is enabled in repo settings and branch protection requires status checks. The butler does not flip these settings (Phase 2).',
-  'release-cadence': 'Notes: the workflow only cuts a release when the latest release is at least 60 days old AND unreleased commits exist; it skips repos with no published release (the first release stays yours) or a non-semver latest tag. Releases created with `GITHUB_TOKEN` do not trigger other workflows — if this repo publishes artifacts on release, wire that trigger up separately or dispatch the release manually.',
+  'release-cadence': 'Notes: the workflow only cuts a release when the latest release is at least 60 days old AND unreleased commits exist; it skips repos with no published release (the first release stays yours), a non-semver latest tag, or a latest tag that is not an ancestor of the default branch — so a release-branch tagging model will skip every run by design. It also only releases from the default branch, so a `workflow_dispatch` against another ref skips. Releases created with `GITHUB_TOKEN` do not trigger other workflows — if this repo publishes artifacts on release, wire that trigger up separately or dispatch the release manually.',
 };
 
 // Stable marker present in every templated apply PR body. Written when the PR is

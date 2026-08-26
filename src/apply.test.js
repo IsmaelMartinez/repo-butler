@@ -316,17 +316,26 @@ describe('generateTemplate', () => {
     assert.ok(!c.includes('|| echo 0'), 'a rev-list failure must not read as "no commits"');
   });
 
-  it('grants pull-requests: read alongside contents: write', () => {
-    // Finding 4: --generate-notes summarises merged PRs. Precautionary and
-    // read-only — see the template comment; this path has never executed.
+  it('requests no scope beyond contents: write', () => {
+    // Finding 4 resolved as "do not add". --generate-notes summarises merged
+    // PRs, but neither the REST reference nor the release-notes guide documents
+    // a pull-requests scope, and the path has never executed on the estate — so
+    // the need is unproven. A declared permissions block sets every unlisted
+    // scope to none, so granting on a hypothesis widens the token on every repo
+    // carrying this template. If a first live run fails on it, add it then.
+    // Asserted on the parsed mapping, not a substring: `includes` cannot tell a
+    // live grant from one sitting inside a YAML comment.
     const c = generateTemplate('release-cadence', 'JavaScript').content;
-    assert.ok(c.includes('contents: write'));
-    assert.ok(c.includes('pull-requests: read'));
+    const block = c.match(/^permissions:\n((?:[ \t]+.*\n|[ \t]*#.*\n)*)/m)[1];
+    const granted = block.split('\n')
+      .map(l => l.replace(/#.*$/, '').trim())
+      .filter(Boolean);
+    assert.deepEqual(granted, ['contents: write']);
   });
 
-  it('pins actions/checkout to a SHA, matching the repo\'s own workflows', () => {
-    // Finding 5: the template shipped @v4 while every workflow in this repo
-    // pins a SHA. A floating major tag is also a supply-chain surface.
+  it('pins actions/checkout to a SHA rather than a floating major tag', () => {
+    // Finding 5. The template shipped @v4; a floating major tag drifts between
+    // the repos carrying this template and is a supply-chain surface.
     const c = generateTemplate('release-cadence', 'JavaScript').content;
     assert.doesNotMatch(c, /actions\/checkout@v\d/, 'floating major tags drift between repos');
     assert.match(c, /actions\/checkout@[0-9a-f]{40}/);
@@ -456,7 +465,7 @@ describe('release-cadence workflow script (execution)', () => {
     '#!/bin/bash',
     'if [ "$1" = "api" ]; then',
     '  if [ -n "$STUB_FAIL" ]; then',
-    '    echo "gh: Internal Server Error (HTTP 500)" >&2',
+    '    printf "%b\\n" "${STUB_ERRMSG:-gh: Internal Server Error (HTTP 500)}" >&2',
     '    exit 1',
     '  fi',
     '  if [ -z "$STUB_TAG" ]; then',
@@ -504,9 +513,12 @@ describe('release-cadence workflow script (execution)', () => {
       PATH: `${bin}:${process.env.PATH}`,
       GITHUB_REPOSITORY: 'owner/repo',
       GITHUB_SHA: 'deadbeef',
+      GITHUB_REF_NAME: 'main',
+      DEFAULT_BRANCH: 'main',
       STUB_TAG: '',
       STUB_DATE: '',
       STUB_FAIL: '',
+      STUB_ERRMSG: '',
       ...env,
     },
   });
@@ -568,6 +580,47 @@ describe('release-cadence workflow script (execution)', () => {
     assert.equal(r.status, 0, r.stderr);
     assert.doesNotMatch(r.stdout, /GH-CALLED: release create/, 'must not cut a release');
     assert.match(r.stdout, /not an ancestor/);
+  });
+
+  it('refuses to release from a ref that is not the default branch', () => {
+    // Review finding: the ancestor guard is one-directional. workflow_dispatch
+    // lets any writer pick a ref, and a feature branch off the latest tag
+    // passes the ancestor check, counts commits and parses semver — so the
+    // release gets cut from unmerged work. Verified in review by container.
+    const r = runScript({ STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(120), GITHUB_REF_NAME: 'experiment' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
+    assert.match(r.stdout, /not the default branch/);
+  });
+
+  it('does not read a 404 inside an unrelated error as "no release yet"', () => {
+    // A substring match on "404" caught request ids and rate-limit bodies, so
+    // a 500 re-created exactly the conflation finding 2 set out to remove.
+    const r = runScript({ STUB_FAIL: '1', STUB_ERRMSG: 'gh: Server Error: request id 404abc (HTTP 500)' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /No published release yet/);
+    assert.match(r.stdout, /could not read the latest release/i);
+  });
+
+  it('names a tag-resolution failure as such, not as a branch topology', () => {
+    // merge-base exits 1 for "not an ancestor" but 128 for an unresolvable
+    // ref. Reporting both as "not an ancestor" asserts a false cause — the
+    // same defect findings 2 and 3 exist to remove.
+    const r = runScript({ STUB_TAG: 'v3.3.3', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /not an ancestor/);
+    assert.match(r.stdout, /could not resolve/i);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
+  });
+
+  it('never lets API error text reach the log as an Actions workflow command', () => {
+    // $details is remote text echoed into a public Actions log on every repo
+    // carrying this template. A newline followed by ::error:: is interpreted
+    // by the runner; CLAUDE.md keeps adversary-supplied substrings out of logs.
+    const r = runScript({ STUB_FAIL: '1', STUB_ERRMSG: 'boom\\n::error::pwned\\n::add-mask::x' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(!/^::/m.test(r.stdout), 'no log line may begin with a workflow command');
+    assert.doesNotMatch(r.stdout, /::error::|::add-mask::/);
   });
 
   it('reports a releases-API error instead of claiming no release exists', () => {
