@@ -231,12 +231,21 @@ concurrency:
 
 permissions:
   contents: write
+  # \`--generate-notes\` summarises merged pull requests. Neither the REST
+  # reference nor the release-notes guide documents a permission for it, and the
+  # path has never executed on this estate (every scheduled run so far skipped
+  # on a healthy cadence), so this is precautionary rather than proven. It is
+  # read-only, and the failure it prevents would land on the first real release
+  # — exactly the run the standard exists to make succeed.
+  pull-requests: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # SHA-pinned like every workflow in the butler's own repo; a floating
+      # major tag drifts between the eight repos carrying this template.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           # Git operations are read-only (history inspection), so no persisted
@@ -249,7 +258,25 @@ jobs:
           GH_TOKEN: \${{ github.token }}
         run: |
           set -euo pipefail
-          release=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq '[.tag_name, .published_at] | join(",")' 2>/dev/null || true)
+          # Keep stderr: discarding it made a 404 (no release yet) and a 500
+          # (outage) arrive identically as an empty string, so a real failure
+          # reported itself as "the first release stays a human decision" and
+          # was undiagnosable from the log. Both still skip — that is correct —
+          # but they must say which happened.
+          err=$(mktemp)
+          if release=$(gh api "repos/\${GITHUB_REPOSITORY}/releases/latest" --jq '[.tag_name, .published_at] | join(",")' 2>"$err"); then
+            rm -f "$err"
+          else
+            details=$(cat "$err")
+            rm -f "$err"
+            case "$details" in
+              *404*|*"Not Found"*)
+                echo "No published release yet — skipping; the first release stays a human decision." ;;
+              *)
+                echo "Could not read the latest release — skipping rather than guessing. gh reported: \${details:-no detail}" ;;
+            esac
+            exit 0
+          fi
           if [ -z "$release" ]; then
             echo "No published release yet — skipping; the first release stays a human decision."
             exit 0
@@ -268,7 +295,24 @@ jobs:
             echo "Latest release $tag is \${age_days} day(s) old — cadence healthy, skipping."
             exit 0
           fi
-          commits=$(git rev-list --count "$tag..HEAD" 2>/dev/null || echo 0)
+          # The only guard here whose absence causes a WRONG RELEASE rather than
+          # a skip. A tag cut from a release branch is not reachable from the
+          # default branch, so "$tag..HEAD" still counts commits and every
+          # downstream gate passes — the workflow then cuts the next patch from
+          # unrelated history. Verified: without this, a side-branch v2.0.0
+          # produced "release create v2.0.1". Fails closed, since a merge-base
+          # error is also a reason not to release.
+          if ! git merge-base --is-ancestor "$tag" HEAD; then
+            echo "Latest tag $tag is not an ancestor of HEAD — skipping; releasing from here would ship unrelated history."
+            exit 0
+          fi
+          # Distinguish a failed count from a genuine zero. Defaulting the
+          # failure branch to a literal zero reported a resolution failure as
+          # "nothing to release", which names the wrong cause in the log.
+          if ! commits=$(git rev-list --count "$tag..HEAD"); then
+            echo "Could not count commits since $tag — skipping."
+            exit 0
+          fi
           if [ "$commits" -eq 0 ]; then
             echo "No commits since $tag — nothing to release, skipping."
             exit 0
