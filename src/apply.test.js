@@ -289,6 +289,49 @@ describe('generateTemplate', () => {
     assert.equal(generateTemplate('release-cadence', 'Go', 'someone-else').content, result.content);
   });
 
+  // #327 findings 1-5, from Copilot review of the 2026-07-13 apply batch.
+  it('checks the latest tag is an ancestor of HEAD before counting commits', () => {
+    // Finding 1, the only finding whose failure mode is a WRONG RELEASE rather
+    // than a skip: a tag cut from a release branch is not reachable from the
+    // default branch, so `rev-list --count "$tag..HEAD"` returns a healthy-
+    // looking count and the workflow ships unrelated history.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.ok(c.includes('merge-base --is-ancestor'), 'must verify the tag is an ancestor of HEAD');
+    assert.ok(c.indexOf('merge-base --is-ancestor') < c.indexOf('rev-list --count'),
+      'the guard must run before the count it protects');
+  });
+
+  it('does not discard gh api errors as "no published release"', () => {
+    // Finding 2: `2>/dev/null || true` made a 500 indistinguishable from a 404,
+    // so a real outage reported itself as "the first release stays a human
+    // decision" and was undiagnosable from the log.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.ok(!c.includes('2>/dev/null || true'), 'gh api stderr must not be discarded');
+  });
+
+  it('does not conflate a commit-count failure with zero commits', () => {
+    // Finding 3: `|| echo 0` reported a rev-list failure as "nothing to
+    // release" — fail-safe, but it names the wrong reason in the log.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.ok(!c.includes('|| echo 0'), 'a rev-list failure must not read as "no commits"');
+  });
+
+  it('grants pull-requests: read alongside contents: write', () => {
+    // Finding 4: --generate-notes summarises merged PRs. Precautionary and
+    // read-only — see the template comment; this path has never executed.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.ok(c.includes('contents: write'));
+    assert.ok(c.includes('pull-requests: read'));
+  });
+
+  it('pins actions/checkout to a SHA, matching the repo\'s own workflows', () => {
+    // Finding 5: the template shipped @v4 while every workflow in this repo
+    // pins a SHA. A floating major tag is also a supply-chain surface.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.doesNotMatch(c, /actions\/checkout@v\d/, 'floating major tags drift between repos');
+    assert.match(c, /actions\/checkout@[0-9a-f]{40}/);
+  });
+
   it('generates an OSV-Scanner workflow pinned to the v2.5.0 tag SHA', () => {
     const result = generateTemplate('osv-scanner', 'JavaScript', 'IsmaelMartinez');
     assert.equal(result.path, '.github/workflows/osv-scanner.yml');
@@ -405,10 +448,21 @@ describe('release-cadence workflow script (execution)', () => {
   mkdirSync(bin);
   mkdirSync(repo);
   writeFileSync(join(base, 'script.sh'), extractRunScript(generateTemplate('release-cadence', '', null).content));
+  // The stub now separates the two failure shapes the real `gh api` has: a 404
+  // (no release published yet) and any other HTTP error. Before #327 the script
+  // discarded stderr, so both arrived as an empty string and were reported
+  // identically.
   writeFileSync(join(bin, 'gh'), [
     '#!/bin/bash',
     'if [ "$1" = "api" ]; then',
-    '  [ -z "$STUB_TAG" ] && exit 1',
+    '  if [ -n "$STUB_FAIL" ]; then',
+    '    echo "gh: Internal Server Error (HTTP 500)" >&2',
+    '    exit 1',
+    '  fi',
+    '  if [ -z "$STUB_TAG" ]; then',
+    '    echo "gh: Not Found (HTTP 404)" >&2',
+    '    exit 1',
+    '  fi',
     '  echo "$STUB_TAG,$STUB_DATE"',
     '  exit 0',
     'fi',
@@ -429,6 +483,14 @@ describe('release-cadence workflow script (execution)', () => {
   git('tag', 'v1.2.3');
   git('tag', 'v1.2.08');
   git('tag', 'release-2026-01');
+  // A tag cut from a side branch: reachable in the repo, NOT an ancestor of the
+  // default branch's HEAD. This is finding 1's shape — `rev-list "$tag..HEAD"`
+  // still returns a non-zero count for it.
+  git('checkout', '-qb', 'sidebranch');
+  writeFileSync(join(repo, 'f'), 'side');
+  git('commit', '-aqm', 'side');
+  git('tag', 'v2.0.0');
+  git('checkout', '-q', '-');
   writeFileSync(join(repo, 'f'), 'two');
   git('commit', '-aqm', 'two');
   git('tag', 'v9.9.9');
@@ -444,6 +506,7 @@ describe('release-cadence workflow script (execution)', () => {
       GITHUB_SHA: 'deadbeef',
       STUB_TAG: '',
       STUB_DATE: '',
+      STUB_FAIL: '',
       ...env,
     },
   });
@@ -495,6 +558,27 @@ describe('release-cadence workflow script (execution)', () => {
     const r = runScript({ STUB_TAG: 'v9.9.9', STUB_DATE: daysAgo(120) });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /nothing to release/);
+  });
+
+  it('never releases when the latest tag is not an ancestor of HEAD', () => {
+    // #327 finding 1. v2.0.0 sits on a side branch, so the commit count against
+    // HEAD is non-zero and the tag parses as semver — every other gate passes
+    // and the unguarded script cuts v2.0.1 from unrelated history.
+    const r = runScript({ STUB_TAG: 'v2.0.0', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/, 'must not cut a release');
+    assert.match(r.stdout, /not an ancestor/);
+  });
+
+  it('reports a releases-API error instead of claiming no release exists', () => {
+    // #327 finding 2. Still a skip — fail-safe is correct — but a 500 must not
+    // be logged as "the first release stays a human decision".
+    const r = runScript({ STUB_FAIL: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /No published release yet/);
+    assert.match(r.stdout, /could not read the latest release/i);
+    assert.match(r.stdout, /HTTP 500/);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
   });
 });
 
