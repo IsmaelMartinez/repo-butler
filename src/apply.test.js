@@ -289,6 +289,58 @@ describe('generateTemplate', () => {
     assert.equal(generateTemplate('release-cadence', 'Go', 'someone-else').content, result.content);
   });
 
+  // #327 findings 1-5, from Copilot review of the 2026-07-13 apply batch.
+  it('checks the latest tag is an ancestor of HEAD before counting commits', () => {
+    // Finding 1, the only finding whose failure mode is a WRONG RELEASE rather
+    // than a skip: a tag cut from a release branch is not reachable from the
+    // default branch, so `rev-list --count "$tag..HEAD"` returns a healthy-
+    // looking count and the workflow ships unrelated history.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.ok(c.includes('merge-base --is-ancestor'), 'must verify the tag is an ancestor of HEAD');
+    assert.ok(c.indexOf('merge-base --is-ancestor') < c.indexOf('rev-list --count'),
+      'the guard must run before the count it protects');
+  });
+
+  it('does not discard gh api errors as "no published release"', () => {
+    // Finding 2: `2>/dev/null || true` made a 500 indistinguishable from a 404,
+    // so a real outage reported itself as "the first release stays a human
+    // decision" and was undiagnosable from the log.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.ok(!c.includes('2>/dev/null || true'), 'gh api stderr must not be discarded');
+  });
+
+  it('does not conflate a commit-count failure with zero commits', () => {
+    // Finding 3: `|| echo 0` reported a rev-list failure as "nothing to
+    // release" — fail-safe, but it names the wrong reason in the log.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.ok(!c.includes('|| echo 0'), 'a rev-list failure must not read as "no commits"');
+  });
+
+  it('requests no scope beyond contents: write', () => {
+    // Finding 4 resolved as "do not add". --generate-notes summarises merged
+    // PRs, but neither the REST reference nor the release-notes guide documents
+    // a pull-requests scope, and the path has never executed on the estate — so
+    // the need is unproven. A declared permissions block sets every unlisted
+    // scope to none, so granting on a hypothesis widens the token on every repo
+    // carrying this template. If a first live run fails on it, add it then.
+    // Asserted on the parsed mapping, not a substring: `includes` cannot tell a
+    // live grant from one sitting inside a YAML comment.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    const block = c.match(/^permissions:\n((?:[ \t]+.*\n|[ \t]*#.*\n)*)/m)[1];
+    const granted = block.split('\n')
+      .map(l => l.replace(/#.*$/, '').trim())
+      .filter(Boolean);
+    assert.deepEqual(granted, ['contents: write']);
+  });
+
+  it('pins actions/checkout to a SHA rather than a floating major tag', () => {
+    // Finding 5. The template shipped @v4; a floating major tag drifts between
+    // the repos carrying this template and is a supply-chain surface.
+    const c = generateTemplate('release-cadence', 'JavaScript').content;
+    assert.doesNotMatch(c, /actions\/checkout@v\d/, 'floating major tags drift between repos');
+    assert.match(c, /actions\/checkout@[0-9a-f]{40}/);
+  });
+
   it('generates an OSV-Scanner workflow pinned to the v2.5.0 tag SHA', () => {
     const result = generateTemplate('osv-scanner', 'JavaScript', 'IsmaelMartinez');
     assert.equal(result.path, '.github/workflows/osv-scanner.yml');
@@ -405,10 +457,21 @@ describe('release-cadence workflow script (execution)', () => {
   mkdirSync(bin);
   mkdirSync(repo);
   writeFileSync(join(base, 'script.sh'), extractRunScript(generateTemplate('release-cadence', '', null).content));
+  // The stub now separates the two failure shapes the real `gh api` has: a 404
+  // (no release published yet) and any other HTTP error. Before #327 the script
+  // discarded stderr, so both arrived as an empty string and were reported
+  // identically.
   writeFileSync(join(bin, 'gh'), [
     '#!/bin/bash',
     'if [ "$1" = "api" ]; then',
-    '  [ -z "$STUB_TAG" ] && exit 1',
+    '  if [ -n "$STUB_FAIL" ]; then',
+    '    printf "%b\\n" "${STUB_ERRMSG:-gh: Internal Server Error (HTTP 500)}" >&2',
+    '    exit 1',
+    '  fi',
+    '  if [ -z "$STUB_TAG" ]; then',
+    '    echo "gh: Not Found (HTTP 404)" >&2',
+    '    exit 1',
+    '  fi',
     '  echo "$STUB_TAG,$STUB_DATE"',
     '  exit 0',
     'fi',
@@ -429,6 +492,14 @@ describe('release-cadence workflow script (execution)', () => {
   git('tag', 'v1.2.3');
   git('tag', 'v1.2.08');
   git('tag', 'release-2026-01');
+  // A tag cut from a side branch: reachable in the repo, NOT an ancestor of the
+  // default branch's HEAD. This is finding 1's shape — `rev-list "$tag..HEAD"`
+  // still returns a non-zero count for it.
+  git('checkout', '-qb', 'sidebranch');
+  writeFileSync(join(repo, 'f'), 'side');
+  git('commit', '-aqm', 'side');
+  git('tag', 'v2.0.0');
+  git('checkout', '-q', '-');
   writeFileSync(join(repo, 'f'), 'two');
   git('commit', '-aqm', 'two');
   git('tag', 'v9.9.9');
@@ -442,8 +513,13 @@ describe('release-cadence workflow script (execution)', () => {
       PATH: `${bin}:${process.env.PATH}`,
       GITHUB_REPOSITORY: 'owner/repo',
       GITHUB_SHA: 'deadbeef',
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
+      GITHUB_REF_NAME: 'main',
+      DEFAULT_BRANCH: 'main',
       STUB_TAG: '',
       STUB_DATE: '',
+      STUB_FAIL: '',
+      STUB_ERRMSG: '',
       ...env,
     },
   });
@@ -495,6 +571,94 @@ describe('release-cadence workflow script (execution)', () => {
     const r = runScript({ STUB_TAG: 'v9.9.9', STUB_DATE: daysAgo(120) });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /nothing to release/);
+  });
+
+  it('never releases when the latest tag is not an ancestor of HEAD', () => {
+    // #327 finding 1. v2.0.0 sits on a side branch, so the commit count against
+    // HEAD is non-zero and the tag parses as semver — every other gate passes
+    // and the unguarded script cuts v2.0.1 from unrelated history.
+    const r = runScript({ STUB_TAG: 'v2.0.0', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/, 'must not cut a release');
+    assert.match(r.stdout, /not an ancestor/);
+  });
+
+  it('refuses to release from a ref that is not the default branch', () => {
+    // Review finding: the ancestor guard is one-directional. workflow_dispatch
+    // lets any writer pick a ref, and a feature branch off the latest tag
+    // passes the ancestor check, counts commits and parses semver — so the
+    // release gets cut from unmerged work. Verified in review by container.
+    const r = runScript({ STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(120), GITHUB_REF_NAME: 'experiment' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
+    assert.match(r.stdout, /not the default branch/);
+  });
+
+  it('still releases on a schedule, where the payload carries no repository', () => {
+    // The schedule event has no webhook payload, so
+    // ${{ github.event.repository.default_branch }} is empty on every cron run.
+    // Gating the release on it would have skipped forever and silently
+    // disabled the standard on every repo carrying it — worse than the
+    // wrong-release bug this PR set out to fix. GitHub guarantees a scheduled
+    // run is on the default branch (GITHUB_REF is documented as such), so the
+    // comparison is neither needed nor possible there.
+    const r = runScript({
+      GITHUB_EVENT_NAME: 'schedule', DEFAULT_BRANCH: '', GITHUB_REF_NAME: 'main',
+      STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(120),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /GH-CALLED: release create v1\.2\.4 /);
+  });
+
+  it('fails closed on a dispatch when the default branch cannot be determined', () => {
+    const r = runScript({
+      GITHUB_EVENT_NAME: 'workflow_dispatch', DEFAULT_BRANCH: '',
+      STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(120),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
+    assert.match(r.stdout, /could not determine the default branch/i);
+  });
+
+  it('does not read a 404 inside an unrelated error as "no release yet"', () => {
+    // A substring match on "404" caught request ids and rate-limit bodies, so
+    // a 500 re-created exactly the conflation finding 2 set out to remove.
+    const r = runScript({ STUB_FAIL: '1', STUB_ERRMSG: 'gh: Server Error: request id 404abc (HTTP 500)' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /No published release yet/);
+    assert.match(r.stdout, /could not read the latest release/i);
+  });
+
+  it('names a tag-resolution failure as such, not as a branch topology', () => {
+    // merge-base exits 1 for "not an ancestor" but 128 for an unresolvable
+    // ref. Reporting both as "not an ancestor" asserts a false cause — the
+    // same defect findings 2 and 3 exist to remove.
+    const r = runScript({ STUB_TAG: 'v3.3.3', STUB_DATE: daysAgo(120) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /not an ancestor/);
+    assert.match(r.stdout, /could not resolve/i);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
+  });
+
+  it('never lets API error text reach the log as an Actions workflow command', () => {
+    // $details is remote text echoed into a public Actions log on every repo
+    // carrying this template. A newline followed by ::error:: is interpreted
+    // by the runner; CLAUDE.md keeps adversary-supplied substrings out of logs.
+    const r = runScript({ STUB_FAIL: '1', STUB_ERRMSG: 'boom\\n::error::pwned\\n::add-mask::x' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(!/^::/m.test(r.stdout), 'no log line may begin with a workflow command');
+    assert.doesNotMatch(r.stdout, /::error::|::add-mask::/);
+  });
+
+  it('reports a releases-API error instead of claiming no release exists', () => {
+    // #327 finding 2. Still a skip — fail-safe is correct — but a 500 must not
+    // be logged as "the first release stays a human decision".
+    const r = runScript({ STUB_FAIL: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /No published release yet/);
+    assert.match(r.stdout, /could not read the latest release/i);
+    assert.match(r.stdout, /HTTP 500/);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
   });
 });
 
