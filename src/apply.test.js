@@ -513,6 +513,7 @@ describe('release-cadence workflow script (execution)', () => {
       PATH: `${bin}:${process.env.PATH}`,
       GITHUB_REPOSITORY: 'owner/repo',
       GITHUB_SHA: 'deadbeef',
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
       GITHUB_REF_NAME: 'main',
       DEFAULT_BRANCH: 'main',
       STUB_TAG: '',
@@ -591,6 +592,32 @@ describe('release-cadence workflow script (execution)', () => {
     assert.equal(r.status, 0, r.stderr);
     assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
     assert.match(r.stdout, /not the default branch/);
+  });
+
+  it('still releases on a schedule, where the payload carries no repository', () => {
+    // The schedule event has no webhook payload, so
+    // ${{ github.event.repository.default_branch }} is empty on every cron run.
+    // Gating the release on it would have skipped forever and silently
+    // disabled the standard on every repo carrying it — worse than the
+    // wrong-release bug this PR set out to fix. GitHub guarantees a scheduled
+    // run is on the default branch (GITHUB_REF is documented as such), so the
+    // comparison is neither needed nor possible there.
+    const r = runScript({
+      GITHUB_EVENT_NAME: 'schedule', DEFAULT_BRANCH: '', GITHUB_REF_NAME: 'main',
+      STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(120),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /GH-CALLED: release create v1\.2\.4 /);
+  });
+
+  it('fails closed on a dispatch when the default branch cannot be determined', () => {
+    const r = runScript({
+      GITHUB_EVENT_NAME: 'workflow_dispatch', DEFAULT_BRANCH: '',
+      STUB_TAG: 'v1.2.3', STUB_DATE: daysAgo(120),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /GH-CALLED: release create/);
+    assert.match(r.stdout, /could not determine the default branch/i);
   });
 
   it('does not read a 404 inside an unrelated error as "no release yet"', () => {

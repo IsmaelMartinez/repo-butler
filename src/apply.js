@@ -261,18 +261,28 @@ jobs:
           DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          # A release must come from the default branch. The schedule always
-          # runs there, but workflow_dispatch lets any writer choose a ref, and
-          # a feature branch cut from the latest tag passes every downstream
-          # gate — ancestor, commit count, semver — and ships unmerged work.
-          # Fails closed when the default branch cannot be determined.
-          if [ -z "\${DEFAULT_BRANCH:-}" ]; then
-            echo "Could not determine the default branch — skipping."
-            exit 0
-          fi
-          if [ "\${GITHUB_REF_NAME:-}" != "$DEFAULT_BRANCH" ]; then
-            echo "Running on \${GITHUB_REF_NAME:-unknown}, not the default branch ($DEFAULT_BRANCH) — skipping."
-            exit 0
+          # A release must come from the default branch, because
+          # workflow_dispatch lets any writer choose a ref and a feature branch
+          # cut from the latest tag passes every downstream gate — ancestor,
+          # commit count, semver — and ships unmerged work.
+          #
+          # Checked ONLY off the schedule path, and that is load-bearing. The
+          # schedule event has no webhook payload, so
+          # \${{ github.event.repository.default_branch }} is empty on every cron
+          # run; comparing against it unconditionally skips forever and silently
+          # disables the standard everywhere it is installed. GitHub documents a
+          # scheduled run's GITHUB_REF as the default branch, so there is
+          # nothing to verify there — and dispatch, which does carry a payload,
+          # is the only path that can go wrong.
+          if [ "\${GITHUB_EVENT_NAME:-}" != "schedule" ]; then
+            if [ -z "\${DEFAULT_BRANCH:-}" ]; then
+              echo "Could not determine the default branch — skipping."
+              exit 0
+            fi
+            if [ "\${GITHUB_REF_NAME:-}" != "$DEFAULT_BRANCH" ]; then
+              echo "Running on \${GITHUB_REF_NAME:-unknown}, not the default branch ($DEFAULT_BRANCH) — skipping."
+              exit 0
+            fi
           fi
           # Keep stderr: discarding it made a 404 (no release yet) and a 500
           # (outage) arrive identically as an empty string, so a real failure
