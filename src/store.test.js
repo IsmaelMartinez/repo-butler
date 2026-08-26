@@ -459,3 +459,51 @@ describe('buildPortfolioSnapshot — repo ID propagation', () => {
     assert.equal(snapshot.repos['no-id'].id, null);
   });
 });
+
+// readJSON collapses "absent" and "unreadable" into null, which is destructive
+// for a file that is read, merged and written back whole: the unreadable case
+// looks empty, and the write then replaces the accumulated history.
+describe('readJSONChecked', () => {
+  const store = (gh) => createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+  it('returns the parsed data when the file reads', async () => {
+    const gh = makeFakeGh();
+    gh.getFileContent = async () => JSON.stringify([{ title: 'a' }]);
+    const result = await store(gh).readJSONChecked('snapshots/watchlist.json');
+    assert.deepEqual(result, { data: [{ title: 'a' }], readable: true });
+  });
+
+  // A non-empty listing that lacks the file is the only proof of absence.
+  it('reports absence as readable when the directory listing excludes the file', async () => {
+    const gh = makeFakeGh({ existing: ['latest.json'] });
+    const result = await store(gh).readJSONChecked('snapshots/watchlist.json');
+    assert.equal(result.readable, true);
+    assert.equal(result.data, null);
+    assert.equal(result.reason, 'absent');
+  });
+
+  // listDir also returns [] on error, so an empty listing proves nothing.
+  it('reports unreadable when the directory listing is empty', async () => {
+    const gh = makeFakeGh();
+    const result = await store(gh).readJSONChecked('snapshots/watchlist.json');
+    assert.equal(result.readable, false);
+    assert.equal(result.reason, 'unreadable');
+  });
+
+  // getFileContent returns null for a rate-limited or over-1MB read while the
+  // listing still names the file — the destructive case this exists to catch.
+  it('reports unreadable when the file is listed but the read failed', async () => {
+    const gh = makeFakeGh({ existing: ['watchlist.json'] });
+    const result = await store(gh).readJSONChecked('snapshots/watchlist.json');
+    assert.equal(result.readable, false);
+    assert.equal(result.reason, 'unreadable');
+  });
+
+  it('reports unreadable for malformed JSON rather than replacing it', async () => {
+    const gh = makeFakeGh();
+    gh.getFileContent = async () => '{ truncated';
+    const result = await store(gh).readJSONChecked('snapshots/watchlist.json');
+    assert.equal(result.readable, false);
+    assert.equal(result.reason, 'unparseable');
+  });
+});

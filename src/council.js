@@ -563,10 +563,58 @@ export async function triageEvents(context, events) {
 
 const WATCHLIST_PATH = 'snapshots/watchlist.json';
 
+// ~2 years of weekly council runs at a few items a run. Every other rolling
+// file on the data branch is capped (12 weekly snapshots, 26 soak entries);
+// an uncapped one eventually crosses getFileContent's 1MB ceiling, after which
+// every read fails and — before readJSONChecked — every run replaced the whole
+// file with that run's items.
+const MAX_WATCHLIST_ITEMS = 100;
+
+// Two items sharing a title are only the same item if they concern the same
+// repo. Governance-mode IDEATE emits per-repo proposals whose titles are
+// generic by construction ("Add a release-cadence workflow"), so a title-only
+// key silently collapses one repo's item into another's — permanently, since
+// the surviving entry then owns that title for good.
+const watchlistKey = (item) => `${item.targetRepo || ''}/${item.title}`;
+
+// Slimmed to what get_watchlist reads plus the two fields identifying a
+// G8-demoted cross-repo proposal. appendSoakEntry states the rule for its
+// neighbouring ledger — "the full issue body never needs to persist here" —
+// and it holds harder here: body/rationale/currentState/proposedState are
+// unvalidated LLM prose bound for a world-readable branch, and nothing reads
+// them back. type/severity are set explicitly because reviewProposals builds
+// them on its `items` array but buckets over `ideas`, so a watch entry carries
+// `priority` and neither of the two fields the MCP projection actually reads.
+function toWatchlistEntry(item) {
+  return {
+    title: item.title,
+    type: item.type || 'proposal',
+    severity: item.severity || item.priority || null,
+    targetRepo: item.targetRepo ?? null,
+    held_back_reason: item.held_back_reason ?? null,
+    council_verdict: item.council_verdict ?? null,
+    council_confidence: item.council_confidence ?? null,
+    council_priority: item.council_priority ?? null,
+    council_summary: item.council_summary ?? null,
+    added_at: new Date().toISOString(),
+    review_count: 0,
+  };
+}
+
+// Returns { items, readable }. `readable: false` means the existing list could
+// not be read, so the caller must NOT write — see store.readJSONChecked. With
+// no store nothing is persisted at all, so there is nothing to lose.
 export async function loadWatchlist(store) {
-  if (!store?.readJSON) return [];
-  const data = await store.readJSON(WATCHLIST_PATH);
-  return Array.isArray(data) ? data : [];
+  if (!store?.readJSONChecked) return { items: [], readable: true };
+  const { data, readable, reason } = await store.readJSONChecked(WATCHLIST_PATH);
+  if (!readable) return { items: [], readable: false, reason };
+  // A parseable non-array is a shape nobody here wrote. Coercing it to [] and
+  // writing over it is the same silent replacement readJSONChecked exists to
+  // prevent, so refuse and let the warning surface it.
+  if (data !== null && !Array.isArray(data)) {
+    return { items: [], readable: false, reason: 'unexpected-shape' };
+  }
+  return { items: data || [], readable: true };
 }
 
 export async function saveWatchlist(store, watchlist) {
@@ -578,21 +626,23 @@ export async function saveWatchlist(store, watchlist) {
   }
 }
 
-// Merge new watch items into existing watchlist, deduplicating by title.
+// Merge new watch items into the existing watchlist, deduplicating by
+// repo+title and capping the result. Returns { items, added } — `added` rather
+// than a length comparison, because with a cap in play the merged list can be
+// the same length as the input while still having gained an item, and a
+// length-based guard would drop that item without writing.
 export function mergeWatchlist(existing, newItems) {
-  const seen = new Set(existing.map(i => i.title));
+  const seen = new Set(existing.map(watchlistKey));
   const merged = [...existing];
+  let added = 0;
 
   for (const item of newItems) {
-    if (!seen.has(item.title)) {
-      merged.push({
-        ...item,
-        added_at: new Date().toISOString(),
-        review_count: 0,
-      });
-      seen.add(item.title);
-    }
+    const key = watchlistKey(item);
+    if (seen.has(key)) continue;
+    merged.push(toWatchlistEntry(item));
+    seen.add(key);
+    added++;
   }
 
-  return merged;
+  return { items: merged.slice(-MAX_WATCHLIST_ITEMS), added };
 }

@@ -1,7 +1,7 @@
 // IDEATE phase: generate improvement ideas based on the project state.
 // Uses a deeper-reasoning LLM (Claude by default) for creative suggestions.
 
-import { sanitizeForPrompt, wrapPrompt } from './safety.js';
+import { sanitizeForPrompt, wrapPrompt, validateIdeas } from './safety.js';
 import { runGovernance } from './governance.js';
 import { reviewProposals, loadWatchlist, mergeWatchlist, saveWatchlist } from './council.js';
 
@@ -24,29 +24,54 @@ export async function runIdeate(context) {
     context.watchlist = councilResult.watchlist;
     console.log(`Council: ${councilResult.approved.length} approved, ${councilResult.watchlist.length} watchlisted, ${councilResult.dismissed.length} dismissed.`);
 
-    // Persist the watchlist. The council has always produced these verdicts —
-    // including ideas the G8 cross-repo gate demotes from approved rather than
-    // dismisses — but nothing wrote them: `saveWatchlist` was the only writer
-    // of snapshots/watchlist.json and had no caller, so the MCP
-    // `get_watchlist` tool reported "council has not placed any items on
-    // watch" about a file that could never exist. That reads as a clean
-    // council rather than a missing one.
-    //
-    // Not gated on dryRun: snapshots persist in dry-run, same as the
-    // governance weeklies. `mergeWatchlist` is additive and dedupes by title,
-    // so only write when it actually added something — an unchanged file would
-    // be pure churn on the data branch.
-    if (context.store && councilResult.watchlist.length > 0) {
-      const existing = await loadWatchlist(context.store);
-      const merged = mergeWatchlist(existing, councilResult.watchlist);
-      if (merged.length !== existing.length) {
-        await saveWatchlist(context.store, merged);
-        console.log(`Watchlist: ${merged.length - existing.length} new item(s), ${merged.length} total.`);
-      }
-    }
+    await persistWatchlist(context);
   }
 
   return result;
+}
+
+// Persist the council's watchlist. The council has always produced these
+// verdicts — including ideas the G8 cross-repo gate demotes from approved
+// rather than dismisses — but nothing wrote them: `saveWatchlist` was the only
+// writer of snapshots/watchlist.json and had no caller, so the MCP
+// `get_watchlist` tool reported "council has not placed any items on watch"
+// about a file that could never exist. That reads as a clean council rather
+// than a missing one.
+//
+// Not gated on dryRun: snapshots persist in dry-run, same as the governance
+// weeklies, and the weekly IDEATE run that produces watch verdicts IS the
+// dry-run one — gating would leave the file empty forever.
+//
+// The whole body is best-effort, like appendSoakEntry and saveCursor: this is
+// bookkeeping, and it must never fail a phase that has already paid for the
+// ideation and council LLM calls.
+async function persistWatchlist(context) {
+  const items = context.watchlist;
+  if (!context.store || !items?.length) return;
+  try {
+    // The data branch is world-readable and these entries are LLM output, so
+    // they meet the same validators as an idea bound for an issue (project
+    // convention: all LLM output is validated before publishing). validateIdeas
+    // returns the safe subset and warns per drop.
+    const safe = validateIdeas(items).filtered;
+    if (safe.length === 0) return;
+
+    const { items: existing, readable, reason } = await loadWatchlist(context.store);
+    if (!readable) {
+      // Fail closed. saveWatchlist replaces the file wholesale, so writing on
+      // top of a list we could not read would replace every accumulated item
+      // with this run's few. Skipping costs one week; the council re-deliberates.
+      console.warn(`Watchlist not persisted — existing list ${reason}. Refusing to overwrite it.`);
+      return;
+    }
+
+    const { items: merged, added } = mergeWatchlist(existing, safe);
+    if (added === 0) return;
+    await saveWatchlist(context.store, merged);
+    console.log(`Watchlist: ${added} new item(s), ${merged.length} total.`);
+  } catch (err) {
+    console.warn(`Failed to persist watchlist: ${err.message}`);
+  }
 }
 
 export async function ideate(context) {

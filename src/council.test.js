@@ -524,8 +524,9 @@ describe('mergeWatchlist', () => {
       { title: 'Item B' },  // new
     ];
 
-    const merged = mergeWatchlist(existing, newItems);
+    const { items: merged, added } = mergeWatchlist(existing, newItems);
     assert.equal(merged.length, 2);
+    assert.equal(added, 1);
     assert.equal(merged[0].title, 'Item A');
     assert.equal(merged[1].title, 'Item B');
     assert.ok(merged[1].added_at); // should have timestamp
@@ -533,42 +534,103 @@ describe('mergeWatchlist', () => {
 
   it('handles empty existing list', async () => {
     const { mergeWatchlist } = await import('./council.js');
-    const merged = mergeWatchlist([], [{ title: 'New' }]);
+    const { items: merged, added } = mergeWatchlist([], [{ title: 'New' }]);
     assert.equal(merged.length, 1);
+    assert.equal(added, 1);
+  });
+
+  // Governance-mode IDEATE emits per-repo proposals under titles that are
+  // generic by construction, so a title-only key drops every repo after the
+  // first — and permanently, since the survivor owns the title thereafter.
+  it('does not collapse the same title targeting different repos', async () => {
+    const { mergeWatchlist } = await import('./council.js');
+    const { items, added } = mergeWatchlist([], [
+      { title: 'Add a release-cadence workflow', targetRepo: 'repo-a' },
+      { title: 'Add a release-cadence workflow', targetRepo: 'repo-b' },
+    ]);
+    assert.equal(added, 2);
+    assert.deepEqual(items.map(i => i.targetRepo), ['repo-a', 'repo-b']);
+  });
+
+  // A length comparison at the call site would drop this item silently: the
+  // cap makes the merged list the same length as the input despite the gain.
+  it('caps the list and still reports the addition', async () => {
+    const { mergeWatchlist } = await import('./council.js');
+    const existing = Array.from({ length: 100 }, (_, n) => ({ title: `Old ${n}` }));
+    const { items, added } = mergeWatchlist(existing, [{ title: 'Fresh' }]);
+    assert.equal(added, 1, 'the new item was added');
+    assert.equal(items.length, 100, 'the list stays capped');
+    assert.equal(items.at(-1).title, 'Fresh', 'the newest item survives');
+    assert.equal(items[0].title, 'Old 1', 'the oldest is what gets dropped');
+  });
+
+  // The entry lands on a world-readable branch and nothing reads these back.
+  it('slims the entry to the fields consumers read', async () => {
+    const { mergeWatchlist } = await import('./council.js');
+    const { items } = mergeWatchlist([], [{
+      title: 'Watch me',
+      priority: 'high',
+      body: 'Long unvalidated LLM prose',
+      rationale: 'r', currentState: 'c', proposedState: 'p', affectedFiles: ['a'],
+      council_summary: 'Needs data.',
+      held_back_reason: 'cross-repo-quality-gate',
+    }]);
+    const entry = items[0];
+    for (const dropped of ['body', 'rationale', 'currentState', 'proposedState', 'affectedFiles']) {
+      assert.ok(!(dropped in entry), `${dropped} must not persist`);
+    }
+    // reviewProposals builds type/severity on its `items` array but buckets
+    // over `ideas`, so the entry must set them or the MCP tool renders blanks.
+    assert.equal(entry.type, 'proposal');
+    assert.equal(entry.severity, 'high');
+    assert.equal(entry.held_back_reason, 'cross-repo-quality-gate');
   });
 });
 
 describe('watchlist persistence', () => {
-  it('round-trips through a store with readJSON/writeJSON', async () => {
+  it('round-trips through a store with readJSONChecked/writeJSON', async () => {
     const { loadWatchlist, saveWatchlist } = await import('./council.js');
     const persisted = {};
     const store = {
-      readJSON: async (path) => persisted[path] ?? null,
+      readJSONChecked: async (path) => (
+        path in persisted
+          ? { data: persisted[path], readable: true }
+          : { data: null, readable: true, reason: 'absent' }
+      ),
       writeJSON: async (path, value) => { persisted[path] = value; },
     };
 
-    assert.deepEqual(await loadWatchlist(store), [], 'first run is empty');
+    assert.deepEqual(await loadWatchlist(store), { items: [], readable: true }, 'first run is empty');
 
     const items = [{ title: 'Watch this', added_at: '2026-01-01', review_count: 0 }];
     await saveWatchlist(store, items);
-    assert.deepEqual(await loadWatchlist(store), items, 'round-trip preserves items');
+    assert.deepEqual((await loadWatchlist(store)).items, items, 'round-trip preserves items');
   });
 
-  it('returns [] when store lacks readJSON', async () => {
+  it('reports unreadable when the store cannot prove the file is absent', async () => {
     const { loadWatchlist } = await import('./council.js');
-    assert.deepEqual(await loadWatchlist(null), []);
-    assert.deepEqual(await loadWatchlist({}), []);
+    const store = { readJSONChecked: async () => ({ data: null, readable: false, reason: 'unreadable' }) };
+    assert.deepEqual(await loadWatchlist(store), { items: [], readable: false, reason: 'unreadable' });
+  });
+
+  it('reports unreadable when the persisted file is a non-array shape', async () => {
+    const { loadWatchlist } = await import('./council.js');
+    const store = { readJSONChecked: async () => ({ data: { not: 'an array' }, readable: true }) };
+    const result = await loadWatchlist(store);
+    assert.equal(result.readable, false, 'must not overwrite a shape nobody here wrote');
+    assert.equal(result.reason, 'unexpected-shape');
+  });
+
+  it('reports readable with no items when the store lacks readJSONChecked', async () => {
+    const { loadWatchlist } = await import('./council.js');
+    // Nothing is persisted without a store, so there is nothing to lose.
+    assert.deepEqual(await loadWatchlist(null), { items: [], readable: true });
+    assert.deepEqual(await loadWatchlist({}), { items: [], readable: true });
   });
 
   it('saveWatchlist no-ops when store lacks writeJSON', async () => {
     const { saveWatchlist } = await import('./council.js');
     await saveWatchlist(null, [{ title: 'x' }]);
     await saveWatchlist({}, [{ title: 'x' }]);
-  });
-
-  it('returns [] when persisted file is non-array (corrupted)', async () => {
-    const { loadWatchlist } = await import('./council.js');
-    const store = { readJSON: async () => ({ not: 'an array' }) };
-    assert.deepEqual(await loadWatchlist(store), []);
   });
 });

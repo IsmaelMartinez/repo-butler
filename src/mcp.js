@@ -642,11 +642,13 @@ function toolGetMonitorEvents(minSeverity) {
 
 function toolGetWatchlist() {
   const raw = loadFromDataBranch('snapshots/watchlist.json');
-  // "No file" is not the same claim as "nothing watchlisted": the weekly
-  // IDEATE run is what writes this, and it only writes when the council
-  // actually watchlists something. Say what is known — the file is absent —
-  // and let the staleness envelope carry how old the data branch is.
-  if (!raw) return { items: [], message: 'No watchlist recorded yet — IDEATE writes this only when the council watchlists an idea.' };
+  // Three claims are distinct here and only one of them is supported: the
+  // council watchlisted nothing, IDEATE never wrote the file, and the read
+  // failed. loadFromDataBranch returns null for all of the latter two (branch
+  // not fetched, no git, wrong checkout), so say only what a failed read
+  // supports and name both possibilities — the staleness envelope carries how
+  // old the branch is.
+  if (!raw) return { items: [], message: 'No watchlist available — either nothing has been watchlisted yet, or snapshots/watchlist.json could not be read from the data branch.' };
 
   try {
     const items = JSON.parse(raw);
@@ -656,6 +658,11 @@ function toolGetWatchlist() {
         title: i.title,
         type: i.type,
         severity: i.severity,
+        // A G8-demoted cross-repo proposal is the population this file exists
+        // to surface; without these two it reads as an ordinary watch verdict
+        // with no indication of which repo it targets or why it was held back.
+        targetRepo: i.targetRepo,
+        held_back_reason: i.held_back_reason,
         added_at: i.added_at,
         review_count: i.review_count || 0,
         council_summary: i.council_summary,

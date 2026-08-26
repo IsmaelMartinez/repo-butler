@@ -373,6 +373,35 @@ export function createStore(context) {
     }
   }
 
+  // As readJSON, but distinguishes "the file is not there" from "we could not
+  // read it". readFile collapses absent, 404, 5xx-after-retries, network error
+  // and over-1MB into one null. That is fine for a cursor — a lost cursor just
+  // re-reads events — but destructive for an accumulating ledger written back
+  // whole: an unreadable read looks like an empty one, and the next write
+  // replaces the accumulated history with a single run's worth.
+  //
+  // Absence has to be proven, not assumed. listBranchDir returns [] on error
+  // too, so only a NON-EMPTY listing that lacks the file proves the file is
+  // absent; an empty listing proves nothing and reports unreadable. Malformed
+  // JSON also reports unreadable — a half-written file must not be silently
+  // replaced — which stalls the write until a human looks, and says so.
+  async function readJSONChecked(path) {
+    const content = await readFile(path);
+    if (content) {
+      try {
+        return { data: JSON.parse(content), readable: true };
+      } catch {
+        return { data: null, readable: false, reason: 'unparseable' };
+      }
+    }
+    const slash = path.lastIndexOf('/');
+    const listing = await listBranchDir(path.slice(0, slash));
+    if (listing.length > 0 && !listing.includes(path.slice(slash + 1))) {
+      return { data: null, readable: true, reason: 'absent' };
+    }
+    return { data: null, readable: false, reason: 'unreadable' };
+  }
+
   async function writeJSON(path, value) {
     await ensureDataBranch();
     await writeFile(path, JSON.stringify(value, null, 2));
@@ -385,7 +414,7 @@ export function createStore(context) {
     writeGovernanceFindings, readGovernanceFindings,
     writeGovernanceWeekly, readLatestGovernanceWeekly,
     readRepoCache, writeRepoCache,
-    readJSON, writeJSON,
+    readJSON, readJSONChecked, writeJSON,
   };
 }
 
