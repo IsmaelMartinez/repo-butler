@@ -493,6 +493,21 @@ function findSectionInsertPoint(roadmap, sectionName) {
   return boundary ? afterHeading + boundary.index : roadmap.length;
 }
 
+// Character bounds of a `## <section>` block's body — from the end of the
+// heading line to the next `---` or `## ` boundary. Null when the section is
+// absent. Shared by applyEditOps' duplicate guard and compactShippedLog so the
+// two always agree on which text belongs to a section.
+function sectionBounds(roadmap, sectionName) {
+  const headingRe = new RegExp(`^## ${sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b.*$`, 'm');
+  const match = roadmap.match(headingRe);
+  if (!match) return null;
+
+  const start = match.index + match[0].length;
+  const rest = roadmap.slice(start);
+  const boundary = rest.match(/\n(?=---\s*\n|## )/);
+  return { start, end: boundary ? start + boundary.index : roadmap.length };
+}
+
 // Recover a recurring LLM malformation before classification: the model puts
 // the section name directly in the `action` field (e.g.
 // {"action":"Implemented","text":"…"}) instead of the documented
@@ -541,14 +556,27 @@ export function applyEditOps(roadmap, ops, today) {
   let result = roadmap;
   const applied = [];
   const skipped = [];
-  // Refs the roadmap already records as completed work: only refs on lines
-  // carrying the shipped convention (~~strikethrough~~ or a "shipped" marker)
-  // count. A ref in a live entry (e.g. "Fix X (issue #211)" under Next Up)
-  // must not block the append announcing that work shipped — resolved issues
-  // reach the prompt as bare issue numbers with no PR number to cite, so a
-  // legitimate shipped entry may carry no new ref at all.
+  // Refs the roadmap already records as completed work, from two sources
+  // because neither alone is enough:
+  //   - lines anywhere in the document carrying the shipped convention
+  //     (~~strikethrough~~ or a "shipped" marker), and
+  //   - the whole Implemented section, whatever verb its entries happen to use.
+  // The second is load-bearing. Matching only the literal word "shipped" made
+  // the guard blind to every entry the model phrased as "reinforced",
+  // "completed" or "simplified", so each later tick appended the same work
+  // again: ROADMAP.md carried two exact duplicate paragraphs (#368 and
+  // #370–#374) and only 18 of its 40 entries were guarded at all.
+  // Scoping the second source to Implemented rather than the whole document is
+  // what preserves the original rule — a ref in a live entry (e.g. "Fix X
+  // (issue #211)" under Next Up) must still not block the append announcing
+  // that work shipped, since resolved issues reach the prompt as bare issue
+  // numbers with no PR number to cite.
+  const implemented = sectionBounds(roadmap, 'Implemented');
   const shippedRefs = extractIssueRefs(
-    roadmap.split('\n').filter(l => /~~|\bshipped\b/i.test(l)).join('\n'),
+    [
+      roadmap.split('\n').filter(l => /~~|\bshipped\b/i.test(l)).join('\n'),
+      implemented ? roadmap.slice(implemented.start, implemented.end) : '',
+    ].join('\n'),
   );
 
   for (const rawOp of ops) {
@@ -754,14 +782,10 @@ function renderRefList(refs) {
 export function compactShippedLog(roadmap, today, { maxAgeDays = 60, section = 'Implemented' } = {}) {
   if (!roadmap) return { result: roadmap, rolled: [] };
 
-  const headingRe = new RegExp(`^## ${section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b.*$`, 'm');
-  const headingMatch = roadmap.match(headingRe);
-  if (!headingMatch) return { result: roadmap, rolled: [] };
+  const bounds = sectionBounds(roadmap, section);
+  if (!bounds) return { result: roadmap, rolled: [] };
 
-  const bodyStart = headingMatch.index + headingMatch[0].length;
-  const rest = roadmap.slice(bodyStart);
-  const boundary = rest.match(/\n(?=---\s*\n|## )/);
-  const bodyEnd = boundary ? bodyStart + boundary.index : roadmap.length;
+  const { start: bodyStart, end: bodyEnd } = bounds;
   const body = roadmap.slice(bodyStart, bodyEnd);
 
   const paragraphs = body.split(/\n{2,}/);

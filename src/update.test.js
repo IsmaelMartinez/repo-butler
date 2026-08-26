@@ -626,6 +626,34 @@ describe('applyEditOps', () => {
     assert.ok(skipped.some(s => s.includes('already documented')));
   });
 
+  it('skips a re-append of an Implemented entry that never says "shipped"', () => {
+    // The live defect: the model writes "reinforced"/"completed"/"simplified"
+    // rather than "shipped", so a scan for the shipped convention alone never
+    // saw the entry and the next tick appended it again. ROADMAP.md carried two
+    // such duplicates (#368 and #370–#374) before this was widened to read the
+    // whole Implemented section.
+    const documented = roadmap.replace(
+      'Feature A shipped.',
+      'Feature A shipped.\n\nRoadmap update process reinforced 2026-08-11 (PR #368). Prose about it.',
+    );
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Roadmap update process reinforced 2026-08-11 (PR #368). Prose about it.' }];
+    const { result, applied, skipped } = applyEditOps(documented, ops, '2026-08-12');
+    assert.equal(result, documented, 'the duplicate must not be appended');
+    assert.equal(applied.length, 0);
+    assert.ok(skipped.some(s => s.includes('already documented')));
+  });
+
+  it('still lets a live Next Up ref through — only Implemented counts as done', () => {
+    // The widened guard reads the Implemented section, not the whole document,
+    // precisely so a ref tracked as pending work cannot block the entry
+    // announcing it shipped.
+    const tracked = roadmap.replace('Some future work.', 'Land the ingestion fix (issue #211).');
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Ingestion fix landed 2026-06-12 (issue #211).' }];
+    const { result, applied } = applyEditOps(tracked, ops, '2026-06-12');
+    assert.ok(result.includes('Ingestion fix landed'));
+    assert.ok(applied.some(a => a.includes('Implemented')));
+  });
+
   it('applies an append that cites a new ref alongside existing ones', () => {
     const documented = roadmap + '\n\nStage 1 shipped (PR #239).';
     const ops = [{ action: 'append', section: 'Implemented', text: 'Stage 4 graduated (PRs #239, #300).' }];
@@ -1012,12 +1040,49 @@ describe('compactShippedLog', () => {
     assert.deepEqual(compactShippedLog(null, today), { result: null, rolled: [] });
   });
 
-  it('keeps the real roadmap stable at the configured window but compacts below it', () => {
+  it('compacts the real roadmap to a fixed point, at any window', () => {
+    // Deliberately measured against the real clock and asserted as idempotence
+    // rather than a fixed expected outcome. The previous form pinned a frozen
+    // `today` against a living document and asserted a 30-day window would find
+    // something to roll: ROADMAP.md is rewritten four times a day and compacts
+    // as it ages, so the moment those entries rolled up the assertion became
+    // unsatisfiable and every roadmap PR failed CI (PR #382). Idempotence is
+    // the property that actually matters — a settled roadmap must not churn a
+    // second PR — and it holds whatever the date.
     const real = readFileSync(new URL('../ROADMAP.md', import.meta.url), 'utf8');
-    assert.deepEqual(compactShippedLog(real, today, { maxAgeDays: 60 }).rolled, [],
-      'shipped ROADMAP.md must not churn a PR on the next scheduled run');
-    assert.ok(compactShippedLog(real, today, { maxAgeDays: 30 }).result.length < real.length,
-      'a tighter window must still find something to roll up');
+    const now = new Date().toISOString().slice(0, 10);
+
+    for (const maxAgeDays of [0, 30, 60, 90]) {
+      const once = compactShippedLog(real, now, { maxAgeDays });
+      const twice = compactShippedLog(once.result, now, { maxAgeDays });
+      assert.equal(twice.result, once.result, `compaction at ${maxAgeDays}d must settle in one pass`);
+      assert.deepEqual(twice.rolled, [], `a settled roadmap must not roll again at ${maxAgeDays}d`);
+    }
+
+    // Non-vacuity: with every entry past the window the real document must
+    // actually produce a rollup, proving the Implemented section is still
+    // parseable and datable by this code rather than silently skipped.
+    assert.ok(compactShippedLog(real, now, { maxAgeDays: 0 }).rolled.length > 0,
+      'the real Implemented section must contain datable entries');
+  });
+
+  it('never carries the same entry twice — the shipped log is deduplicated', () => {
+    // The guard in applyEditOps only recognised entries containing the literal
+    // word "shipped", so entries phrased "reinforced"/"completed"/"simplified"
+    // were re-appended on every tick. Two survived into ROADMAP.md.
+    const real = readFileSync(new URL('../ROADMAP.md', import.meta.url), 'utf8');
+    const bounds = real.match(/^## Implemented\b.*$/m);
+    const rest = real.slice(bounds.index + bounds[0].length);
+    const end = rest.match(/\n(?=---\s*\n|## )/);
+    const body = rest.slice(0, end ? end.index : rest.length);
+
+    const seen = new Set();
+    const duplicates = [];
+    for (const para of body.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)) {
+      if (seen.has(para)) duplicates.push(para.slice(0, 60));
+      seen.add(para);
+    }
+    assert.deepEqual(duplicates, [], 'duplicate paragraphs in the shipped log');
   });
 });
 
