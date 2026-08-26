@@ -206,7 +206,7 @@ Source: `src/store.js`. `createStore(context)` returns:
 
 ## Config Format
 
-File: `.github/roadmap.yml`. Loaded by `src/config.js:loadConfig()`. YAML parser is hand-rolled — supports flat keys and one level of nesting only. Defaults in `src/config.js` `DEFAULTS` object. Key fields:
+File: `.github/roadmap.yml`. Loaded by `src/config.js:loadConfig()`. YAML parser is hand-rolled — supports flat keys, one level of nesting, and block scalars (`|` / `>`). Defaults in `src/config.js` `DEFAULTS` object. Key fields:
 
 ```yaml
 providers:

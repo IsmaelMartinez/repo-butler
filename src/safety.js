@@ -322,8 +322,14 @@ export function wrapPrompt({
   // projectContext === null/'' → blank slot + trailing blank (preserves the
   // existing pre-refactor whitespace when phase config has no `context`).
   // projectContext is a non-empty string → "Project context: X" + trailing blank.
+  // Sanitised like every other free-text field, even though it comes from the
+  // repo's own committed config. It renders ABOVE the data boundary, in the
+  // instruction region, so an injection phrase here carries more weight than
+  // one inside the fenced repository data — and this slot only became
+  // reachable when the config parser started loading block scalars at all.
   if (projectContext !== undefined) {
-    parts.push(projectContext ? `Project context: ${projectContext}` : '');
+    const safeContext = projectContext ? sanitizeForPrompt(projectContext) : '';
+    parts.push(safeContext ? `Project context: ${safeContext}` : '');
     parts.push('');
   }
 

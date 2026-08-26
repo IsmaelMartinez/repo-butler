@@ -104,7 +104,7 @@ The report module is split into five files. `src/report.js` is the entry point t
 - All LLM output goes through src/safety.js validation before publishing.
 - Snapshots persist on the `repo-butler-data` orphan branch via Git Data API.
 - Reports deploy to GitHub Pages at ismaelmartinez.github.io/repo-butler/.
-- Config lives in `.github/roadmap.yml` with defaults in `src/config.js`. The YAML parser is hand-rolled (no dependency) and handles only flat + one-level-nested keys.
+- Config lives in `.github/roadmap.yml` with defaults in `src/config.js`. The YAML parser is hand-rolled (no dependency) and handles flat keys, one level of nesting, and block scalars (`|` / `>`, with `-`/`+` chomping and an optional trailing comment). Block bodies are **consumed**, and that is a security property rather than a convenience: an unconsumed body's lines are re-matched by the key regex, so a prose line reading `secret-scanning: universal` lands in the live `standards:` map and enables a portfolio-wide standard. Any new block form must therefore be matched and consumed even if it cannot be interpreted perfectly — a form the parser declines to match is a form that leaks. Block scalars are capped at `MAX_BLOCK_SCALAR_CHARS` because `context:` reaches every ASSESS/UPDATE/IDEATE prompt four times a day. `parseValue` deliberately has no "starts with a pipe → empty string" case: that line made an unparsed block indistinguishable from a deliberately empty one, and hid `context:` never loading for the entire life of the repo.
 
 ## GitHub API patterns
 

@@ -107,6 +107,12 @@ export function loadConfigSync(path) {
 // chain) for the whole process.
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+// A block scalar reaches every ASSESS, UPDATE and IDEATE prompt, four times a
+// day. `ideate.js` already caps the roadmap it embeds at the same 2000 chars
+// for the same reason; before the parser loaded blocks at all this value was
+// structurally always empty, so the omission cost nothing.
+const MAX_BLOCK_SCALAR_CHARS = 2000;
+
 // Minimal YAML parser — handles flat and one-level-nested keys.
 // Avoids adding a dependency for a config file that's mostly flat.
 function parseSimpleYaml(text) {
@@ -127,36 +133,58 @@ function parseSimpleYaml(text) {
     const [, key, value] = match;
     if (FORBIDDEN_KEYS.has(key)) continue;
 
-    // Block scalar (`key: |`). The value is the indented body that follows,
-    // not the marker. Reading the marker as the value mapped `context:` to an
-    // empty string, so the committed project context never reached an IDEATE
-    // or UPDATE prompt — silently, since the initial scaffold. Consuming the
-    // body here also stops its prose lines being re-matched as keys: a line
-    // reading "Note: something" would otherwise become config.
-    const chomp = value.match(/^\|([-+]?)$/);
-    if (chomp) {
+    // Block scalar (`key: |` or `key: >`). The value is the indented body that
+    // follows, not the marker. Reading the marker as the value mapped
+    // `context:` to an empty string, so the committed project context never
+    // reached an IDEATE or UPDATE prompt — silently, since the initial
+    // scaffold.
+    //
+    // Consuming the body is the security-relevant half, not a nicety. An
+    // unconsumed body's lines are re-matched by the key regex above, so prose
+    // reading "secret-scanning: universal" lands in the live `standards:`
+    // section and enables a portfolio-wide governance standard. That is why
+    // this matches every block form — including a trailing comment and an
+    // explicit indentation indicator — rather than only the shapes it can
+    // interpret perfectly: a form it declines to match is a form that leaks.
+    const block = value.match(/^([|>])(\d*)([-+]?)\s*(?:#.*)?$/);
+    if (block) {
+      const [, style, widthDigits, chomp] = block;
       const body = [];
+      let strip = widthDigits ? indent + Number(widthDigits) : null;
       let j = i + 1;
       for (; j < lines.length; j++) {
-        const raw = lines[j];
+        const raw = lines[j].replace(/\r$/, '');
         if (!raw.trim()) { body.push(''); continue; }
-        if (raw.length - raw.trimStart().length <= indent) break;
-        body.push(raw);
+        const width = raw.length - raw.trimStart().length;
+        if (width <= indent) break;
+        // YAML fixes a block's indentation from its first content line; a
+        // later line shallower than that ends the block rather than being
+        // silently kept with residual indentation.
+        if (strip === null) strip = width;
+        if (width < strip) break;
+        body.push(raw.slice(strip));
       }
       i = j - 1;
-      // Dedent by the least-indented content line, as YAML does.
-      const widths = body.filter(l => l.trim()).map(l => l.length - l.trimStart().length);
-      const strip = widths.length ? Math.min(...widths) : 0;
-      const content = body.map(l => l.slice(strip)).join('\n').replace(/\n+$/, '');
-      // `|` clips to a single trailing newline; `|-` strips it. `|+` (keep) is
-      // not supported — nothing uses it and it would need the raw run of blanks.
-      const scalar = chomp[1] === '-' || !content ? content : `${content}\n`;
-      if (indent === 0) {
-        result[key] = scalar;
-        currentSection = null;
-      } else if (currentSection) {
-        result[currentSection][key] = scalar;
-      }
+
+      // Every block line is newline-terminated, so the run of trailing blanks
+      // is counted correctly for `+`. Joining with '\n' instead loses the last
+      // line's terminator and silently under-counts by one.
+      const raw = body.length ? `${body.join('\n')}\n` : '';
+      const trailing = raw.match(/\n+$/)?.[0] ?? '';
+      let core = trailing ? raw.slice(0, -trailing.length) : raw;
+      // Folded: a single newline joins lines, a blank line stays a break. Done
+      // after the trailing run is split off, or the final line folds into the
+      // terminator and leaves a stray space at the end of the scalar.
+      if (style === '>') core = core.replace(/([^\n])\n(?!\n)/g, '$1 ');
+
+      let content;
+      if (chomp === '-') content = core;                        // strip
+      else if (chomp === '+') content = core + trailing;        // keep
+      else content = core ? `${core}\n` : '';                   // clip
+
+      const scalar = content.slice(0, MAX_BLOCK_SCALAR_CHARS);
+      if (indent === 0) result[key] = scalar;
+      else if (currentSection) result[currentSection][key] = scalar;
       continue;
     }
 
@@ -182,7 +210,10 @@ function parseValue(v) {
   if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
   if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1);
   if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1);
-  if (trimmed.startsWith('|')) return '';
+  // Deliberately no `startsWith('|') → ''` case. Block markers are handled and
+  // consumed by parseSimpleYaml; blanking anything else that merely begins
+  // with a pipe is what hid the `context:` defect for the life of the repo, by
+  // making an unparsed block indistinguishable from a deliberately empty one.
   return trimmed;
 }
 
