@@ -112,8 +112,10 @@ const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function parseSimpleYaml(text) {
   const result = {};
   let currentSection = null;
+  const lines = text.split('\n');
 
-  for (const line of text.split('\n')) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     // Compute indent from the original line, then trim both sides for matching.
     const indent = line.length - line.trimStart().length;
     const trimmed = line.trim();
@@ -124,6 +126,39 @@ function parseSimpleYaml(text) {
 
     const [, key, value] = match;
     if (FORBIDDEN_KEYS.has(key)) continue;
+
+    // Block scalar (`key: |`). The value is the indented body that follows,
+    // not the marker. Reading the marker as the value mapped `context:` to an
+    // empty string, so the committed project context never reached an IDEATE
+    // or UPDATE prompt — silently, since the initial scaffold. Consuming the
+    // body here also stops its prose lines being re-matched as keys: a line
+    // reading "Note: something" would otherwise become config.
+    const chomp = value.match(/^\|([-+]?)$/);
+    if (chomp) {
+      const body = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        const raw = lines[j];
+        if (!raw.trim()) { body.push(''); continue; }
+        if (raw.length - raw.trimStart().length <= indent) break;
+        body.push(raw);
+      }
+      i = j - 1;
+      // Dedent by the least-indented content line, as YAML does.
+      const widths = body.filter(l => l.trim()).map(l => l.length - l.trimStart().length);
+      const strip = widths.length ? Math.min(...widths) : 0;
+      const content = body.map(l => l.slice(strip)).join('\n').replace(/\n+$/, '');
+      // `|` clips to a single trailing newline; `|-` strips it. `|+` (keep) is
+      // not supported — nothing uses it and it would need the raw run of blanks.
+      const scalar = chomp[1] === '-' || !content ? content : `${content}\n`;
+      if (indent === 0) {
+        result[key] = scalar;
+        currentSection = null;
+      } else if (currentSection) {
+        result[currentSection][key] = scalar;
+      }
+      continue;
+    }
 
     if (indent === 0) {
       if (value) {

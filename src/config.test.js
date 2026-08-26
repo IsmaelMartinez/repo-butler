@@ -113,6 +113,79 @@ standards:
     });
   });
 
+  it('loads a block scalar instead of discarding it', async () => {
+    // The parser matched `context: |` as a key with the value "|" and mapped
+    // that to an empty string, so the indented body was dropped and every
+    // IDEATE and UPDATE prompt was built with no project context — since the
+    // initial scaffold, while the README documented the field as working.
+    const yaml = `repository: owner/repo
+
+context: |
+  Repo Butler plans its own roadmap.
+  It eats its own dog food.
+
+limits:
+  max_ideas: 3
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'Repo Butler plans its own roadmap.\nIt eats its own dog food.\n');
+      // The key after the block must still parse — the block must not swallow it.
+      assert.equal(config.limits.max_ideas, 3);
+      assert.equal(config.repository, 'owner/repo');
+    });
+  });
+
+  it('keeps blank lines inside a block and strips the trailing ones', async () => {
+    const yaml = `context: |
+  First paragraph.
+
+  Second paragraph.
+
+
+next_key: value
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'First paragraph.\n\nSecond paragraph.\n');
+      assert.equal(config.next_key, 'value');
+    });
+  });
+
+  it('honours the strip chomping indicator', async () => {
+    const yaml = `context: |-
+  No trailing newline.
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'No trailing newline.');
+    });
+  });
+
+  it('does not treat a colon inside block text as a new key', async () => {
+    // Block bodies are prose. A line like "Note: something" must stay content,
+    // not become a config key — otherwise arbitrary prose reaches the config.
+    const yaml = `context: |
+  Note: this is prose, not a key.
+  standards: not-a-real-standard
+
+repository: owner/repo
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'Note: this is prose, not a key.\nstandards: not-a-real-standard\n');
+      assert.equal(config.repository, 'owner/repo');
+      assert.notEqual(config.standards, 'not-a-real-standard');
+    });
+  });
+
+  it('loads the real roadmap.yml context, not an empty string', async () => {
+    // Guards the actual defect: this repo's own config carries a context block.
+    const config = await loadConfig(new URL('../.github/roadmap.yml', import.meta.url).pathname);
+    assert.ok(config.context.length > 50, 'the committed context block must reach the prompts');
+    assert.match(config.context, /Repo Butler/);
+  });
+
   it('ignores prototype-polluting keys in YAML', async () => {
     const yaml = `repository: owner/repo
 
