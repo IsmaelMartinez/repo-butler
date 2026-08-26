@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadConfig, loadConfigSync, parseStandardsConfig } from './config.js';
 
 async function withTempYaml(content, fn) {
@@ -111,6 +112,169 @@ standards:
       assert.equal(config.standards['code-scanning'], 'universal');
       assert.equal(config.standards['renovate-npm'], 'javascript');
     });
+  });
+
+  it('loads a block scalar instead of discarding it', async () => {
+    // The parser matched `context: |` as a key with the value "|" and mapped
+    // that to an empty string, so the indented body was dropped and every
+    // IDEATE and UPDATE prompt was built with no project context — since the
+    // initial scaffold, while the README documented the field as working.
+    const yaml = `repository: owner/repo
+
+context: |
+  Repo Butler plans its own roadmap.
+  It eats its own dog food.
+
+limits:
+  max_ideas: 3
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'Repo Butler plans its own roadmap.\nIt eats its own dog food.\n');
+      // The key after the block must still parse — the block must not swallow it.
+      assert.equal(config.limits.max_ideas, 3);
+      assert.equal(config.repository, 'owner/repo');
+    });
+  });
+
+  it('keeps blank lines inside a block and strips the trailing ones', async () => {
+    const yaml = `context: |
+  First paragraph.
+
+  Second paragraph.
+
+
+next_key: value
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'First paragraph.\n\nSecond paragraph.\n');
+      assert.equal(config.next_key, 'value');
+    });
+  });
+
+  it('honours the strip chomping indicator', async () => {
+    const yaml = `context: |-
+  No trailing newline.
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'No trailing newline.');
+    });
+  });
+
+  // Prose inside a block must never become configuration. The fixture opens a
+  // `standards:` section first so `currentSection` is live — without that the
+  // leak path (`result[currentSection][key] = …`) is unreachable and the
+  // assertion passes whether or not the body is consumed.
+  for (const [label, marker] of [
+    ['plain', '|'],
+    ['with a trailing comment', '| # why this exists'],
+    ['folded', '>'],
+    ['folded with chomping', '>-'],
+  ]) {
+    it(`does not leak block prose into config (${label})`, async () => {
+      const yaml = `standards:
+  license: universal
+
+context: ${marker}
+  Note: this is prose, not a key.
+  secret-scanning: universal
+
+repository: owner/repo
+`;
+      await withTempYaml(yaml, async (path) => {
+        const config = await loadConfig(path);
+        assert.deepEqual(config.standards, { license: 'universal' },
+          'a prose line must not enable a governance standard');
+        assert.ok(config.context.includes('Note: this is prose'), 'the body must load');
+        assert.equal(config.repository, 'owner/repo');
+      });
+    });
+  }
+
+  it('folds a > block onto one line but keeps paragraph breaks', async () => {
+    const yaml = `context: >
+  First line
+  second line.
+
+  New paragraph.
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'First line second line.\n\nNew paragraph.\n');
+    });
+  });
+
+  it('loads a block scalar nested inside a section', async () => {
+    const yaml = `limits:
+  max_ideas: 3
+  note: |
+    Nested prose.
+    More of it.
+
+repository: owner/repo
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.limits.note, 'Nested prose.\nMore of it.\n');
+      assert.equal(config.limits.max_ideas, 3);
+      assert.equal(config.repository, 'owner/repo');
+    });
+  });
+
+  it('keeps a top-level block from stranding the section that follows it', async () => {
+    // Both indent-0 forms must treat the current section the same way,
+    // otherwise where a stray indented line lands depends on which kind of
+    // key preceded it.
+    const yaml = `standards:
+  license: universal
+
+context: |
+  Prose.
+
+limits:
+  max_ideas: 4
+`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.deepEqual(config.standards, { license: 'universal' });
+      assert.equal(config.limits.max_ideas, 4);
+    });
+  });
+
+  it('strips carriage returns from a CRLF block body', async () => {
+    const yaml = 'context: |\r\n  Hello\r\n  World\r\n\r\nrepository: owner/repo\r\n';
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'Hello\nWorld\n');
+      assert.equal(config.repository, 'owner/repo');
+    });
+  });
+
+  it('honours the keep chomping indicator', async () => {
+    const yaml = 'context: |+\n  Hi\n\n\nrepository: o/r\n';
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.context, 'Hi\n\n\n');
+    });
+  });
+
+  it('caps a runaway context so it cannot blow the prompt budget', async () => {
+    const yaml = `context: |\n${'  filler line of project context\n'.repeat(400)}`;
+    await withTempYaml(yaml, async (path) => {
+      const config = await loadConfig(path);
+      assert.ok(config.context.length <= 2000, `context was ${config.context.length} chars`);
+    });
+  });
+
+  it('loads the real roadmap.yml context, not an empty string', async () => {
+    // Guards the actual defect: this repo's own config carries a context block.
+    // fileURLToPath, not .pathname — the latter percent-encodes, so a checkout
+    // under a directory with a space would silently fall back to DEFAULTS and
+    // fail here as "context missing" rather than "path wrong".
+    const config = await loadConfig(fileURLToPath(new URL('../.github/roadmap.yml', import.meta.url)));
+    assert.ok(config.context.length > 50, 'the committed context block must reach the prompts');
   });
 
   it('ignores prototype-polluting keys in YAML', async () => {
