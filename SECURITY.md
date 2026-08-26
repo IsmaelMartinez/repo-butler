@@ -18,7 +18,7 @@ A GitHub App installation token, generated per-run from those credentials and sc
 
 LLM provider keys (`GEMINI_API_KEY`, `CLAUDE_API_KEY`), used to call hosted LLMs for the ASSESS, UPDATE, IDEATE, and MONITOR phases. Compromise leaks API quota and could be used to exfiltrate prompt content but does not grant access to the portfolio.
 
-`APP_ID`, `APP_PRIVATE_KEY`, `GEMINI_API_KEY` and `CLAUDE_API_KEY` are stored as GitHub Actions secrets; the installation token is not. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded API keys (patterns `AIza`, `sk-ant-`, and `sk-[a-zA-Z0-9]{40}`) — `safety.js` and `*.test.js` are excluded because they contain detection patterns and fixtures. Runtime output validation in `safety.js` covers a broader set of patterns including GitHub PATs (`ghp_`, `ghs_`) and is applied to all LLM output before it reaches GitHub.
+`APP_ID`, `APP_PRIVATE_KEY`, `GEMINI_API_KEY` and `CLAUDE_API_KEY` are stored as GitHub Actions secrets; the installation token is not. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded credentials — patterns `AIza`, `sk-ant-`, `sk-[a-zA-Z0-9]{40}`, `github_pat_`, and RSA/EC private-key headers, the last of which covers `APP_PRIVATE_KEY` being pasted into a file. `safety.js` and `*.test.js` are excluded because they contain detection patterns and fixtures. Runtime output validation in `safety.js` covers a broader set of patterns including GitHub PATs (`ghp_`, `ghs_`) and is applied to all LLM output before it reaches GitHub.
 
 ## Trust boundaries
 

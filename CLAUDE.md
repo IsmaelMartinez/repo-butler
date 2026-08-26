@@ -13,7 +13,7 @@ npm run report                     # Run report phase only
 INPUT_DRY_RUN=true npm start       # Dry run (no issue/PR/roadmap writes; snapshots still persist)
 ```
 
-The CI workflow also runs a secret-leak lint check that greps source files for hardcoded API keys (sk-, AIza, ghp_, ghs_). This excludes safety.js and *.test.js.
+The CI workflow also runs a secret-leak lint check over `src/*.js`, excluding `safety.js` and `*.test.js`. It greps for `AIza`, `sk-ant-`, `sk-` + 40 chars, `github_pat_`, and RSA/EC private-key headers — note it does NOT cover `ghp_`/`ghs_`; those are caught at runtime by `safety.js`'s output validators instead, which is a different boundary.
 
 `--test-concurrency=1` is deliberate: Node's test runner isolates each file in its own child process, and under the default concurrency the largest file (report.test.js, 2000+ lines) intermittently lost its trailing suites over the IPC channel — a full run would silently report ~50 fewer tests with no failure surfaced apart from a stray count mismatch. Serializing removed the flake in repeated local runs at a ~2.5s cost.
 
