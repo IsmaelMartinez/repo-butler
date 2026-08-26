@@ -714,6 +714,18 @@ function renderRefList(refs) {
 // it. Idempotent: an existing rollup line is parsed back into its bucket and
 // re-emitted verbatim when nothing new joined it. Pure function. Exported for
 // testing.
+//
+// This is the ONLY remaining path that removes content from ROADMAP.md, and it
+// has no independent preservation check — it relies on by-construction ref
+// bucketing to carry every `#NN` into the month line. Three guards used to sit
+// on the whole-document rewrite and were deleted with it once `applyEditOps`
+// became additive-only: a length check (PR #176 returned 53 lines for 277), a
+// strikethrough count (PR #202 stripped 24 `~~…~~` markers), and a ref check
+// (PR #213 dropped the paragraph carrying `(PR #84)`). Those failures came
+// from an LLM rewriting the document; compaction is deterministic, which is
+// why no successor was added. If this ever stops being deterministic — an LLM
+// summarising a month rather than concatenating refs — reinstate a ref-
+// preservation check first.
 export function compactShippedLog(roadmap, today, { maxAgeDays = 60, section = 'Implemented' } = {}) {
   if (!roadmap) return { result: roadmap, rolled: [] };
 

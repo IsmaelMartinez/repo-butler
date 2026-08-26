@@ -1,4 +1,4 @@
-// Golden snapshot tests for the six prompt builders. The expected outputs were
+// Golden snapshot tests for the five prompt builders. The expected outputs were
 // captured against the pre-refactor implementations and persisted under
 // src/__golden__/. The refactor that introduced wrapPrompt() must not alter
 // any builder's output by even a single character.
@@ -97,8 +97,6 @@ describe('prompt builder golden snapshots', () => {
       golden('assess-no-context.txt')
     );
   });
-
-
 
   it('buildIdeatePrompt — standard inputs', () => {
     assert.equal(

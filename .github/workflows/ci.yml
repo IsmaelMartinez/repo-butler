@@ -17,12 +17,29 @@ jobs:
         with:
           persist-credentials: false
 
+      # Matches action.yml's `using: node24` — the gate should run the runtime
+      # it guards, not an older one.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
+          node-version: '24'
 
+      # A `describe` callback that throws builds no subtests, so node:test
+      # reports the suite as `not ok` in TAP while the footer still says
+      # `# fail 0` — and on Node 22 that did not reach the exit code either.
+      # That shipped a broken suite as a green `test` check on run 33000289833:
+      # thirteen tests silently stopped existing, including the guard that
+      # merged PR titles pass through the prompt sanitiser. Asserting on TAP is
+      # version-independent, and a genuinely failing test also emits `not ok`,
+      # so this can only be stricter than the exit code, never weaker.
+      # No workflow input is interpolated here — it reads only npm's own output.
       - name: Run tests
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.txt
+          if grep -qE '^[[:space:]]*not ok [0-9]+' test-output.txt; then
+            echo "TAP reported 'not ok' — a suite failed or failed to build, even if the summary says 0 failures."
+            exit 1
+          fi
 
   lint:
     runs-on: ubuntu-latest

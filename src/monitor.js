@@ -342,5 +342,3 @@ export async function saveCursor(store, cursor) {
     console.warn(`Monitor: failed to save cursor: ${err.message}`);
   }
 }
-
-// --- Event filtering ---

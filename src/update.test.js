@@ -142,10 +142,6 @@ describe('findOpenRoadmapPr', () => {
   });
 });
 
-
-
-
-
 describe('parseEditOps', () => {
   it('parses a valid JSON array', () => {
     const result = parseEditOps('[{"action":"append","section":"Implemented","text":"New thing."}]');
@@ -1071,10 +1067,12 @@ describe('UPDATE prompts carry merged PR titles, not just a count', () => {
     },
   };
 
-  // Both builders: buildSectionEditPrompt is the live path (update() calls it),
-  // buildUpdatePrompt is the legacy full-document one. Leaving either blind is
-  // the trap — the instruction and the data must not drift apart again.
-  for (const [label, build] of [['section-edit', buildSectionEditPrompt], ['legacy', buildUpdatePrompt]]) {
+  // buildSectionEditPrompt is the only builder now — the legacy full-document
+  // buildUpdatePrompt was deleted with the rest of the whole-document rewrite.
+  // The loop shape is kept so the test names stay stable and a second builder
+  // can be added back without renaming anything. The trap these guard against
+  // is the instruction and the data drifting apart again.
+  for (const [label, build] of [['section-edit', buildSectionEditPrompt]]) {
     it(`${label}: includes each merged PR number and title`, () => {
       const prompt = build('# Roadmap', snapshot, assessment, null);
       assert.match(prompt, /PRs merged since last update:/);

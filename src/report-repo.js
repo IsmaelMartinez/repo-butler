@@ -5,8 +5,8 @@ import { htmlPage } from './report-styles.js';
 import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, jsStr, fmt, countBy, isBlocked,
-  daysAgoISO, last12Months, computeHealthTier, getLibyearColor, isReleaseExempt,
-  colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
+  daysAgoISO, last12Months, computeHealthTier, isReleaseExempt,
+  colorByThreshold, nextTier, isCheckRequiredForTier, deployedLink,
 } from './report-shared.js';
 
 // Range tuples for value-to-colour mapping in per-repo dashboards.
@@ -19,21 +19,6 @@ const CONTRIBUTOR_RATIO_RANGES = [
   { lt: 1, color: 'var(--muted)' },
   { lt: 5, color: COLOR_WARNING },
   { lt: Infinity, color: COLOR_SUCCESS },
-];
-const CI_PASS_RATE_RANGES = [
-  { lt: 0.7, color: COLOR_DANGER },
-  { lt: 0.9, color: COLOR_WARNING },
-  { lt: Infinity, color: COLOR_SUCCESS },
-];
-const BUS_FACTOR_RANGES = [
-  { lte: 1, color: COLOR_DANGER },
-  { lte: 2, color: COLOR_WARNING },
-  { lte: Infinity, color: COLOR_SUCCESS },
-];
-const TIME_TO_CLOSE_DAYS_RANGES = [
-  { lte: 7, color: COLOR_SUCCESS },
-  { lte: 30, color: COLOR_WARNING },
-  { lte: Infinity, color: COLOR_DANGER },
 ];
 const PR_AGE_RANGES = [
   { lt: 14, color: 'var(--muted)' },
@@ -50,7 +35,6 @@ const BLOCKED_AGE_RANGES = [
   { lt: 90, color: COLOR_WARNING },
   { lt: Infinity, color: COLOR_DANGER },
 ];
-
 
 // --- Data fetchers for charts ---
 
@@ -153,7 +137,6 @@ export async function fetchWeeklyCommits(gh, owner, repo) {
   }
 }
 
-
 // --- Cycle time ---
 
 export function computePRCycleTime(mergedPRs) {
@@ -185,7 +168,6 @@ function buildCycleTimeCard(cycleTime) {
 </div>`;
 }
 
-
 // --- Contributor funnel ---
 
 export function computeContributorStats(prAuthors, stargazers) {
@@ -209,7 +191,6 @@ function buildContributorCard(prAuthors, stargazers) {
   <div class="card"><h3>Contributor Confidence</h3><div class="stat" style="color:${ratioColor}">${stats.ratio}%</div><div class="stat-label">unique contributors / stargazers</div></div>
 </div>`;
 }
-
 
 // --- Velocity imbalance ---
 
@@ -241,7 +222,6 @@ function buildVelocityAlert(imbalance) {
   const cls = critical ? ' alert-critical' : '';
   return `<div class="alert-banner${cls}">\u26a0\ufe0f Backlog pressure: issues opened have exceeded issues closed for ${imbalance.consecutive_months} consecutive months (deficit: +${imbalance.total_deficit})</div>`;
 }
-
 
 // --- Action items ---
 
@@ -385,7 +365,6 @@ function buildActionabilitySection(snapshot, openPRs) {
 </div>`;
 }
 
-
 // --- Health tier section ---
 
 function snapshotToTierInput(snapshot) {
@@ -457,12 +436,8 @@ ${nextTierHtml}
 </div>`;
 }
 
+// --- Dependabot autofix indicators ---
 
-// --- Health section ---
-
-// Render a single dashboard card with a coloured stat and a label. When
-// `available` is false the value falls back to an em-dash placeholder coloured
-// with the neutral grey and the label is forced to 'unavailable'.
 // Dependabot automated-security-fixes tri-state (ADR-012 Phase 3) mapped to
 // display text/colour, shared by the lightweight-card stat card and the Health
 // Tier section's inline indicator so both per-repo render paths agree —
@@ -488,6 +463,8 @@ function buildDependabotAutofixLine(active) {
   const s = dependabotAutofixState(active);
   return `<div class="muted" style="font-size:0.85rem;margin-top:0.25rem">Dependabot autofix: <span style="color:${s.color}">${s.text}</span></div>`;
 }
+
+// --- PR triage ---
 
 function buildPRTriageSection(openPRs, repoFullName) {
   if (!openPRs || openPRs.length === 0) return '';
@@ -526,7 +503,6 @@ function buildPRTriageSection(openPRs, repoFullName) {
 <tbody>${rows}</tbody></table>
 </div>`;
 }
-
 
 // --- Staleness / issue triage ---
 
@@ -604,6 +580,8 @@ function buildStalenessSection(snapshot) {
   return html;
 }
 
+// --- Calendar heatmap ---
+
 function buildCalendarHeatmap(weeklyCommits) {
   if (!weeklyCommits || weeklyCommits.length === 0) return '';
   const max = Math.max(...weeklyCommits);
@@ -629,7 +607,6 @@ function buildCalendarHeatmap(weeklyCommits) {
 <div class="heatmap-labels" style="grid-template-columns:repeat(${weeklyCommits.length},12px)">${labels}</div>
 </div>`;
 }
-
 
 // --- HTML generators ---
 

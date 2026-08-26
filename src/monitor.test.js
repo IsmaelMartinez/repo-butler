@@ -20,9 +20,6 @@ describe('monitor module', () => {
   });
 });
 
-
-
-
 describe('detectSecurityAlerts (via monitor)', () => {
   let originalFetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });
