@@ -77,7 +77,7 @@ The CARE phase concept is absorbed into this new model. Instead of a separate ph
 
 ### Integration with the triage bot
 
-The data flow established in ADR-001 remains: OBSERVE sends data to the triage bot via `/ingest`, and ASSESS/IDEATE read synthesis findings from `/report/trends`. The new addition is that when the butler detects a governance gap, it can inform the triage bot so the bot's per-repo analysis knows about the gap. For example, if the butler detects that a repo is missing Dependabot, the triage bot shouldn't independently suggest adding it — the butler already has a PR for that.
+The data flow established in ADR-001 has since been removed (PR #252, 2026-05-31): nothing POSTs to `/ingest` and nothing reads `/report/trends`. The paragraph below describes the intended coupling as it stood in March 2026 and is retained for the design record; the governance boundary it supports is unaffected. The new addition is that when the butler detects a governance gap, it can inform the triage bot so the bot's per-repo analysis knows about the gap. For example, if the butler detects that a repo is missing Dependabot, the triage bot shouldn't independently suggest adding it — the butler already has a PR for that.
 
 ## Consequences
 

@@ -100,14 +100,6 @@ Per-repo pages (`{repo-name}.html`) are generated for every active, non-fork, no
 
 Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day runs from ~15 minutes to seconds.
 
-## Triage bot integration
-
-If your repo has a [github-issue-triage-bot](https://github.com/IsmaelMartinez/github-issue-triage-bot) deployed, Repo Butler auto-discovers it and integrates. The bot is found from `.github/butler.json` in the target repo (the same config file the triage bot reads) or from the `TRIAGE_BOT_URL` environment variable.
-
-When the bot is available, the OBSERVE phase POSTs snapshot metrics to the bot's `/ingest` endpoint (requires `TRIAGE_BOT_INGEST_SECRET`), the ASSESS phase fetches synthesis findings from `/report/trends`, and per-repo report footers link to the live triage dashboard.
-
-When the bot is not available, nothing changes — no errors, no warnings, no degraded behaviour.
-
 ## Quick start
 
 1. Add a `.github/roadmap.yml` to your repo (see [Configuration](#configuration) above).
@@ -142,6 +134,9 @@ src/
 ├── trimmer.js            # Parent-scoped npm override decider for transitive vulns (ADR-013; no caller in the write path yet)
 ├── private-watch.js      # Private-repo security watch — standalone pass, never enters the governance pipeline
 ├── private-notify.js     # Tracking-issue delivery for private-watch findings
+├── tier-change.js        # Shared tier-diff core behind G7 regression detection and trend reporting
+├── staleness.js          # Behind-main probe shared by the MCP staleness envelope and the skills check
+├── skill-staleness.js    # Whether the installed skill matches the checkout it is symlinked to
 ├── ideate.js             # IDEATE: LLM idea generation with structured parsing
 ├── propose.js            # PROPOSE: GitHub issue creation with safety filtering + approval gate
 ├── report.js             # REPORT: entry point, orchestrates report generation
@@ -156,7 +151,6 @@ src/
 ├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
 ├── agent-card.js         # A2A AgentCard generator (served at .well-known/agent-card.json)
 ├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths
-├── triage-bot.js         # Optional triage bot integration (auto-discovered)
 ├── store.js              # Snapshot + weekly history + hash persistence via Git Data API
 ├── config.js             # YAML config loader with defaults
 ├── github.js             # GitHub REST API client with rate limit handling
@@ -170,9 +164,9 @@ docs/
 ├── architecture.md       # Visual pipeline diagram + data flow
 ├── consumer-guide.md     # Repo-owner guide for the per-repo dashboards
 ├── skill.md              # Claude Code skill for AI agent consumption
-├── decisions/            # Architecture Decision Records (ADR-001 through ADR-006)
+├── decisions/            # Architecture Decision Records (ADR-001 through ADR-014)
 ├── research/             # Research notes for open roadmap items
-└── superpowers/          # Active implementation plans (in flight only)
+└── superpowers/          # Implementation plans, kept as a record once executed
 ```
 
 ### Private repository support

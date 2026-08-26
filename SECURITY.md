@@ -12,23 +12,23 @@ Do not open public issues or PRs for security problems. If a vulnerability is al
 
 The butler holds three categories of credential at runtime:
 
-A GitHub App token, generated per-run via `actions/create-github-app-token@v3`, scoped to the App's installations across the portfolio. This token can read and write repos, open PRs, create issues, and update branches on every repo where the App is installed. It is the most privileged credential and the most attractive target.
+GitHub App credentials (`APP_ID`, `APP_PRIVATE_KEY`). The private key is the highest-value secret the project holds: it mints the installation token below, so compromising it grants write access to every repo the App is installed on, for as long as the key is valid. It is stored as a GitHub Actions secret and is never read by application code — only `actions/create-github-app-token@v3` consumes it.
+
+A GitHub App installation token, generated per-run from those credentials and scoped to the App's installations across the portfolio. This token can read and write repos, open PRs, create issues, and update branches on every repo where the App is installed. It is the most privileged credential in the process and the most attractive runtime target, but it is not stored anywhere and expires with the run.
 
 LLM provider keys (`GEMINI_API_KEY`, `CLAUDE_API_KEY`), used to call hosted LLMs for the ASSESS, UPDATE, IDEATE, and MONITOR phases. Compromise leaks API quota and could be used to exfiltrate prompt content but does not grant access to the portfolio.
 
-An optional `TRIAGE_BOT_INGEST_SECRET` for posting snapshots to a separately-deployed triage bot. Compromise allows a third party to post arbitrary `/ingest` payloads to the configured bot.
-
-All three are stored as GitHub Actions secrets. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded API keys (patterns `AIza`, `sk-ant-`, and `sk-[a-zA-Z0-9]{40}`) — `safety.js` and `*.test.js` are excluded because they contain detection patterns and fixtures. Runtime output validation in `safety.js` covers a broader set of patterns including GitHub PATs (`ghp_`, `ghs_`) and is applied to all LLM output before it reaches GitHub.
+`APP_ID`, `APP_PRIVATE_KEY`, `GEMINI_API_KEY` and `CLAUDE_API_KEY` are stored as GitHub Actions secrets; the installation token is not. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded credentials — patterns `AIza`, `sk-ant-`, `sk-[a-zA-Z0-9]{40}`, `github_pat_`, and RSA/EC private-key headers, the last of which covers `APP_PRIVATE_KEY` being pasted into a file. `safety.js` and `*.test.js` are excluded because they contain detection patterns and fixtures. Runtime output validation in `safety.js` covers a broader set of patterns including GitHub PATs (`ghp_`, `ghs_`) and is applied to all LLM output before it reaches GitHub.
 
 ## Trust boundaries
 
-The butler treats two categories of data as untrusted: repo content read via the GitHub API (issue titles, PR descriptions, comments, README content, label names, contributor names) and any external HTTP response (notably the optional triage bot's `/report/trends` payload).
+The butler treats two categories of data as untrusted: repo content read via the GitHub API (issue titles, PR descriptions, comments, README content, label names, contributor names) and any external HTTP response — today that means LLM provider replies and the package-registry JSON `libyear.js` reads from npm, PyPI and crates.io. Registry fields reach the world-readable `repo-butler-data` branch and the rendered dashboard, so any new render site for them must escape, as `report-repo.js` does.
 
 `src/safety.js` is the only module allowed to interpolate untrusted data into LLM prompts or GitHub-bound output. Every prompt-building function (`buildIdeatePrompt`, `buildAssessPrompt`, `buildUpdatePrompt`) wraps external data in `BEGIN/END REPOSITORY DATA` delimiters with a defence preamble against prompt injection. `sanitizeForPrompt()` strips known injection patterns before LLM ingestion.
 
 For LLM output going back to GitHub, `safety.js` enforces a context-aware URL allowlist (core hosts always permitted, docs hosts only in roadmap context), blocks `@mention` patterns, runs API-key detection, applies XSS prevention, and caps lengths. Every phase that writes to GitHub MUST pass output through these validators.
 
-For SSRF prevention on the optional triage bot integration, `validateBotUrl()` requires the destination host to be on the `TRIAGE_BOT_ALLOWED_HOSTS` allowlist before any HTTP call. URLs discovered from `.github/butler.json` in target repos are not trusted by default — only the `TRIAGE_BOT_URL` env var is treated as pre-vetted.
+Every outbound host is fixed in code: the GitHub API, the configured LLM provider, and the three package registries `libyear.js` queries for dependency freshness (`registry.npmjs.org`, `pypi.org`, `crates.io`). No host is ever taken from repository content, which is what removes the classic SSRF shape. The registry *paths* are still built from target-repo dependency names, so that interpolation — not the host — is where to look when auditing this surface. See the ROADMAP's retired Phase 8 entry for the one integration that did discover a host from repo content, and when it was removed.
 
 Repo names are interpolated into generated YAML files by the `Governance Apply` workflow. To prevent template injection via a malicious repo name, every name is validated against `^[a-zA-Z0-9._-]+$` before any template generation. Names that fail are skipped with a warning.
 
