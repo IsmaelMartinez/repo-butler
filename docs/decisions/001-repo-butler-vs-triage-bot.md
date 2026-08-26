@@ -1,7 +1,9 @@
 # ADR-001: Repo Butler and Triage Bot Boundary
 
 Date: 2026-03-20
-Status: Accepted (partially updated by ADR-002)
+Status: Accepted (partially updated by ADR-002; integration half superseded by events, see below)
+
+Superseded in part: 2026-05-31 — the HTTP integration this ADR proposes was removed in PR #252. `src/triage-bot.js` no longer exists, nothing POSTs to `/ingest`, and nothing reads `/report/trends`. The *scope boundary* below still stands and is still load-bearing for [ADR-010](010-cross-repo-proposals.md) and [ADR-011](011-portfolio-informed-generic-proposals.md) — read this ADR for which project owns what, not for a wire protocol. The two systems do still exchange work, but through GitHub: the triage bot's repo is the first enabled cross-repo PROPOSE target. Both projects remain active; only the coupling was retired.
 
 ## Context
 

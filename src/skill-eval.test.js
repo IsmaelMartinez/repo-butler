@@ -11,8 +11,11 @@ const skillPath = join(import.meta.dirname, '..', 'docs', 'skill.md');
 const skill = readFileSync(skillPath, 'utf8');
 
 describe('skill content coverage', () => {
-  it('describes all six pipeline phases', () => {
-    for (const phase of ['OBSERVE', 'ASSESS', 'UPDATE', 'IDEATE', 'PROPOSE', 'REPORT']) {
+  it('describes all seven pipeline phases plus the monitor', () => {
+    // GOVERNANCE and MONITOR were missing while skill.md's own heading said
+    // "Seven-Phase Pipeline" — deleting the GOVERNANCE section (the longest in
+    // the document, covering all eight finding types) left the suite green.
+    for (const phase of ['OBSERVE', 'ASSESS', 'UPDATE', 'GOVERNANCE', 'IDEATE', 'PROPOSE', 'REPORT', 'MONITOR']) {
       assert.ok(skill.includes(`\`${phase}\``), `skill should mention ${phase} phase`);
     }
   });
@@ -53,16 +56,24 @@ describe('skill content coverage', () => {
   });
 
   it('documents the butler vs triage bot boundary', () => {
-    assert.ok(skill.includes('triage bot') || skill.includes('triage-bot'),
-      'skill should mention the triage bot');
-    assert.ok(skill.includes('portfolio') && skill.includes('deep'),
+    // Anchored on the section heading, not on loose words. The previous form
+    // passed on incidental matches — "triage-bot" from an ADR filename in Key
+    // Files, and "deep" from "deep LLM provider" — so the whole Decision
+    // Framework section could be deleted with CI green.
+    assert.ok(skill.includes('## Decision Framework: repo-butler vs triage bot'),
+      'skill should carry the boundary section');
+    assert.ok(/goes deep on one repo/.test(skill) && /goes broad across the portfolio/.test(skill),
       'skill should contrast portfolio breadth vs per-repo depth');
-    // Deliberately no assertion about `/ingest` or `/report/trends`. Those
-    // endpoints were removed with the integration in PR #252 (2026-05-31), and
-    // this assertion is what kept the stale prose describing them in place —
-    // deleting the documentation turned CI red. ADR-001's boundary is a
-    // decision about scope, not a wire protocol, so the docs should not need
-    // to name endpoints to describe it.
+  });
+
+  it('does not describe the removed triage-bot HTTP integration as live', () => {
+    // The endpoints went with the integration in PR #252 (2026-05-31). The old
+    // assertion here REQUIRED the skill to name them, which is why the stale
+    // prose survived three months: deleting it turned CI red. Inverted, so the
+    // documentation cannot quietly regain them.
+    const live = skill.split('\n').filter(l =>
+      (l.includes('/ingest') || l.includes('/report/trends')) && !/removed|superseded|no longer/i.test(l));
+    assert.deepEqual(live, [], 'skill.md still presents the removed endpoints as current');
   });
 
   it('documents safety validators', () => {

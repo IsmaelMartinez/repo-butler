@@ -28,6 +28,8 @@ Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phas
 
 `REPORT` — Generates per-repo HTML dashboards and a portfolio landing page. Deploys to GitHub Pages. Caches by SHA-256 hash of `snapshot.summary`. Full chart dashboard for repos with 10+ commits; lightweight card for quieter repos. Source: `src/report.js`.
 
+`MONITOR` — Not part of `all`, and not one of the seven. It runs on its own schedule (`.github/workflows/monitor.yml`, every 6 hours) and detects events that landed between pipeline runs — PRs opened, issues filed, CI failures — handing them to the agent council for triage. Source: `src/monitor.js`.
+
 ---
 
 ## Snapshot Data Model
@@ -265,7 +267,9 @@ Use repo-butler for cross-repo portfolio questions: "Which repos are missing Dep
 
 Use the triage bot for deep per-repo intelligence: "Is issue #47 a duplicate of #12?", "Summarize the ADR history.", "What issues are waiting longest for a response?"
 
-The boundary is: triage bot goes deep on one repo (webhook-driven, vector search, real-time). Repo-butler goes broad across the portfolio (REST API, daily cron, zero infrastructure). The two do not exchange data — an ingest/trends integration existed and was removed in PR #252 (2026-05-31); ADR-001 governs the boundary, not a wire protocol.
+The boundary is: triage bot goes deep on one repo (webhook-driven, vector search, real-time). Repo-butler goes broad across the portfolio (REST API, daily cron, zero infrastructure).
+
+No HTTP integration remains between them. ADR-001 and ADR-002 still specify an `/ingest` and `/report/trends` data flow; that code was removed in PR #252 (2026-05-31) and those sections are superseded — read them for the scope boundary, which still holds, not for the wire protocol, which no longer exists. Data does still flow in one direction, but through GitHub rather than HTTP: the triage bot's repo is the first enabled cross-repo PROPOSE target, so the butler files issues into it.
 
 ---
 
