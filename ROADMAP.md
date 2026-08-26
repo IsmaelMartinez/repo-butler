@@ -121,6 +121,8 @@ Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore up
 
 Roadmap test robustness and codebase deduplication shipped 2026-08-26 (PR #384). Improved test suite reliability by unpinning the clock in roadmap tests and resolved minor codebase health issues by ensuring the "Implemented" section is fully deduped.
 
+Codebase hardening and configuration loading fixes shipped 2026-08-26 (PRs #385, #386, #387, #388). Hardened the `release-cadence` workflow template, resolved configuration loading bugs by ensuring block scalars are loaded instead of discarded, updated documentation by removing outdated triage-bot prose, and cleaned up unused exports to reduce technical debt.
+
 ---
 
 ## Next Up
