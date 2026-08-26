@@ -31,8 +31,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      # SHA-pinned like every workflow in the butler's own repo; a floating
-      # major tag drifts between the eight repos carrying this template.
+      # Pinned to a commit rather than a floating major tag: a moving tag
+      # resolves differently in each repo carrying this template, and is a
+      # supply-chain surface. The trailing comment records what it resolves to.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
