@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-08-25
+**Last Updated:** 2026-08-26
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -118,6 +118,8 @@ Roadmap update process and baseline resolution reinforced 2026-08-11 (PR #368). 
 OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
 
 Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore updated the project's roadmap to reflect future planning directions and document current progress as the repository enters a temporary maintenance phase following a highly productive period of feature development.
+
+Roadmap test robustness and codebase deduplication shipped 2026-08-26 (PR #384). Improved test suite reliability by unpinning the clock in roadmap tests and resolved minor codebase health issues by ensuring the "Implemented" section is fully deduped.
 
 ---
 
