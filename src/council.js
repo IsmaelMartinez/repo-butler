@@ -10,7 +10,7 @@
 // Each agent produces an independent assessment, then a synthesiser combines them
 // into a final verdict: act, watch, or dismiss.
 
-import { sanitizeForPrompt, wrapPrompt } from './safety.js';
+import { sanitizeForPrompt, wrapPrompt, validateIssueBody, REPO_NAME_PATTERN } from './safety.js';
 
 // --- Agent personas ---
 
@@ -575,7 +575,13 @@ const MAX_WATCHLIST_ITEMS = 100;
 // generic by construction ("Add a release-cadence workflow"), so a title-only
 // key silently collapses one repo's item into another's — permanently, since
 // the surviving entry then owns that title for good.
-const watchlistKey = (item) => `${item.targetRepo || ''}/${item.title}`;
+//
+// Both the key and the stored field go through safeTargetRepo, and they must
+// stay in step: if the key used the raw value while the entry stored a
+// rejected one as null, the next run would key the same item differently from
+// the way it was persisted and re-add it on every run, forever.
+const safeTargetRepo = (repo) => (REPO_NAME_PATTERN.test(repo || '') ? repo : null);
+const watchlistKey = (item) => `${safeTargetRepo(item.targetRepo) || ''}/${item.title}`;
 
 // Slimmed to what get_watchlist reads plus the two fields identifying a
 // G8-demoted cross-repo proposal. appendSoakEntry states the rule for its
@@ -585,17 +591,32 @@ const watchlistKey = (item) => `${item.targetRepo || ''}/${item.title}`;
 // them back. type/severity are set explicitly because reviewProposals builds
 // them on its `items` array but buckets over `ideas`, so a watch entry carries
 // `priority` and neither of the two fields the MCP projection actually reads.
+//
+// council_summary needs its own validation: the caller runs `validateIdeas`,
+// which covers the IDEATE call's title/body/priority, but the summary comes
+// from the *council's* verdict — a separate LLM call whose free text no
+// validator has ever seen. A failing summary drops the field rather than the
+// item: the title, target and hold-back reason are what make the row useful,
+// and losing the row would lose the signal the file exists to carry.
+function safeSummary(summary) {
+  if (!summary) return null;
+  if (validateIssueBody(summary).valid) return summary;
+  console.warn('Watchlist: dropped a council summary that failed output validation.');
+  return null;
+}
+
 function toWatchlistEntry(item) {
   return {
     title: item.title,
     type: item.type || 'proposal',
     severity: item.severity || item.priority || null,
-    targetRepo: item.targetRepo ?? null,
+    // Persisted raw this would be an unchecked identifier on a public ledger.
+    targetRepo: safeTargetRepo(item.targetRepo),
     held_back_reason: item.held_back_reason ?? null,
     council_verdict: item.council_verdict ?? null,
     council_confidence: item.council_confidence ?? null,
     council_priority: item.council_priority ?? null,
-    council_summary: item.council_summary ?? null,
+    council_summary: safeSummary(item.council_summary),
     added_at: new Date().toISOString(),
     review_count: 0,
   };

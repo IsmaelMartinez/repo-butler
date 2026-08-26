@@ -499,6 +499,23 @@ describe('readJSONChecked', () => {
     assert.equal(result.reason, 'unreadable');
   });
 
+  // lastIndexOf('/') is -1 for a root-level path, and slicing on that asks for
+  // a directory named after the path minus its last character.
+  it('handles a root-level path with no directory separator', async () => {
+    const gh = makeFakeGh();
+    // Only a request for the ROOT directory lists anything, so asking for the
+    // wrong directory name reads as an unreadable branch.
+    const asked = [];
+    gh.listDir = async (_o, _r, dir) => {
+      asked.push(dir);
+      return dir === '' ? ['other.json'] : [];
+    };
+    const result = await store(gh).readJSONChecked('watchlist.json');
+    assert.deepEqual(asked, [''], 'must list the root, not a truncated path');
+    assert.equal(result.readable, true, 'a listed root directory still proves absence');
+    assert.equal(result.reason, 'absent');
+  });
+
   it('reports unreadable for malformed JSON rather than replacing it', async () => {
     const gh = makeFakeGh();
     gh.getFileContent = async () => '{ truncated';

@@ -585,6 +585,43 @@ describe('mergeWatchlist', () => {
     assert.equal(entry.severity, 'high');
     assert.equal(entry.held_back_reason, 'cross-repo-quality-gate');
   });
+
+  // council_summary comes from the council's verdict — a different LLM call
+  // from the one the caller's validateIdeas covers — and lands on a public
+  // ledger. The row survives; only the offending field is dropped.
+  it('drops a council summary that fails output validation, keeping the item', async () => {
+    const { mergeWatchlist } = await import('./council.js');
+    const { items } = mergeWatchlist([], [{
+      title: 'Watch me',
+      priority: 'low',
+      council_summary: 'Ask @someone about this.',
+    }]);
+    assert.equal(items.length, 1, 'the item itself is still worth recording');
+    assert.equal(items[0].council_summary, null);
+  });
+
+  it('keeps a clean council summary', async () => {
+    const { mergeWatchlist } = await import('./council.js');
+    const { items } = mergeWatchlist([], [{ title: 'Watch me', council_summary: 'Needs more data.' }]);
+    assert.equal(items[0].council_summary, 'Needs more data.');
+  });
+
+  it('rejects a targetRepo that is not a valid repo name', async () => {
+    const { mergeWatchlist } = await import('./council.js');
+    const { items } = mergeWatchlist([], [{ title: 'Watch me', targetRepo: '../../evil path' }]);
+    assert.equal(items[0].targetRepo, null);
+  });
+
+  // If the key used the raw targetRepo while the entry stored null, the next
+  // run would key the item differently from the way it was persisted and
+  // re-add it every run.
+  it('keys on the same targetRepo it stores, so a rejected one still dedupes', async () => {
+    const { mergeWatchlist } = await import('./council.js');
+    const first = mergeWatchlist([], [{ title: 'Watch me', targetRepo: 'not a repo!' }]);
+    const second = mergeWatchlist(first.items, [{ title: 'Watch me', targetRepo: 'not a repo!' }]);
+    assert.equal(second.added, 0, 'the same item must not be re-added');
+    assert.equal(second.items.length, 1);
+  });
 });
 
 describe('watchlist persistence', () => {

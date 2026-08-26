@@ -394,9 +394,13 @@ export function createStore(context) {
         return { data: null, readable: false, reason: 'unparseable' };
       }
     }
+    // A root-level path has no slash: lastIndexOf returns -1, and slicing on it
+    // would ask for a directory named after the path minus its last character.
     const slash = path.lastIndexOf('/');
-    const listing = await listBranchDir(path.slice(0, slash));
-    if (listing.length > 0 && !listing.includes(path.slice(slash + 1))) {
+    const dir = slash === -1 ? '' : path.slice(0, slash);
+    const name = slash === -1 ? path : path.slice(slash + 1);
+    const listing = await listBranchDir(dir);
+    if (listing.length > 0 && !listing.includes(name)) {
       return { data: null, readable: true, reason: 'absent' };
     }
     return { data: null, readable: false, reason: 'unreadable' };
