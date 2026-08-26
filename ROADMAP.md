@@ -95,15 +95,11 @@ Routine dependency update shipped 2026-08-06 (PR #367), updating minor and patch
 
 Roadmap update process reinforced 2026-08-11 (PR #368). Future updates leverage enhanced pipeline context and baseline branch resolution to ensure continuous, accurate capture of portfolio and repository milestones.
 
-Roadmap update process reinforced 2026-08-11 (PR #368). Future updates leverage enhanced pipeline context and baseline branch resolution to ensure continuous, accurate capture of portfolio and repository milestones.
-
 OSV-Scanner governance migration and Snyk deprecation planned 2026-08-12 (PRs #370, #371). Initiated a strategic transition of the project's security posture by planning the removal of the Snyk integration and adopting `osv-scanner` as a new portfolio-wide standard for open-source vulnerability scanning.
 
 OSV-Scanner security migration initiated 2026-08-12 (PRs #370, #371, #372, #373). Established a strategic transition of the portfolio's security posture by planning the deprecation of Snyk integration, rolling out OSV-Scanner configuration, and targeting the scanner rollout specifically at the three repositories losing Snyk coverage to maintain uninterrupted dependency vulnerability scanning.
 
 OSV-Scanner governance migration completed 2026-08-12 (PR #374). Cleared the rollout exclusion list for the new `osv-scanner` standard, completing the security posture transition and ensuring comprehensive vulnerability scanning across the portfolio.
-
-OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
 
 OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
 

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { update, applyEditOps, readRoadmapFromRef, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, compactShippedLog, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { update, applyEditOps, readRoadmapFromRef, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, buildUpdatePrompt, bumpLastUpdated, checkLengthPreservation, checkPrReferencePreservation, checkStrikethroughPreservation, compactRoadmap, compactShippedLog, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, sectionBounds, SECTION_NAMES, redactErrorForLog } from './update.js';
 import { validateRoadmap } from './safety.js';
 import { readFileSync } from 'node:fs';
 
@@ -626,6 +626,76 @@ describe('applyEditOps', () => {
     assert.ok(skipped.some(s => s.includes('already documented')));
   });
 
+  it('skips a verbatim re-append whose verb is not "shipped"', () => {
+    // The live defect: the model writes "reinforced"/"completed"/"simplified",
+    // so the ref check never saw the entry as documented and the next tick
+    // appended it again. Two such duplicates reached ROADMAP.md (#368 and
+    // #370–#374).
+    const entry = 'Roadmap update process reinforced 2026-08-11 (PR #368). Prose about it.';
+    const documented = roadmap.replace('Feature A shipped.', `Feature A shipped.\n\n${entry}`);
+    const { result, applied, skipped } = applyEditOps(
+      documented, [{ action: 'append', section: 'Implemented', text: entry }], '2026-08-12');
+    assert.equal(result, documented, 'the duplicate must not be appended');
+    assert.equal(applied.length, 0);
+    assert.ok(skipped.some(s => s.includes('verbatim')));
+  });
+
+  it('skips a verbatim duplicate carrying no refs at all', () => {
+    // The ref check only fires when refs.length > 0, so a ref-less paragraph
+    // was previously duplicable without limit.
+    const entry = 'Evergreen prose describing what the system does. No refs here.';
+    const documented = roadmap.replace('Feature A shipped.', `Feature A shipped.\n\n${entry}`);
+    const { result, applied, skipped } = applyEditOps(
+      documented, [{ action: 'append', section: 'Implemented', text: entry }], '2026-08-12');
+    assert.equal(result, documented);
+    assert.equal(applied.length, 0);
+    assert.ok(skipped.some(s => s.includes('verbatim')));
+  });
+
+  it('matches a duplicate that differs only in line wrapping', () => {
+    const entry = 'Wrapped entry shipped 2026-08-11 (PR #401). Some prose.';
+    const documented = roadmap.replace('Feature A shipped.', `Feature A shipped.\n\n${entry}`);
+    const rewrapped = 'Wrapped entry shipped 2026-08-11 (PR #401).\nSome prose.';
+    const { applied, skipped } = applyEditOps(
+      documented, [{ action: 'append', section: 'Implemented', text: rewrapped }], '2026-08-12');
+    assert.equal(applied.length, 0);
+    assert.ok(skipped.some(s => s.includes('verbatim')));
+  });
+
+  it('scopes the duplicate check to the target section', () => {
+    // The same sentence may legitimately appear under Next Up and Implemented.
+    const entry = 'Ship the ingestion rewrite.';
+    const documented = roadmap.replace('Some future work.', entry);
+    const { result, applied } = applyEditOps(
+      documented, [{ action: 'append', section: 'Implemented', text: entry }], '2026-06-12');
+    assert.ok(applied.some(a => a.includes('Implemented')));
+    assert.ok(result.indexOf(entry) < result.lastIndexOf(entry), 'present in both sections');
+  });
+
+  it('lets a Next Up follow-up cite PRs already recorded as shipped', () => {
+    // Regression guard: sourcing the ref set from the whole Implemented
+    // section made a legitimate follow-up unfileable, and ASSESS never
+    // re-offers a dropped item, so it would have been lost permanently.
+    // The Implemented entry uses "reinforced", so it is not a shipped-marked
+    // line — sourcing refs from the section body is the only thing that would
+    // put #370/#371 in the set and suppress this.
+    const documented = roadmap.replace('Feature A shipped.', 'Rollout reinforced 2026-08-11 (PRs #370, #371).');
+    const { result, applied } = applyEditOps(
+      documented, [{ action: 'append', section: 'Next Up', text: 'Follow up on the rollout regression (PRs #370, #371).' }], '2026-08-12');
+    assert.ok(result.includes('Follow up on the rollout regression'));
+    assert.ok(applied.some(a => a.includes('Next Up')));
+  });
+
+  it('does not treat a foreign upstream ref as shipped here', () => {
+    // ROADMAP.md cites `upstream #10940`; that number belongs to another
+    // project and must never suppress an entry mentioning it.
+    const documented = roadmap.replace('Feature A shipped.', 'TS 7 migration parked, blocked on upstream #10940.');
+    const { result, applied } = applyEditOps(
+      documented, [{ action: 'append', section: 'Next Up', text: 'Track upstream typescript-eslint support (upstream #10940).' }], '2026-08-12');
+    assert.ok(result.includes('Track upstream typescript-eslint support'));
+    assert.ok(applied.some(a => a.includes('Next Up')));
+  });
+
   it('applies an append that cites a new ref alongside existing ones', () => {
     const documented = roadmap + '\n\nStage 1 shipped (PR #239).';
     const ops = [{ action: 'append', section: 'Implemented', text: 'Stage 4 graduated (PRs #239, #300).' }];
@@ -1012,12 +1082,20 @@ describe('compactShippedLog', () => {
     assert.deepEqual(compactShippedLog(null, today), { result: null, rolled: [] });
   });
 
-  it('keeps the real roadmap stable at the configured window but compacts below it', () => {
+  // There is deliberately no assertion here about the *content* of the live
+  // ROADMAP.md. The test this replaces read the committed file and required a
+  // 30-day window to still find something to roll up, against a frozen
+  // `today`. That file is rewritten four times a day by the pipeline and
+  // compacts as it ages, so the assertion stopped being satisfiable the moment
+  // those entries rolled up — turning `test` red on PR #382 and on every
+  // roadmap PR after it. Compaction behaviour is pinned by the synthetic cases
+  // above, where the dates are controlled; the only thing worth asserting
+  // about the real document is structural, below.
+  it('can still locate the section the pipeline writes to', () => {
     const real = readFileSync(new URL('../ROADMAP.md', import.meta.url), 'utf8');
-    assert.deepEqual(compactShippedLog(real, today, { maxAgeDays: 60 }).rolled, [],
-      'shipped ROADMAP.md must not churn a PR on the next scheduled run');
-    assert.ok(compactShippedLog(real, today, { maxAgeDays: 30 }).result.length < real.length,
-      'a tighter window must still find something to roll up');
+    const bounds = sectionBounds(real, 'Implemented');
+    assert.ok(bounds, 'ROADMAP.md must carry a "## Implemented" section');
+    assert.ok(bounds.end > bounds.start, 'the section must have a body');
   });
 });
 
