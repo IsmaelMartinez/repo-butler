@@ -483,21 +483,21 @@ export function parseEditOps(text) {
 // Find the insertion point (character index) for appending to a section.
 // Inserts before the next `---` or `## ` boundary after the section heading.
 function findSectionInsertPoint(roadmap, sectionName) {
-  const regex = new RegExp(`^## ${sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'm');
-  const match = roadmap.match(regex);
-  if (!match) return -1;
-
-  const afterHeading = match.index + match[0].length;
-  const rest = roadmap.slice(afterHeading);
-  const boundary = rest.match(/\n(?=---\s*\n|## )/);
-  return boundary ? afterHeading + boundary.index : roadmap.length;
+  const bounds = sectionBounds(roadmap, sectionName);
+  return bounds ? bounds.end : -1;
 }
+
+// Collapse whitespace so a re-emitted paragraph that differs only in wrapping
+// still compares equal to the one already on the page.
+const normalizeParagraph = (s) => s.trim().replace(/\s+/g, ' ');
 
 // Character bounds of a `## <section>` block's body — from the end of the
 // heading line to the next `---` or `## ` boundary. Null when the section is
-// absent. Shared by applyEditOps' duplicate guard and compactShippedLog so the
-// two always agree on which text belongs to a section.
-function sectionBounds(roadmap, sectionName) {
+// absent. The single definition of where a section starts and stops: shared by
+// findSectionInsertPoint, applyEditOps' duplicate guard and compactShippedLog,
+// so a change to what terminates a section cannot leave the three disagreeing.
+// Exported for testing.
+export function sectionBounds(roadmap, sectionName) {
   const headingRe = new RegExp(`^## ${sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b.*$`, 'm');
   const match = roadmap.match(headingRe);
   if (!match) return null;
@@ -556,27 +556,21 @@ export function applyEditOps(roadmap, ops, today) {
   let result = roadmap;
   const applied = [];
   const skipped = [];
-  // Refs the roadmap already records as completed work, from two sources
-  // because neither alone is enough:
-  //   - lines anywhere in the document carrying the shipped convention
-  //     (~~strikethrough~~ or a "shipped" marker), and
-  //   - the whole Implemented section, whatever verb its entries happen to use.
-  // The second is load-bearing. Matching only the literal word "shipped" made
-  // the guard blind to every entry the model phrased as "reinforced",
-  // "completed" or "simplified", so each later tick appended the same work
-  // again: ROADMAP.md carried two exact duplicate paragraphs (#368 and
-  // #370–#374) and only 18 of its 40 entries were guarded at all.
-  // Scoping the second source to Implemented rather than the whole document is
-  // what preserves the original rule — a ref in a live entry (e.g. "Fix X
-  // (issue #211)" under Next Up) must still not block the append announcing
-  // that work shipped, since resolved issues reach the prompt as bare issue
-  // numbers with no PR number to cite.
-  const implemented = sectionBounds(roadmap, 'Implemented');
+  // Refs the roadmap already records as completed work: only refs on lines
+  // carrying the shipped convention (~~strikethrough~~ or a "shipped" marker)
+  // count. A ref in a live entry (e.g. "Fix X (issue #211)" under Next Up)
+  // must not block the append announcing that work shipped — resolved issues
+  // reach the prompt as bare issue numbers with no PR number to cite, so a
+  // legitimate shipped entry may carry no new ref at all.
+  //
+  // Deliberately NOT widened to "every ref in the Implemented section". That
+  // reading suppressed a Next Up follow-up citing already-shipped PRs, and
+  // imported foreign numbering — ROADMAP.md cites `upstream #10940`, which
+  // would have silently blocked any entry mentioning that upstream issue.
+  // Exact duplicates are caught by identity below instead, where the
+  // comparison is scoped to the section actually being written to.
   const shippedRefs = extractIssueRefs(
-    [
-      roadmap.split('\n').filter(l => /~~|\bshipped\b/i.test(l)).join('\n'),
-      implemented ? roadmap.slice(implemented.start, implemented.end) : '',
-    ].join('\n'),
+    roadmap.split('\n').filter(l => /~~|\bshipped\b/i.test(l)).join('\n'),
   );
 
   for (const rawOp of ops) {
@@ -596,6 +590,25 @@ export function applyEditOps(roadmap, ops, today) {
       const insertAt = findSectionInsertPoint(result, section);
       if (insertAt === -1) {
         skipped.push(`append: section "${section}" not found`);
+        continue;
+      }
+      // Reject an entry the section already carries verbatim. This is the
+      // defect the ref check below cannot see: the model re-emits a paragraph
+      // it already wrote, and matching on refs misses it whenever the entry
+      // carries no #NN ref at all, or its refs never appear on a line using
+      // the shipped convention — "reinforced", "completed" and "simplified"
+      // account for 22 of ROADMAP.md's 40 entries, and two exact duplicates
+      // (#368 and #370–#374) reached the committed file that way.
+      // Compared against `result`, not `roadmap`, so a duplicate of an entry
+      // appended earlier in this same run is caught too; and scoped to the
+      // target section, so the same sentence may legitimately appear under
+      // both Next Up and Implemented.
+      const bounds = sectionBounds(result, section);
+      const sectionParagraphs = bounds
+        ? result.slice(bounds.start, bounds.end).split(/\n{2,}/).map(normalizeParagraph)
+        : [];
+      if (sectionParagraphs.includes(normalizeParagraph(text))) {
+        skipped.push(`append: "${section}" already contains this entry verbatim — duplicate`);
         continue;
       }
       // Reject re-summaries: an entry whose every #NN ref is already recorded
