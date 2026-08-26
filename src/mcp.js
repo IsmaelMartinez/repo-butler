@@ -642,7 +642,11 @@ function toolGetMonitorEvents(minSeverity) {
 
 function toolGetWatchlist() {
   const raw = loadFromDataBranch('snapshots/watchlist.json');
-  if (!raw) return { items: [], message: 'No watchlist items — council has not placed any items on watch.' };
+  // "No file" is not the same claim as "nothing watchlisted": the weekly
+  // IDEATE run is what writes this, and it only writes when the council
+  // actually watchlists something. Say what is known — the file is absent —
+  // and let the staleness envelope carry how old the data branch is.
+  if (!raw) return { items: [], message: 'No watchlist recorded yet — IDEATE writes this only when the council watchlists an idea.' };
 
   try {
     const items = JSON.parse(raw);

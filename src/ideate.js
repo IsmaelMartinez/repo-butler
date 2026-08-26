@@ -3,7 +3,7 @@
 
 import { sanitizeForPrompt, wrapPrompt } from './safety.js';
 import { runGovernance } from './governance.js';
-import { reviewProposals } from './council.js';
+import { reviewProposals, loadWatchlist, mergeWatchlist, saveWatchlist } from './council.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Ensures governance
 // findings exist (delegates to runGovernance, which is a no-op if a prior phase
@@ -23,6 +23,27 @@ export async function runIdeate(context) {
     context.ideas = councilResult.approved;
     context.watchlist = councilResult.watchlist;
     console.log(`Council: ${councilResult.approved.length} approved, ${councilResult.watchlist.length} watchlisted, ${councilResult.dismissed.length} dismissed.`);
+
+    // Persist the watchlist. The council has always produced these verdicts —
+    // including ideas the G8 cross-repo gate demotes from approved rather than
+    // dismisses — but nothing wrote them: `saveWatchlist` was the only writer
+    // of snapshots/watchlist.json and had no caller, so the MCP
+    // `get_watchlist` tool reported "council has not placed any items on
+    // watch" about a file that could never exist. That reads as a clean
+    // council rather than a missing one.
+    //
+    // Not gated on dryRun: snapshots persist in dry-run, same as the
+    // governance weeklies. `mergeWatchlist` is additive and dedupes by title,
+    // so only write when it actually added something — an unchanged file would
+    // be pure churn on the data branch.
+    if (context.store && councilResult.watchlist.length > 0) {
+      const existing = await loadWatchlist(context.store);
+      const merged = mergeWatchlist(existing, councilResult.watchlist);
+      if (merged.length !== existing.length) {
+        await saveWatchlist(context.store, merged);
+        console.log(`Watchlist: ${merged.length - existing.length} new item(s), ${merged.length} total.`);
+      }
+    }
   }
 
   return result;
