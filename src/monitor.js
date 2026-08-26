@@ -342,39 +342,3 @@ export async function saveCursor(store, cursor) {
     console.warn(`Monitor: failed to save cursor: ${err.message}`);
   }
 }
-
-// --- Event filtering ---
-
-// Filter events by minimum severity threshold.
-export function filterBySeverity(events, minSeverity = 'low') {
-  const threshold = SEVERITY[minSeverity] || 0;
-  return events.filter(e => (SEVERITY[e.severity] || 0) >= threshold);
-}
-
-// Group events by type for structured reporting.
-export function groupByType(events) {
-  const groups = {};
-  for (const event of events) {
-    if (!groups[event.type]) groups[event.type] = [];
-    groups[event.type].push(event);
-  }
-  return groups;
-}
-
-// Summarise events into a compact format for LLM consumption.
-export function summariseEvents(events) {
-  const grouped = groupByType(events);
-  const lines = [];
-
-  for (const [type, items] of Object.entries(grouped)) {
-    lines.push(`${type} (${items.length}):`);
-    for (const item of items.slice(0, 10)) {
-      lines.push(`  [${item.severity}] ${item.title}`);
-    }
-    if (items.length > 10) {
-      lines.push(`  ... and ${items.length - 10} more`);
-    }
-  }
-
-  return lines.join('\n');
-}

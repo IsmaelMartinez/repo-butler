@@ -24,7 +24,7 @@ LLM provider keys (`GEMINI_API_KEY`, `CLAUDE_API_KEY`), used to call hosted LLMs
 
 The butler treats two categories of data as untrusted: repo content read via the GitHub API (issue titles, PR descriptions, comments, README content, label names, contributor names) and any external HTTP response — today that means LLM provider replies and the package-registry JSON `libyear.js` reads from npm, PyPI and crates.io. Registry fields reach the world-readable `repo-butler-data` branch and the rendered dashboard, so any new render site for them must escape, as `report-repo.js` does.
 
-`src/safety.js` is the only module allowed to interpolate untrusted data into LLM prompts or GitHub-bound output. Every prompt-building function (`buildIdeatePrompt`, `buildAssessPrompt`, `buildUpdatePrompt`) wraps external data in `BEGIN/END REPOSITORY DATA` delimiters with a defence preamble against prompt injection. `sanitizeForPrompt()` strips known injection patterns before LLM ingestion.
+`src/safety.js` is the only module allowed to interpolate untrusted data into LLM prompts or GitHub-bound output. Every prompt-building function (`buildIdeatePrompt`, `buildAssessPrompt`, `buildSectionEditPrompt`) wraps external data in `BEGIN/END REPOSITORY DATA` delimiters with a defence preamble against prompt injection. `sanitizeForPrompt()` strips known injection patterns before LLM ingestion.
 
 For LLM output going back to GitHub, `safety.js` enforces a context-aware URL allowlist (core hosts always permitted, docs hosts only in roadmap context), blocks `@mention` patterns, runs API-key detection, applies XSS prevention, and caps lengths. Every phase that writes to GitHub MUST pass output through these validators.
 

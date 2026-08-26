@@ -1,4 +1,4 @@
-// Golden snapshot tests for the six prompt builders. The expected outputs were
+// Golden snapshot tests for the five prompt builders. The expected outputs were
 // captured against the pre-refactor implementations and persisted under
 // src/__golden__/. The refactor that introduced wrapPrompt() must not alter
 // any builder's output by even a single character.
@@ -6,7 +6,6 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAssessPrompt } from './assess.js';
-import { buildUpdatePrompt } from './update.js';
 import { buildIdeatePrompt } from './ideate.js';
 import {
   buildQuickDeliberationPrompt,
@@ -96,20 +95,6 @@ describe('prompt builder golden snapshots', () => {
         null
       ),
       golden('assess-no-context.txt')
-    );
-  });
-
-  it('buildUpdatePrompt — with assessment and roadmap', () => {
-    assert.equal(
-      buildUpdatePrompt('Existing roadmap.', snapshot, assessment, 'A widget toolkit', new Date('2026-05-03T00:00:00Z')),
-      golden('update.txt')
-    );
-  });
-
-  it('buildUpdatePrompt — null projectContext preserves the blank slot', () => {
-    assert.equal(
-      buildUpdatePrompt('Existing roadmap.', snapshot, assessment, null, new Date('2026-05-03T00:00:00Z')),
-      golden('update-no-context.txt')
     );
   });
 

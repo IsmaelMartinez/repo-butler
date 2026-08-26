@@ -66,56 +66,6 @@ export async function findOpenRoadmapPr(gh, owner, repo) {
 // the false-positive from a real injection in the logs.
 const MAX_ASSESSMENT_LENGTH = 6000;
 
-// Minimum fraction of the input roadmap length the LLM output must preserve.
-// PR #176 produced ~19% of the input (277 lines → 53). 80% leaves slack for
-// genuine compaction (e.g. moving a few completed items to a "done" section)
-// while catching destructive rewrites. Tune if false-positives appear.
-const MIN_LENGTH_PRESERVATION = 0.8;
-
-// Compare output length against input length and reject obvious rewrites.
-// Empty inputs (first run, missing roadmap) are exempt — there is no prior
-// document to preserve. Exported for testing.
-export function checkLengthPreservation(input, output) {
-  if (!input || input.length === 0) return { valid: true };
-  const ratio = (output?.length || 0) / input.length;
-  if (ratio < MIN_LENGTH_PRESERVATION) {
-    return {
-      valid: false,
-      ratio,
-      error: `Roadmap output length is ${(ratio * 100).toFixed(1)}% of input (${output?.length || 0}/${input.length} chars), below the ${(MIN_LENGTH_PRESERVATION * 100).toFixed(0)}% preservation threshold`,
-    };
-  }
-  return { valid: true, ratio };
-}
-
-// Count `~~...~~` strikethrough markers in markdown text. Greedy/single-line
-// only — multi-line strikethrough isn't a convention this roadmap uses, and
-// allowing newlines inside would over-match across paragraphs.
-function countStrikethrough(text) {
-  return (text?.match(/~~[^~\n]+~~/g) || []).length;
-}
-
-// Refuse output that drops any `~~strikethrough~~` markers in place. PR #202
-// stripped 24 strikethroughs from SHIPPED headings under the 80% length guard
-// because the diff was balanced (+38/-40). Strikethrough is the load-bearing
-// visual convention for completed work; an edit-only prompt should never have
-// a reason to lower the count. Empty inputs exempt (first run). Output count
-// can be ≥ input count to allow newly-shipped entries getting their marker.
-export function checkStrikethroughPreservation(input, output) {
-  if (!input || input.length === 0) return { valid: true };
-  const inputCount = countStrikethrough(input);
-  const outputCount = countStrikethrough(output || '');
-  if (outputCount < inputCount) {
-    return {
-      valid: false,
-      inputCount,
-      outputCount,
-      error: `Strikethrough marker count dropped from ${inputCount} to ${outputCount} — output stripped ${inputCount - outputCount} ~~...~~ markers from existing SHIPPED entries`,
-    };
-  }
-  return { valid: true, inputCount, outputCount };
-}
-
 // Extract every `#NN` PR/issue reference token from markdown text — `(PR
 // #84)`, `PR #176`, `PRs #23–#37`, `issue #211`, and bare `#202` all yield the
 // matched `#NN` token. Excludes `#N` that is really a URL/path fragment anchor —
@@ -185,34 +135,6 @@ function extractSummaryLinks(text) {
     if (!linkedPaths.has(path) && !links.has(path)) links.set(path, `[ADR-${num}](${path})`);
   }
   return [...links.values()];
-}
-
-// Refuse output that drops any PR or issue reference present in the input.
-// PR #213 deleted the `License concern severity tuned 2026-04-04 (PR #84)`
-// paragraph under both the 80% length guard and the strikethrough-count
-// guard — the paragraph carried no `~~...~~` markup and barely moved the
-// length needle. The `#NN` reference is the narrowest invariant that catches
-// this: every input PR/issue reference must survive in the output, and the
-// LLM has no legitimate edit-only reason to drop one. Output can be a
-// superset (new entries get their own refs); only missing input refs fail.
-export function checkPrReferencePreservation(input, output) {
-  const inputRefs = extractIssueRefs(input);
-  const outputRefs = extractIssueRefs(output);
-  const missing = [...inputRefs].filter(r => !outputRefs.has(r));
-  if (missing.length > 0) {
-    // Cap the surfaced list so a catastrophic deletion doesn't log a thousand
-    // refs; the head plus a count carries enough signal to investigate.
-    const head = missing.slice(0, 10).join(', ');
-    const overflow = missing.length > 10 ? ` (and ${missing.length - 10} more)` : '';
-    return {
-      valid: false,
-      inputCount: inputRefs.size,
-      outputCount: outputRefs.size,
-      missing,
-      error: `Dropped ${missing.length} PR/issue reference(s) from existing roadmap entries: ${head}${overflow}`,
-    };
-  }
-  return { valid: true, inputCount: inputRefs.size, outputCount: outputRefs.size, missing: [] };
 }
 
 // True when the two documents are identical apart from the "**Last Updated:**"
@@ -617,7 +539,7 @@ export function applyEditOps(roadmap, ops, today) {
       // all covered by existing SHIPPED entries. An entry with at least one
       // new ref (a follow-up citing old work plus a new PR) still applies;
       // ref-less entries can't be judged deterministically and pass through.
-      // Ref-list logging is capped like checkPrReferencePreservation's.
+      // Ref-list logging is capped at ten, with an overflow count.
       const refs = [...extractIssueRefs(text)];
       if (refs.length > 0 && refs.every(r => shippedRefs.has(r))) {
         const head = refs.slice(0, 10).join(', ');
@@ -792,6 +714,18 @@ function renderRefList(refs) {
 // it. Idempotent: an existing rollup line is parsed back into its bucket and
 // re-emitted verbatim when nothing new joined it. Pure function. Exported for
 // testing.
+//
+// This is the ONLY remaining path that removes content from ROADMAP.md, and it
+// has no independent preservation check — it relies on by-construction ref
+// bucketing to carry every `#NN` into the month line. Three guards used to sit
+// on the whole-document rewrite and were deleted with it once `applyEditOps`
+// became additive-only: a length check (PR #176 returned 53 lines for 277), a
+// strikethrough count (PR #202 stripped 24 `~~…~~` markers), and a ref check
+// (PR #213 dropped the paragraph carrying `(PR #84)`). Those failures came
+// from an LLM rewriting the document; compaction is deterministic, which is
+// why no successor was added. If this ever stops being deterministic — an LLM
+// summarising a month rather than concatenating refs — reinstate a ref-
+// preservation check first.
 export function compactShippedLog(roadmap, today, { maxAgeDays = 60, section = 'Implemented' } = {}) {
   if (!roadmap) return { result: roadmap, rolled: [] };
 
@@ -961,102 +895,6 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
       '- Each "text" value should be a single markdown paragraph in the style of existing entries (e.g. "Feature X shipped 2026-05-26 (PR #N). Description of what changed.").',
       '- Do not invent PR numbers, issue numbers, or dates not present in the data above.',
       '- Output ONLY the JSON array, no commentary, no markdown fences, no explanation.',
-    ],
-  });
-}
-
-// Legacy prompt kept for reference but no longer called by update().
-export function buildUpdatePrompt(currentRoadmap, snapshot, assessment, projectContext, now = new Date()) {
-  // Inject today's date as a literal so the LLM never has to guess it from
-  // its training cutoff. PR #176 hallucinated `Last Updated: 2024-07-20`.
-  const today = now.toISOString().slice(0, 10);
-  const items = [
-    `Today: ${today}`,
-    `Repository: ${snapshot.repository}`,
-    `Current version: ${snapshot.package?.version || snapshot.summary.latest_release || 'unknown'}`,
-    `Open issues: ${snapshot.summary.open_issues}`,
-    `Blocked: ${snapshot.summary.blocked_issues}`,
-    `Awaiting feedback: ${snapshot.summary.awaiting_feedback}`,
-    `PRs merged (90d): ${snapshot.summary.recently_merged_prs}`,
-    '',
-  ];
-
-  if (assessment?.assessment) {
-    items.push('Recent assessment:', sanitizeForPrompt(assessment.assessment), '');
-  }
-
-  if (assessment?.diff?.new_issues?.length > 0) {
-    items.push('New issues since last update:');
-    for (const i of assessment.diff.new_issues.slice(0, 15)) {
-      items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)} [${i.labels.join(', ')}]`);
-    }
-    items.push('');
-  }
-
-  if (assessment?.diff?.resolved_issues?.length > 0) {
-    items.push('Resolved issues:');
-    for (const i of assessment.diff.resolved_issues.slice(0, 15)) {
-      items.push(`  #${i.number}: ${sanitizeForPrompt(i.title)}`);
-    }
-    items.push('');
-  }
-
-  // Merged PR titles — the one input this prompt asked the model to reason
-  // about but never supplied. The instructions below say "only create entries
-  // for genuinely new work visible in the data above (new merged PRs, …)"
-  // while the data above carried only a 90-day merged *count*, so the shipped
-  // log therefore depended on the assessment prose happening to name the work,
-  // rather than on the merge record itself. ASSESS already computes this array
-  // (`newMergedPRs` in assess.js); it was simply never read. Same sanitiser and
-  // same 15-item cap as the issue blocks above.
-  //
-  // This is NOT the cause of the entries missing from #353 — that was a
-  // separate defect in the refresh path, which rebuilds from the default
-  // branch and overwrites the open PR, so each tick destroyed the previous
-  // tick's entry. The commit history of #353 shows one correct entry written
-  // per tick (#354, then #355, then #356, then #357/#358), each replacing the
-  // last. This change removes a different fragility: an instruction that asked
-  // the model to reason about merged PRs it was never shown.
-  if (assessment?.diff?.new_merged_prs?.length > 0) {
-    items.push('PRs merged since last update:');
-    for (const p of assessment.diff.new_merged_prs.slice(0, 15)) {
-      items.push(`  #${p.number}: ${sanitizeForPrompt(p.title)}`);
-    }
-    items.push('');
-  }
-
-  if (assessment?.diff?.new_releases?.length > 0) {
-    items.push('New releases:');
-    for (const r of assessment.diff.new_releases) {
-      items.push(`  ${r.tag} (${r.published_at?.split('T')[0]})`);
-    }
-    items.push('');
-  }
-
-  items.push('High-reaction issues:', ...(snapshot.summary.high_reaction_issues.map(i => `  ${sanitizeForPrompt(i)}`)), '');
-  items.push('Top labels:', ...(snapshot.summary.top_open_labels.map(l => `  ${l}`)), '');
-
-  if (currentRoadmap) {
-    items.push('--- CURRENT ROADMAP ---', sanitizeForPrompt(currentRoadmap), '--- END CURRENT ROADMAP ---', '');
-  }
-
-  return wrapPrompt({
-    role: 'You are an editor maintaining an existing roadmap document for an open-source project. Apply the smallest set of edits to the roadmap below to reflect the current project state. The roadmap is the project history; preserve it.',
-    projectContext,
-    items,
-    outroLines: [
-      'Instructions:',
-      '- Make the smallest set of changes needed. The only allowed changes are: updating the "Last Updated" date, updating status markers, and appending new entries at the end of the appropriate section.',
-      '- VERBATIM RULE: every existing paragraph must appear in the output with IDENTICAL wording, in the SAME position (except for allowed updates to status markers and the "Last Updated" date). Do not rephrase, reword, move, reorder, or summarise any existing text. Copy it character-for-character. This is the most important rule.',
-      '- Do not delete any paragraph, sentence, or entry — even if it seems minor, outdated, or tangential. The roadmap is a historical record.',
-      '- Append new entries at the end of the relevant section. Do not insert them between existing entries or rewrite old ones.',
-      '- Update the "Last Updated" line to the date provided above ("Today: …"). Do not change any other dates.',
-      '- Do not invent new sections or new entries for PRs not listed in the data above.',
-      '- Preserve `~~strikethrough~~` markers verbatim. Do not strip `~~...~~` from any heading or inline marker. This rule is non-negotiable.',
-      '  Wrong: `### Phase 1 — Richer Observation SHIPPED`',
-      '  Correct: `### ~~Phase 1 — Richer Observation~~ SHIPPED`',
-      '- Preserve every `#NN` PR or issue reference present in the input. This rule is non-negotiable.',
-      '- Output ONLY the updated roadmap document, no commentary, no explanation.',
     ],
   });
 }
