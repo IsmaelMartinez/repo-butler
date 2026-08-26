@@ -57,8 +57,12 @@ describe('skill content coverage', () => {
       'skill should mention the triage bot');
     assert.ok(skill.includes('portfolio') && skill.includes('deep'),
       'skill should contrast portfolio breadth vs per-repo depth');
-    assert.ok(skill.includes('/ingest') || skill.includes('/report/trends'),
-      'skill should document integration endpoints');
+    // Deliberately no assertion about `/ingest` or `/report/trends`. Those
+    // endpoints were removed with the integration in PR #252 (2026-05-31), and
+    // this assertion is what kept the stale prose describing them in place —
+    // deleting the documentation turned CI red. ADR-001's boundary is a
+    // decision about scope, not a wire protocol, so the docs should not need
+    // to name endpoints to describe it.
   });
 
   it('documents safety validators', () => {

@@ -10,25 +10,23 @@ Do not open public issues or PRs for security problems. If a vulnerability is al
 
 ## Threat model
 
-The butler holds three categories of credential at runtime:
+The butler holds two categories of credential at runtime:
 
 A GitHub App token, generated per-run via `actions/create-github-app-token@v3`, scoped to the App's installations across the portfolio. This token can read and write repos, open PRs, create issues, and update branches on every repo where the App is installed. It is the most privileged credential and the most attractive target.
 
 LLM provider keys (`GEMINI_API_KEY`, `CLAUDE_API_KEY`), used to call hosted LLMs for the ASSESS, UPDATE, IDEATE, and MONITOR phases. Compromise leaks API quota and could be used to exfiltrate prompt content but does not grant access to the portfolio.
 
-An optional `TRIAGE_BOT_INGEST_SECRET` for posting snapshots to a separately-deployed triage bot. Compromise allows a third party to post arbitrary `/ingest` payloads to the configured bot.
-
-All three are stored as GitHub Actions secrets. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded API keys (patterns `AIza`, `sk-ant-`, and `sk-[a-zA-Z0-9]{40}`) — `safety.js` and `*.test.js` are excluded because they contain detection patterns and fixtures. Runtime output validation in `safety.js` covers a broader set of patterns including GitHub PATs (`ghp_`, `ghs_`) and is applied to all LLM output before it reaches GitHub.
+Both are stored as GitHub Actions secrets. Workflow files reference them by name and never echo them. The CI workflow runs a secret-leak grep over source files looking for hardcoded API keys (patterns `AIza`, `sk-ant-`, and `sk-[a-zA-Z0-9]{40}`) — `safety.js` and `*.test.js` are excluded because they contain detection patterns and fixtures. Runtime output validation in `safety.js` covers a broader set of patterns including GitHub PATs (`ghp_`, `ghs_`) and is applied to all LLM output before it reaches GitHub.
 
 ## Trust boundaries
 
-The butler treats two categories of data as untrusted: repo content read via the GitHub API (issue titles, PR descriptions, comments, README content, label names, contributor names) and any external HTTP response (notably the optional triage bot's `/report/trends` payload).
+The butler treats two categories of data as untrusted: repo content read via the GitHub API (issue titles, PR descriptions, comments, README content, label names, contributor names) and any external HTTP response, which today means LLM provider replies.
 
 `src/safety.js` is the only module allowed to interpolate untrusted data into LLM prompts or GitHub-bound output. Every prompt-building function (`buildIdeatePrompt`, `buildAssessPrompt`, `buildUpdatePrompt`) wraps external data in `BEGIN/END REPOSITORY DATA` delimiters with a defence preamble against prompt injection. `sanitizeForPrompt()` strips known injection patterns before LLM ingestion.
 
 For LLM output going back to GitHub, `safety.js` enforces a context-aware URL allowlist (core hosts always permitted, docs hosts only in roadmap context), blocks `@mention` patterns, runs API-key detection, applies XSS prevention, and caps lengths. Every phase that writes to GitHub MUST pass output through these validators.
 
-For SSRF prevention on the optional triage bot integration, `validateBotUrl()` requires the destination host to be on the `TRIAGE_BOT_ALLOWED_HOSTS` allowlist before any HTTP call. URLs discovered from `.github/butler.json` in target repos are not trusted by default — only the `TRIAGE_BOT_URL` env var is treated as pre-vetted.
+The butler makes no outbound HTTP call to a host discovered from repository content. Its only network destinations are the GitHub API and the configured LLM provider, both fixed in code — so there is no SSRF surface to guard. (An earlier triage-bot integration did discover a URL from `.github/butler.json` and guarded it with an allowlist; that integration was removed in PR #252 on 2026-05-31, and the guard went with it.)
 
 Repo names are interpolated into generated YAML files by the `Governance Apply` workflow. To prevent template injection via a malicious repo name, every name is validated against `^[a-zA-Z0-9._-]+$` before any template generation. Names that fail are skipped with a warning.
 

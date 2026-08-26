@@ -14,15 +14,15 @@ Config repo: `IsmaelMartinez/repo-butler`
 
 Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phase=` CLI arg. Default is `all`.
 
-`OBSERVE` — Calls ~13 GitHub REST endpoints in parallel (`Promise.all`). Produces a `snapshot` object and a `portfolio` classification of all owner repos. No LLM. Optionally POSTs to triage bot `/ingest`.
+`OBSERVE` — Calls ~13 GitHub REST endpoints in parallel (`Promise.all`). Produces a `snapshot` object and a `portfolio` classification of all owner repos. No LLM.
 
-`ASSESS` — Diffs current snapshot against previous (from `repo-butler-data` branch). Computes `computeTrends()` direction (`growing`/`shrinking`/`stable`) from up to 12 weekly snapshots. Optionally reads triage bot `/report/trends`. Uses default LLM provider (Gemini Flash).
+`ASSESS` — Diffs current snapshot against previous (from `repo-butler-data` branch). Computes `computeTrends()` direction (`growing`/`shrinking`/`stable`) from up to 12 weekly snapshots. Uses default LLM provider (Gemini Flash).
 
 `UPDATE` — Rewrites `ROADMAP.md` and opens a PR. All LLM-generated content passes through `src/safety.js` validators before publication.
 
 `GOVERNANCE` — Runs deterministic detectors over the portfolio, producing eight finding types: standards-gap, policy-drift, tier-uplift proposals, tier-regression (a repo's tier fell since the previous weekly snapshot), open-vulnerability (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit), stalled-alert (an open Dependabot alert at or above `medium`, older than 14 days, with no Dependabot PR addressing it), stale-butler-pr (the butler's own unmerged PRs on target repos), and dependabot-stale PR audits. `tier-regression`, `open-vulnerability` and `stalled-alert` are per-repo state findings routed to `executor: 'manual'` — never to the templated-PR path or cross-repo PROPOSE. No LLM cost. Findings persist to `snapshots/governance.json` on the data branch and feed both the IDEATE prompt and the `get_governance_findings` MCP tool. Daily pipeline runs it 4×/day.
 
-`IDEATE` — Generates improvement proposals. Uses deep LLM provider (Claude Sonnet if configured, else falls back to default). Input is snapshot + portfolio context + triage bot intelligence + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
+`IDEATE` — Generates improvement proposals. Uses deep LLM provider (Claude Sonnet if configured, else falls back to default). Input is snapshot + portfolio context + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
 
 `PROPOSE` — Creates GitHub issues from IDEATE output. Applies Jaccard similarity duplicate detection (threshold 0.6, title word comparison normalized to lowercase). Capped at `config.limits.max_issues_per_run` (default 3). Labels: `roadmap-proposal`, `agent-generated`.
 
@@ -265,7 +265,7 @@ Use repo-butler for cross-repo portfolio questions: "Which repos are missing Dep
 
 Use the triage bot for deep per-repo intelligence: "Is issue #47 a duplicate of #12?", "Summarize the ADR history.", "What issues are waiting longest for a response?"
 
-The boundary is: triage bot goes deep on one repo (webhook-driven, vector search, real-time). Repo-butler goes broad across the portfolio (REST API, daily cron, zero infrastructure). Data flows both ways: repo-butler OBSERVE POSTs to `{bot_url}/ingest`; triage bot `/report/trends` feeds into repo-butler ASSESS/IDEATE.
+The boundary is: triage bot goes deep on one repo (webhook-driven, vector search, real-time). Repo-butler goes broad across the portfolio (REST API, daily cron, zero infrastructure). The two do not exchange data — an ingest/trends integration existed and was removed in PR #252 (2026-05-31); ADR-001 governs the boundary, not a wire protocol.
 
 ---
 

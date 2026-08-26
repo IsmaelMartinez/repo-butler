@@ -100,14 +100,6 @@ Per-repo pages (`{repo-name}.html`) are generated for every active, non-fork, no
 
 Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day runs from ~15 minutes to seconds.
 
-## Triage bot integration
-
-If your repo has a [github-issue-triage-bot](https://github.com/IsmaelMartinez/github-issue-triage-bot) deployed, Repo Butler auto-discovers it and integrates. The bot is found from `.github/butler.json` in the target repo (the same config file the triage bot reads) or from the `TRIAGE_BOT_URL` environment variable.
-
-When the bot is available, the OBSERVE phase POSTs snapshot metrics to the bot's `/ingest` endpoint (requires `TRIAGE_BOT_INGEST_SECRET`), the ASSESS phase fetches synthesis findings from `/report/trends`, and per-repo report footers link to the live triage dashboard.
-
-When the bot is not available, nothing changes — no errors, no warnings, no degraded behaviour.
-
 ## Quick start
 
 1. Add a `.github/roadmap.yml` to your repo (see [Configuration](#configuration) above).
@@ -156,7 +148,6 @@ src/
 ├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
 ├── agent-card.js         # A2A AgentCard generator (served at .well-known/agent-card.json)
 ├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths
-├── triage-bot.js         # Optional triage bot integration (auto-discovered)
 ├── store.js              # Snapshot + weekly history + hash persistence via Git Data API
 ├── config.js             # YAML config loader with defaults
 ├── github.js             # GitHub REST API client with rate limit handling
