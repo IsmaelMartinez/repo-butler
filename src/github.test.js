@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, hasAutomatedSecurityFixesEnabled } from './github.js';
+import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -404,7 +404,7 @@ describe('createClient — request 204 No Content', () => {
   });
 });
 
-describe('getAutomatedSecurityFixesState / hasAutomatedSecurityFixesEnabled', () => {
+describe('getAutomatedSecurityFixesState', () => {
   it('returns the { enabled, paused } pair from the API', async () => {
     const gh = { request: async () => ({ enabled: true, paused: false }) };
     assert.deepEqual(await getAutomatedSecurityFixesState(gh, 'o', 'r'), { enabled: true, paused: false });
@@ -425,12 +425,6 @@ describe('getAutomatedSecurityFixesState / hasAutomatedSecurityFixesEnabled', ()
     assert.equal(await getAutomatedSecurityFixesState(gh, 'o', 'r'), null);
   });
 
-  it('hasAutomatedSecurityFixesEnabled is true only when enabled AND not paused', async () => {
-    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: true, paused: false }) }, 'o', 'r'), true);
-    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: true, paused: true }) }, 'o', 'r'), false, 'paused → not fully active');
-    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => ({ enabled: false, paused: false }) }, 'o', 'r'), false);
-    assert.equal(await hasAutomatedSecurityFixesEnabled({ request: async () => { throw new Error('403'); } }, 'o', 'r'), false);
-  });
 });
 
 describe('createClient — mergePR', () => {

@@ -463,15 +463,6 @@ ${nextTierHtml}
 // Render a single dashboard card with a coloured stat and a label. When
 // `available` is false the value falls back to an em-dash placeholder coloured
 // with the neutral grey and the label is forced to 'unavailable'.
-export function buildStatCard({ title, value, color, label, available = true }) {
-  const displayValue = available ? value : '—';
-  const displayColor = available ? color : 'var(--muted)';
-  const displayLabel = available ? label : 'unavailable';
-  return `<div class="card"><h3>${title}</h3>
-<div class="stat" style="color:${displayColor}">${displayValue}</div>
-<div class="stat-label">${displayLabel}</div></div>`;
-}
-
 // Dependabot automated-security-fixes tri-state (ADR-012 Phase 3) mapped to
 // display text/colour, shared by the lightweight-card stat card and the Health
 // Tier section's inline indicator so both per-repo render paths agree —
@@ -497,93 +488,6 @@ function buildDependabotAutofixLine(active) {
   const s = dependabotAutofixState(active);
   return `<div class="muted" style="font-size:0.85rem;margin-top:0.25rem">Dependabot autofix: <span style="color:${s.color}">${s.text}</span></div>`;
 }
-
-export function buildHealthSection(snapshot, depSummary = null, libyear = null) {
-  const cp = snapshot.community_profile;
-  const da = snapshot.dependabot_alerts;
-  const cipr = snapshot.ci_pass_rate;
-  const busFactor = snapshot.summary?.bus_factor;
-  const ttc = snapshot.summary?.time_to_close_median;
-
-  const check = v => v ? '\u2713' : '\u2717';
-  const checkColor = v => v ? 'var(--color-success)' : 'var(--color-danger)';
-
-  const communityHtml = cp ? `<div class="card"><h3>Community Profile</h3>
-<div class="stat">${cp.health_percentage}%</div>
-<div class="stat-label" style="margin-top:0.5rem;line-height:1.8">
-${['readme', 'license', 'contributing', 'code_of_conduct', 'issue_template', 'pull_request_template'].map(f =>
-    `<span style="color:${checkColor(cp.files?.[f])}">${check(cp.files?.[f])}</span> ${f.replace(/_/g, ' ')}`
-  ).join('<br>')}
-</div></div>` : `<div class="card"><h3>Community Profile</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
-
-  const vulnHtml = da ? `<div class="card"><h3>Dependabot Alerts</h3>
-<div class="stat" style="color:${da.count === 0 ? 'var(--color-success)' : da.critical > 0 || da.high > 0 ? 'var(--color-danger)' : 'var(--color-warning)'}">${da.count}</div>
-<div class="stat-label" style="margin-top:0.5rem;line-height:1.8">
-${da.critical ? `<span class="text-danger">${da.critical} critical</span><br>` : ''}${da.high ? `<span class="text-danger">${da.high} high</span><br>` : ''}${da.medium ? `<span class="text-warning">${da.medium} medium</span><br>` : ''}${da.low ? `<span class="text-success">${da.low} low</span>` : ''}${da.count === 0 ? 'No open alerts' : ''}
-</div></div>` : `<div class="card"><h3>Dependabot Alerts</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
-
-  const cs = snapshot.code_scanning_alerts;
-  const codeScanHtml = buildStatCard({
-    title: 'Code Scanning',
-    value: cs?.count,
-    color: cs && (cs.count === 0 ? COLOR_SUCCESS : isHighSeverity(cs) ? COLOR_DANGER : COLOR_WARNING),
-    label: cs?.count === 0 ? 'No open alerts' : 'open alerts',
-    available: !!cs,
-  });
-
-  const ss = snapshot.secret_scanning_alerts;
-  const secretScanHtml = buildStatCard({
-    title: 'Secret Scanning',
-    value: ss?.count,
-    color: ss && (ss.count === 0 ? COLOR_SUCCESS : COLOR_DANGER),
-    label: ss?.count === 0 ? 'No open alerts' : 'open alerts',
-    available: !!ss,
-  });
-
-  const hasCiData = cipr?.pass_rate != null;
-  const ciHtml = buildStatCard({
-    title: 'CI Pass Rate',
-    value: hasCiData ? `${Math.round(cipr.pass_rate * 100)}%` : null,
-    color: colorByThreshold(cipr?.pass_rate, CI_PASS_RATE_RANGES),
-    label: hasCiData && (cipr.total_runs > 0 ? `${cipr.passed}/${cipr.total_runs} runs passed` : 'from workflow runs'),
-    available: hasCiData,
-  });
-
-  const busHtml = buildStatCard({
-    title: 'Bus Factor',
-    value: busFactor,
-    color: colorByThreshold(busFactor, BUS_FACTOR_RANGES),
-    label: 'distinct contributors',
-    available: busFactor != null,
-  });
-
-  const ttcHtml = buildStatCard({
-    title: 'Time to Close',
-    value: ttc != null ? ttc.median_days + 'd' : null,
-    color: colorByThreshold(ttc?.median_days, TIME_TO_CLOSE_DAYS_RANGES),
-    label: ttc != null ? `median days (n=${ttc.sample_size})` : null,
-    available: ttc != null,
-  });
-
-  const depHtml = buildRepoDependencyCard(snapshot.sbom, depSummary);
-  const libyearHtml = buildLibyearCard(libyear);
-
-  return `<h2>Repository Health</h2>
-<div class="grid">
-${communityHtml}
-${vulnHtml}
-${codeScanHtml}
-${secretScanHtml}
-${ciHtml}
-${busHtml}
-${ttcHtml}
-${depHtml}
-${libyearHtml}
-</div>`;
-}
-
-
-// --- PR triage ---
 
 function buildPRTriageSection(openPRs, repoFullName) {
   if (!openPRs || openPRs.length === 0) return '';
@@ -699,37 +603,6 @@ function buildStalenessSection(snapshot) {
 
   return html;
 }
-
-
-// --- Dependency cards ---
-
-export function buildRepoDependencyCard(sbom, repoSummary) {
-  if (!sbom) return `<div class="card"><h3>Dependencies (SBOM)</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
-  const count = sbom.count;
-  const flags = repoSummary?.licenseFlags || [];
-  const flagColor = flags.length > 0 ? 'var(--color-danger)' : 'var(--color-success)';
-  const flagLabel = flags.length > 0
-    ? `${flags.length} copyleft: ${flags.slice(0, 3).map(f => f.name).join(', ')}${flags.length > 3 ? '...' : ''}`
-    : 'no copyleft concerns';
-  return `<div class="card"><h3>Dependencies (SBOM)</h3>
-<div class="stat">${count}</div>
-<div class="stat-label" style="color:${flagColor}">${flagLabel}</div></div>`;
-}
-
-export function buildLibyearCard(libyear) {
-  if (!libyear) return `<div class="card"><h3>Dep Freshness (Libyear)</h3><div class="stat" style="color:var(--faint)">\u2014</div><div class="stat-label">unavailable</div></div>`;
-  const total = libyear.total_libyear;
-  const color = getLibyearColor(total);
-  const oldestLabel = libyear.oldest
-    ? `oldest: ${escHtml(libyear.oldest.name)} (${libyear.oldest.years}y behind)`
-    : '';
-  return `<div class="card"><h3>Dep Freshness (Libyear)</h3>
-<div class="stat" style="color:${color}">${total.toFixed(1)}y</div>
-<div class="stat-label">${libyear.dependency_count} deps checked${oldestLabel ? '<br>' + oldestLabel : ''}</div></div>`;
-}
-
-
-// --- Calendar heatmap ---
 
 function buildCalendarHeatmap(weeklyCommits) {
   if (!weeklyCommits || weeklyCommits.length === 0) return '';

@@ -460,16 +460,6 @@ export async function getAutomatedSecurityFixesState(gh, owner, repo) {
   }
 }
 
-// True only when Dependabot automated security fixes are enabled AND not paused —
-// i.e. the feature is live and actively opening fix PRs. Mirrors
-// hasActiveCopilotReviewRuleset; the public predicate for "already fully active".
-// false on any error. (The apply idempotency guard reads the fuller state above so
-// it also treats a *paused* repo as hands-off — see getAutomatedSecurityFixesState.)
-export async function hasAutomatedSecurityFixesEnabled(gh, owner, repo) {
-  const state = await getAutomatedSecurityFixesState(gh, owner, repo);
-  return state !== null && state.enabled && !state.paused;
-}
-
 // Paginate /repos/{owner}/{repo}/issues and filter out PRs (which the GitHub
 // issues endpoint includes). Single source of truth for the "real issues only"
 // pattern used by observe, propose, and report fetchers.
