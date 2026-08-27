@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-26T22:39:11.280Z",
+  "timestamp": "2026-08-27T18:02:09.588Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-08-26T19:29:16Z",
+    "pushed_at": "2026-08-27T16:58:38Z",
     "archived": false
   },
   "issues": {
@@ -52,6 +52,16 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 390,
+        "title": "chore(deps): bump the minor-and-patch group with 2 updates",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-08-27T01:36:26Z"
+      },
       {
         "number": 388,
         "title": "refactor: delete twelve exports with no non-test caller",
@@ -1068,13 +1078,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-05-29T06:44:19Z"
-      },
-      {
-        "number": 238,
-        "title": "docs: landscape evaluation + ADR-007 agents-and-execution design",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-28T10:49:11Z"
       }
     ]
   },
@@ -1277,10 +1280,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9879518072289156,
-    "total_runs": 83,
-    "passed": 82,
-    "failed": 1
+    "pass_rate": 1,
+    "total_runs": 81,
+    "passed": 81,
+    "failed": 0
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1295,8 +1298,8 @@
     "awaiting_feedback": 0,
     "recently_closed": 2,
     "recently_merged_prs": 142,
-    "bot_prs": 8,
-    "human_prs": 134,
+    "bot_prs": 9,
+    "human_prs": 133,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
@@ -1310,7 +1313,7 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 0.9879518072289156,
+    "ci_pass_rate": 1,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 7.2,
