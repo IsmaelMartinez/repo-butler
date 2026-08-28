@@ -627,7 +627,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9278350515463918,
+      "ciPassRate": 0.9381443298969072,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-28T15:13:56Z",
+      "pushed_at": "2026-08-28T17:48:17Z",
       "traffic": {
         "views_14d": {
           "count": 36,
