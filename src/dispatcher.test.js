@@ -135,6 +135,168 @@ describe('runIdeate', () => {
     assert.equal(result, null);
     assert.deepEqual(ctx.ideas, []);
   });
+
+  // The council genuinely produces watchlist verdicts — including ideas the G8
+  // cross-repo gate demotes from approved — and runIdeate assigned them to
+  // context.watchlist, which nothing read. saveWatchlist was the only writer of
+  // snapshots/watchlist.json and had no caller, so the MCP get_watchlist tool
+  // reported "council has not placed any items on watch" about a file that
+  // could never be written.
+  const ideaResponse = [
+    '---IDEA---',
+    'TITLE: Watch me',
+    'PRIORITY: medium',
+    'LABELS: enhancement',
+    'RATIONALE: A portfolio statistic says so.',
+    'CURRENT_STATE: Absent.',
+    'PROPOSED_STATE: Present.',
+    'AFFECTED_FILES: src/x.js',
+    'SCOPE: Narrow.',
+    'BODY: Some body text.',
+    '---END---',
+  ].join('\n');
+
+  const watchVerdict = [
+    '---VERDICT---',
+    'ITEM: 1',
+    'VERDICT: watch',
+    'CONFIDENCE: medium',
+    'PRIORITY: medium',
+    'SUMMARY: Needs more data.',
+    'ACTION: none',
+    '---END---',
+  ].join('\n');
+
+  // One provider serving both calls: ideation asks for ---IDEA--- blocks, the
+  // council asks for ---VERDICT--- blocks, so branch on the prompt.
+  const provider = { generate: async (prompt) => (/VERDICT/.test(prompt) ? watchVerdict : ideaResponse) };
+
+  const ideateContext = (store) => ({
+    owner: 'o', token: 't', repo: 'r',
+    portfolio: null,
+    snapshot: {
+      repository: 'o/r',
+      issues: { open: [] },
+      summary: {
+        open_issues: 1, blocked_issues: 0, awaiting_feedback: 0,
+        recently_merged_prs: 0, latest_release: 'v1.0.0',
+        high_reaction_issues: [], stale_awaiting_feedback: [], top_open_labels: [],
+      },
+    },
+    assessment: null,
+    provider,
+    config: {},
+    governanceFindings: [],
+    store,
+  });
+
+  // A store whose watchlist read behaves however the test needs it to.
+  const watchStore = (checked) => {
+    const written = {};
+    return {
+      written,
+      async readJSONChecked() { return checked; },
+      async writeJSON(path, data) { written[path] = data; },
+    };
+  };
+
+  it('persists council watchlist items so get_watchlist can report them', async () => {
+    const store = watchStore({ data: null, readable: true, reason: 'absent' });
+    const ctx = ideateContext(store);
+    await runIdeate(ctx);
+
+    assert.equal(ctx.watchlist.length, 1, 'council should have watchlisted the idea');
+    const saved = store.written['snapshots/watchlist.json'];
+    assert.ok(saved, 'watchlist must reach the data branch');
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].title, 'Watch me');
+    // The fields get_watchlist reads.
+    assert.ok(saved[0].added_at, 'mergeWatchlist stamps added_at');
+    assert.equal(saved[0].review_count, 0);
+    assert.equal(saved[0].council_summary, 'Needs more data.');
+    assert.equal(saved[0].type, 'proposal');
+    assert.equal(saved[0].severity, 'medium');
+    // The unvalidated LLM body must not reach the world-readable branch.
+    assert.ok(!('body' in saved[0]), 'the issue body must not persist');
+  });
+
+  it('merges into the existing watchlist rather than overwriting it', async () => {
+    const store = watchStore({
+      data: [{ title: 'Older item', added_at: '2026-01-01T00:00:00Z', review_count: 3 }],
+      readable: true,
+    });
+    await runIdeate(ideateContext(store));
+
+    const saved = store.written['snapshots/watchlist.json'];
+    assert.equal(saved.length, 2, 'the existing entry must survive');
+    assert.equal(saved[0].title, 'Older item');
+    assert.equal(saved[0].review_count, 3, 'an existing entry is not re-stamped');
+    assert.equal(saved[1].title, 'Watch me');
+  });
+
+  // The defect this guards: saveWatchlist replaces the file wholesale, and a
+  // failed read used to be indistinguishable from an empty one — so one
+  // rate-limited or oversized read replaced every accumulated item with the
+  // one item this run produced, and logged it as a cheerful "1 total".
+  it('refuses to write when the existing watchlist could not be read', async () => {
+    const store = watchStore({ data: null, readable: false, reason: 'unreadable' });
+    await runIdeate(ideateContext(store));
+    assert.equal(
+      store.written['snapshots/watchlist.json'],
+      undefined,
+      'an unreadable list must never be overwritten',
+    );
+  });
+
+  it('does not rewrite the file when the merge adds nothing', async () => {
+    const store = watchStore({
+      data: [{ title: 'Watch me', targetRepo: null, added_at: '2026-01-01T00:00:00Z' }],
+      readable: true,
+    });
+    await runIdeate(ideateContext(store));
+    assert.equal(
+      store.written['snapshots/watchlist.json'],
+      undefined,
+      'an unchanged list is pure churn on the data branch',
+    );
+  });
+
+  // The data branch is world-readable and these entries are raw LLM output.
+  // Nothing downstream validates them — validateIdeas runs in propose() over
+  // the APPROVED set, which is precisely the set a watchlisted idea is not in.
+  it('drops watchlist items whose LLM content fails the safety validators', async () => {
+    const unsafe = ideaResponse.replace('BODY: Some body text.', 'BODY: Ping @someone about this.');
+    const store = watchStore({ data: null, readable: true, reason: 'absent' });
+    const ctx = {
+      ...ideateContext(store),
+      provider: { generate: async (p) => (/VERDICT/.test(p) ? watchVerdict : unsafe) },
+    };
+    await runIdeate(ctx);
+
+    assert.equal(ctx.watchlist.length, 1, 'the council still watchlisted it');
+    assert.equal(
+      store.written['snapshots/watchlist.json'],
+      undefined,
+      'unvalidated LLM output must not reach the world-readable data branch',
+    );
+  });
+
+  // Bookkeeping must never fail a phase that already paid for the LLM calls.
+  it('does not fail the phase when the watchlist store throws', async () => {
+    const store = {
+      async readJSONChecked() { throw new Error('data branch unavailable'); },
+      async writeJSON() {},
+    };
+    const ctx = ideateContext(store);
+    await runIdeate(ctx);
+    assert.equal(ctx.ideas.length, 0, 'the council watchlisted the only idea');
+  });
+
+  it('does not throw when no store is configured', async () => {
+    const ctx = ideateContext(null);
+    await runIdeate(ctx);
+    assert.equal(ctx.watchlist.length, 1);
+  });
 });
 
 describe('runObserve', () => {
