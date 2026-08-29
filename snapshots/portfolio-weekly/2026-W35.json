@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-28T21:49:55Z",
+      "pushed_at": "2026-08-29T05:40:52Z",
       "traffic": {
         "views_14d": {
           "count": 63,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-29T01:14:29Z",
+      "pushed_at": "2026-08-29T11:52:35Z",
       "traffic": {
         "views_14d": {
           "count": 36,
@@ -1239,7 +1239,7 @@
     },
     "delegate-local": {
       "id": 1223288066,
-      "open_issues": 5,
+      "open_issues": 6,
       "open_bugs": 0,
       "commits_6mo": 409,
       "stars": 5,
