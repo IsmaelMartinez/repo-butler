@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-28T19:11:53.369Z",
+  "timestamp": "2026-08-29T02:38:20.141Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-08-28T17:48:17Z",
+    "pushed_at": "2026-08-29T01:14:29Z",
     "archived": false
   },
   "issues": {
@@ -1001,13 +1001,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-05-31T08:01:40Z"
-      },
-      {
-        "number": 250,
-        "title": "docs: record implementation-time design gaps in ADR-007 and ADR-008",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-05-30T00:23:32Z"
       }
     ]
   },
@@ -1211,8 +1204,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 81,
-    "passed": 81,
+    "total_runs": 82,
+    "passed": 82,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1227,9 +1220,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 2,
-    "recently_merged_prs": 132,
+    "recently_merged_prs": 131,
     "bot_prs": 9,
-    "human_prs": 123,
+    "human_prs": 122,
     "unique_contributors": 3,
     "releases": 2,
     "latest_release": "v1.1.1",
