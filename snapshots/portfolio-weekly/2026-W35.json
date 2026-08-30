@@ -212,7 +212,7 @@
       "open_issues": 21,
       "open_bugs": 12,
       "commits_6mo": 379,
-      "stars": 4989,
+      "stars": 4991,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.975,
@@ -312,9 +312,9 @@
     },
     "ismaelmartinez.me.uk": {
       "id": 786898753,
-      "open_issues": 5,
+      "open_issues": 4,
       "open_bugs": 0,
-      "commits_6mo": 234,
+      "commits_6mo": 237,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-08-29T20:30:41Z",
+      "pushed_at": "2026-08-30T18:02:04Z",
       "traffic": {
         "views_14d": {
           "count": 59,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-08-30T10:49:42Z",
+      "pushed_at": "2026-08-30T15:36:55Z",
       "traffic": {
         "views_14d": {
           "count": 24,
