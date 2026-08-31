@@ -290,5 +290,31 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-08-31T12:56:18.804Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Resolve stale Dependabot PRs in bonnie-wee-plot to prevent dependency drift",
+        "target_repo": "bonnie-wee-plot",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-finding-anchor",
+        "number": null
+      },
+      {
+        "title": "Resolve stale Dependabot PRs in betis-escocia to prevent dependency drift",
+        "target_repo": "betis-escocia",
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-finding-anchor",
+        "number": null
+      }
+    ],
+    "dropped": 1,
+    "skipped_duplicates": 1,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
