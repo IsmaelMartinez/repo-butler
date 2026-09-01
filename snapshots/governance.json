@@ -28,7 +28,7 @@
       {
         "number": 507,
         "title": "chore(deps-dev): bump typescript from 5.9.3 to 7.0.2 in the build-tools group across 1 directory",
-        "age": 35
+        "age": 36
       }
     ],
     "priority": "medium",
@@ -36,7 +36,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 35 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 36 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
@@ -49,7 +49,7 @@
       {
         "number": 470,
         "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
-        "age": 49
+        "age": 50
       }
     ],
     "priority": "medium",
@@ -57,7 +57,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 49 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 50 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
