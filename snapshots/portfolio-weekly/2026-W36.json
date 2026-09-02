@@ -34,12 +34,12 @@
       "pushed_at": "2026-08-24T03:26:22Z",
       "traffic": {
         "views_14d": {
-          "count": 12,
-          "uniques": 4
+          "count": 13,
+          "uniques": 5
         },
         "clones_14d": {
-          "count": 35,
-          "uniques": 22
+          "count": 34,
+          "uniques": 20
         }
       },
       "computed": {
@@ -141,7 +141,7 @@
           "uniques": 2
         },
         "clones_14d": {
-          "count": 53,
+          "count": 61,
           "uniques": 32
         }
       },
@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 20,
+      "open_issues": 21,
       "open_bugs": 10,
-      "commits_6mo": 383,
-      "stars": 4998,
+      "commits_6mo": 379,
+      "stars": 5002,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9056603773584906,
       "vulns": {
         "count": 2,
         "critical": 0,
@@ -237,15 +237,15 @@
       },
       "ci": 19,
       "released_at": "2026-09-01T12:33:34Z",
-      "pushed_at": "2026-09-01T20:08:42Z",
+      "pushed_at": "2026-09-02T08:29:34Z",
       "traffic": {
         "views_14d": {
-          "count": 12555,
-          "uniques": 5307
+          "count": 12575,
+          "uniques": 5404
         },
         "clones_14d": {
-          "count": 22436,
-          "uniques": 556
+          "count": 22496,
+          "uniques": 581
         }
       },
       "computed": {
@@ -318,14 +318,14 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.967391304347826,
+      "ciPassRate": 0.967741935483871,
       "vulns": {
-        "count": 0,
+        "count": 1,
         "critical": 0,
         "high": 0,
         "medium": 0,
-        "low": 0,
-        "max_severity": null
+        "low": 1,
+        "max_severity": "low"
       },
       "codeScanning": {
         "count": 0,
@@ -340,15 +340,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-09-01T20:38:07Z",
+      "pushed_at": "2026-09-02T02:54:33Z",
       "traffic": {
         "views_14d": {
-          "count": 47,
-          "uniques": 11
+          "count": 45,
+          "uniques": 13
         },
         "clones_14d": {
-          "count": 1709,
-          "uniques": 403
+          "count": 1683,
+          "uniques": 397
         }
       },
       "computed": {
@@ -450,8 +450,8 @@
           "uniques": 2
         },
         "clones_14d": {
-          "count": 64,
-          "uniques": 27
+          "count": 61,
+          "uniques": 22
         }
       },
       "computed": {
@@ -520,7 +520,7 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 296,
+      "commits_6mo": 295,
       "stars": 2,
       "license": "NOASSERTION",
       "communityHealth": 100,
@@ -549,12 +549,12 @@
       "pushed_at": "2026-08-31T08:51:28Z",
       "traffic": {
         "views_14d": {
-          "count": 6,
-          "uniques": 6
+          "count": 8,
+          "uniques": 8
         },
         "clones_14d": {
-          "count": 808,
-          "uniques": 140
+          "count": 803,
+          "uniques": 141
         }
       },
       "computed": {
@@ -653,11 +653,11 @@
       "traffic": {
         "views_14d": {
           "count": 3,
-          "uniques": 1
+          "uniques": 2
         },
         "clones_14d": {
-          "count": 104,
-          "uniques": 39
+          "count": 100,
+          "uniques": 32
         }
       },
       "computed": {
@@ -759,7 +759,7 @@
           "uniques": 10
         },
         "clones_14d": {
-          "count": 219,
+          "count": 224,
           "uniques": 74
         }
       },
@@ -829,7 +829,7 @@
       "id": 1171146736,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 134,
+      "commits_6mo": 130,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
@@ -863,7 +863,7 @@
         },
         "clones_14d": {
           "count": 74,
-          "uniques": 41
+          "uniques": 37
         }
       },
       "computed": {
@@ -958,15 +958,15 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-09-01T20:14:35Z",
+      "pushed_at": "2026-09-02T10:04:31Z",
       "traffic": {
         "views_14d": {
-          "count": 21,
-          "uniques": 6
+          "count": 22,
+          "uniques": 7
         },
         "clones_14d": {
-          "count": 1020,
-          "uniques": 322
+          "count": 946,
+          "uniques": 300
         }
       },
       "computed": {
@@ -1064,12 +1064,12 @@
       "pushed_at": "2026-08-31T13:59:11Z",
       "traffic": {
         "views_14d": {
-          "count": 18,
-          "uniques": 10
+          "count": 19,
+          "uniques": 11
         },
         "clones_14d": {
-          "count": 149,
-          "uniques": 28
+          "count": 145,
+          "uniques": 26
         }
       },
       "computed": {
@@ -1167,12 +1167,12 @@
       "pushed_at": "2026-08-29T17:04:06Z",
       "traffic": {
         "views_14d": {
-          "count": 3,
-          "uniques": 3
+          "count": 4,
+          "uniques": 4
         },
         "clones_14d": {
-          "count": 57,
-          "uniques": 26
+          "count": 54,
+          "uniques": 22
         }
       },
       "computed": {
@@ -1270,12 +1270,12 @@
       "pushed_at": "2026-08-28T09:35:05Z",
       "traffic": {
         "views_14d": {
-          "count": 118,
-          "uniques": 40
+          "count": 100,
+          "uniques": 35
         },
         "clones_14d": {
-          "count": 1588,
-          "uniques": 608
+          "count": 1334,
+          "uniques": 575
         }
       },
       "computed": {
@@ -1373,12 +1373,12 @@
       "pushed_at": "2026-08-23T04:13:50Z",
       "traffic": {
         "views_14d": {
-          "count": 3,
+          "count": 2,
           "uniques": 2
         },
         "clones_14d": {
-          "count": 48,
-          "uniques": 23
+          "count": 49,
+          "uniques": 24
         }
       },
       "computed": {
