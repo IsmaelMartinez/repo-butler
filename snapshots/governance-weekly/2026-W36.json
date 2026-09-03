@@ -97,7 +97,7 @@
       "type": "open-vulnerability",
       "repo": "ismaelmartinez.me.uk",
       "critical": 0,
-      "high": 2,
+      "high": 4,
       "secretScanning": 0,
       "sources": [
         "dependabot"
@@ -109,7 +109,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "0 critical / 4 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
