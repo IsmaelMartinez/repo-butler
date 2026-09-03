@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-08-19
+**Last Updated:** 2026-09-03
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -51,11 +51,7 @@ Governance is a first-class phase with five deterministic finding types, each ca
 
 Section-edit mode (PR #231, May 2026) is worth calling out separately, as the mechanism this document depends on: the LLM receives the roadmap as read-only context and emits a JSON array of append operations, which the code applies deterministically. It can add content but never delete or rewrite. Three models had previously proved unable to reproduce the document verbatim, and four safety guards correctly caught every bad edit — which meant no PR was ever created. Run time dropped from ~40s to ~6s.
 
-**2026-06** — 6 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291). Full details in git history.
-
-Cross-repo PROPOSE safety machinery shipped 2026-06-22 to 2026-06-23 (PRs #298–#303). G3 cross-reference autolink neutralisation and the G4 deterministic finding-anchoring gate, then the gate wired into the write path behind empty allow-lists (#300), a per-target two-axis volume cap (#301), a closed-issue look-back in `findDuplicates` (#302), and the council quality filter demoting weakly-grounded cross-repo ideas to the watchlist (#303).
-
-Cross-repo issue format shipped 2026-06-24 (PR #304). A deterministic body composed from the anchoring finding's statistic rather than LLM free text, a distinct `portfolio-nudge` label, an onboarding-marker precondition that falls back to the host backlog, and a host-side umbrella tracking issue back-linked by bare URL.
+**2026-06** — 8 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291, #298, #300, #301, #302, #303, #304). Full details in git history.
 
 Cross-repo PROPOSE graduated its first class 2026-07-21 (PR #326). `standards-gap` became the first enabled cross-repo class, with `github-issue-triage-bot` the first enabled target.
 
@@ -108,6 +104,26 @@ Dependabot auto-merge governance fix shipped 2026-08-13 (PR #375). Refined repos
 Transient failure reporting stability improvement shipped 2026-08-14 (PR #378). Prevents false positives in compliance monitoring by ensuring transient detection failures are no longer reported as non-compliance.
 
 Copilot review ruleset detection made tri-state, shipped 2026-08-14 (PR #380). `hasActiveCopilotReviewRuleset` absorbed every failure into `false`, so a transient error became the strongest claim available — that a repo has no code-review bot. Governance reported a gap, and the apply guard that exists to prevent a duplicate ruleset read the same `false` as permission to write. It now returns `true`/`false`/`null`, and only an explicit `false` authorises the write.
+
+Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore updated the project's roadmap to reflect future planning directions and document current progress as the repository enters a temporary maintenance phase following a highly productive period of feature development.
+
+Automated dependency upkeep and maintenance group update shipped 2026-08-20 (PR #383), bundling minor and patch dependency updates to keep the repository secure and up-to-date with minimal manual overhead.
+
+Roadmap update process and baseline resolution reinforced 2026-08-11 (PR #368). Future updates leverage enhanced pipeline context and baseline branch resolution to ensure continuous, accurate capture of portfolio and repository milestones.
+
+OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
+
+Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore updated the project's roadmap to reflect future planning directions and document current progress as the repository enters a temporary maintenance phase following a highly productive period of feature development.
+
+Roadmap test robustness and codebase deduplication shipped 2026-08-26 (PR #384). Improved test suite reliability by unpinning the clock in roadmap tests and resolved minor codebase health issues by ensuring the "Implemented" section is fully deduped.
+
+Codebase hardening and configuration loading fixes shipped 2026-08-26 (PRs #385, #386, #387, #388). Hardened the `release-cadence` workflow template, resolved configuration loading bugs by ensuring block scalars are loaded instead of discarded, updated documentation by removing outdated triage-bot prose, and cleaned up unused exports to reduce technical debt.
+
+Automated dependency maintenance group update shipped 2026-08-27 (PR #390), keeping the repository's minor and patch dependencies secure and up-to-date with minimal manual overhead.
+
+Council watchlist persistence fix shipped 2026-08-28 (PR #389). Resolved a state preservation defect in the IDEATE phase by ensuring the council's watchlist is persisted rather than discarded across scheduled runs, maintaining backlog consistency.
+
+Automated dependency upkeep group update shipped 2026-09-03 (PR #391), bundling minor and patch dependency updates to keep the repository secure and up-to-date with minimal manual overhead.
 
 ---
 
