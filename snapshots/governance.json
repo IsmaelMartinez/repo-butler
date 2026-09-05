@@ -1,6 +1,28 @@
 [
   {
     "type": "tier-uplift",
+    "repo": "teams-for-linux",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Fewer than 10 open bugs",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift teams-for-linux from silver to gold",
+      "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
+      "acceptanceCriteria": [
+        "Check \"Fewer than 10 open bugs\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
     "repo": "ismaelmartinez.me.uk",
     "currentTier": "silver",
     "targetTier": "gold",
@@ -128,7 +150,7 @@
       {
         "number": 507,
         "title": "chore(deps-dev): bump typescript from 5.9.3 to 7.0.2 in the build-tools group across 1 directory",
-        "age": 39
+        "age": 40
       }
     ],
     "priority": "medium",
@@ -136,7 +158,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 39 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 40 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
@@ -149,7 +171,7 @@
       {
         "number": 470,
         "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
-        "age": 53
+        "age": 54
       }
     ],
     "priority": "medium",
@@ -157,7 +179,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 53 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 54 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
