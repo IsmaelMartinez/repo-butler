@@ -113,8 +113,6 @@ Roadmap update process and baseline resolution reinforced 2026-08-11 (PR #368). 
 
 OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
 
-Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore updated the project's roadmap to reflect future planning directions and document current progress as the repository enters a temporary maintenance phase following a highly productive period of feature development.
-
 Roadmap test robustness and codebase deduplication shipped 2026-08-26 (PR #384). Improved test suite reliability by unpinning the clock in roadmap tests and resolved minor codebase health issues by ensuring the "Implemented" section is fully deduped.
 
 Codebase hardening and configuration loading fixes shipped 2026-08-26 (PRs #385, #386, #387, #388). Hardened the `release-cadence` workflow template, resolved configuration loading bugs by ensuring block scalars are loaded instead of discarded, updated documentation by removing outdated triage-bot prose, and cleaned up unused exports to reduce technical debt.
