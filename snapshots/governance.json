@@ -44,30 +44,13 @@
     }
   },
   {
-    "type": "tier-regression",
-    "repo": "betis-escocia",
-    "previousTier": "gold",
-    "currentTier": "silver",
-    "priorWeek": "2026-W35",
-    "priority": "high",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Restore betis-escocia to gold",
-      "rationale": "Health tier regressed from gold to silver since 2026-W35.",
-      "acceptanceCriteria": [
-        "betis-escocia is back at gold in a subsequent weekly snapshot"
-      ]
-    }
-  },
-  {
     "type": "dependabot-stale",
     "repo": "bonnie-wee-plot",
     "stalePRs": [
       {
         "number": 507,
         "title": "chore(deps-dev): bump typescript from 5.9.3 to 7.0.2 in the build-tools group across 1 directory",
-        "age": 41
+        "age": 42
       }
     ],
     "priority": "medium",
@@ -75,7 +58,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 41 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 42 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
@@ -88,7 +71,7 @@
       {
         "number": 470,
         "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
-        "age": 55
+        "age": 56
       }
     ],
     "priority": "medium",
@@ -96,7 +79,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
-      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 55 days).",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 56 days).",
       "acceptanceCriteria": [
         "Each stale Dependabot PR is merged or closed"
       ]
