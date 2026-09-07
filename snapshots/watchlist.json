@@ -1,0 +1,28 @@
+[
+  {
+    "title": "Resolve stale Dependabot PRs to restore portfolio dependency freshness",
+    "type": "proposal",
+    "severity": "medium",
+    "targetRepo": "bonnie-wee-plot",
+    "held_back_reason": null,
+    "council_verdict": "watch",
+    "council_confidence": "medium",
+    "council_priority": "medium",
+    "council_summary": "While the proposal leverages a portfolio-level statistic (13% of repositories with stale PRs) to justify action, the remediation itself is a localized, manual intervention on an external repository rather than an automated portfolio-wide feature. It is best to watch this or handle it via automated workflows.",
+    "added_at": "2026-09-07T11:47:12.269Z",
+    "review_count": 0
+  },
+  {
+    "title": "Remediate high security vulnerability to uplift repository to Gold tier",
+    "type": "proposal",
+    "severity": "high",
+    "targetRepo": "betis-escocia",
+    "held_back_reason": null,
+    "council_verdict": "watch",
+    "council_confidence": "medium",
+    "council_priority": "high",
+    "council_summary": "This proposal targets an external repository based on a valid cross-portfolio metric (7% of repositories failing Gold tier compliance). However, because it requires manual remediation on a single external repository rather than a platform-wide automation, we should watch it while prioritizing automated governance.",
+    "added_at": "2026-09-07T11:47:12.269Z",
+    "review_count": 0
+  }
+]
