@@ -858,3 +858,100 @@ describe('observe — Dependabot autofix state (ADR-012 Phase 3)', () => {
     assert.equal(snapshot.summary.automated_security_fixes_active, null);
   });
 });
+
+describe("assess — the butler's own roadmap PRs are not new work", () => {
+  // Each roadmap-update PR was being fed back into the next roadmap prompt as
+  // "PRs merged since last update", so every roadmap PR became the subject of
+  // the next one (#382, #392, #393, #394 all logged "Automated roadmap
+  // self-maintenance updated …"). The butler recording itself is not a shipped
+  // capability.
+  const zeros = {
+    open_issues: 0, blocked_issues: 0, awaiting_feedback: 0,
+    recently_closed: 0, recently_merged_prs: 2,
+    bot_prs: 2, human_prs: 0, unique_contributors: 0,
+    releases: 0, latest_release: 'none',
+    top_open_labels: [], high_reaction_issues: [], stale_awaiting_feedback: [],
+  };
+  const roadmapPr = { number: 394, title: 'chore: update roadmap (repo-butler)', author: 'repo-butler-app[bot]', labels: [], merged_at: '2026-09-07T04:36:25Z' };
+  const realPr = { number: 391, title: 'chore(deps): bump the minor-and-patch group with 2 updates', author: 'dependabot[bot]', labels: [], merged_at: '2026-09-03T01:36:00Z' };
+
+  it('drops a roadmap-update PR from new_merged_prs on a diff run', async () => {
+    const { assess } = await import('./assess.js');
+    const previous = { issues: { open: [], recently_closed: [] }, pull_requests: { recently_merged: [] }, releases: [] };
+    const snapshot = { summary: zeros, issues: { open: [], recently_closed: [] }, pull_requests: { recently_merged: [roadmapPr, realPr] }, releases: [] };
+    const result = await assess({ snapshot, previousSnapshot: previous });
+    assert.deepEqual(result.diff.new_merged_prs.map(p => p.number), [391]);
+    assert.equal(result.diff.counts.new_merged_prs, 1);
+  });
+
+  it('reports no changes when the only new merged PR is a roadmap update', async () => {
+    const { assess } = await import('./assess.js');
+    const previous = { issues: { open: [], recently_closed: [] }, pull_requests: { recently_merged: [] }, releases: [] };
+    const snapshot = { summary: zeros, issues: { open: [], recently_closed: [] }, pull_requests: { recently_merged: [roadmapPr] }, releases: [] };
+    const result = await assess({ snapshot, previousSnapshot: previous });
+    assert.equal(result.diff.hasChanges, false);
+  });
+
+  it('drops a roadmap-update PR from merged_prs on a first run too', async () => {
+    const { assess } = await import('./assess.js');
+    const snapshot = { summary: zeros, issues: { open: [], recently_closed: [] }, pull_requests: { recently_merged: [roadmapPr, realPr] }, releases: [] };
+    const result = await assess({ snapshot, previousSnapshot: null });
+    assert.deepEqual(result.diff.merged_prs.map(p => p.number), [391]);
+  });
+});
+
+describe('runObserve — snapshot persistence is gated on an UPDATE in the phase set', () => {
+  // #394 merged Sunday night; Monday's Weekly Ideate run (observe,ideate,
+  // propose) observed it first and wrote the snapshot, so the next daily tick
+  // diffed against a snapshot that already contained it and ASSESS reported
+  // new_merged_prs: 0. A run with no UPDATE consumed the diff nothing would
+  // ever record. Only a run that will record the diff may advance the
+  // snapshot it is computed against.
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const ok = (body) => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  const notFound = () => ({ ok: false, status: 404, headers: new Map(), json: async () => ({}), text: async () => 'Not Found' });
+
+  function installFetchMock() {
+    globalThis.fetch = mock.fn(async (url) => {
+      const p = new URL(url).pathname;
+      if (p === '/repos/owner/repo') return ok({ stargazers_count: 0, forks_count: 0, open_issues_count: 0, default_branch: 'main' });
+      if (p.startsWith('/repos/owner/repo/contents/')) return notFound();
+      return ok([]);
+    });
+  }
+
+  function makeStore() {
+    const calls = [];
+    return {
+      calls,
+      readSnapshot: async () => null,
+      writeSnapshot: async () => { calls.push('writeSnapshot'); },
+      readWeeklyHistory: async () => [],
+    };
+  }
+
+  async function run(phases) {
+    const { runObserve } = await import('./observe.js');
+    installFetchMock();
+    const store = makeStore();
+    const context = { owner: 'owner', repo: 'repo', token: 'fake', config: {}, store };
+    if (phases) context.phases = phases;
+    await runObserve(context);
+    return store.calls;
+  }
+
+  it('does not write the snapshot when update is not among the phases', async () => {
+    assert.deepEqual(await run(['observe', 'ideate', 'propose']), []);
+  });
+
+  it('writes the snapshot when update is among the phases', async () => {
+    assert.deepEqual(await run(['observe', 'assess', 'update', 'governance', 'report']), ['writeSnapshot']);
+  });
+
+  it('writes the snapshot when no phase list is on context (direct callers)', async () => {
+    assert.deepEqual(await run(undefined), ['writeSnapshot']);
+  });
+});

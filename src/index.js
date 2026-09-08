@@ -309,6 +309,9 @@ function logPhaseBoundary(line) {
 // Returns an array of { phase, status, durationMs, error? } for tests.
 export async function runPhases(phasesToRun, context, defaultProvider, deepProvider, runners = PHASE_RUNNERS) {
   pipelineResults = [];
+  // Runners that must know what follows them (runObserve gates the snapshot
+  // write on an UPDATE being in the run) read the whole phase set from here.
+  context.phases = phasesToRun.slice();
   for (const p of phasesToRun) {
     activePhase = p;
     await logPhaseBoundary(`\n=== Phase: ${p.toUpperCase()} ===\n`);

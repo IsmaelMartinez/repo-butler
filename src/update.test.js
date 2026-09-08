@@ -1061,8 +1061,8 @@ describe('UPDATE prompts carry merged PR titles, not just a count', () => {
   const assessment = {
     diff: {
       new_merged_prs: [
-        { number: 354, title: 'G7 gold-ratchet tier-regression detector' },
-        { number: 355, title: "G12 watch the butler's own PRs for going stale" },
+        { number: 354, title: 'G7 gold-ratchet tier-regression detector', merged_at: '2026-07-28T10:00:00Z' },
+        { number: 355, title: "G12 watch the butler's own PRs for going stale", merged_at: '2026-07-29T10:00:00Z' },
       ],
     },
   };
@@ -1076,8 +1076,8 @@ describe('UPDATE prompts carry merged PR titles, not just a count', () => {
     it(`${label}: includes each merged PR number and title`, () => {
       const prompt = build('# Roadmap', snapshot, assessment, null);
       assert.match(prompt, /PRs merged since last update:/);
-      assert.match(prompt, /#354: G7 gold-ratchet tier-regression detector/);
-      assert.match(prompt, /#355: G12 watch the butler's own PRs for going stale/);
+      assert.match(prompt, /#354 \(merged 2026-07-28\): G7 gold-ratchet tier-regression detector/);
+      assert.match(prompt, /#355 \(merged 2026-07-29\): G12 watch the butler's own PRs for going stale/);
     });
 
     it(`${label}: omits the block entirely when nothing merged`, () => {
@@ -1095,10 +1095,10 @@ describe('UPDATE prompts carry merged PR titles, not just a count', () => {
     it(`${label}: caps the list at exactly 15, matching the issue blocks`, () => {
       const many = Array.from({ length: 40 }, (_, i) => ({ number: 500 + i, title: `PR number ${i}` }));
       const prompt = build('# Roadmap', snapshot, { diff: { new_merged_prs: many } }, null);
-      assert.match(prompt, /#500: PR number 0\b/, 'the first item must survive');
-      assert.match(prompt, /#514: PR number 14\b/, 'the 15th item is the last kept');
-      assert.doesNotMatch(prompt, /#515: PR number 15\b/, 'the 16th must be dropped');
-      const listed = [...prompt.matchAll(/^ {2}#5\d\d: PR number /gm)].length;
+      assert.match(prompt, /#500 \(merged date unknown\): PR number 0\b/, 'the first item must survive');
+      assert.match(prompt, /#514 \(merged date unknown\): PR number 14\b/, 'the 15th item is the last kept');
+      assert.doesNotMatch(prompt, /#515 \(merged date unknown\): PR number 15\b/, 'the 16th must be dropped');
+      const listed = [...prompt.matchAll(/^ {2}#5\d\d \(merged date unknown\): PR number /gm)].length;
       assert.equal(listed, 15, `expected exactly 15 merged-PR lines, found ${listed}`);
     });
 
@@ -1225,7 +1225,9 @@ describe('update() refresh builds on the open PR branch', () => {
         meta: { default_branch: 'main' },
         summary: { open_issues: 1, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 2, latest_release: 'v1', high_reaction_issues: [], top_open_labels: [] },
       },
-      assessment: { assessment: 'Some assessment.' },
+      // The ops cite #355, so the run must have seen #355: the provenance
+      // guard rejects any ref the assessment diff does not carry.
+      assessment: { assessment: 'Some assessment.', diff: { new_merged_prs: [{ number: 355, title: 'This tick', merged_at: '2026-07-29T00:00:00Z' }] } },
       provider: { generate: async (p) => { promptSeen = p; return JSON.stringify(ops); } },
     };
     return { context, puts, prompt: () => promptSeen };
@@ -1262,5 +1264,139 @@ describe('update() refresh builds on the open PR branch', () => {
     const written = Buffer.from(h.puts[0].body.content, 'base64').toString('utf8');
     assert.match(written, /Base entry/, 'a failed read degrades to the old behaviour rather than aborting');
     assert.match(written, /Entry for #355 from this tick/);
+  });
+});
+
+describe('applyEditOps — ref provenance', () => {
+  // PR #395 (2026-09-08): the producing tick logged new_merged_prs: 0 and the
+  // model still appended an entry citing #394, extrapolated from the sequence
+  // #392, #393. The prompt rule "do not invent PR numbers" is advisory; this is
+  // the deterministic guard. Every #NN ref in an append must be one the run has
+  // evidence for (knownRefs, from the assessment diff) or one the roadmap
+  // already carries (a follow-up citing old work).
+  const roadmap = [
+    '# Roadmap',
+    '',
+    '**Last Updated:** 2026-09-06',
+    '',
+    '## Implemented',
+    '',
+    'Feature A shipped 2026-09-01 (PR #391).',
+    '',
+    '---',
+    '',
+    '## Next Up',
+    '',
+    'Fix the widget (issue #12).',
+    '',
+    '## Future',
+    '',
+    'Ideas here.',
+  ].join('\n');
+  const invented = [{ action: 'append', section: 'Implemented', text: 'Automated roadmap self-maintenance updated 2026-09-08 (PR #394).' }];
+
+  it('rejects an append citing a ref that is in neither the run data nor the roadmap', () => {
+    const { result, applied, skipped } = applyEditOps(roadmap, invented, '2026-09-08', { knownRefs: new Set() });
+    assert.equal(result, roadmap, 'nothing may be written on an unverifiable ref');
+    assert.equal(applied.length, 0);
+    assert.equal(skipped.length, 1);
+    assert.match(skipped[0], /#394/);
+    assert.match(skipped[0], /neither/);
+  });
+
+  it('applies an append whose ref is in the run data', () => {
+    const { result, applied, skipped } = applyEditOps(roadmap, invented, '2026-09-08', { knownRefs: new Set(['#394']) });
+    assert.match(result, /PR #394/);
+    assert.equal(applied.length, 2, 'append plus date bump');
+    assert.equal(skipped.length, 0);
+  });
+
+  it('applies an append citing only refs the roadmap already carries, even with no run data', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Widget fix shipped 2026-09-08 (issue #12).' }];
+    const { result, skipped } = applyEditOps(roadmap, ops, '2026-09-08', { knownRefs: new Set() });
+    assert.match(result, /Widget fix shipped/);
+    assert.equal(skipped.length, 0);
+  });
+
+  it('rejects an append that mixes a known ref with an unverifiable one', () => {
+    const ops = [{ action: 'append', section: 'Implemented', text: 'Two things shipped (PRs #394, #396).' }];
+    const { result, skipped } = applyEditOps(roadmap, ops, '2026-09-08', { knownRefs: new Set(['#394']) });
+    assert.equal(result, roadmap);
+    assert.equal(skipped.length, 1);
+    assert.match(skipped[0], /#396/);
+    assert.doesNotMatch(skipped[0], /#394/, 'only the unverifiable ref is named');
+  });
+
+  it('skips the provenance check entirely when no knownRefs option is supplied', () => {
+    const { result, skipped } = applyEditOps(roadmap, invented, '2026-09-08');
+    assert.match(result, /PR #394/);
+    assert.equal(skipped.length, 0);
+  });
+});
+
+describe('buildSectionEditPrompt — merged PR dates', () => {
+  const snapshot = {
+    repository: 'o/r',
+    summary: { open_issues: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 1, latest_release: 'v1', high_reaction_issues: [], top_open_labels: [] },
+  };
+
+  it('renders each merged PR with its merge date, so entries are dated by merge day rather than by Today', () => {
+    // #393 dated #392 a day early and #395 dated #394 a day late: observe.js
+    // records merged_at on every merged PR, but the prompt dropped it and the
+    // only date the model could see was the run's Today line.
+    const assessment = { assessment: 'x', diff: { new_merged_prs: [{ number: 394, title: 'chore: thing', merged_at: '2026-09-07T04:36:25Z' }] } };
+    const prompt = buildSectionEditPrompt('# R', snapshot, assessment, null, new Date('2026-09-08T12:00:00Z'));
+    assert.match(prompt, /#394 \(merged 2026-09-07\): chore: thing/);
+  });
+
+  it('still renders a merged PR whose record carries no merge date', () => {
+    const assessment = { assessment: 'x', diff: { new_merged_prs: [{ number: 7, title: 'old shape' }] } };
+    const prompt = buildSectionEditPrompt('# R', snapshot, assessment, null, new Date('2026-09-08T12:00:00Z'));
+    assert.match(prompt, /#7 \(merged date unknown\): old shape/);
+  });
+});
+
+describe('update() will not record a PR the run never saw', () => {
+  const b64 = (s) => Buffer.from(s).toString('base64');
+  const MAIN = '# Roadmap\n\n**Last Updated:** 2026-09-06\n\n## Implemented\n\nEntry for #393.\n\n---\n';
+
+  function harness({ diff, ops }) {
+    const puts = [];
+    const gh = {
+      paginate: async () => [{ head: { ref: 'repo-butler/roadmap-update-1' }, html_url: 'https://x/1', number: 1 }],
+      request: async (path, opts = {}) => {
+        if (opts.method === 'PUT') { puts.push({ path, body: opts.body }); return { commit: { sha: 'deadbee' } }; }
+        if (opts.method === 'PATCH') return {};
+        if (path.includes('/contents/')) return { content: b64(MAIN), sha: 'sha' };
+        return {};
+      },
+    };
+    const context = {
+      owner: 'o', repo: 'r', token: 't', gh, dryRun: false,
+      config: { roadmap: { path: 'ROADMAP.md', compact_after_days: 60 } },
+      snapshot: {
+        repository: 'o/r', roadmap: { path: 'ROADMAP.md', content: MAIN },
+        meta: { default_branch: 'main' },
+        summary: { open_issues: 1, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 2, latest_release: 'v1', high_reaction_issues: [], top_open_labels: [] },
+      },
+      assessment: { assessment: 'No changes detected since the previous observation.', diff },
+      provider: { generate: async () => JSON.stringify(ops) },
+    };
+    return { context, puts };
+  }
+  const ops = [{ action: 'append', section: 'Implemented', text: 'Automated roadmap self-maintenance updated 2026-09-08 (PR #394).' }];
+
+  it('writes nothing when the only op cites a PR absent from the assessment diff', async () => {
+    const h = harness({ diff: { new_merged_prs: [] }, ops });
+    await update(h.context);
+    assert.equal(h.puts.length, 0, 'an invented ref must not reach the branch');
+  });
+
+  it('writes the entry when the assessment diff carries that PR', async () => {
+    const h = harness({ diff: { new_merged_prs: [{ number: 394, title: 'chore: thing', merged_at: '2026-09-07T04:36:25Z' }] }, ops });
+    await update(h.context);
+    assert.equal(h.puts.length, 1);
+    const written = Buffer.from(h.puts[0].body.content, 'base64').toString('utf8');
+    assert.match(written, /PR #394/);
   });
 });

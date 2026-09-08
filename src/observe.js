@@ -14,7 +14,17 @@ export async function runObserve(context) {
   context.portfolio = portfolio;
 
   context.previousSnapshot = await store.readSnapshot();
-  await store.writeSnapshot(snapshot);
+  // Only a run that will record the diff may advance the snapshot it is
+  // computed against. Monday's Weekly Ideate run (observe,ideate,propose)
+  // observed #394 first and wrote the snapshot, so the next daily tick's
+  // ASSESS saw new_merged_prs: 0 and the PR never reached the roadmap with
+  // its real merge record — CLAUDE.md's "lost meant lost". A direct caller
+  // with no phase list on context keeps the old behaviour.
+  if (!context.phases || context.phases.includes('update')) {
+    await store.writeSnapshot(snapshot);
+  } else {
+    console.log(`Snapshot not persisted: no UPDATE in this run (${context.phases.join(',')}), so the diff stays available for the next run that records it.`);
+  }
 
   context.weeklyHistory = await store.readWeeklyHistory();
   console.log(`Loaded ${context.weeklyHistory.length} weekly snapshots for trends.`);
