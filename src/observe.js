@@ -14,16 +14,27 @@ export async function runObserve(context) {
   context.portfolio = portfolio;
 
   context.previousSnapshot = await store.readSnapshot();
-  // Only a run that will record the diff may advance the snapshot it is
-  // computed against. Monday's Weekly Ideate run (observe,ideate,propose)
-  // observed #394 first and wrote the snapshot, so the next daily tick's
-  // ASSESS saw new_merged_prs: 0 and the PR never reached the roadmap with
-  // its real merge record — CLAUDE.md's "lost meant lost". A direct caller
-  // with no phase list on context keeps the old behaviour.
-  if (!context.phases || context.phases.includes('update')) {
+  // Only a run that records the diff may advance the snapshot it is computed
+  // against. Monday's Weekly Ideate run (observe,ideate,propose) observed
+  // #394 first and wrote the snapshot, so the next daily tick's ASSESS saw
+  // new_merged_prs: 0 and the PR never reached the roadmap with its real
+  // merge record — CLAUDE.md's "lost meant lost".
+  //
+  // When UPDATE is in the run the write is handed to it rather than done
+  // here, because "UPDATE is scheduled" is intent and not outcome: it can
+  // dry-run, fail to parse, fail validation or throw on the push, each of
+  // which would otherwise leave the baseline advanced past work nothing
+  // recorded. An explicit observe-only run is the documented way to refresh
+  // the baseline by hand (`npm run observe`) and still writes, as does a
+  // direct caller with no phase list.
+  const phases = Array.isArray(context.phases) ? context.phases : null;
+  if (!phases || (phases.length === 1 && phases[0] === 'observe')) {
     await store.writeSnapshot(snapshot);
+  } else if (phases.includes('update')) {
+    context.pendingSnapshot = snapshot;
+    console.log('Snapshot held for UPDATE: the baseline advances once this run records the diff.');
   } else {
-    console.log(`Snapshot not persisted: no UPDATE in this run (${context.phases.join(',')}), so the diff stays available for the next run that records it.`);
+    console.log(`Snapshot not persisted: this run (${phases.join(',')}) records nothing, so the diff stays available for the run that will.`);
   }
 
   context.weeklyHistory = await store.readWeeklyHistory();

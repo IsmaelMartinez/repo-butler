@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { update, applyEditOps, readRoadmapFromRef, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, bumpLastUpdated, compactRoadmap, compactShippedLog, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, sectionBounds, SECTION_NAMES, redactErrorForLog } from './update.js';
+import { update, runUpdate, applyEditOps, readRoadmapFromRef, buildRoadmapPrBody, buildSafePrBody, buildSectionEditPrompt, bumpLastUpdated, compactRoadmap, compactShippedLog, findOpenRoadmapPr, isDateOnlyChange, normalizeEditOp, parseEditOps, sectionBounds, SECTION_NAMES, redactErrorForLog } from './update.js';
 import { validateRoadmap } from './safety.js';
 import { readFileSync } from 'node:fs';
 
@@ -1398,5 +1398,94 @@ describe('update() will not record a PR the run never saw', () => {
     assert.equal(h.puts.length, 1);
     const written = Buffer.from(h.puts[0].body.content, 'base64').toString('utf8');
     assert.match(written, /PR #394/);
+  });
+});
+
+describe('runUpdate — advances the snapshot only once the diff is recorded', () => {
+  // runObserve hands the snapshot over rather than persisting it, because
+  // "UPDATE is in the phase set" is intent, not outcome: UPDATE can dry-run,
+  // fail to parse, fail validation, or throw on the push, and every one of
+  // those left the baseline advanced past work nothing had recorded.
+  const b64 = (s) => Buffer.from(s).toString('base64');
+  const MAIN = '# Roadmap\n\n**Last Updated:** 2026-09-06\n\n## Implemented\n\nEntry for #393.\n\n---\n';
+  const OPS = JSON.stringify([{ action: 'append', section: 'Implemented', text: 'Thing shipped 2026-09-07 (PR #394).' }]);
+
+  function harness({ dryRun = false, response = OPS, provider = true, pending = { repository: 'o/r' }, throwOnPut = false } = {}) {
+    const written = [];
+    const gh = {
+      paginate: async () => [{ head: { ref: 'repo-butler/roadmap-update-1' }, html_url: 'https://x/1', number: 1 }],
+      request: async (path, opts = {}) => {
+        if (opts.method === 'PUT') {
+          if (throwOnPut) throw new Error('502 from GitHub');
+          return { commit: { sha: 'deadbee' } };
+        }
+        if (opts.method === 'PATCH') return {};
+        if (path.includes('/contents/')) return { content: b64(MAIN), sha: 'sha' };
+        return {};
+      },
+    };
+    const context = {
+      owner: 'o', repo: 'r', token: 't', gh, dryRun,
+      config: { roadmap: { path: 'ROADMAP.md', compact_after_days: 60 } },
+      store: { writeSnapshot: async (s) => { written.push(s); } },
+      snapshot: {
+        repository: 'o/r', roadmap: { path: 'ROADMAP.md', content: MAIN },
+        meta: { default_branch: 'main' },
+        summary: { open_issues: 1, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 2, latest_release: 'v1', high_reaction_issues: [], top_open_labels: [] },
+      },
+      assessment: { assessment: 'x', diff: { new_merged_prs: [{ number: 394, title: 'chore: thing', merged_at: '2026-09-07T04:36:25Z' }] } },
+      provider: provider ? { generate: async () => response } : null,
+    };
+    // Set only when there is one: runObserve leaves the key absent on a run
+    // it did not hand over, and a default parameter would mask that.
+    if (pending) context.pendingSnapshot = pending;
+    return { context, written };
+  }
+
+  it('writes the pending snapshot after the roadmap PR is updated', async () => {
+    const h = harness();
+    await runUpdate(h.context);
+    assert.equal(h.written.length, 1);
+    assert.equal(h.written[0].repository, 'o/r');
+    assert.equal(h.context.pendingSnapshot, null, 'cleared, so nothing can write it twice');
+  });
+
+  it('does not write the pending snapshot on a dry run', async () => {
+    const h = harness({ dryRun: true });
+    await runUpdate(h.context);
+    assert.deepEqual(h.written, []);
+  });
+
+  it('does not write the pending snapshot when the ops fail to parse', async () => {
+    const h = harness({ response: 'not json at all' });
+    await runUpdate(h.context);
+    assert.deepEqual(h.written, []);
+  });
+
+  it('does not write the pending snapshot when there is no provider', async () => {
+    const h = harness({ provider: false });
+    await runUpdate(h.context);
+    assert.deepEqual(h.written, []);
+  });
+
+  it('does not write the pending snapshot when the push throws', async () => {
+    const h = harness({ throwOnPut: true });
+    await assert.rejects(() => runUpdate(h.context));
+    assert.deepEqual(h.written, []);
+  });
+
+  it('writes the pending snapshot when the run had nothing to record', async () => {
+    // An empty op list is a decision, not a failure: the diff was considered
+    // and produced no entry, so the baseline may advance.
+    const h = harness({ response: '[]' });
+    await runUpdate(h.context);
+    assert.equal(h.written.length, 1);
+  });
+
+  it('does nothing when no snapshot was handed over (observe-only or direct callers)', async () => {
+    const h = harness({ pending: null });
+    assert.equal('pendingSnapshot' in h.context, false, 'the key is absent, as runObserve leaves it');
+    await runUpdate(h.context);
+    assert.deepEqual(h.written, []);
   });
 });

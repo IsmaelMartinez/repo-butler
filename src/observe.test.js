@@ -900,13 +900,15 @@ describe("assess — the butler's own roadmap PRs are not new work", () => {
   });
 });
 
-describe('runObserve — snapshot persistence is gated on an UPDATE in the phase set', () => {
+describe('runObserve — snapshot persistence is gated on the diff being recorded', () => {
   // #394 merged Sunday night; Monday's Weekly Ideate run (observe,ideate,
   // propose) observed it first and wrote the snapshot, so the next daily tick
   // diffed against a snapshot that already contained it and ASSESS reported
   // new_merged_prs: 0. A run with no UPDATE consumed the diff nothing would
-  // ever record. Only a run that will record the diff may advance the
-  // snapshot it is computed against.
+  // ever record. Only a run that records the diff may advance the snapshot it
+  // is computed against — and gating on UPDATE being *scheduled* is not
+  // enough, because UPDATE can dry-run, fail to parse, fail validation or
+  // throw, so the write is deferred to UPDATE itself (see runUpdate).
   let originalFetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });
   afterEach(() => { globalThis.fetch = originalFetch; });
@@ -940,18 +942,31 @@ describe('runObserve — snapshot persistence is gated on an UPDATE in the phase
     const context = { owner: 'owner', repo: 'repo', token: 'fake', config: {}, store };
     if (phases) context.phases = phases;
     await runObserve(context);
-    return store.calls;
+    return { calls: store.calls, context };
   }
 
-  it('does not write the snapshot when update is not among the phases', async () => {
-    assert.deepEqual(await run(['observe', 'ideate', 'propose']), []);
+  it('does not write the snapshot on a run that records nothing (weekly ideate)', async () => {
+    const { calls, context } = await run(['observe', 'ideate', 'propose']);
+    assert.deepEqual(calls, []);
+    assert.equal(context.pendingSnapshot, undefined, 'nothing downstream will record it, so it is not pending either');
   });
 
-  it('writes the snapshot when update is among the phases', async () => {
-    assert.deepEqual(await run(['observe', 'assess', 'update', 'governance', 'report']), ['writeSnapshot']);
+  it('defers the write to UPDATE when update is among the phases', async () => {
+    // Writing here would advance the baseline even when UPDATE goes on to
+    // dry-run, fail to parse, fail validation, or throw.
+    const { calls, context } = await run(['observe', 'assess', 'update', 'governance', 'report']);
+    assert.deepEqual(calls, []);
+    assert.equal(context.pendingSnapshot?.repository, 'owner/repo', 'the snapshot is handed to UPDATE to write');
+  });
+
+  it('writes the snapshot on an explicit observe-only run (npm run observe)', async () => {
+    // `--phase=observe` is the documented way to refresh the baseline by hand.
+    const { calls } = await run(['observe']);
+    assert.deepEqual(calls, ['writeSnapshot']);
   });
 
   it('writes the snapshot when no phase list is on context (direct callers)', async () => {
-    assert.deepEqual(await run(undefined), ['writeSnapshot']);
+    const { calls } = await run(undefined);
+    assert.deepEqual(calls, ['writeSnapshot']);
   });
 });

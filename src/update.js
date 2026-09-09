@@ -200,7 +200,22 @@ export function buildSafePrBody(assessmentText) {
 export async function runUpdate(context) {
   const result = await update(context);
   context.updateResult = result;
+  // runObserve hands the snapshot over rather than persisting it, so the
+  // baseline advances on outcome rather than on intent: a dry run, an
+  // unparseable response, a failed validation, or a throw on the push all
+  // leave the diff available to the next run instead of consuming it. An
+  // empty op list is a decision, not a failure — the work was considered and
+  // produced no entry — so it advances.
+  if (context.pendingSnapshot && snapshotMayAdvance(result, context.dryRun)) {
+    await context.store.writeSnapshot(context.pendingSnapshot);
+    context.pendingSnapshot = null;
+  }
   return result;
+}
+
+function snapshotMayAdvance(result, dryRun) {
+  if (dryRun || !result) return false;
+  return result.safety?.valid !== false;
 }
 
 export async function update(context) {
