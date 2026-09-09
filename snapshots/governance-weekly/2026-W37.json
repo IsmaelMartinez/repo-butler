@@ -2,6 +2,50 @@
   "findings": [
     {
       "type": "tier-uplift",
+      "repo": "teams-for-linux",
+      "currentTier": "silver",
+      "targetTier": "gold",
+      "failingChecks": [
+        {
+          "name": "Zero critical/high security findings",
+          "required_for": "gold"
+        }
+      ],
+      "priority": "high",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [],
+        "intent": "Uplift teams-for-linux from silver to gold",
+        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+        "acceptanceCriteria": [
+          "Check \"Zero critical/high security findings\" passes"
+        ]
+      }
+    },
+    {
+      "type": "tier-uplift",
+      "repo": "ismaelmartinez.me.uk",
+      "currentTier": "silver",
+      "targetTier": "gold",
+      "failingChecks": [
+        {
+          "name": "Zero critical/high security findings",
+          "required_for": "gold"
+        }
+      ],
+      "priority": "high",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [],
+        "intent": "Uplift ismaelmartinez.me.uk from silver to gold",
+        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+        "acceptanceCriteria": [
+          "Check \"Zero critical/high security findings\" passes"
+        ]
+      }
+    },
+    {
+      "type": "tier-uplift",
       "repo": "betis-escocia",
       "currentTier": "silver",
       "targetTier": "gold",
@@ -19,6 +63,50 @@
         "rationale": "1 check(s) block gold: Zero critical/high security findings.",
         "acceptanceCriteria": [
           "Check \"Zero critical/high security findings\" passes"
+        ]
+      }
+    },
+    {
+      "type": "open-vulnerability",
+      "repo": "teams-for-linux",
+      "critical": 0,
+      "high": 2,
+      "secretScanning": 0,
+      "sources": [
+        "dependabot"
+      ],
+      "max_severity": "high",
+      "priority": "medium",
+      "autofixEnabled": true,
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Remediate open security alerts in teams-for-linux",
+        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "acceptanceCriteria": [
+          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+        ]
+      }
+    },
+    {
+      "type": "open-vulnerability",
+      "repo": "ismaelmartinez.me.uk",
+      "critical": 0,
+      "high": 1,
+      "secretScanning": 0,
+      "sources": [
+        "dependabot"
+      ],
+      "max_severity": "high",
+      "priority": "medium",
+      "autofixEnabled": true,
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
+        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "acceptanceCriteria": [
+          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
       }
     },
@@ -45,13 +133,47 @@
       }
     },
     {
+      "type": "tier-regression",
+      "repo": "teams-for-linux",
+      "previousTier": "gold",
+      "currentTier": "silver",
+      "priorWeek": "2026-W36",
+      "priority": "high",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Restore teams-for-linux to gold",
+        "rationale": "Health tier regressed from gold to silver since 2026-W36.",
+        "acceptanceCriteria": [
+          "teams-for-linux is back at gold in a subsequent weekly snapshot"
+        ]
+      }
+    },
+    {
+      "type": "tier-regression",
+      "repo": "ismaelmartinez.me.uk",
+      "previousTier": "gold",
+      "currentTier": "silver",
+      "priorWeek": "2026-W36",
+      "priority": "high",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Restore ismaelmartinez.me.uk to gold",
+        "rationale": "Health tier regressed from gold to silver since 2026-W36.",
+        "acceptanceCriteria": [
+          "ismaelmartinez.me.uk is back at gold in a subsequent weekly snapshot"
+        ]
+      }
+    },
+    {
       "type": "dependabot-stale",
       "repo": "bonnie-wee-plot",
       "stalePRs": [
         {
           "number": 507,
           "title": "chore(deps-dev): bump typescript from 5.9.3 to 7.0.2 in the build-tools group across 1 directory",
-          "age": 43
+          "age": 44
         }
       ],
       "priority": "medium",
@@ -59,7 +181,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 43 days).",
+        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 44 days).",
         "acceptanceCriteria": [
           "Each stale Dependabot PR is merged or closed"
         ]
@@ -72,7 +194,7 @@
         {
           "number": 470,
           "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
-          "age": 57
+          "age": 58
         }
       ],
       "priority": "medium",
@@ -80,7 +202,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 57 days).",
+        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 58 days).",
         "acceptanceCriteria": [
           "Each stale Dependabot PR is merged or closed"
         ]
