@@ -2,6 +2,7 @@
 // No LLM needed for the diff itself — the LLM summarises the changes.
 
 import { sanitizeForPrompt, wrapPrompt } from './safety.js';
+import { isRoadmapUpdatePr } from './update.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs the diff/LLM
 // assessment and computes weekly trend direction.
@@ -59,7 +60,7 @@ function computeDiff(current, previous) {
       },
       new_issues: current.issues.open,
       closed_issues: current.issues.recently_closed,
-      merged_prs: current.pull_requests.recently_merged,
+      merged_prs: current.pull_requests.recently_merged.filter(p => !isRoadmapUpdatePr(p)),
     };
   }
 
@@ -70,7 +71,10 @@ function computeDiff(current, previous) {
   const resolvedIssues = previous.issues.open.filter(i => !currOpenNumbers.has(i.number));
 
   const prevMergedNumbers = new Set(previous.pull_requests.recently_merged.map(p => p.number));
-  const newMergedPRs = current.pull_requests.recently_merged.filter(p => !prevMergedNumbers.has(p.number));
+  // The butler's own roadmap PRs are not new work: fed back in, each one
+  // became the subject of the next roadmap entry (see isRoadmapUpdatePr).
+  const newMergedPRs = current.pull_requests.recently_merged
+    .filter(p => !prevMergedNumbers.has(p.number) && !isRoadmapUpdatePr(p));
 
   const prevReleaseTags = new Set(previous.releases.map(r => r.tag));
   const newReleases = current.releases.filter(r => !prevReleaseTags.has(r.tag));

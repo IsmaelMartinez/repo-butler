@@ -148,4 +148,16 @@ describe('runPhases', () => {
     assert.equal(finalState.activePhase, null);
     assert.deepEqual(finalState.results.map(r => `${r.phase}=${r.status}`), ['observe=ok', 'report=ok']);
   });
+
+  it('exposes the phase list on context so a runner can gate on what will follow it', async () => {
+    // runObserve only persists the snapshot when an UPDATE will consume the
+    // diff computed against it; it needs to see the whole phase set to know.
+    let seen = null;
+    const runners = {
+      observe: async (ctx) => { seen = ctx.phases; },
+      report: async () => {},
+    };
+    await runPhases(['observe', 'report'], {}, null, null, runners);
+    assert.deepEqual(seen, ['observe', 'report']);
+  });
 });

@@ -109,10 +109,6 @@ Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore up
 
 Automated dependency upkeep and maintenance group update shipped 2026-08-20 (PR #383), bundling minor and patch dependency updates to keep the repository secure and up-to-date with minimal manual overhead.
 
-Roadmap update process and baseline resolution reinforced 2026-08-11 (PR #368). Future updates leverage enhanced pipeline context and baseline branch resolution to ensure continuous, accurate capture of portfolio and repository milestones.
-
-OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
-
 Roadmap test robustness and codebase deduplication shipped 2026-08-26 (PR #384). Improved test suite reliability by unpinning the clock in roadmap tests and resolved minor codebase health issues by ensuring the "Implemented" section is fully deduped.
 
 Codebase hardening and configuration loading fixes shipped 2026-08-26 (PRs #385, #386, #387, #388). Hardened the `release-cadence` workflow template, resolved configuration loading bugs by ensuring block scalars are loaded instead of discarded, updated documentation by removing outdated triage-bot prose, and cleaned up unused exports to reduce technical debt.
@@ -122,12 +118,6 @@ Automated dependency maintenance group update shipped 2026-08-27 (PR #390), keep
 Council watchlist persistence fix shipped 2026-08-28 (PR #389). Resolved a state preservation defect in the IDEATE phase by ensuring the council's watchlist is persisted rather than discarded across scheduled runs, maintaining backlog consistency.
 
 Automated dependency upkeep group update shipped 2026-09-03 (PR #391), bundling minor and patch dependency updates to keep the repository secure and up-to-date with minimal manual overhead.
-
-Automated roadmap self-maintenance updated 2026-09-03 (PR #382), verifying the background agent's continuous planning cycle by successfully updating its own strategic backlog on its scheduled run.
-
-Automated roadmap self-maintenance updated 2026-09-04 (PR #392), verifying the background agent's continuous planning cycle by successfully updating its own strategic backlog on its scheduled run.
-
-Automated roadmap self-maintenance updated 2026-09-06 (PR #393), confirming the background agent's continuous planning cycle by successfully updating its own strategic backlog on its scheduled run.
 
 ---
 

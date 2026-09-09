@@ -33,6 +33,31 @@ export function buildRoadmapPrBody(assessmentText) {
 
 const ROADMAP_BRANCH_PREFIX = 'repo-butler/roadmap-update-';
 
+// The butler's own roadmap PRs, by title. Exported so ASSESS can keep them out
+// of "PRs merged since last update": each roadmap PR was otherwise fed back
+// into the next roadmap prompt, and #382, #392, #393 and #394 all became
+// near-identical "Automated roadmap self-maintenance updated …" entries. The
+// butler recording that it recorded is not a shipped capability.
+export const ROADMAP_PR_TITLE = 'chore: update roadmap (repo-butler)';
+export function isRoadmapUpdatePr(pr) {
+  return pr?.title === ROADMAP_PR_TITLE;
+}
+
+// Every #NN this run has evidence for: the PR and issue numbers ASSESS put in
+// the diff. applyEditOps refuses an append citing anything outside this set
+// that the roadmap does not already carry. A missing diff yields an empty
+// set, so the guard fails closed rather than off.
+function assessmentRefs(assessment) {
+  const diff = assessment?.diff || {};
+  const refs = new Set();
+  for (const key of ['new_merged_prs', 'merged_prs', 'new_issues', 'resolved_issues', 'closed_issues']) {
+    for (const item of diff[key] || []) {
+      if (Number.isInteger(item?.number)) refs.add(`#${item.number}`);
+    }
+  }
+  return refs;
+}
+
 // Read the roadmap as it exists on one ref. Returns { content, sha } or null
 // when the file is absent there or the read fails — callers decide the
 // fallback, because "no roadmap on this branch" and "GitHub said no" both mean
@@ -175,7 +200,30 @@ export function buildSafePrBody(assessmentText) {
 export async function runUpdate(context) {
   const result = await update(context);
   context.updateResult = result;
+  // runObserve hands the snapshot over rather than persisting it, so the
+  // baseline advances on outcome rather than on intent: a dry run, an
+  // unparseable response, a failed validation, or a throw on the push all
+  // leave the diff available to the next run instead of consuming it. An
+  // empty op list is a decision, not a failure — the work was considered and
+  // produced no entry — so it advances.
+  if (context.pendingSnapshot && snapshotMayAdvance(result, context.dryRun)) {
+    await context.store.writeSnapshot(context.pendingSnapshot);
+    context.pendingSnapshot = null;
+  }
   return result;
+}
+
+function snapshotMayAdvance(result, dryRun) {
+  if (dryRun || !result) return false;
+  if (result.safety?.valid === false) return false;
+  // A run whose every entry was rejected for want of evidence recorded
+  // nothing, so its diff must stay available — otherwise the model citing a
+  // number nobody could verify silently consumes the real merged PR, which is
+  // the failure this guard exists to prevent. Only an unverifiable rejection
+  // counts: a duplicate or re-summary skip means the work is already in the
+  // document, and holding the baseline for those would stall it forever.
+  if (result.unverifiable?.length > 0 && result.applied?.length === 0) return false;
+  return true;
 }
 
 export async function update(context) {
@@ -278,14 +326,17 @@ export async function update(context) {
 
   // Apply ops to the compacted baseline. Compare against the ORIGINAL roadmap
   // below, so a compaction-only run (LLM returned nothing new) still opens a PR.
-  const { result: updatedRoadmap, applied, skipped } = applyEditOps(baseRoadmap, parsed.ops, today);
+  const { result: updatedRoadmap, applied, skipped, unverifiable } = applyEditOps(baseRoadmap, parsed.ops, today, { knownRefs: assessmentRefs(assessment) });
   console.log(`SECTION-EDIT: ${applied.length} ops applied, ${skipped.length} skipped.`);
   for (const op of applied) console.log(`  applied: ${op}`);
   for (const op of skipped) console.warn(`  skipped: ${op}`);
+  // Carried out so runUpdate can tell a run that recorded the diff from one
+  // whose every entry was rejected for want of evidence.
+  const opStats = { applied, skipped, unverifiable };
 
   if (updatedRoadmap === currentRoadmap) {
     console.log('SECTION-EDIT: no changes after applying ops — skipping PR.');
-    return { roadmap: updatedRoadmap, pr: existing?.html_url || null, safety: { valid: true, errors: [] } };
+    return { roadmap: updatedRoadmap, pr: existing?.html_url || null, safety: { valid: true, errors: [] }, ...opStats };
   }
 
   // Defence-in-depth: the section-edit approach is additive-only, so these
@@ -294,12 +345,12 @@ export async function update(context) {
   if (!safety.valid) {
     console.error('SAFETY: Roadmap failed validation after applying ops:');
     for (const err of safety.errors) console.error(`  - ${redactErrorForLog(err)}`);
-    return { roadmap: updatedRoadmap, pr: null, safety };
+    return { roadmap: updatedRoadmap, pr: null, safety, ...opStats };
   }
 
   if (dryRun) {
     console.log('DRY RUN — all guards passed, would create PR with updated roadmap.');
-    return { roadmap: updatedRoadmap, pr: null, safety };
+    return { roadmap: updatedRoadmap, pr: null, safety, ...opStats };
   }
 
   const defaultBranch = snapshot.meta?.default_branch || 'main';
@@ -335,7 +386,7 @@ export async function update(context) {
   // the commit + PR PATCH to avoid spurious churn.
   if (isRefresh && existingContent !== null && isDateOnlyChange(existingContent, updatedRoadmap)) {
     console.log(`Roadmap unchanged from existing PR ${existing.html_url} — skipping refresh push.`);
-    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false };
+    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false, ...opStats };
   }
 
   await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
@@ -371,13 +422,13 @@ export async function update(context) {
       body: { body: prBody },
     });
     console.log(`Refreshed existing roadmap PR ${existing.html_url}`);
-    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: true };
+    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: true, ...opStats };
   }
 
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
     method: 'POST',
     body: {
-      title: 'chore: update roadmap (repo-butler)',
+      title: ROADMAP_PR_TITLE,
       head: branchName,
       base: defaultBranch,
       body: prBody,
@@ -385,7 +436,7 @@ export async function update(context) {
   });
 
   console.log(`PR created: ${pr.html_url}`);
-  return { roadmap: updatedRoadmap, pr: pr.html_url, safety };
+  return { roadmap: updatedRoadmap, pr: pr.html_url, safety, ...opStats };
 }
 
 // Parse the LLM response as a JSON array of edit operations. Strips markdown
@@ -474,10 +525,18 @@ export function normalizeEditOp(op) {
 // Apply edit operations to the roadmap deterministically. Only additive
 // operations are supported — the LLM cannot delete or rewrite content.
 // Exported for testing.
-export function applyEditOps(roadmap, ops, today) {
+export function applyEditOps(roadmap, ops, today, { knownRefs = null } = {}) {
   let result = roadmap;
   const applied = [];
   const skipped = [];
+  // Refs the document already carries, for the provenance check below. Only
+  // computed when a caller supplies knownRefs; without them the check is off.
+  const roadmapRefs = knownRefs ? extractIssueRefs(roadmap) : null;
+  // Refs rejected for want of evidence, kept apart from `skipped` because the
+  // two mean opposite things to the caller: a duplicate or re-summary skip
+  // means the work is already recorded, while an unverifiable one means this
+  // run recorded nothing and its diff must stay available.
+  const unverifiable = [];
   // Refs the roadmap already records as completed work: only refs on lines
   // carrying the shipped convention (~~strikethrough~~ or a "shipped" marker)
   // count. A ref in a live entry (e.g. "Fix X (issue #211)" under Next Up)
@@ -541,6 +600,22 @@ export function applyEditOps(roadmap, ops, today) {
       // ref-less entries can't be judged deterministically and pass through.
       // Ref-list logging is capped at ten, with an overflow count.
       const refs = [...extractIssueRefs(text)];
+      // Provenance: every ref must be one this run has evidence for, or one
+      // the roadmap already carries (a follow-up citing old work). PR #395
+      // (2026-09-08) appended an entry citing #394 from a tick whose ASSESS
+      // logged new_merged_prs: 0 — the number was extrapolated from the
+      // sequence #392, #393 and happened to exist. The prompt forbids
+      // inventing numbers; this is the check that does not depend on the
+      // model obeying it. Only the unverifiable refs are named, so the log
+      // says which number lacked evidence.
+      if (knownRefs) {
+        const unknown = refs.filter(r => !knownRefs.has(r) && !roadmapRefs.has(r));
+        if (unknown.length > 0) {
+          skipped.push(`append: ref(s) ${unknown.join(', ')} appear in neither this run's data nor the roadmap — unverifiable, not written`);
+          unverifiable.push(...unknown);
+          continue;
+        }
+      }
       if (refs.length > 0 && refs.every(r => shippedRefs.has(r))) {
         const head = refs.slice(0, 10).join(', ');
         const overflow = refs.length > 10 ? ` (and ${refs.length - 10} more)` : '';
@@ -580,7 +655,7 @@ export function applyEditOps(roadmap, ops, today) {
     }
   }
 
-  return { result, applied, skipped };
+  return { result, applied, skipped, unverifiable };
 }
 
 // Replace the date on the "**Last Updated:**" line with `today`. No-op when the
@@ -853,7 +928,11 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
   if (assessment?.diff?.new_merged_prs?.length > 0) {
     items.push('PRs merged since last update:');
     for (const p of assessment.diff.new_merged_prs.slice(0, 15)) {
-      items.push(`  #${p.number}: ${sanitizeForPrompt(p.title)}`);
+      // The merge date travels with the PR. Without it the only date in the
+      // prompt was Today, and entries were dated by run day: #393 dated #392
+      // a day early, #395 dated #394 a day late.
+      const mergedOn = typeof p.merged_at === 'string' ? p.merged_at.slice(0, 10) : 'date unknown';
+      items.push(`  #${p.number} (merged ${mergedOn}): ${sanitizeForPrompt(p.title)}`);
     }
     items.push('');
   }
@@ -894,6 +973,7 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
       '- If nothing meaningful changed since the last update, return an empty array: []',
       '- Each "text" value should be a single markdown paragraph in the style of existing entries (e.g. "Feature X shipped 2026-05-26 (PR #N). Description of what changed.").',
       '- Do not invent PR numbers, issue numbers, or dates not present in the data above.',
+      '- Date each entry by the merge date shown beside its PR, never by Today.',
       '- Output ONLY the JSON array, no commentary, no markdown fences, no explanation.',
     ],
   });
