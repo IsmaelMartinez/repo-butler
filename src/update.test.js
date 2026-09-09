@@ -1332,6 +1332,20 @@ describe('applyEditOps — ref provenance', () => {
     assert.match(result, /PR #394/);
     assert.equal(skipped.length, 0);
   });
+
+  it('names the refs it rejected, so the caller can tell a rejection from a quiet run', () => {
+    // A run whose every entry was rejected recorded nothing, and must not be
+    // confused with a run that had nothing to say.
+    const { unverifiable } = applyEditOps(roadmap, invented, '2026-09-08', { knownRefs: new Set() });
+    assert.deepEqual(unverifiable, ['#394']);
+  });
+
+  it('reports no rejections when the skip was a duplicate rather than an unverifiable ref', () => {
+    const dup = [{ action: 'append', section: 'Implemented', text: 'Feature A shipped 2026-09-01 (PR #391).' }];
+    const { unverifiable, skipped } = applyEditOps(roadmap, dup, '2026-09-08', { knownRefs: new Set() });
+    assert.equal(skipped.length, 1, 'it is still skipped');
+    assert.deepEqual(unverifiable, [], 'but the work is already recorded, so nothing is unverified');
+  });
 });
 
 describe('buildSectionEditPrompt — merged PR dates', () => {
@@ -1478,6 +1492,23 @@ describe('runUpdate — advances the snapshot only once the diff is recorded', (
     // An empty op list is a decision, not a failure: the diff was considered
     // and produced no entry, so the baseline may advance.
     const h = harness({ response: '[]' });
+    await runUpdate(h.context);
+    assert.equal(h.written.length, 1);
+  });
+
+  it('does not write the pending snapshot when every entry was rejected as unverifiable', async () => {
+    // The run's real merged PR (#394) went unrecorded because the model cited
+    // a number nothing had evidence for. Advancing here consumes the diff
+    // silently — the exact failure this whole change exists to close.
+    const h = harness({ response: JSON.stringify([{ action: 'append', section: 'Implemented', text: 'Thing shipped 2026-09-07 (PR #999).' }]) });
+    await runUpdate(h.context);
+    assert.deepEqual(h.written, []);
+  });
+
+  it('writes the pending snapshot when the only skip was a duplicate', async () => {
+    // A duplicate means the work is already in the document, so the diff was
+    // consumed correctly and holding the baseline would stall forever.
+    const h = harness({ response: JSON.stringify([{ action: 'append', section: 'Implemented', text: 'Entry for #393.' }]) });
     await runUpdate(h.context);
     assert.equal(h.written.length, 1);
   });

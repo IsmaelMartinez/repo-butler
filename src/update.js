@@ -215,7 +215,15 @@ export async function runUpdate(context) {
 
 function snapshotMayAdvance(result, dryRun) {
   if (dryRun || !result) return false;
-  return result.safety?.valid !== false;
+  if (result.safety?.valid === false) return false;
+  // A run whose every entry was rejected for want of evidence recorded
+  // nothing, so its diff must stay available — otherwise the model citing a
+  // number nobody could verify silently consumes the real merged PR, which is
+  // the failure this guard exists to prevent. Only an unverifiable rejection
+  // counts: a duplicate or re-summary skip means the work is already in the
+  // document, and holding the baseline for those would stall it forever.
+  if (result.unverifiable?.length > 0 && result.applied?.length === 0) return false;
+  return true;
 }
 
 export async function update(context) {
@@ -318,14 +326,17 @@ export async function update(context) {
 
   // Apply ops to the compacted baseline. Compare against the ORIGINAL roadmap
   // below, so a compaction-only run (LLM returned nothing new) still opens a PR.
-  const { result: updatedRoadmap, applied, skipped } = applyEditOps(baseRoadmap, parsed.ops, today, { knownRefs: assessmentRefs(assessment) });
+  const { result: updatedRoadmap, applied, skipped, unverifiable } = applyEditOps(baseRoadmap, parsed.ops, today, { knownRefs: assessmentRefs(assessment) });
   console.log(`SECTION-EDIT: ${applied.length} ops applied, ${skipped.length} skipped.`);
   for (const op of applied) console.log(`  applied: ${op}`);
   for (const op of skipped) console.warn(`  skipped: ${op}`);
+  // Carried out so runUpdate can tell a run that recorded the diff from one
+  // whose every entry was rejected for want of evidence.
+  const opStats = { applied, skipped, unverifiable };
 
   if (updatedRoadmap === currentRoadmap) {
     console.log('SECTION-EDIT: no changes after applying ops — skipping PR.');
-    return { roadmap: updatedRoadmap, pr: existing?.html_url || null, safety: { valid: true, errors: [] } };
+    return { roadmap: updatedRoadmap, pr: existing?.html_url || null, safety: { valid: true, errors: [] }, ...opStats };
   }
 
   // Defence-in-depth: the section-edit approach is additive-only, so these
@@ -334,12 +345,12 @@ export async function update(context) {
   if (!safety.valid) {
     console.error('SAFETY: Roadmap failed validation after applying ops:');
     for (const err of safety.errors) console.error(`  - ${redactErrorForLog(err)}`);
-    return { roadmap: updatedRoadmap, pr: null, safety };
+    return { roadmap: updatedRoadmap, pr: null, safety, ...opStats };
   }
 
   if (dryRun) {
     console.log('DRY RUN — all guards passed, would create PR with updated roadmap.');
-    return { roadmap: updatedRoadmap, pr: null, safety };
+    return { roadmap: updatedRoadmap, pr: null, safety, ...opStats };
   }
 
   const defaultBranch = snapshot.meta?.default_branch || 'main';
@@ -375,7 +386,7 @@ export async function update(context) {
   // the commit + PR PATCH to avoid spurious churn.
   if (isRefresh && existingContent !== null && isDateOnlyChange(existingContent, updatedRoadmap)) {
     console.log(`Roadmap unchanged from existing PR ${existing.html_url} — skipping refresh push.`);
-    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false };
+    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: false, ...opStats };
   }
 
   await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
@@ -411,7 +422,7 @@ export async function update(context) {
       body: { body: prBody },
     });
     console.log(`Refreshed existing roadmap PR ${existing.html_url}`);
-    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: true };
+    return { roadmap: updatedRoadmap, pr: existing.html_url, safety, refreshed: true, ...opStats };
   }
 
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
@@ -425,7 +436,7 @@ export async function update(context) {
   });
 
   console.log(`PR created: ${pr.html_url}`);
-  return { roadmap: updatedRoadmap, pr: pr.html_url, safety };
+  return { roadmap: updatedRoadmap, pr: pr.html_url, safety, ...opStats };
 }
 
 // Parse the LLM response as a JSON array of edit operations. Strips markdown
@@ -521,6 +532,11 @@ export function applyEditOps(roadmap, ops, today, { knownRefs = null } = {}) {
   // Refs the document already carries, for the provenance check below. Only
   // computed when a caller supplies knownRefs; without them the check is off.
   const roadmapRefs = knownRefs ? extractIssueRefs(roadmap) : null;
+  // Refs rejected for want of evidence, kept apart from `skipped` because the
+  // two mean opposite things to the caller: a duplicate or re-summary skip
+  // means the work is already recorded, while an unverifiable one means this
+  // run recorded nothing and its diff must stay available.
+  const unverifiable = [];
   // Refs the roadmap already records as completed work: only refs on lines
   // carrying the shipped convention (~~strikethrough~~ or a "shipped" marker)
   // count. A ref in a live entry (e.g. "Fix X (issue #211)" under Next Up)
@@ -596,6 +612,7 @@ export function applyEditOps(roadmap, ops, today, { knownRefs = null } = {}) {
         const unknown = refs.filter(r => !knownRefs.has(r) && !roadmapRefs.has(r));
         if (unknown.length > 0) {
           skipped.push(`append: ref(s) ${unknown.join(', ')} appear in neither this run's data nor the roadmap — unverifiable, not written`);
+          unverifiable.push(...unknown);
           continue;
         }
       }
@@ -638,7 +655,7 @@ export function applyEditOps(roadmap, ops, today, { knownRefs = null } = {}) {
     }
   }
 
-  return { result, applied, skipped };
+  return { result, applied, skipped, unverifiable };
 }
 
 // Replace the date on the "**Last Updated:**" line with `today`. No-op when the
