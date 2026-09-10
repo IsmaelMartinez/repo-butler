@@ -209,10 +209,10 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 21,
+      "open_issues": 22,
       "open_bugs": 8,
       "commits_6mo": 375,
-      "stars": 5023,
+      "stars": 5024,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9180327868852459,
@@ -318,7 +318,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9456521739130435,
+      "ciPassRate": 0.99,
       "vulns": {
         "count": 5,
         "critical": 1,
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-09-10T03:07:43Z",
+      "pushed_at": "2026-09-10T15:55:21Z",
       "traffic": {
         "views_14d": {
           "count": 18,
@@ -522,7 +522,7 @@
       "open_bugs": 0,
       "commits_6mo": 279,
       "stars": 3,
-      "license": "NOASSERTION",
+      "license": "None",
       "communityHealth": 100,
       "ciPassRate": 1,
       "vulns": {
@@ -558,7 +558,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "bronze",
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -567,7 +567,7 @@
           },
           {
             "name": "Has a license",
-            "passed": true,
+            "passed": false,
             "required_for": "silver"
           },
           {
@@ -616,7 +616,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Has a license"
       }
     },
     "betis-escocia": {
@@ -627,7 +627,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9191919191919192,
+      "ciPassRate": 0.9285714285714286,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-07-13T06:39:54Z",
-      "pushed_at": "2026-09-10T10:09:32Z",
+      "pushed_at": "2026-09-10T15:21:51Z",
       "traffic": {
         "views_14d": {
           "count": 10,
