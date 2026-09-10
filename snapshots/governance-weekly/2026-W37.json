@@ -91,20 +91,20 @@
     {
       "type": "open-vulnerability",
       "repo": "ismaelmartinez.me.uk",
-      "critical": 0,
+      "critical": 1,
       "high": 1,
       "secretScanning": 0,
       "sources": [
         "dependabot"
       ],
-      "max_severity": "high",
+      "max_severity": "critical",
       "priority": "medium",
       "autofixEnabled": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -173,7 +173,7 @@
         {
           "number": 507,
           "title": "chore(deps-dev): bump typescript from 5.9.3 to 7.0.2 in the build-tools group across 1 directory",
-          "age": 44
+          "age": 45
         }
       ],
       "priority": "medium",
@@ -181,7 +181,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 44 days).",
+        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 45 days).",
         "acceptanceCriteria": [
           "Each stale Dependabot PR is merged or closed"
         ]
@@ -194,7 +194,7 @@
         {
           "number": 470,
           "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
-          "age": 58
+          "age": 59
         }
       ],
       "priority": "medium",
@@ -202,7 +202,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 58 days).",
+        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 59 days).",
         "acceptanceCriteria": [
           "Each stale Dependabot PR is merged or closed"
         ]
