@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-09
+**Last Updated:** 2026-09-10
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -120,6 +120,8 @@ Council watchlist persistence fix shipped 2026-08-28 (PR #389). Resolved a state
 Automated dependency upkeep group update shipped 2026-09-03 (PR #391), bundling minor and patch dependency updates to keep the repository secure and up-to-date with minimal manual overhead.
 
 Roadmap citation integrity guard shipped 2026-09-09 (PR #396). Prevents the automated roadmap generator from citing unverified or self-referential pull requests, ensuring data integrity and keeping the self-planning loop reliable.
+
+Automated dependency deployment workflow update shipped 2026-09-10 (PR #398). Maintains CI/CD pipeline health and ensures the project's documentation and live roadmap deployment workflows remain fully functional and secure by updating dependency actions.
 
 ---
 
