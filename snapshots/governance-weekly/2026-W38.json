@@ -1,25 +1,3 @@
 {
-  "findings": [
-    {
-      "type": "dependabot-stale",
-      "repo": "betis-escocia",
-      "stalePRs": [
-        {
-          "number": 470,
-          "title": "chore(deps-dev): bump typescript from 6.0.3 to 7.0.2",
-          "age": 63
-        }
-      ],
-      "priority": "high",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Review 1 stale Dependabot PR(s) in betis-escocia",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 63 days).",
-        "acceptanceCriteria": [
-          "Each stale Dependabot PR is merged or closed"
-        ]
-      }
-    }
-  ]
+  "findings": []
 }
