@@ -334,5 +334,31 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-09-14T12:01:57.540Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Implement Automated Stale PR Autoclose Workflow for Portfolio Repositories",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Enhance Governance Engine to Report Stale PR Age Metrics in JSON/Markdown Reports",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
