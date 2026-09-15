@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-14T20:07:08.924Z",
+  "timestamp": "2026-09-15T12:24:31.769Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-14T17:08:58Z",
+    "pushed_at": "2026-09-15T11:05:18Z",
     "archived": false
   },
   "issues": {
@@ -853,62 +853,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-06-17T07:02:48Z"
-      },
-      {
-        "number": 282,
-        "title": "chore(apply): enable auto-merge for codeowners (ADR-007 stage 5)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-16T22:27:37Z"
-      },
-      {
-        "number": 281,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-06-16T21:40:23Z"
-      },
-      {
-        "number": 280,
-        "title": "fix(ci): don't false-red the pipeline on a REPORT cache-hit (#216)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-16T21:21:08Z"
-      },
-      {
-        "number": 279,
-        "title": "docs: point review-before-merge at Copilot; record ADR-009 go-live",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-16T21:20:46Z"
-      },
-      {
-        "number": 274,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-06-16T19:59:05Z"
-      },
-      {
-        "number": 278,
-        "title": "chore(apply): enable auto-merge for security-md (ADR-007 stage 5)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-16T19:56:40Z"
-      },
-      {
-        "number": 277,
-        "title": "chore(apply): enable auto-merge for dependabot-actions (ADR-007 stage 5)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-16T18:59:49Z"
-      },
-      {
-        "number": 276,
-        "title": "feat(apply): selective auto-merge of templated PRs (ADR-007 stage 5)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-16T16:45:24Z"
       }
     ]
   },
@@ -986,6 +930,12 @@
   ],
   "milestones": [],
   "releases": [
+    {
+      "tag": "v1.1.2",
+      "name": "v1.1.2",
+      "published_at": "2026-09-15T11:05:19Z",
+      "prerelease": false
+    },
     {
       "tag": "v1.1.1",
       "name": "v1.1.1",
@@ -1112,8 +1062,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 87,
-    "passed": 87,
+    "total_runs": 89,
+    "passed": 89,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1128,12 +1078,12 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 3,
-    "recently_merged_prs": 118,
+    "recently_merged_prs": 110,
     "bot_prs": 11,
-    "human_prs": 107,
+    "human_prs": 99,
     "unique_contributors": 3,
-    "releases": 2,
-    "latest_release": "v1.1.1",
+    "releases": 3,
+    "latest_release": "v1.1.2",
     "top_open_labels": [],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
