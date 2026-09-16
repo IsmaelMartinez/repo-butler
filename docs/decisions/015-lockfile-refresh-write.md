@@ -92,7 +92,12 @@ branch inside `applyGovernanceFindings`.
   `lockfileVersion` bump is a format rewrite, not a fix; the v2 `dependencies`
   mirror is excluded because npm regenerates it from `packages` on every
   write, so the `packages` diff already accounts for it), `no-patched-version`,
-  `no-change`, `not-updated` (something moved but the alert package did not),
+  `prerelease-unsupported` (a patched or compared version carrying a `-pre`
+  or `+build` suffix: the trimmer's `parseVersion` drops the suffix, so
+  `1.2.3-beta.0` and `1.2.3-beta.1` would compare equal, and refusing is the
+  only comparison the gate can vouch for), `no-change`, `not-updated`
+  (something moved but the alert package did not — a metadata-only rewrite of
+  a copy already at the patch does not count),
   `not-patched` (any copy of the alert package still below its patch — nested
   duplicates included — or no copy left at all; when two alerts name one
   package the higher patch is the requirement), `out-of-family` (a change to
@@ -126,7 +131,12 @@ branch inside `applyGovernanceFindings`.
   would carry. Nothing is reformatted: the lockfile npm wrote is the lockfile
   that is pushed. Alert package names and directories are pattern-checked at
   selection because they become npm arguments, API paths, branch names and
-  markdown, and the composed title and body still pass `validateIssueTitle`
+  markdown; an alert with no manifest path is dropped rather than read as the
+  root, and so is one whose manifest is `yarn.lock` or `pnpm-lock.yaml` —
+  Dependabot's `npm` ecosystem covers those managers too, and refreshing
+  `package-lock.json` would leave such an alert open behind a green run. The
+  same two checks are repeated against the live alert. The composed title and
+  body still pass `validateIssueTitle`
   and `validateIssueBody` before anything is written — a failure there is an
   `error`, since it means a bug or hostile input, never a quiet skip.
 - **One PR per (repo, directory), one target at a time.** Every

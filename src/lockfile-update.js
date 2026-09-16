@@ -44,6 +44,24 @@ const NPM_NAME_PATTERN = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 // markdown code span, so it is held to plain repo-relative segments: no `..`,
 // no leading slash, no whitespace or markdown/mention characters. Linear-time.
 const DIRECTORY_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// Dependabot's `npm` ecosystem also covers yarn and pnpm, and names the
+// lockfile it found in `manifest_path`. This tool refreshes package-lock.json
+// and nothing else, so an alert whose manifest is yarn.lock or pnpm-lock.yaml
+// would be left unresolved by a "successful" run. Only the two npm files count.
+const NPM_MANIFEST_BASENAMES = new Set([MANIFEST, LOCKFILE]);
+// A version with any suffix after the patch number: prerelease or build
+// metadata. parseVersion drops the suffix, so `1.2.3-beta.0` and `1.2.3-beta.1`
+// would compare equal; refusing is the only comparison this gate can vouch for.
+const VERSION_SUFFIX = /^v?\d+\.\d+\.\d+[+-]/;
+
+function manifestBasename(path) {
+  const p = String(path ?? '').replace(/^\/+/, '');
+  return p.slice(p.lastIndexOf('/') + 1);
+}
+
+function isNpmManifestPath(path) {
+  return typeof path === 'string' && path.trim() !== '' && NPM_MANIFEST_BASENAMES.has(manifestBasename(path));
+}
 
 function isPlainDirectory(directory) {
   return directory === '' || directory.split('/').every(seg => DIRECTORY_SEGMENT.test(seg));
@@ -79,8 +97,10 @@ export function selectLockfileUpdateTargets(findings) {
       // A missing manifest path must not collapse into the root: alertDirectory
       // maps null and '' to '' exactly like a root path, and refreshing the root
       // lockfile for an alert whose location is unknown is the fail-open shape.
-      if (typeof a.manifestPath !== 'string' || a.manifestPath.trim() === '') {
-        console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: no manifest path`);
+      // A yarn or pnpm manifest is refused for the same reason: the file this
+      // tool refreshes is not the file the alert is about.
+      if (!isNpmManifestPath(a.manifestPath)) {
+        console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: manifest path is missing or not an npm manifest/lockfile`);
         continue;
       }
       const directory = alertDirectory(a.manifestPath);
@@ -227,6 +247,8 @@ function sameReleaseLine(a, b) {
  *   unsupported-lockfile      lockfileVersion < 2 has no packages map to reason over
  *   lockfile-metadata-changed something outside packages[] moved (a format rewrite)
  *   no-patched-version        an alert carries no parseable first_patched_version
+ *   prerelease-unsupported    a patched or compared version carries a -pre or +build
+ *                             suffix, which parseVersion cannot order
  *   no-change                 nothing moved, so there is nothing to open
  *   not-updated               something moved but an alert package did not
  *   not-patched               a copy of an alert package is still below its patch,
@@ -269,6 +291,9 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
     if (!a?.package || !v) {
       return refuse('no-patched-version', `alert #${a?.number ?? '?'} (${a?.package ?? '?'}) has no parseable patched version`);
     }
+    if (VERSION_SUFFIX.test(String(a.patchedVersion).trim())) {
+      return refuse('prerelease-unsupported', `alert #${a.number} names a prerelease patch ${a.patchedVersion}, which this gate cannot order`);
+    }
     const current = patched.get(a.package);
     if (!current || cmp(v, current) > 0) patched.set(a.package, v);
   }
@@ -276,6 +301,23 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
   const changes = diffLockfilePackages(before, after);
   if (changes.length === 0) {
     return refuse('no-change', 'the refresh produced an identical lockfile');
+  }
+  // Every version this gate is about to compare must be a plain release.
+  // parseVersion drops a suffix, so a prerelease on either side of any
+  // comparison would be read as its final release; refuse rather than guess.
+  for (const c of changes) {
+    for (const v of [c.from, c.to]) {
+      if (v !== null && VERSION_SUFFIX.test(String(v).trim())) {
+        return refuse('prerelease-unsupported', `${c.path} carries a prerelease or build suffix (${v})`);
+      }
+    }
+  }
+  for (const [name] of patched) {
+    for (const [path, entry] of Object.entries(after.packages)) {
+      if (path !== '' && entryName(path, entry) === name && VERSION_SUFFIX.test(String(entry?.version ?? '').trim())) {
+        return refuse('prerelease-unsupported', `${path} carries a prerelease or build suffix (${entry.version})`);
+      }
+    }
   }
 
   for (const [name, patch] of patched) {
@@ -402,8 +444,9 @@ async function readOpenAlerts(gh, owner, repo, alerts, directory) {
     const live = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts/${a.number}`);
     const pkg = live?.dependency?.package;
     const livePath = live?.dependency?.manifest_path;
-    // A missing live path is unknown, not root: alertDirectory would read it as ''.
-    const liveDirectory = typeof livePath === 'string' && livePath.trim() !== '' ? alertDirectory(livePath) : null;
+    // A missing live path is unknown, not root (alertDirectory would read it
+    // as ''), and a yarn/pnpm manifest is not this tool's file at all.
+    const liveDirectory = isNpmManifestPath(livePath) ? alertDirectory(livePath) : null;
     if (live?.state !== 'open' || pkg?.ecosystem !== CLASSIFIABLE_ECOSYSTEM || pkg?.name !== a.package || liveDirectory !== directory) {
       console.log(`${LOCKFILE_UPDATE_TOOL}: ${owner}/${repo} alert #${a.number} is ${live?.state ?? 'unreadable'} / ${pkg?.name ?? '?'} in '${liveDirectory ?? 'unknown'}', dropping`);
       continue;

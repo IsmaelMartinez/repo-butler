@@ -123,6 +123,20 @@ describe('selectLockfileUpdateTargets', () => {
     ]);
   });
 
+  it('drops an alert whose manifest is not an npm lockfile or manifest (yarn and pnpm alerts share the npm ecosystem)', () => {
+    const findings = [finding('repo-a', [
+      alert({ number: 1, manifestPath: 'yarn.lock' }),
+      alert({ number: 2, manifestPath: 'docs/pnpm-lock.yaml' }),
+      alert({ number: 3, manifestPath: 'npm-shrinkwrap.json' }),
+      alert({ number: 4, manifestPath: 'docs/package.json' }),
+      alert({ number: 5, manifestPath: 'package-lock.json' }),
+    ])];
+    assert.deepEqual(selectLockfileUpdateTargets(findings), [
+      { repo: 'repo-a', directory: 'docs', alerts: [{ number: 4, package: 'libheif' }] },
+      { repo: 'repo-a', directory: '', alerts: [{ number: 5, package: 'libheif' }] },
+    ]);
+  });
+
   it('drops an alert with a missing or blank manifest path instead of grouping it into the root target', () => {
     const findings = [finding('repo-a', [
       alert({ number: 1, manifestPath: null }),
@@ -323,6 +337,20 @@ describe('computeLockfileGate', () => {
     assert.equal(r.reason, 'no-patched-version');
   });
 
+  it('refuses prerelease identifiers on either side rather than comparing them as their final release', () => {
+    const patchedPre = gate({ 'node_modules/libheif': { version: '1.2.3-beta.0' } }, { alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3-beta.1' }] });
+    assert.equal(patchedPre.reason, 'prerelease-unsupported');
+
+    const entryPre = gate({ 'node_modules/libheif': { version: '1.2.5-rc.1' } });
+    assert.equal(entryPre.reason, 'prerelease-unsupported');
+
+    const familyPre = gate({
+      'node_modules/libheif': { version: '1.2.5', dependencies: { libde265: '*' } },
+      'node_modules/libde265': { version: '1.0.4+build.7' },
+    });
+    assert.equal(familyPre.reason, 'prerelease-unsupported');
+  });
+
   it('sees a metadata-only change to an entry (no version move) and holds it to the family rule', () => {
     const r = gate({
       'node_modules/libheif': { version: '1.2.5' },
@@ -500,6 +528,14 @@ describe('applyLockfileUpdates', () => {
 
   it('drops an alert whose live manifest path is missing rather than reading it as the root', async () => {
     const gh = baseGh({ alerts: { 1: openAlert(1, 'libheif', '1.2.3', null) } });
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].reason, 'no open alerts');
+    assert.equal(ran, false);
+  });
+
+  it('drops an alert whose live manifest is a yarn or pnpm lockfile in the same directory', async () => {
+    const gh = baseGh({ alerts: { 1: openAlert(1, 'libheif', '1.2.3', 'yarn.lock') } });
     let ran = false;
     const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
     assert.equal(r.results[0].reason, 'no open alerts');
