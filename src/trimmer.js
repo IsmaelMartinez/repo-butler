@@ -43,7 +43,7 @@ const ZERO = 0;
 // range that cannot reach the patch reads as though it can — the one failure
 // direction this module must never have. Anything with residual text is simply
 // not understood, and not-understood means not-satisfied.
-function parseVersion(v) {
+export function parseVersion(v) {
   const m = String(v ?? '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)[\w.+-]*$/);
   return m ? { major: +m[1], minor: +m[2], patch: +m[3] } : null;
 }

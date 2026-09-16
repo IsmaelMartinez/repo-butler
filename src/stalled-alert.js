@@ -62,7 +62,7 @@ const CLASSIFIABLE_ECOSYSTEM = 'npm';
 const BRANCH_PREFIX = 'dependabot/';
 
 /** Directory an alert lives in, from its manifest path. '' for the repo root. */
-function alertDirectory(manifestPath) {
+export function alertDirectory(manifestPath) {
   const p = String(manifestPath ?? '').replace(/^\/+/, '');
   const slash = p.lastIndexOf('/');
   return slash === -1 ? '' : p.slice(0, slash);
