@@ -71,6 +71,57 @@ function isNpmManifestPath(path) {
 
 const PUBLIC_REGISTRY = 'https://registry.npmjs.org/';
 
+// A dependency spec npm resolves against the registry: a semver range, a tag,
+// `*`, or an `npm:` alias (which names another registry package). Anything
+// else — `git+…`, `github:`, an `http(s)` tarball, `file:`, `link:`,
+// `workspace:`, a bare `owner/repo` shorthand — tells npm to contact a host
+// the butler did not fix in code, which SECURITY.md rules out. Linear-time.
+const REGISTRY_SPEC = /^(npm:(?:@[^/@\s]+\/)?[^/@\s]+(?:@[^\s]*)?|[~^>=<v\d*x.\s|-]+|latest|next|[a-z][a-z0-9-]*)$/i;
+const HOST_SPEC = /^(git|github|gitlab|bitbucket|gist|file|link|workspace|https?):|^git\+|^[^@/\s]+\/[^@/\s]+$/i;
+const MANIFEST_SPEC_KEYS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+
+function isRegistrySpec(spec) {
+  const s = String(spec ?? '').trim();
+  if (s === '') return true;
+  if (HOST_SPEC.test(s)) return false;
+  return REGISTRY_SPEC.test(s);
+}
+
+/**
+ * The first dependency source that would take npm beyond the public registry,
+ * or null when there is none. Checked BEFORE npm is spawned, because
+ * `npm update --package-lock-only` interprets every spec in the manifest and
+ * every `resolved` in the lockfile while building its tree — a git or tarball
+ * dependency anywhere in either is a host chosen by the target, and the gate
+ * afterwards cannot un-contact it. `overrides` values (nested one level, as
+ * npm allows) are specs too. A lockfile entry with no `resolved` at all
+ * (bundled, or a shape this module does not know) is refused for the same
+ * reason the gate refuses it afterwards: it cannot be proven to come from
+ * the registry.
+ */
+export function findNonRegistrySource(manifest, lock) {
+  for (const key of MANIFEST_SPEC_KEYS) {
+    for (const [name, spec] of Object.entries(manifest?.[key] ?? {})) {
+      if (!isRegistrySpec(spec)) return `${key}.${name}: ${String(spec).slice(0, 60)}`;
+    }
+  }
+  for (const [name, value] of Object.entries(manifest?.overrides ?? {})) {
+    const specs = value && typeof value === 'object' ? Object.entries(value) : [[name, value]];
+    for (const [child, spec] of specs) {
+      if (!isRegistrySpec(spec)) return `overrides.${name}.${child}: ${String(spec).slice(0, 60)}`;
+    }
+  }
+  for (const [path, entry] of Object.entries(lock?.packages ?? {})) {
+    if (path === '') continue;
+    if (entry?.link) return `${path}: link`;
+    const resolved = entry?.resolved;
+    if (typeof resolved !== 'string' || !resolved.startsWith(PUBLIC_REGISTRY)) {
+      return `${path}: resolved ${typeof resolved === 'string' ? resolved.slice(0, 60) : 'absent'}`;
+    }
+  }
+  return null;
+}
+
 /**
  * The environment npm runs with in the scratch directory: PATH and HOME so it
  * can execute, TMPDIR so it can spill, the registry pinned to the public one,
@@ -422,12 +473,14 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
   }
 
   // Every changed entry npm resolved must come from the public registry the
-  // scratch run was pinned to; anything else means the lockfile — not the
+  // scratch run was pinned to, and must SAY so: an entry with no `resolved`
+  // cannot be proven to come from anywhere. Otherwise the lockfile — not the
   // butler — chose where the bytes come from.
   for (const c of changes) {
+    if (c.to === null) continue;
     const resolved = after.packages[c.path]?.resolved;
-    if (typeof resolved === 'string' && resolved !== '' && !resolved.startsWith(PUBLIC_REGISTRY)) {
-      return refuse('unexpected-registry', `${c.path} resolves outside the public npm registry`);
+    if (typeof resolved !== 'string' || !resolved.startsWith(PUBLIC_REGISTRY)) {
+      return refuse('unexpected-registry', `${c.path} ${typeof resolved === 'string' ? 'resolves outside the public npm registry' : 'has no resolved URL'}`);
     }
   }
 
@@ -715,6 +768,16 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
       if (!preflight.ok && preflight.reason !== 'no-change') {
         log(`${label} refused before npm: ${preflight.reason} (${preflight.detail})`);
         results.push({ repo, directory, status: 'skipped', reason: `gate:${preflight.reason}`, detail: preflight.detail });
+        continue;
+      }
+      // The fixed-host boundary (SECURITY.md) has to hold BEFORE npm runs:
+      // a git, tarball or file dependency anywhere in the manifest or
+      // lockfile is a host the target chose, and npm would contact it while
+      // building the tree, long before the gate could refuse the result.
+      const source = findNonRegistrySource(parseJson(manifestBefore), parseJson(lockBefore));
+      if (source !== null) {
+        log(`${label} has a dependency source outside the public registry, skipping (${source.split(':')[0]})`);
+        results.push({ repo, directory, status: 'skipped', reason: 'non-registry-source', detail: source });
         continue;
       }
 

@@ -9,6 +9,7 @@ import {
   toolNameFor,
   npmFailureReason,
   npmChildEnv,
+  findNonRegistrySource,
 } from './lockfile-update.js';
 import { validateIssueTitle, validateIssueBody } from './safety.js';
 
@@ -34,8 +35,16 @@ function finding(repo, alerts, overrides = {}) {
 
 // A lockfileVersion 3 lockfile with a root entry and the given packages. The
 // root's own dependencies are irrelevant to the gate; what matters is the
-// `node_modules/*` entries and their declared `dependencies`.
+// `node_modules/*` entries and their declared `dependencies`. Every entry
+// gets a public-registry `resolved` unless the fixture set one (or is a
+// link), because an absent `resolved` is itself a refusal — tests for that
+// case build the JSON by hand.
 function lock(packages, extra = {}) {
+  const withResolved = Object.fromEntries(Object.entries(packages).map(([path, entry]) => {
+    if (path === '' || entry.link || 'resolved' in entry) return [path, entry];
+    const name = path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length);
+    return [path, { ...entry, resolved: `https://registry.npmjs.org/${name}/-/${name.split('/').pop()}-${entry.version}.tgz` }];
+  }));
   return JSON.stringify({
     name: 'fixture',
     version: '1.0.0',
@@ -43,10 +52,14 @@ function lock(packages, extra = {}) {
     requires: true,
     packages: {
       '': { name: 'fixture', version: '1.0.0', dependencies: { sharp: '^0.34.0' } },
-      ...packages,
+      ...withResolved,
     },
     ...extra,
   });
+}
+
+function rawLock(packages) {
+  return JSON.stringify({ name: 'fixture', version: '1.0.0', lockfileVersion: 3, requires: true, packages: { '': { name: 'fixture', version: '1.0.0' }, ...packages } });
 }
 
 const manifest = JSON.stringify({ name: 'fixture', version: '1.0.0', dependencies: { sharp: '^0.34.0' } });
@@ -415,11 +428,59 @@ describe('computeLockfileGate', () => {
     assert.equal(fresh.ok, true);
   });
 
-  it('refuses a changed entry resolved from anywhere but the public npm registry', () => {
+  it('refuses a changed entry resolved from anywhere but the public npm registry, or with no resolved at all', () => {
     const r = gate({ 'node_modules/libheif': { version: '1.2.5', resolved: 'https://npm.pkg.github.com/download/libheif/1.2.5' } });
     assert.equal(r.reason, 'unexpected-registry');
+    const absent = computeLockfileGate({
+      lockBefore: lock(BEFORE),
+      lockAfter: rawLock({ ...JSON.parse(lock(BEFORE)).packages, 'node_modules/libheif': { version: '1.2.5' } }),
+      manifestBefore: manifest, manifestAfter: manifest,
+      alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3' }],
+    });
+    assert.equal(absent.reason, 'unexpected-registry');
     const ok = gate({ 'node_modules/libheif': { version: '1.2.5', resolved: 'https://registry.npmjs.org/libheif/-/libheif-1.2.5.tgz' } });
     assert.equal(ok.ok, true);
+  });
+});
+
+describe('findNonRegistrySource', () => {
+  const registryLock = JSON.parse(lock({
+    'node_modules/libheif': { version: '1.2.0', resolved: 'https://registry.npmjs.org/libheif/-/libheif-1.2.0.tgz' },
+  }));
+
+  it('accepts a manifest whose every spec is a registry range or an npm: alias, and a lockfile resolved from the registry', () => {
+    const m = { dependencies: { a: '^1.0.0', b: '~2.1.0', c: '3.0.0', d: 'npm:real-d@^1.0.0', e: '>=1 <2', f: '*', g: 'latest' }, overrides: { h: '^1.0.0', i: { j: '^2.0.0' } } };
+    assert.equal(findNonRegistrySource(m, registryLock), null);
+  });
+
+  it('names a manifest spec that would make npm contact anywhere but the registry', () => {
+    for (const spec of ['git+https://github.com/x/y.git', 'github:x/y', 'https://example.com/pkg.tgz', 'file:../local', 'link:../local', 'workspace:*', 'x/y', 'git://h/r.git']) {
+      const found = findNonRegistrySource({ dependencies: { bad: spec } }, registryLock);
+      assert.ok(found && found.includes('bad'), spec);
+    }
+    assert.ok(findNonRegistrySource({ devDependencies: { bad: 'github:x/y' } }, registryLock));
+    assert.ok(findNonRegistrySource({ overrides: { p: { bad: 'file:../x' } } }, registryLock));
+  });
+
+  it('names a lockfile entry not resolved from the registry, a link entry, or one with no resolved at all', () => {
+    const git = JSON.parse(lock({ 'node_modules/x': { version: '1.0.0', resolved: 'git+ssh://git@github.com/x/y.git#abc' } }));
+    assert.ok(findNonRegistrySource({}, git).includes('node_modules/x'));
+    const link = JSON.parse(lock({ 'node_modules/x': { resolved: 'packages/x', link: true } }));
+    assert.ok(findNonRegistrySource({}, link).includes('node_modules/x'));
+    const bare = JSON.parse(rawLock({ 'node_modules/x': { version: '1.0.0' } }));
+    assert.ok(findNonRegistrySource({}, bare).includes('node_modules/x'));
+  });
+});
+
+describe('applyLockfileUpdates pre-flight', () => {
+  it('skips a project with a non-registry dependency source before npm is spawned', async () => {
+    const m = JSON.stringify({ name: 'fixture', version: '1.0.0', dependencies: { sharp: '^0.34.0', tool: 'github:x/y' } });
+    const gh = fakeGh({ alerts: { 1: openAlert(1, 'libheif') }, files: { 'package.json': m, 'package-lock.json': lock(BEFORE) } });
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].status, 'skipped');
+    assert.equal(r.results[0].reason, 'non-registry-source');
+    assert.equal(ran, false);
   });
 
   it('holds a package to the highest patched version when two alerts name it', () => {

@@ -93,9 +93,15 @@ branch inside `applyGovernanceFindings`.
   carries its own `.npmrc` is skipped (`npmrc-unsupported`), because a
   private registry or `legacy-peer-deps` would shape the project's installs
   and not this refresh, and carrying the file over would mean honouring
-  arbitrary config, tokens included; every changed entry's `resolved` must
-  point at the public registry (`unexpected-registry`), so the lockfile, not
-  the butler, can never choose where the bytes come from; and when npm
+  arbitrary config, tokens included; the fixed-host boundary of SECURITY.md
+  is checked BEFORE npm is spawned (`non-registry-source`): a git, tarball,
+  `file:`, `link:` or `workspace:` spec anywhere in the manifest or its
+  `overrides`, or a lockfile entry not `resolved` from `registry.npmjs.org`
+  (an absent `resolved` included), is a host the target chose and npm would
+  contact it while building the tree, long before the gate could refuse the
+  result; every changed entry's `resolved` must then also point at the public
+  registry afterwards (`unexpected-registry`), so the lockfile, not the
+  butler, can never choose where the bytes come from; and when npm
   fails, only its error code (`npm update failed: code ERESOLVE`) reaches the
   result and the log — the rest of stderr is built from the target's files
   and the Actions log is public. The same rule keeps the safety validators'
