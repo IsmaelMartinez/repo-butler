@@ -82,7 +82,14 @@ branch inside `applyGovernanceFindings`.
   only thing npm touches; `--ignore-scripts` because nothing here may execute
   code from the target repo. The butler never edits lockfile JSON itself (→
   mode 1: the butler does not need to understand the resolver, only to check
-  its output).
+  its output). Two consequences of the scratch directory holding only those
+  two files: a project that carries its own `.npmrc` is skipped
+  (`npmrc-unsupported`), because a private registry or `legacy-peer-deps`
+  would shape the project's installs and not this refresh, and carrying the
+  file over would mean honouring arbitrary config, tokens included; and when
+  npm fails, only its error code (`npm update failed: code ERESOLVE`) reaches
+  the result and the log — the rest of stderr is built from the target's
+  files and the Actions log is public.
 - **The gate is the write decision, and refusal is its specification** (→
   modes 2, 3, 4). `computeLockfileGate` is pure and returns the first rule that
   fails, in this order: `manifest-changed` (only the lockfile may move — this
@@ -92,10 +99,11 @@ branch inside `applyGovernanceFindings`.
   `lockfileVersion` bump is a format rewrite, not a fix; the v2 `dependencies`
   mirror is excluded because npm regenerates it from `packages` on every
   write, so the `packages` diff already accounts for it), `no-patched-version`,
-  `prerelease-unsupported` (a patched or compared version carrying a `-pre`
-  or `+build` suffix: the trimmer's `parseVersion` drops the suffix, so
-  `1.2.3-beta.0` and `1.2.3-beta.1` would compare equal, and refusing is the
-  only comparison the gate can vouch for), `no-change`, `not-updated`
+  `non-release-version` (a patched or compared version that is not a plain
+  `M.m.p` release: the trimmer's `parseVersion` tolerates any residual suffix,
+  so `1.2.3-beta.0`, `1.2.3-beta.1`, `1.2.3+build` and `1.2.3foo` would all
+  compare as `1.2.3`, and refusing is the only comparison the gate can vouch
+  for), `no-change`, `not-updated`
   (something moved but the alert package did not — a metadata-only rewrite of
   a copy already at the patch does not count),
   `not-patched` (any copy of the alert package still below its patch — nested

@@ -49,10 +49,11 @@ const DIRECTORY_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // and nothing else, so an alert whose manifest is yarn.lock or pnpm-lock.yaml
 // would be left unresolved by a "successful" run. Only the two npm files count.
 const NPM_MANIFEST_BASENAMES = new Set([MANIFEST, LOCKFILE]);
-// A version with any suffix after the patch number: prerelease or build
-// metadata. parseVersion drops the suffix, so `1.2.3-beta.0` and `1.2.3-beta.1`
-// would compare equal; refusing is the only comparison this gate can vouch for.
-const VERSION_SUFFIX = /^v?\d+\.\d+\.\d+[+-]/;
+// A plain release and nothing else. parseVersion tolerates any residual
+// suffix (`1.2.3-beta.0`, `1.2.3+build`, `1.2.3foo`, `1.2.3.4`) and reads it
+// as `1.2.3`, so two distinct prereleases would compare equal; the gate
+// compares only what this pattern admits and refuses the rest.
+const PLAIN_RELEASE = /^v?\d+\.\d+\.\d+$/;
 
 function manifestBasename(path) {
   const p = String(path ?? '').replace(/^\/+/, '');
@@ -247,8 +248,9 @@ function sameReleaseLine(a, b) {
  *   unsupported-lockfile      lockfileVersion < 2 has no packages map to reason over
  *   lockfile-metadata-changed something outside packages[] moved (a format rewrite)
  *   no-patched-version        an alert carries no parseable first_patched_version
- *   prerelease-unsupported    a patched or compared version carries a -pre or +build
- *                             suffix, which parseVersion cannot order
+ *   non-release-version       a patched or compared version is not a plain
+ *                             `M.m.p` release (prerelease, build metadata, or
+ *                             any residual suffix parseVersion would tolerate)
  *   no-change                 nothing moved, so there is nothing to open
  *   not-updated               something moved but an alert package did not
  *   not-patched               a copy of an alert package is still below its patch,
@@ -291,8 +293,8 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
     if (!a?.package || !v) {
       return refuse('no-patched-version', `alert #${a?.number ?? '?'} (${a?.package ?? '?'}) has no parseable patched version`);
     }
-    if (VERSION_SUFFIX.test(String(a.patchedVersion).trim())) {
-      return refuse('prerelease-unsupported', `alert #${a.number} names a prerelease patch ${a.patchedVersion}, which this gate cannot order`);
+    if (!PLAIN_RELEASE.test(String(a.patchedVersion))) {
+      return refuse('non-release-version', `alert #${a.number} names ${a.patchedVersion}, which is not a plain release this gate can order`);
     }
     const current = patched.get(a.package);
     if (!current || cmp(v, current) > 0) patched.set(a.package, v);
@@ -302,20 +304,19 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
   if (changes.length === 0) {
     return refuse('no-change', 'the refresh produced an identical lockfile');
   }
-  // Every version this gate is about to compare must be a plain release.
-  // parseVersion drops a suffix, so a prerelease on either side of any
-  // comparison would be read as its final release; refuse rather than guess.
+  // Every version this gate is about to compare must be a plain release;
+  // refuse rather than let parseVersion's tolerance decide.
   for (const c of changes) {
     for (const v of [c.from, c.to]) {
-      if (v !== null && VERSION_SUFFIX.test(String(v).trim())) {
-        return refuse('prerelease-unsupported', `${c.path} carries a prerelease or build suffix (${v})`);
+      if (v !== null && !PLAIN_RELEASE.test(String(v))) {
+        return refuse('non-release-version', `${c.path} is at ${v}, which is not a plain release`);
       }
     }
   }
   for (const [name] of patched) {
     for (const [path, entry] of Object.entries(after.packages)) {
-      if (path !== '' && entryName(path, entry) === name && VERSION_SUFFIX.test(String(entry?.version ?? '').trim())) {
-        return refuse('prerelease-unsupported', `${path} carries a prerelease or build suffix (${entry.version})`);
+      if (path !== '' && entryName(path, entry) === name && !PLAIN_RELEASE.test(String(entry?.version ?? ''))) {
+        return refuse('non-release-version', `${path} is at ${entry?.version ?? 'unknown'}, which is not a plain release`);
       }
     }
   }
@@ -373,6 +374,17 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
 const execFileAsync = promisify(execFile);
 
 /**
+ * The one thing npm's stderr is allowed to contribute to a log line: its
+ * error code. The rest of that stream is built from the target repo's
+ * manifest and lockfile (package names, registry URLs, resolution trees) and
+ * Actions logs are public, so it never reaches a log or a result verbatim.
+ */
+export function npmFailureReason(stderr) {
+  const m = String(stderr ?? '').match(/npm (?:ERR!|error) code (\S+)/);
+  return m ? `npm update failed: code ${m[1].slice(0, 40)}` : 'npm update failed: no npm error code in output';
+}
+
+/**
  * Run `npm update <pkgs> --package-lock-only` in a scratch directory holding
  * only the manifest and the lockfile. `--package-lock-only` needs no
  * node_modules, so the registry is the only thing npm touches. `--ignore-scripts`
@@ -399,10 +411,9 @@ export async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
       lockfile: await readFile(join(dir, LOCKFILE), 'utf-8'),
     };
   } catch (err) {
-    // npm's stderr carries the resolution error (ERESOLVE and friends); the
-    // stdout is progress noise. Keep the tail so the run summary says why.
-    const tail = String(err.stderr ?? err.message ?? '').trim().split('\n').slice(-6).join('\n');
-    throw new Error(`npm update failed: ${tail.slice(0, 600)}`);
+    // Only the npm error code leaves this function: the stderr it sits in is
+    // built from the target's own files and the log is public.
+    throw new Error(npmFailureReason(err.stderr ?? err.message));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -412,7 +423,10 @@ export async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
 // declines to inline it. That API caps inline content at 1 MB and returns the
 // object with `content: ""` and `encoding: "none"` above it; real lockfiles
 // exceed 1 MB, and ADR-013 names guessing on that null as the failure this
-// caller must not have. Returns null only for a genuine 404; anything else throws.
+// caller must not have. Returns null only for a genuine 404. A response that
+// is neither inline content nor a blob pointer, or a blob without content, is
+// a malformed or partial answer and throws — absence must not be inferred
+// from an API that did not say so.
 async function readFileAtRef(gh, owner, repo, path, ref) {
   let data;
   try {
@@ -424,9 +438,13 @@ async function readFileAtRef(gh, owner, repo, path, ref) {
   if (typeof data?.content === 'string' && data.content.length > 0) {
     return Buffer.from(data.content, 'base64').toString('utf-8');
   }
-  if (!data?.sha) return null;
+  if (typeof data?.sha !== 'string' || data.sha === '') {
+    throw new Error(`contents response for ${path} carried neither content nor a blob sha`);
+  }
   const blob = await gh.request(`/repos/${owner}/${repo}/git/blobs/${data.sha}`);
-  if (typeof blob?.content !== 'string') return null;
+  if (typeof blob?.content !== 'string') {
+    throw new Error(`blob ${data.sha.slice(0, 8)} for ${path} carried no content`);
+  }
   return Buffer.from(blob.content, 'base64').toString('utf-8');
 }
 
@@ -479,7 +497,7 @@ function buildPrBody(owner, repo, directory, alerts, changes) {
     '',
     'Every parent range already admits the patched version, so the lockfile is refreshed in place with `npm update --package-lock-only`; `package.json` is untouched.',
     '',
-    '| Alert | Package | Patched from |',
+    '| Alert | Package | First patched |',
     '|---|---|---|',
     ...alerts.map(a => `| [#${a.number}](https://github.com/${owner}/${repo}/security/dependabot/${a.number}) | \`${a.package}\` | ${a.patchedVersion} |`),
     '',
@@ -498,10 +516,14 @@ function buildPrBody(owner, repo, directory, alerts, changes) {
 // A title has no code spans to hide a scope in, so a scoped name is rendered
 // without its leading `@` (`img/sharp-linux-x64`): the body's table carries the
 // exact name, and the title stays clear of anything a mention parser could read.
+// A directory can group many alerts; past the validator's length limit the
+// title falls back to a count and the body's table carries the detail.
+const MAX_PR_TITLE = 120;
 function buildPrTitle(alerts) {
   const pkgs = alerts.map(a => a.package.replace(/^@/, '')).join(', ');
   const nums = alerts.map(a => `#${a.number}`).join(', ');
-  return `chore(deps): refresh lockfile for ${pkgs} (Dependabot alert${alerts.length > 1 ? 's' : ''} ${nums})`;
+  const full = `chore(deps): refresh lockfile for ${pkgs} (Dependabot alert${alerts.length > 1 ? 's' : ''} ${nums})`;
+  return full.length <= MAX_PR_TITLE ? full : `chore(deps): refresh lockfile for ${alerts.length} Dependabot alerts`;
 }
 
 // The branch is created at `baseSha` — the commit both files were read from —
@@ -561,7 +583,9 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
   }
   if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], LOCKFILE_UPDATE_TOOL)) {
     log('[scheduled]: not on the apply-schedule allow-list — skipping');
-    return { status: 'skipped-unscheduled', targets: [] };
+    // Carries a summary so the scheduled run's audit line shows the deliberate
+    // gate, not the generic "nothing actionable" fallback.
+    return { status: 'skipped-unscheduled', targets: [], summary: { status: 'skipped-unscheduled', created: 0, skipped: 0, errors: 0 } };
   }
 
   const live = dryRun === false;
@@ -609,6 +633,15 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
       if (manifestBefore === null || lockBefore === null) {
         log(`${label} manifest or lockfile unreadable, skipping (fail-closed)`);
         results.push({ repo, directory, status: 'skipped', reason: 'manifest or lockfile unreadable' });
+        continue;
+      }
+      // The scratch directory holds only the two files, so a project `.npmrc`
+      // (private registry, legacy-peer-deps, …) would not shape the refresh
+      // the way it shapes the project's own installs. Carrying it over would
+      // mean honouring arbitrary config, tokens included; refusing is cheaper.
+      if (await readFileAtRef(gh, owner, repo, `${prefix}.npmrc`, baseSha) !== null) {
+        log(`${label} carries a .npmrc the scratch run cannot honour, skipping`);
+        results.push({ repo, directory, status: 'skipped', reason: 'npmrc-unsupported' });
         continue;
       }
 

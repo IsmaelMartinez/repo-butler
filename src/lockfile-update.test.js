@@ -7,6 +7,7 @@ import {
   computeLockfileGate,
   applyLockfileUpdates,
   toolNameFor,
+  npmFailureReason,
 } from './lockfile-update.js';
 import { validateIssueTitle, validateIssueBody } from './safety.js';
 
@@ -337,18 +338,25 @@ describe('computeLockfileGate', () => {
     assert.equal(r.reason, 'no-patched-version');
   });
 
-  it('refuses prerelease identifiers on either side rather than comparing them as their final release', () => {
+  it('refuses anything but a plain release on either side rather than comparing it as its final release', () => {
     const patchedPre = gate({ 'node_modules/libheif': { version: '1.2.3-beta.0' } }, { alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3-beta.1' }] });
-    assert.equal(patchedPre.reason, 'prerelease-unsupported');
+    assert.equal(patchedPre.reason, 'non-release-version');
 
     const entryPre = gate({ 'node_modules/libheif': { version: '1.2.5-rc.1' } });
-    assert.equal(entryPre.reason, 'prerelease-unsupported');
+    assert.equal(entryPre.reason, 'non-release-version');
 
     const familyPre = gate({
       'node_modules/libheif': { version: '1.2.5', dependencies: { libde265: '*' } },
       'node_modules/libde265': { version: '1.0.4+build.7' },
     });
-    assert.equal(familyPre.reason, 'prerelease-unsupported');
+    assert.equal(familyPre.reason, 'non-release-version');
+
+    // parseVersion tolerates any residual suffix; the gate must not.
+    for (const odd of ['1.2.5foo', '1.2.5.4', 'v1.2.5 ']) {
+      const r = gate({ 'node_modules/libheif': { version: odd } });
+      assert.equal(r.reason, 'non-release-version', odd);
+    }
+    assert.equal(gate({ 'node_modules/libheif': { version: 'v1.2.5' } }).ok, true, 'a leading v is a plain release');
   });
 
   it('sees a metadata-only change to an entry (no version move) and holds it to the family rule', () => {
@@ -394,6 +402,21 @@ describe('computeLockfileGate', () => {
       alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3' }],
     });
     assert.equal(r.reason, 'not-patched');
+  });
+});
+
+describe('npmFailureReason', () => {
+  it('reduces npm stderr to its error code, never echoing registry URLs or package metadata', () => {
+    const stderr = [
+      'npm error code ERESOLVE',
+      'npm error ERESOLVE unable to resolve dependency tree',
+      'npm error While resolving: fixture@1.0.0',
+      'npm error Found: vitest@4.0.0 from https://registry.example/vitest',
+    ].join('\n');
+    assert.equal(npmFailureReason(stderr), 'npm update failed: code ERESOLVE');
+    assert.equal(npmFailureReason('npm ERR! code E404\nnpm ERR! 404 https://registry.example/x'), 'npm update failed: code E404');
+    assert.equal(npmFailureReason('something else entirely https://evil.example'), 'npm update failed: no npm error code in output');
+    assert.equal(npmFailureReason(''), 'npm update failed: no npm error code in output');
   });
 });
 
@@ -493,6 +516,9 @@ describe('applyLockfileUpdates', () => {
     const gh = baseGh();
     const off = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, scheduled: true, runNpmUpdate: npmOk });
     assert.equal(off.status, 'skipped-unscheduled');
+    // The skip carries a summary so the scheduled audit line can show it,
+    // instead of the generic "nothing actionable" fallback.
+    assert.deepEqual(off.summary, { status: 'skipped-unscheduled', created: 0, skipped: 0, errors: 0 });
     const on = await applyLockfileUpdates(gh, 'o', baseFindings, { ...baseConfig, 'apply-schedule': { 'lockfile-update': true } }, { dryRun: true, scheduled: true, runNpmUpdate: npmOk });
     assert.equal(on.status, 'dry-run');
   });
@@ -554,7 +580,7 @@ describe('applyLockfileUpdates', () => {
     const gh = baseGh({ headShas: ['abc123', 'def456'] });
     const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: false, runNpmUpdate: npmOk });
     assert.equal(r.results[0].status, 'created');
-    assert.deepEqual(gh.reads.map(x => x.ref), ['abc123', 'abc123']);
+    assert.deepEqual(gh.reads.map(x => [x.path, x.ref]), [['package.json', 'abc123'], ['package-lock.json', 'abc123'], ['.npmrc', 'abc123']]);
     const ref = gh.writes.find(w => w.path.endsWith('/git/refs'));
     assert.equal(ref.body.sha, 'abc123');
   });
@@ -602,6 +628,41 @@ describe('applyLockfileUpdates', () => {
     assert.equal(r.results[0].status, 'skipped');
     assert.match(r.results[0].reason, /unreadable/);
     assert.equal(ran, false);
+  });
+
+  it('treats a malformed Contents or blob response as an error, not as an absent file', async () => {
+    const noSha = baseGh({ files: { 'package.json': manifest, 'package-lock.json': { content: '', encoding: 'none' } } });
+    const r1 = await applyLockfileUpdates(noSha, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: npmOk });
+    assert.equal(r1.results[0].status, 'error');
+
+    const noBlob = baseGh({ files: { 'package.json': manifest, 'package-lock.json': { content: '', encoding: 'none', sha: 'bigsha' } } });
+    noBlob.request = ((orig) => async (path, opts) => (path.includes('/git/blobs/') ? {} : orig(path, opts)))(noBlob.request);
+    const r2 = await applyLockfileUpdates(noBlob, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: npmOk });
+    assert.equal(r2.results[0].status, 'error');
+  });
+
+  it('skips a project that carries its own .npmrc, since the scratch run cannot honour it', async () => {
+    const gh = baseGh({ files: { 'package.json': manifest, 'package-lock.json': BEFORE_LOCK, '.npmrc': 'legacy-peer-deps=true\n' } });
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].status, 'skipped');
+    assert.equal(r.results[0].reason, 'npmrc-unsupported');
+    assert.equal(ran, false);
+  });
+
+  it('live: falls back to a bounded title when the alert list would overflow the title limit', async () => {
+    const names = Array.from({ length: 6 }, (_, i) => `a-rather-long-package-name-number-${i}`);
+    const findings = [finding('repo-a', names.map((n, i) => alert({ number: 10 + i, package: n })))];
+    const alerts = Object.fromEntries(names.map((n, i) => [10 + i, openAlert(10 + i, n, '1.0.1')]));
+    const before = Object.fromEntries(names.map(n => [`node_modules/${n}`, { version: '1.0.0' }]));
+    const after = Object.fromEntries(names.map(n => [`node_modules/${n}`, { version: '1.0.1' }]));
+    const gh = baseGh({ alerts, files: { 'package.json': manifest, 'package-lock.json': lock(before) } });
+    const r = await applyLockfileUpdates(gh, 'o', findings, baseConfig, { dryRun: false, runNpmUpdate: async ({ manifest: m }) => ({ manifest: m, lockfile: lock(after) }) });
+    assert.equal(r.results[0].status, 'created');
+    const pr = gh.writes.find(w => w.path.endsWith('/pulls')).body;
+    assert.equal(pr.title, 'chore(deps): refresh lockfile for 6 Dependabot alerts');
+    assert.equal(validateIssueTitle(pr.title).valid, true);
+    assert.match(pr.body, /\| First patched \|/);
   });
 
   it('reads a lockfile over the Contents API 1 MB ceiling through the blob API', async () => {
