@@ -109,6 +109,16 @@ describe('selectLockfileUpdateTargets', () => {
     const findings = [finding('repo-a', [alert({ package: '' }), alert({ number: undefined }), alert({ number: 9, package: 'ok' })])];
     assert.deepEqual(selectLockfileUpdateTargets(findings)[0].alerts, [{ number: 9, package: 'ok' }]);
   });
+
+  it('drops a package name that is not a valid npm name, since the name becomes an npm argument', () => {
+    const findings = [finding('repo-a', [
+      alert({ number: 1, package: '--registry=https://evil.example' }),
+      alert({ number: 2, package: '@scope/ok.pkg-1' }),
+      alert({ number: 3, package: 'Has Space' }),
+      alert({ number: 4, package: '../escape' }),
+    ])];
+    assert.deepEqual(selectLockfileUpdateTargets(findings)[0].alerts, [{ number: 2, package: '@scope/ok.pkg-1' }]);
+  });
 });
 
 // --- diffLockfilePackages ---------------------------------------------------
@@ -460,7 +470,23 @@ describe('applyLockfileUpdates', () => {
     assert.match(pr.body.title, /^chore\(deps\): refresh lockfile for libheif \(Dependabot alert #1\)$/);
     assert.match(pr.body.body, /node_modules\/libheif.*1\.2\.0.*1\.2\.5/);
     assert.match(pr.body.body, /Opened automatically by \[Repo Butler\]/);
-    assert.doesNotMatch(pr.body.body, /@/);
+    // No bare @-mention: safety.js's validateMentions matches `@` only after
+    // whitespace/start, so a scoped name must appear inside a code span.
+    assert.doesNotMatch(pr.body.body, /(?<!\S)@/);
+  });
+
+  it('live: a scoped package in the family renders inside a code span, never as a bare mention', async () => {
+    const scopedAfter = lock({
+      ...BEFORE,
+      'node_modules/libheif': { version: '1.2.5', dependencies: { '@img/sharp-linux-x64': '0.34.2' } },
+      'node_modules/@img/sharp-linux-x64': { version: '0.34.2' },
+    });
+    const gh = baseGh();
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: false, runNpmUpdate: async ({ manifest }) => ({ manifest, lockfile: scopedAfter }) });
+    assert.equal(r.results[0].status, 'created');
+    const body = gh.writes.find(w => w.path.endsWith('/pulls')).body.body;
+    assert.match(body, /`node_modules\/@img\/sharp-linux-x64`/);
+    assert.doesNotMatch(body, /(?<!\S)@/);
 
     const label = gh.writes.find(w => w.path.endsWith('/labels'));
     assert.deepEqual(label.body, { labels: ['governance-apply'] });

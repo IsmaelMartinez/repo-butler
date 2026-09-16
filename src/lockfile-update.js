@@ -33,6 +33,12 @@ const DEP_KEYS = ['dependencies', 'optionalDependencies', 'peerDependencies'];
 const NPM_TIMEOUT_MS = 120_000;
 const MANIFEST = 'package.json';
 const LOCKFILE = 'package-lock.json';
+// A package name becomes an argument to `npm update`, so it is validated
+// at the boundary (the finding, then again against the live alert) the way
+// REPO_NAME_PATTERN guards names that reach a URL. Lowercase, URL-safe, an
+// optional scope, no leading dot or underscore, and nothing that could be
+// read as a flag or a path. Linear-time by construction.
+const NPM_NAME_PATTERN = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 
 /**
  * One target per (repo, directory), carrying only the alerts this tool can act
@@ -54,6 +60,10 @@ export function selectLockfileUpdateTargets(findings, maxPerRun = 5) {
     for (const a of f.alerts) {
       if (!a || a.ecosystem !== CLASSIFIABLE_ECOSYSTEM || a.classification !== ACTIONABLE_CLASSIFICATION) continue;
       if (!Number.isInteger(a.number) || !a.package) continue;
+      if (!NPM_NAME_PATTERN.test(a.package)) {
+        console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: package name is not a valid npm name`);
+        continue;
+      }
       const directory = alertDirectory(a.manifestPath);
       let target = targets.find(t => t.repo === f.repo && t.directory === directory);
       if (!target) {
@@ -254,13 +264,18 @@ const execFileAsync = promisify(execFile);
  */
 export async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
   const dir = await mkdtemp(join(tmpdir(), 'repo-butler-lockfile-'));
+  // NODE_ENV=production makes npm drop devDependencies from the refresh, which
+  // the gate would then refuse as out-of-family removals; unset it so the
+  // scratch run sees the whole tree the lockfile describes.
+  const env = { ...process.env };
+  delete env.NODE_ENV;
   try {
     await writeFile(join(dir, MANIFEST), manifest);
     await writeFile(join(dir, LOCKFILE), lockfile);
     await execFileAsync('npm', [
       'update', ...packages,
       '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--no-progress',
-    ], { cwd: dir, timeout: NPM_TIMEOUT_MS, env: { ...process.env, NODE_ENV: undefined }, maxBuffer: 8 * 1024 * 1024 });
+    ], { cwd: dir, timeout: NPM_TIMEOUT_MS, env, maxBuffer: 8 * 1024 * 1024 });
     return {
       manifest: await readFile(join(dir, MANIFEST), 'utf-8'),
       lockfile: await readFile(join(dir, LOCKFILE), 'utf-8'),
