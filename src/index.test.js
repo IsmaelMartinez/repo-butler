@@ -1,6 +1,6 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { runPhases, parsePhases, validateRepoFormat, getPipelineState, resolveDependabotSecurityDispatch } from './index.js';
+import { runPhases, parsePhases, validateRepoFormat, getPipelineState, resolveDependabotSecurityDispatch, isLockfileUpdateRequested } from './index.js';
 
 describe('parsePhases', () => {
   it('splits a comma list and trims whitespace', () => {
@@ -18,6 +18,26 @@ describe('validateRepoFormat', () => {
   });
   it('rejects bare names', () => {
     assert.throws(() => validateRepoFormat('foo'));
+  });
+});
+
+describe('isLockfileUpdateRequested (ADR-015 explicit-dispatch rule)', () => {
+  it('never rides a blank manual run: a content-transformation write must be named', () => {
+    assert.equal(isLockfileUpdateRequested([], false), false);
+    assert.equal(isLockfileUpdateRequested(['code-scanning'], false), false);
+  });
+
+  it('runs on a manual dispatch that names it', () => {
+    assert.equal(isLockfileUpdateRequested(['lockfile-update'], false), true);
+    assert.equal(isLockfileUpdateRequested(['code-scanning', 'lockfile-update'], false), true);
+  });
+
+  it('is offered to the scheduled path, where the apply-schedule allow-list decides', () => {
+    assert.equal(isLockfileUpdateRequested([], true), true);
+  });
+
+  it('tolerates a non-array tools value', () => {
+    assert.equal(isLockfileUpdateRequested(undefined, false), false);
   });
 });
 

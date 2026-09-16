@@ -7,7 +7,7 @@ on:
         description: 'Dry run (log only, no PRs)'
         default: 'true'
       tools:
-        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration: write to go live; "dependabot-security-off" = the reversal — DELETE the setting on the same targets (reverts the setting only, NOT any bump PR GitHub already opened; explicit dispatch only, never fires on a blank run). All settings writes are dry-run by default.'
+        description: 'Comma-separated tools to apply (blank = all actionable; "dependabot-rebase" = nudge stale Dependabot PRs only; "code-review-bot" = enable Copilot review rulesets only; "dependabot-security" = enable GitHub Dependabot security updates on dependabot-sourced open-vulnerability repos only — ADR-012 settings write, manual dispatch only, needs App administration: write to go live; "dependabot-security-off" = the reversal — DELETE the setting on the same targets (reverts the setting only, NOT any bump PR GitHub already opened; explicit dispatch only, never fires on a blank run); "lockfile-update" = refresh package-lock.json for stalled npm alerts the trimmer classified reachable-by-update and open one PR per repo — ADR-015 content-transformation write, explicit dispatch only, never fires on a blank run; dry-run runs npm and the gate and prints the diff it would open. All settings writes are dry-run by default.'
         required: false
       max-apply-per-run:
         description: 'Per-run cap: max PRs opened AND max repos acted on by a settings write (Copilot review / dependabot-security) per run (default 5)'
@@ -62,6 +62,7 @@ jobs:
           COPILOT_REVIEW: ${{ steps.apply.outputs.copilotReview }}
           DEPENDABOT_SECURITY: ${{ steps.apply.outputs.dependabotSecurity }}
           DEPENDABOT_SECURITY_OFF: ${{ steps.apply.outputs.dependabotSecurityOff }}
+          LOCKFILE_UPDATE: ${{ steps.apply.outputs.lockfileUpdate }}
           DRY_RUN: ${{ github.event.inputs.dry-run || 'true' }}
         run: |
           mode="dry-run"
@@ -80,5 +81,8 @@ jobs:
             # ADR-012 reversal (tools=dependabot-security-off): the DELETE reverts
             # the setting only, never a bump PR GitHub already opened.
             echo "- Dependabot-security-off (reversal) summary: \`${DEPENDABOT_SECURITY_OFF:-(none — not requested)}\`"
+            # ADR-015 (tools=lockfile-update): the dry-run preview in the job log
+            # is the diff the PR would carry; this line is the count.
+            echo "- Lockfile-update (ADR-015 content write) summary: \`${LOCKFILE_UPDATE:-(none — not requested)}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Governance apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=${DEPENDABOT_SECURITY:-none} dependabotSecurityOff=${DEPENDABOT_SECURITY_OFF:-none}"
+          echo "::notice title=Governance apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=${DEPENDABOT_SECURITY:-none} dependabotSecurityOff=${DEPENDABOT_SECURITY_OFF:-none} lockfileUpdate=${LOCKFILE_UPDATE:-none}"

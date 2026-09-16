@@ -5,6 +5,7 @@ import {
   diffLockfilePackages,
   familyOf,
   computeLockfileGate,
+  applyLockfileUpdates,
 } from './lockfile-update.js';
 
 // --- fixtures -------------------------------------------------------------
@@ -266,5 +267,229 @@ describe('computeLockfileGate', () => {
   it('refuses an alert whose patched version cannot be parsed rather than treating it as satisfied', () => {
     const r = gate({ 'node_modules/libheif': { version: '1.2.5' } }, { alerts: [{ number: 1, package: 'libheif', patchedVersion: 'latest' }] });
     assert.equal(r.reason, 'no-patched-version');
+  });
+});
+
+// --- applyLockfileUpdates ----------------------------------------------------
+
+const b64 = (s) => Buffer.from(s).toString('base64');
+
+// A fake GitHub client with a route table. `writes` collects every non-GET
+// request so a dry-run can be proven inert; `puts` collects putFile calls.
+function fakeGh({ alerts = {}, files = {}, prs = [], writes = [], puts = [], fail = {} } = {}) {
+  return {
+    writes,
+    puts,
+    request: async (path, opts) => {
+      const method = opts?.method ?? 'GET';
+      if (method !== 'GET') {
+        writes.push({ path, method, body: opts?.body });
+        if (path.endsWith('/git/refs') && fail.refExists) throw new Error('GitHub API error: 422 Reference already exists');
+        if (path.endsWith('/pulls')) return { number: 42, html_url: 'https://github.com/o/r/pull/42' };
+        return {};
+      }
+      if (/^\/repos\/[^/]+\/[^/]+$/.test(path)) return { default_branch: 'main' };
+      if (path.endsWith('/git/ref/heads/main')) return { object: { sha: 'abc123' } };
+      let m = path.match(/\/dependabot\/alerts\/(\d+)$/);
+      if (m) {
+        if (fail.alerts) throw new Error('GitHub API error: 500 boom');
+        const a = alerts[m[1]];
+        if (!a) throw new Error('GitHub API error: 404 Not Found');
+        return a;
+      }
+      m = path.match(/\/contents\/(.+)$/);
+      if (m) {
+        const f = files[m[1]];
+        if (f === undefined) throw new Error('GitHub API error: 404 Not Found');
+        if (typeof f === 'object') return f; // caller-shaped response (e.g. the >1 MB form)
+        return { content: b64(f), encoding: 'base64', sha: 'filesha' };
+      }
+      m = path.match(/\/git\/blobs\/(.+)$/);
+      if (m) return { content: b64(files[`blob:${m[1]}`]), encoding: 'base64' };
+      throw new Error(`unexpected GET ${path}`);
+    },
+    paginate: async () => prs,
+    putFile: async (owner, repo, filePath, content, opts) => { puts.push({ repo, filePath, content, opts }); },
+  };
+}
+
+function openAlert(number, name, patched = '1.2.3') {
+  return {
+    number,
+    state: 'open',
+    dependency: { package: { ecosystem: 'npm', name } },
+    security_vulnerability: { first_patched_version: { identifier: patched } },
+  };
+}
+
+const BEFORE_LOCK = lock(BEFORE);
+const AFTER_LOCK = lock({ ...BEFORE, 'node_modules/libheif': { version: '1.2.5' } });
+const baseConfig = { limits: { require_approval: true } };
+const baseFindings = [finding('repo-a', [alert({ number: 1, package: 'libheif' })])];
+const npmOk = async ({ manifest }) => ({ manifest, lockfile: AFTER_LOCK });
+
+function baseGh(extra = {}) {
+  return fakeGh({
+    alerts: { 1: openAlert(1, 'libheif') },
+    files: { 'package.json': manifest, 'package-lock.json': BEFORE_LOCK },
+    ...extra,
+  });
+}
+
+describe('applyLockfileUpdates', () => {
+  it('refuses to run when require_approval is not set, without touching the API', async () => {
+    const gh = baseGh();
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: {} }, { dryRun: false, runNpmUpdate: npmOk });
+    assert.equal(r.status, 'refused');
+    assert.equal(gh.writes.length, 0);
+  });
+
+  it('on the scheduled path runs only when apply-schedule allow-lists the tool', async () => {
+    const gh = baseGh();
+    const off = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, scheduled: true, runNpmUpdate: npmOk });
+    assert.equal(off.status, 'skipped-unscheduled');
+    const on = await applyLockfileUpdates(gh, 'o', baseFindings, { ...baseConfig, 'apply-schedule': { 'lockfile-update': true } }, { dryRun: true, scheduled: true, runNpmUpdate: npmOk });
+    assert.equal(on.status, 'dry-run');
+  });
+
+  it('dry-run runs the whole path (live alert read, file reads, npm, gate) and makes no writes', async () => {
+    const gh = baseGh();
+    let npmArgs = null;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async (a) => { npmArgs = a; return npmOk(a); } });
+    assert.equal(r.status, 'dry-run');
+    assert.deepEqual(npmArgs.packages, ['libheif']);
+    assert.equal(npmArgs.manifest, manifest);
+    assert.equal(r.results[0].status, 'would-open');
+    assert.deepEqual(r.results[0].changes, [{ path: 'node_modules/libheif', name: 'libheif', from: '1.2.0', to: '1.2.5' }]);
+    assert.equal(gh.writes.length, 0);
+    assert.equal(gh.puts.length, 0);
+    assert.equal(r.summary.wouldOpen, 1);
+  });
+
+  it('drops an alert that is no longer open and skips the repo when none remain', async () => {
+    const gh = baseGh({ alerts: { 1: { ...openAlert(1, 'libheif'), state: 'fixed' } } });
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].status, 'skipped');
+    assert.equal(r.results[0].reason, 'no open alerts');
+    assert.equal(ran, false);
+  });
+
+  it('drops an alert whose live package or ecosystem disagrees with the finding', async () => {
+    const gh = baseGh({ alerts: { 1: openAlert(1, 'something-else') } });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].reason, 'no open alerts');
+  });
+
+  it('reports an unreadable alert as an error, not a skip (fail closed on infrastructure)', async () => {
+    const gh = baseGh({ fail: { alerts: true } });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].status, 'error');
+    assert.equal(r.summary.errors, 1);
+  });
+
+  it('skips a repo whose lockfile is absent, and never runs npm on a partial view', async () => {
+    const gh = baseGh({ files: { 'package.json': manifest } });
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].status, 'skipped');
+    assert.match(r.results[0].reason, /unreadable/);
+    assert.equal(ran, false);
+  });
+
+  it('reads a lockfile over the Contents API 1 MB ceiling through the blob API', async () => {
+    const gh = baseGh({
+      files: {
+        'package.json': manifest,
+        'package-lock.json': { content: '', encoding: 'none', sha: 'bigsha', size: 2000000 },
+        'blob:bigsha': BEFORE_LOCK,
+      },
+    });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].status, 'would-open');
+  });
+
+  it('skips a workspaces root before running npm', async () => {
+    const ws = JSON.stringify({ name: 'x', workspaces: ['packages/*'] });
+    const gh = baseGh({ files: { 'package.json': ws, 'package-lock.json': BEFORE_LOCK } });
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].reason, 'gate:workspaces-unsupported');
+    assert.equal(ran, false);
+  });
+
+  it('reports an npm failure as an error carrying the reason', async () => {
+    const gh = baseGh();
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { throw new Error('npm ERR! ERESOLVE unable to resolve'); } });
+    assert.equal(r.results[0].status, 'error');
+    assert.match(r.results[0].error, /ERESOLVE/);
+  });
+
+  it('records a gate refusal as a skip with the rule name', async () => {
+    const gh = baseGh();
+    const crossing = lock({ ...BEFORE, 'node_modules/libheif': { version: '2.0.0' } });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async ({ manifest }) => ({ manifest, lockfile: crossing }) });
+    assert.equal(r.results[0].status, 'skipped');
+    assert.equal(r.results[0].reason, 'gate:release-line-crossing');
+  });
+
+  it('skips a repo that already has an open PR on the tool branch', async () => {
+    const gh = baseGh({ prs: [{ number: 7, state: 'open' }] });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].reason, 'PR already open');
+  });
+
+  it('live: creates the branch, writes only the lockfile, opens a labelled PR with a deterministic body', async () => {
+    const gh = baseGh();
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: false, runNpmUpdate: npmOk });
+    assert.equal(r.status, 'completed');
+    assert.equal(r.results[0].status, 'created');
+    assert.equal(r.results[0].pr, 'https://github.com/o/r/pull/42');
+
+    const ref = gh.writes.find(w => w.path.endsWith('/git/refs'));
+    assert.deepEqual(ref.body, { ref: 'refs/heads/repo-butler/apply-lockfile-update', sha: 'abc123' });
+
+    assert.equal(gh.puts.length, 1);
+    assert.equal(gh.puts[0].filePath, 'package-lock.json');
+    assert.equal(gh.puts[0].content, AFTER_LOCK);
+    assert.equal(gh.puts[0].opts.branch, 'repo-butler/apply-lockfile-update');
+
+    const pr = gh.writes.find(w => w.path.endsWith('/pulls'));
+    assert.equal(pr.body.head, 'repo-butler/apply-lockfile-update');
+    assert.equal(pr.body.base, 'main');
+    assert.match(pr.body.title, /^chore\(deps\): refresh lockfile for libheif \(Dependabot alert #1\)$/);
+    assert.match(pr.body.body, /node_modules\/libheif.*1\.2\.0.*1\.2\.5/);
+    assert.match(pr.body.body, /Opened automatically by \[Repo Butler\]/);
+    assert.doesNotMatch(pr.body.body, /@/);
+
+    const label = gh.writes.find(w => w.path.endsWith('/labels'));
+    assert.deepEqual(label.body, { labels: ['governance-apply'] });
+  });
+
+  it('live: force-updates the branch when the ref already exists', async () => {
+    const gh = baseGh({ fail: { refExists: true } });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: false, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].status, 'created');
+    const patch = gh.writes.find(w => w.method === 'PATCH');
+    assert.deepEqual(patch.body, { sha: 'abc123', force: true });
+  });
+
+  it('handles a non-root directory: reads and writes under it and uses a per-directory branch', async () => {
+    const findings = [finding('repo-a', [alert({ number: 3, package: 'libheif', manifestPath: 'docs/site/package-lock.json' })])];
+    const gh = baseGh({
+      alerts: { 3: openAlert(3, 'libheif') },
+      files: { 'docs/site/package.json': manifest, 'docs/site/package-lock.json': BEFORE_LOCK },
+    });
+    const r = await applyLockfileUpdates(gh, 'o', findings, baseConfig, { dryRun: false, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].status, 'created');
+    assert.equal(gh.puts[0].filePath, 'docs/site/package-lock.json');
+    assert.equal(gh.puts[0].opts.branch, 'repo-butler/apply-lockfile-update-docs-site');
+  });
+
+  it('caps targets per run and runs them one at a time', async () => {
+    const findings = ['a', 'b', 'c'].map(x => finding(`repo-${x}`, [alert({ number: 1, package: 'libheif' })]));
+    const gh = baseGh();
+    const r = await applyLockfileUpdates(gh, 'o', findings, baseConfig, { dryRun: true, maxPerRun: 2, runNpmUpdate: npmOk });
+    assert.equal(r.results.length, 2);
   });
 });
