@@ -82,14 +82,25 @@ branch inside `applyGovernanceFindings`.
   only thing npm touches; `--ignore-scripts` because nothing here may execute
   code from the target repo. The butler never edits lockfile JSON itself (→
   mode 1: the butler does not need to understand the resolver, only to check
-  its output). Two consequences of the scratch directory holding only those
-  two files: a project that carries its own `.npmrc` is skipped
-  (`npmrc-unsupported`), because a private registry or `legacy-peer-deps`
-  would shape the project's installs and not this refresh, and carrying the
-  file over would mean honouring arbitrary config, tokens included; and when
-  npm fails, only its error code (`npm update failed: code ERESOLVE`) reaches
-  the result and the log — the rest of stderr is built from the target's
-  files and the Actions log is public.
+  its output). The child runs with a minimal environment (`npmChildEnv`):
+  `PATH`, `HOME` and `TMPDIR` only, the registry pinned to
+  `registry.npmjs.org`, and user and global npm config pointed at two absent
+  files — never the runner's tokens, `NODE_ENV`, or any inherited
+  `npm_config_*` — because the manifest and lockfile are the target's files
+  and a resolver that honoured inherited auth or a redirected registry would
+  be acting on their behalf with the butler's credentials. Three consequences
+  of the scratch directory holding only those two files: a project that
+  carries its own `.npmrc` is skipped (`npmrc-unsupported`), because a
+  private registry or `legacy-peer-deps` would shape the project's installs
+  and not this refresh, and carrying the file over would mean honouring
+  arbitrary config, tokens included; every changed entry's `resolved` must
+  point at the public registry (`unexpected-registry`), so the lockfile, not
+  the butler, can never choose where the bytes come from; and when npm
+  fails, only its error code (`npm update failed: code ERESOLVE`) reaches the
+  result and the log — the rest of stderr is built from the target's files
+  and the Actions log is public. The same rule keeps the safety validators'
+  matched text out of the log when a composed title or body fails: the log
+  gets a count.
 - **The gate is the write decision, and refusal is its specification** (→
   modes 2, 3, 4). `computeLockfileGate` is pure and returns the first rule that
   fails, in this order: `manifest-changed` (only the lockfile may move — this
@@ -112,10 +123,16 @@ branch inside `applyGovernanceFindings`.
   any package outside the alert package's transitive dependency closure —
   additions, removals and metadata-only changes to an entry's `resolved`,
   `integrity` or dependency map included, since the whole file is what gets
-  pushed), and `release-line-crossing` (a version change across a major, or
-  across a minor inside `0.x`, the trimmer's release-line lesson). A lockfile
-  diff a human cannot read is therefore never what decides; the gate reads it
-  and the PR body carries only the gate's own table.
+  pushed), `release-line-crossing` (a version change across a major, or
+  across a minor inside `0.x`, the trimmer's release-line lesson — in place,
+  or by an added copy of a package that shares no release line with any copy
+  the tree had before, so a relocation cannot be how a new major enters), and
+  `unexpected-registry`. The v2 `dependencies` mirror is excluded from the
+  envelope on lockfileVersion 2 only; a v3 file has no such mirror, so one
+  appearing there is exactly the unaccounted top-level change the envelope
+  exists to catch. A lockfile diff a human cannot read is therefore never
+  what decides; the gate reads it and the PR body carries only the gate's own
+  table.
 - **The alert is re-read live at apply time** (the ADR-012 posture). A finding
   can be six hours stale. An alert that is no longer open, or whose live
   package, ecosystem or `manifest_path` directory disagree with the finding,

@@ -8,6 +8,7 @@ import {
   applyLockfileUpdates,
   toolNameFor,
   npmFailureReason,
+  npmChildEnv,
 } from './lockfile-update.js';
 import { validateIssueTitle, validateIssueBody } from './safety.js';
 
@@ -76,7 +77,7 @@ describe('selectLockfileUpdateTargets', () => {
     const findings = [
       finding('repo-a', [
         alert({ number: 1, package: 'libheif' }),
-        alert({ number: 2, package: 'js-yaml', manifestPath: '/package-lock.json' }),
+        alert({ number: 2, package: 'js-yaml', manifestPath: 'package.json' }),
         alert({ number: 3, package: 'sharp', classification: 'override' }),
         alert({ number: 4, package: 'requests', ecosystem: 'pip' }),
         alert({ number: 5, package: 'lodash', manifestPath: 'docs/package-lock.json' }),
@@ -118,6 +119,9 @@ describe('selectLockfileUpdateTargets', () => {
       alert({ number: 2, manifestPath: 'docs @user/package-lock.json' }),
       alert({ number: 3, manifestPath: 'a|b/package-lock.json' }),
       alert({ number: 4, manifestPath: 'packages/site-v2/package-lock.json' }),
+      alert({ number: 5, manifestPath: '/package-lock.json' }),
+      alert({ number: 6, manifestPath: './package-lock.json' }),
+      alert({ number: 7, manifestPath: 'docs\\package-lock.json' }),
     ])];
     assert.deepEqual(selectLockfileUpdateTargets(findings), [
       { repo: 'repo-a', directory: 'packages/site-v2', alerts: [{ number: 4, package: 'libheif' }] },
@@ -384,6 +388,40 @@ describe('computeLockfileGate', () => {
     assert.equal(r.reason, 'lockfile-metadata-changed');
   });
 
+  it('ignores the top-level dependencies mirror on v2 only; on v3 it is an unaccounted top-level change', () => {
+    const v2before = lock(BEFORE, { lockfileVersion: 2, dependencies: { libheif: { version: '1.2.0' } } });
+    const v2after = lock({ ...BEFORE, 'node_modules/libheif': { version: '1.2.5' } }, { lockfileVersion: 2, dependencies: { libheif: { version: '1.2.5' } } });
+    const v2 = computeLockfileGate({ lockBefore: v2before, lockAfter: v2after, manifestBefore: manifest, manifestAfter: manifest, alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3' }] });
+    assert.equal(v2.ok, true);
+
+    const v3after = lock({ ...BEFORE, 'node_modules/libheif': { version: '1.2.5' } }, { dependencies: { libheif: { version: '1.2.5' } } });
+    const v3 = gate({}, { lockAfter: v3after });
+    assert.equal(v3.reason, 'lockfile-metadata-changed');
+  });
+
+  it('refuses a relocation or addition that brings a new release line of an existing package into the tree', () => {
+    const relocated = { ...BEFORE, 'node_modules/libheif': { version: '1.2.5', dependencies: { libde265: '^2.0.0' } }, 'node_modules/libheif/node_modules/libde265': { version: '2.0.0' } };
+    delete relocated['node_modules/libde265'];
+    const r = computeLockfileGate({
+      lockBefore: lock({ ...BEFORE, 'node_modules/libheif': { version: '1.2.0', dependencies: { libde265: '^1.0.0' } }, 'node_modules/libde265': { version: '1.0.0' } }),
+      lockAfter: lock(relocated),
+      manifestBefore: manifest, manifestAfter: manifest,
+      alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3' }],
+    });
+    assert.equal(r.reason, 'release-line-crossing');
+
+    // A package new to the whole tree has no line to cross.
+    const fresh = gate({ 'node_modules/libheif': { version: '1.2.5', dependencies: { 'brand-new': '^3.0.0' } }, 'node_modules/brand-new': { version: '3.0.0' } });
+    assert.equal(fresh.ok, true);
+  });
+
+  it('refuses a changed entry resolved from anywhere but the public npm registry', () => {
+    const r = gate({ 'node_modules/libheif': { version: '1.2.5', resolved: 'https://npm.pkg.github.com/download/libheif/1.2.5' } });
+    assert.equal(r.reason, 'unexpected-registry');
+    const ok = gate({ 'node_modules/libheif': { version: '1.2.5', resolved: 'https://registry.npmjs.org/libheif/-/libheif-1.2.5.tgz' } });
+    assert.equal(ok.ok, true);
+  });
+
   it('holds a package to the highest patched version when two alerts name it', () => {
     const r = gate({ 'node_modules/libheif': { version: '1.2.5' } }, {
       alerts: [
@@ -402,6 +440,24 @@ describe('computeLockfileGate', () => {
       alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3' }],
     });
     assert.equal(r.reason, 'not-patched');
+  });
+});
+
+describe('npmChildEnv', () => {
+  it('hands npm a minimal environment pinned to the public registry, never the runner\'s secrets or npm config', () => {
+    const env = npmChildEnv({
+      PATH: '/usr/bin', HOME: '/home/runner', GITHUB_TOKEN: 'ghs_secret', NODE_ENV: 'production',
+      NPM_TOKEN: 'npm_secret', npm_config_registry: 'https://evil.example/', NPM_CONFIG_USERCONFIG: '/home/runner/.npmrc', TMPDIR: '/tmp',
+    }, '/scratch');
+    assert.deepEqual(Object.keys(env).sort(), ['HOME', 'PATH', 'TMPDIR', 'npm_config_globalconfig', 'npm_config_registry', 'npm_config_userconfig']);
+    assert.equal(env.npm_config_registry, 'https://registry.npmjs.org/');
+    assert.equal(env.PATH, '/usr/bin');
+    assert.doesNotMatch(JSON.stringify(env), /secret|evil|production/);
+    // npm refuses to load one path as both user and global config, so the two
+    // absent files must differ and live in the scratch directory.
+    assert.notEqual(env.npm_config_userconfig, env.npm_config_globalconfig);
+    assert.match(env.npm_config_userconfig, /^\/scratch\//);
+    assert.match(env.npm_config_globalconfig, /^\/scratch\//);
   });
 });
 

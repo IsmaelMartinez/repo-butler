@@ -56,12 +56,41 @@ const NPM_MANIFEST_BASENAMES = new Set([MANIFEST, LOCKFILE]);
 const PLAIN_RELEASE = /^v?\d+\.\d+\.\d+$/;
 
 function manifestBasename(path) {
-  const p = String(path ?? '').replace(/^\/+/, '');
-  return p.slice(p.lastIndexOf('/') + 1);
+  return path.slice(path.lastIndexOf('/') + 1);
 }
 
+// A plain repo-relative path: no leading slash (alertDirectory would strip
+// one and read `/package-lock.json` as the root, which the contract here does
+// not admit), no `./`, no backslashes, and an npm manifest or lockfile at the
+// end. The per-segment check happens on the derived directory.
 function isNpmManifestPath(path) {
-  return typeof path === 'string' && path.trim() !== '' && NPM_MANIFEST_BASENAMES.has(manifestBasename(path));
+  if (typeof path !== 'string' || path.trim() === '') return false;
+  if (path.startsWith('/') || path.startsWith('./') || path.includes('\\')) return false;
+  return NPM_MANIFEST_BASENAMES.has(manifestBasename(path));
+}
+
+const PUBLIC_REGISTRY = 'https://registry.npmjs.org/';
+
+/**
+ * The environment npm runs with in the scratch directory: PATH and HOME so it
+ * can execute, TMPDIR so it can spill, the registry pinned to the public one,
+ * and user/global npm config pointed at files that do not exist. Nothing else
+ * — not the runner's tokens, not NODE_ENV, not any npm_config_* the caller
+ * inherited — because the manifest and lockfile are the target's files and a
+ * resolver that honoured inherited auth or a redirected registry would be
+ * acting on their behalf with the butler's credentials.
+ */
+export function npmChildEnv(inherited = process.env, scratchDir = tmpdir()) {
+  const env = {};
+  for (const key of ['PATH', 'HOME', 'TMPDIR']) {
+    if (typeof inherited[key] === 'string') env[key] = inherited[key];
+  }
+  env.npm_config_registry = PUBLIC_REGISTRY;
+  // Two DISTINCT paths that do not exist: npm reads a missing config file as
+  // empty, but refuses to load the same path twice ("double-loading config").
+  env.npm_config_userconfig = join(scratchDir, 'npmrc-user-absent');
+  env.npm_config_globalconfig = join(scratchDir, 'npmrc-global-absent');
+  return env;
 }
 
 function isPlainDirectory(directory) {
@@ -169,16 +198,18 @@ export function diffLockfilePackages(before, after) {
   return changes;
 }
 
-// Everything in the lockfile other than `packages` and the v2 `dependencies`
-// mirror: name, version, lockfileVersion, requires. A refresh leaves these
-// alone; a rewrite that does not (a lockfileVersion bump, a renamed root) is a
-// format change, not a fix. The v2 mirror is excluded because npm regenerates
-// it FROM `packages` on every write, so the `packages` diff already accounts
-// for its every change, and holding the derived copy to "unchanged" would
-// refuse every legitimate v2 refresh.
+// Everything in the lockfile other than `packages`: name, version,
+// lockfileVersion, requires. A refresh leaves these alone; a rewrite that does
+// not (a lockfileVersion bump, a renamed root) is a format change, not a fix.
+// On lockfileVersion 2 — and only there — the top-level `dependencies` mirror
+// is excluded too, because npm regenerates it FROM `packages` on every v2
+// write, so the `packages` diff already accounts for its every change and
+// holding the derived copy to "unchanged" would refuse every legitimate v2
+// refresh. A v3 file has no such mirror, so one appearing or changing there is
+// exactly the unaccounted top-level change this comparison exists to catch.
 function lockfileEnvelope(lock) {
-  const { packages: _packages, dependencies: _mirror, ...rest } = lock;
-  return stableStringify(rest);
+  const { packages: _packages, dependencies, ...rest } = lock;
+  return stableStringify(Number(lock.lockfileVersion) === 2 ? rest : { ...rest, dependencies });
 }
 
 /**
@@ -256,7 +287,9 @@ function sameReleaseLine(a, b) {
  *   not-patched               a copy of an alert package is still below its patch,
  *                             or no copy remains at all
  *   out-of-family             a change outside every alert package's dependency closure
- *   release-line-crossing     a version change across a major, or a 0.x minor
+ *   release-line-crossing     a version change across a major, or a 0.x minor — in
+ *                             place, or by an added copy beside no existing line
+ *   unexpected-registry       a changed entry resolved from anywhere but registry.npmjs.org
  *
  * @returns {{ok: true, changes: Array} | {ok: false, reason: string, detail: string}}
  */
@@ -357,12 +390,44 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
     }
   }
 
+  // In-place version moves must stay on their release line. An ADDED entry is
+  // held to the same rule against every version its package had anywhere in
+  // the tree before: a relocation from one path to another, or a second copy
+  // appearing, must not be how a new major (or a new 0.x minor) enters the
+  // lockfile. A package new to the whole tree has no line to cross.
+  const versionsBefore = new Map();
+  for (const [path, entry] of Object.entries(before.packages)) {
+    if (path === '') continue;
+    const n = entryName(path, entry);
+    const v = parseVersion(entry?.version);
+    if (!v) continue;
+    if (!versionsBefore.has(n)) versionsBefore.set(n, []);
+    versionsBefore.get(n).push(v);
+  }
   for (const c of changes) {
-    if (c.from === null || c.to === null) continue;
-    const from = parseVersion(c.from);
+    if (c.to === null) continue;
     const to = parseVersion(c.to);
-    if (!from || !to || !sameReleaseLine(from, to)) {
-      return refuse('release-line-crossing', `${c.path} moved ${c.from} -> ${c.to}`);
+    if (!to) return refuse('release-line-crossing', `${c.path} moved ${c.from} -> ${c.to}`);
+    if (c.from !== null) {
+      const from = parseVersion(c.from);
+      if (!from || !sameReleaseLine(from, to)) {
+        return refuse('release-line-crossing', `${c.path} moved ${c.from} -> ${c.to}`);
+      }
+      continue;
+    }
+    const prior = versionsBefore.get(c.name) ?? [];
+    if (prior.length > 0 && !prior.some(v => sameReleaseLine(v, to))) {
+      return refuse('release-line-crossing', `${c.path} adds ${c.name}@${c.to} beside no existing ${c.name} release line`);
+    }
+  }
+
+  // Every changed entry npm resolved must come from the public registry the
+  // scratch run was pinned to; anything else means the lockfile — not the
+  // butler — chose where the bytes come from.
+  for (const c of changes) {
+    const resolved = after.packages[c.path]?.resolved;
+    if (typeof resolved === 'string' && resolved !== '' && !resolved.startsWith(PUBLIC_REGISTRY)) {
+      return refuse('unexpected-registry', `${c.path} resolves outside the public npm registry`);
     }
   }
 
@@ -394,11 +459,10 @@ export function npmFailureReason(stderr) {
  */
 export async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
   const dir = await mkdtemp(join(tmpdir(), 'repo-butler-lockfile-'));
-  // NODE_ENV=production makes npm drop devDependencies from the refresh, which
-  // the gate would then refuse as out-of-family removals; unset it so the
-  // scratch run sees the whole tree the lockfile describes.
-  const env = { ...process.env };
-  delete env.NODE_ENV;
+  // A minimal environment (see npmChildEnv): among other things it leaves
+  // NODE_ENV unset, since `production` makes npm drop devDependencies from the
+  // refresh, which the gate would then refuse as out-of-family removals.
+  const env = npmChildEnv(process.env, dir);
   try {
     await writeFile(join(dir, MANIFEST), manifest);
     await writeFile(join(dir, LOCKFILE), lockfile);
@@ -682,9 +746,11 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
       const titleCheck = validateIssueTitle(title);
       const bodyCheck = validateIssueBody(body);
       if (!titleCheck.valid || !bodyCheck.valid) {
-        const why = [...titleCheck.errors, ...bodyCheck.errors].join('; ');
-        console.error(`${LOCKFILE_UPDATE_TOOL}: ${label} composed PR text failed validation: ${why}`);
-        results.push({ repo, directory, status: 'error', error: `PR text failed validation: ${why}` });
+        // The validator's messages quote what they matched, and what they
+        // matched came from the target's files; the public log gets a count.
+        const count = titleCheck.errors.length + bodyCheck.errors.length;
+        console.error(`${LOCKFILE_UPDATE_TOOL}: ${label} composed PR text failed validation (${count} error(s))`);
+        results.push({ repo, directory, status: 'error', error: `PR text failed validation (${count} error(s))` });
         continue;
       }
 
