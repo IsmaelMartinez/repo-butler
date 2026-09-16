@@ -127,6 +127,8 @@ Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). Following a high
 
 Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). This release consolidates the stable, feature-complete state of the pipeline, including the section-edit roadmap update engine, cross-repo PROPOSE, and the completed OSV-Scanner security migration, ensuring reliable continuous planning on its daily schedule.
 
+Repo Butler v1.1.3 stable release deployed 2026-09-16 (v1.1.3). Resolves a critical environment-specific blockage on the Docker agent execution runner where automated lockfile updates were refused during scheduled daily roadmap planning cycles, ensuring system uptime and self-sustainability (Issue #401).
+
 ---
 
 ## Next Up
