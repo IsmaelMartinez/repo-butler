@@ -87,42 +87,67 @@ branch inside `applyGovernanceFindings`.
   modes 2, 3, 4). `computeLockfileGate` is pure and returns the first rule that
   fails, in this order: `manifest-changed` (only the lockfile may move — this
   is what makes mode 5 pass), `workspaces-unsupported`, `unparseable-lockfile`,
-  `unsupported-lockfile` (v1 has no `packages` map), `no-patched-version`,
+  `unsupported-lockfile` (v1 has no `packages` map),
+  `lockfile-metadata-changed` (anything outside `packages[]` moved — a
+  `lockfileVersion` bump is a format rewrite, not a fix; the v2 `dependencies`
+  mirror is excluded because npm regenerates it from `packages` on every
+  write, so the `packages` diff already accounts for it), `no-patched-version`,
   `no-change`, `not-updated` (something moved but the alert package did not),
   `not-patched` (any copy of the alert package still below its patch — nested
-  duplicates included), `out-of-family` (a change to any package outside the
-  alert package's transitive dependency closure, additions and removals
-  included), and `release-line-crossing` (a version change across a major, or
+  duplicates included — or no copy left at all; when two alerts name one
+  package the higher patch is the requirement), `out-of-family` (a change to
+  any package outside the alert package's transitive dependency closure —
+  additions, removals and metadata-only changes to an entry's `resolved`,
+  `integrity` or dependency map included, since the whole file is what gets
+  pushed), and `release-line-crossing` (a version change across a major, or
   across a minor inside `0.x`, the trimmer's release-line lesson). A lockfile
   diff a human cannot read is therefore never what decides; the gate reads it
   and the PR body carries only the gate's own table.
 - **The alert is re-read live at apply time** (the ADR-012 posture). A finding
   can be six hours stale. An alert that is no longer open, or whose live
-  package and ecosystem disagree with the finding, is dropped as fixed or
-  mismatched; an alert that cannot be read is an `error`, not a skip, so a
-  run made inert by a lost scope is not mistaken for a healthy run with nothing
-  to do (the G12 lesson).
-- **The caller obligations ADR-013 wrote down are discharged in code.** Files
-  are read at the default branch through the Contents API and, when it declines
-  to inline them, through the blob API — so a lockfile over 1 MB is read, not
-  guessed at; a genuine 404 skips the repo; any other failure throws. The
-  manifest and lockfile are read from the same directory the alert's
-  `manifest_path` names, so correspondence holds by construction. The dry-run
-  preview prints the gate's change list, which is the diff the PR would carry.
-  Nothing is reformatted: the lockfile npm wrote is the lockfile that is pushed.
+  package, ecosystem or `manifest_path` directory disagree with the finding,
+  is dropped as fixed or mismatched — the directory check is what ties the
+  live alert to the lockfile about to be refreshed, so an alert that moved
+  since OBSERVE cannot refresh whichever other lockfile happens to contain the
+  package; an alert that cannot be read is an `error`, not a skip, so a run
+  made inert by a lost scope is not mistaken for a healthy run with nothing to
+  do (the G12 lesson).
+- **The caller obligations ADR-013 wrote down are discharged in code.** One
+  commit is the frame of reference: the default branch head is resolved once,
+  both files are read from that sha through the Contents API and, when it
+  declines to inline them, through the blob API — so a lockfile over 1 MB is
+  read, not guessed at; a genuine 404 skips the repo; any other failure throws
+  — and the PR branch is created at that same sha, never at a freshly resolved
+  head, so a default branch that moves during the read or the npm run cannot
+  be overwritten by a lockfile computed against its predecessor (the PR simply
+  opens behind). The manifest and lockfile are read from the same directory
+  the alert's `manifest_path` names, so correspondence holds by construction.
+  The dry-run preview prints the gate's change list, which is the diff the PR
+  would carry. Nothing is reformatted: the lockfile npm wrote is the lockfile
+  that is pushed. Alert package names and directories are pattern-checked at
+  selection because they become npm arguments, API paths, branch names and
+  markdown, and the composed title and body still pass `validateIssueTitle`
+  and `validateIssueBody` before anything is written — a failure there is an
+  `error`, since it means a bug or hostile input, never a quiet skip.
 - **One PR per (repo, directory), one target at a time.** Every
   `reachable-by-update` alert in the same lockfile rides one refresh and one
   PR, because one `npm update` call refreshes one lockfile. Non-root
-  directories get their own branch (`repo-butler/apply-lockfile-update-<dir>`)
-  so two lockfiles in one repo never contend for one branch. The decline
-  cooldown (`screenApplyTarget`) applies per branch: a closed-unmerged refresh
-  is a decline for that lockfile.
+  directories get their own branch
+  (`repo-butler/apply-lockfile-update-<slug>-<8-hex sha256 of the directory>`)
+  so two lockfiles in one repo never contend for one branch, even when their
+  paths slugify alike. The decline cooldown (`screenApplyTarget`) applies per
+  branch: a closed-unmerged refresh is a decline for that lockfile. The
+  per-run cap counts targets that got past that screen, so a repo with an
+  open or recently declined PR never holds a slot and starves the ones behind
+  it — the ordering `screenApplyTarget` exists for.
 - **Explicit on a manual dispatch; allow-listed on the schedule.** The tool
   never rides a blank `tools` run — the operator names `lockfile-update`. On
-  the scheduled path it is offered and skips by construction unless
-  `apply-schedule` names it, the same two-axis default-closed shape ADR-007
-  stage 4 established, and the same graduation path: a reviewed config entry
-  after a track record.
+  the scheduled path it is offered on a blank run only (the scheduled
+  workflow's manual dispatches set `scheduled` too, and an explicit
+  `tools=code-scanning` there must not drag a content write along) and then
+  skips by construction unless `apply-schedule` names it, the same two-axis
+  default-closed shape ADR-007 stage 4 established, and the same graduation
+  path: a reviewed config entry after a track record.
 - **Dry-run performs reads and runs npm, never a write.** Unlike the template
   classes, whose dry-run makes no API calls, this dry-run is the real forecast:
   it reads the live alert and the files, runs npm in the scratch directory,

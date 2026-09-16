@@ -271,12 +271,15 @@ export function resolveDependabotSecurityDispatch(tools, scheduled) {
 // Whether an apply run should offer the lockfile refresh (ADR-015). It is a
 // content-transformation write, so on a MANUAL dispatch it never rides a blank
 // `tools` (= all actionable): the operator must name it. On the scheduled path
-// it is always offered, and `applyLockfileUpdates` itself skips unless the
-// `apply-schedule` allow-list names the tool — the same two-axis default-closed
-// shape ADR-007 stage 4 established. Pure — no I/O.
+// it is offered on a BLANK run only — the scheduled workflow sets `scheduled`
+// for its manual dispatches too, and an explicit `tools=code-scanning` there
+// must not drag a content write along — and `applyLockfileUpdates` itself then
+// skips unless the `apply-schedule` allow-list names the tool: the same
+// two-axis default-closed shape ADR-007 stage 4 established. Pure — no I/O.
 export function isLockfileUpdateRequested(tools, scheduled) {
   const list = Array.isArray(tools) ? tools : [];
-  return scheduled === true || list.includes('lockfile-update');
+  if (list.includes('lockfile-update')) return true;
+  return scheduled === true && list.length === 0;
 }
 
 export function validateRepoFormat(repo) {

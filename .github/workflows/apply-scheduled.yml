@@ -81,6 +81,7 @@ jobs:
           NUDGE: ${{ steps.apply.outputs.nudge }}
           AUTOMERGE: ${{ steps.apply.outputs.automerge }}
           COPILOT_REVIEW: ${{ steps.apply.outputs.copilotReview }}
+          LOCKFILE_UPDATE: ${{ steps.apply.outputs.lockfileUpdate }}
           DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry-run || 'true') }}
         run: |
           mode="dry-run"
@@ -101,5 +102,9 @@ jobs:
             # PR generation to GitHub, so it is never dispatched here and is not
             # allow-listable. It runs on the manual apply.yml only.
             echo "- Dependabot-security (settings write): not run here — manual-dispatch only by construction (ADR-012)."
+            # ADR-015: the lockfile refresh is offered to a blank scheduled run and
+            # acts only once `apply-schedule` names `lockfile-update`; until then this
+            # line reads skipped-unscheduled. When it acts, this is the audit record.
+            echo "- Lockfile-update (ADR-015 content write) summary: \`${LOCKFILE_UPDATE:-(none — not allow-listed or nothing actionable)}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=off-by-construction"
+          echo "::notice title=Scheduled apply ($mode)::apply=${APPLY:-none} nudge=${NUDGE:-none} automerge=${AUTOMERGE:-none} copilotReview=${COPILOT_REVIEW:-none} dependabotSecurity=off-by-construction lockfileUpdate=${LOCKFILE_UPDATE:-none}"

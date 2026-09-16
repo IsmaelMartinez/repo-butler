@@ -32,8 +32,13 @@ describe('isLockfileUpdateRequested (ADR-015 explicit-dispatch rule)', () => {
     assert.equal(isLockfileUpdateRequested(['code-scanning', 'lockfile-update'], false), true);
   });
 
-  it('is offered to the scheduled path, where the apply-schedule allow-list decides', () => {
+  it('is offered to a blank scheduled run, where the apply-schedule allow-list decides', () => {
     assert.equal(isLockfileUpdateRequested([], true), true);
+  });
+
+  it('respects tool scoping on the scheduled workflow: an explicit other tool does not drag it in', () => {
+    assert.equal(isLockfileUpdateRequested(['code-scanning'], true), false);
+    assert.equal(isLockfileUpdateRequested(['lockfile-update'], true), true);
   });
 
   it('tolerates a non-array tools value', () => {
