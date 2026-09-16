@@ -76,6 +76,13 @@ export function selectLockfileUpdateTargets(findings) {
         console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: package name is not a valid npm name`);
         continue;
       }
+      // A missing manifest path must not collapse into the root: alertDirectory
+      // maps null and '' to '' exactly like a root path, and refreshing the root
+      // lockfile for an alert whose location is unknown is the fail-open shape.
+      if (typeof a.manifestPath !== 'string' || a.manifestPath.trim() === '') {
+        console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: no manifest path`);
+        continue;
+      }
       const directory = alertDirectory(a.manifestPath);
       if (!isPlainDirectory(directory)) {
         console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: manifest path is not a plain repo-relative path`);
@@ -272,7 +279,11 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
   }
 
   for (const [name, patch] of patched) {
-    if (!changes.some(c => c.name === name)) {
+    // "Updated" means a copy moved, appeared or went away — not that npm
+    // rewrote `resolved`/`integrity` on a copy already at the patch, which
+    // changed nothing the alert is about and is not worth a PR. A removal
+    // counts as moved here so the zero-copies check below names it.
+    if (!changes.some(c => c.name === name && c.kind !== 'metadata')) {
       return refuse('not-updated', `${name} did not move`);
     }
     let copies = 0;
@@ -390,9 +401,11 @@ async function readOpenAlerts(gh, owner, repo, alerts, directory) {
   for (const a of alerts) {
     const live = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts/${a.number}`);
     const pkg = live?.dependency?.package;
-    const liveDirectory = alertDirectory(live?.dependency?.manifest_path);
+    const livePath = live?.dependency?.manifest_path;
+    // A missing live path is unknown, not root: alertDirectory would read it as ''.
+    const liveDirectory = typeof livePath === 'string' && livePath.trim() !== '' ? alertDirectory(livePath) : null;
     if (live?.state !== 'open' || pkg?.ecosystem !== CLASSIFIABLE_ECOSYSTEM || pkg?.name !== a.package || liveDirectory !== directory) {
-      console.log(`${LOCKFILE_UPDATE_TOOL}: ${owner}/${repo} alert #${a.number} is ${live?.state ?? 'unreadable'} / ${pkg?.name ?? '?'} in '${liveDirectory}', dropping`);
+      console.log(`${LOCKFILE_UPDATE_TOOL}: ${owner}/${repo} alert #${a.number} is ${live?.state ?? 'unreadable'} / ${pkg?.name ?? '?'} in '${liveDirectory ?? 'unknown'}', dropping`);
       continue;
     }
     open.push({ number: a.number, package: a.package, patchedVersion: live?.security_vulnerability?.first_patched_version?.identifier ?? null });

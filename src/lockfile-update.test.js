@@ -123,6 +123,18 @@ describe('selectLockfileUpdateTargets', () => {
     ]);
   });
 
+  it('drops an alert with a missing or blank manifest path instead of grouping it into the root target', () => {
+    const findings = [finding('repo-a', [
+      alert({ number: 1, manifestPath: null }),
+      alert({ number: 2, manifestPath: '' }),
+      alert({ number: 3, manifestPath: undefined }),
+      alert({ number: 4, manifestPath: 'package-lock.json' }),
+    ])];
+    assert.deepEqual(selectLockfileUpdateTargets(findings), [
+      { repo: 'repo-a', directory: '', alerts: [{ number: 4, package: 'libheif' }] },
+    ]);
+  });
+
   it('drops a package name that is not a valid npm name, since the name becomes an npm argument', () => {
     const findings = [finding('repo-a', [
       alert({ number: 1, package: '--registry=https://evil.example' }),
@@ -248,6 +260,16 @@ describe('computeLockfileGate', () => {
 
   it('refuses when something changed but the alert package did not move', () => {
     const r = gate({ 'node_modules/@img/sharp-linux-x64': { version: '0.34.2' } });
+    assert.equal(r.reason, 'not-updated');
+  });
+
+  it('refuses when the alert package only had its metadata rewritten while already at the patch', () => {
+    const r = computeLockfileGate({
+      lockBefore: lock({ ...BEFORE, 'node_modules/libheif': { version: '1.2.5', resolved: 'a' } }),
+      lockAfter: lock({ ...BEFORE, 'node_modules/libheif': { version: '1.2.5', resolved: 'b' } }),
+      manifestBefore: manifest, manifestAfter: manifest,
+      alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3' }],
+    });
     assert.equal(r.reason, 'not-updated');
   });
 
@@ -474,6 +496,14 @@ describe('applyLockfileUpdates', () => {
     const gh = baseGh({ alerts: { 1: openAlert(1, 'something-else') } });
     const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: npmOk });
     assert.equal(r.results[0].reason, 'no open alerts');
+  });
+
+  it('drops an alert whose live manifest path is missing rather than reading it as the root', async () => {
+    const gh = baseGh({ alerts: { 1: openAlert(1, 'libheif', '1.2.3', null) } });
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].reason, 'no open alerts');
+    assert.equal(ran, false);
   });
 
   it('drops an alert whose live manifest path moved to a different directory than the finding', async () => {
