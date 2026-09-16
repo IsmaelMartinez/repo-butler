@@ -275,6 +275,20 @@ dependabot-sourced `open-vulnerability` finding carries `autofixEnabled`
 surfaced on the dashboard and via `get_governance_findings`, so "remediation in flight"
 is visible without a new trust boundary — the read is inert.
 
+The first content-transformation write in the apply path is the lockfile refresh
+(ADR-015, `src/lockfile-update.js`). It acts on G13 `stalled-alert` findings whose
+npm alerts the trimmer classified `reachable-by-update`: re-reads each alert live,
+fetches the manifest and lockfile from the alert's directory (blob API above 1 MB),
+runs `npm update <pkgs> --package-lock-only --ignore-scripts` in a scratch directory,
+and lets a pure gate decide whether npm's output may become a PR — `package.json`
+untouched, every changed entry inside the alert packages' dependency closure and
+release line, every copy of the alert package at or above its patch. One PR per
+(repo, directory), labelled `governance-apply`, body built from the gate's own
+table. Dispatch it with `tools=lockfile-update`; it never rides a blank run, and on
+the schedule it skips unless `apply-schedule` names it. Its dry-run runs npm and the
+gate and prints the diff it would open, writing nothing — the preview is the audit
+record. Auto-merge-ineligible by construction.
+
 Note that `apply` lives in the dispatcher's `PHASE_RUNNERS` map but is
 intentionally absent from the `PHASES` list, so it never runs as part of
 `--phase=all` — it can only be invoked explicitly.
