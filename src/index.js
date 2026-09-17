@@ -130,6 +130,24 @@ async function runApply(context) {
     );
   }
 
+  // Lockfile refresh for `reachable-by-update` alerts (ADR-015). The first
+  // content-transformation write in the apply path: npm refreshes the lockfile
+  // in a scratch directory and a deterministic gate decides whether the result
+  // may become a PR. Explicit on a manual dispatch, allow-list-gated on the
+  // scheduled path (see isLockfileUpdateRequested); dry-run runs npm and the
+  // gate so the preview is the real diff, but writes nothing.
+  let lockfileResult = null;
+  if (isLockfileUpdateRequested(tools, scheduled)) {
+    const { applyLockfileUpdates } = await import('./lockfile-update.js');
+    lockfileResult = await applyLockfileUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled });
+    if (lockfileResult?.summary && process.env.GITHUB_OUTPUT) {
+      appendFileSync(
+        process.env.GITHUB_OUTPUT,
+        `lockfileUpdate=${JSON.stringify(lockfileResult.summary)}\n`,
+      );
+    }
+  }
+
   // Selective auto-merge reconcile pass (ADR-007 stage 5). Squash-merges the
   // butler's own green templated apply PRs for `apply-automerge`-allow-listed
   // classes (default empty → no-op). Deliberately NOT triggered by a blank-tools
@@ -207,6 +225,15 @@ async function runApply(context) {
       `automerge: ${autoMergeResult.summary.errors} error(s) [${failed}]; ${autoMergeResult.summary.merged} merged, ${autoMergeResult.summary.skipped} skipped`,
     );
   }
+  if (lockfileResult?.summary?.errors > 0) {
+    const failed = lockfileResult.results
+      .filter(r => r.status === 'error')
+      .map(r => (r.directory ? `${r.repo}/${r.directory}` : r.repo))
+      .join(', ');
+    errParts.push(
+      `lockfile-update: ${lockfileResult.summary.errors} error(s) [${failed}]; ${lockfileResult.summary.created} PR(s) created, ${lockfileResult.summary.skipped} skipped`,
+    );
+  }
   if (errParts.length > 0) {
     throw new Error(errParts.join(' | '));
   }
@@ -239,6 +266,20 @@ export function resolveDependabotSecurityDispatch(tools, scheduled) {
     enable: !scheduled && !conflict && (list.length === 0 || list.includes('dependabot-security')),
     disable: !scheduled && !conflict && list.includes('dependabot-security-off'),
   };
+}
+
+// Whether an apply run should offer the lockfile refresh (ADR-015). It is a
+// content-transformation write, so on a MANUAL dispatch it never rides a blank
+// `tools` (= all actionable): the operator must name it. On the scheduled path
+// it is offered on a BLANK run only — the scheduled workflow sets `scheduled`
+// for its manual dispatches too, and an explicit `tools=code-scanning` there
+// must not drag a content write along — and `applyLockfileUpdates` itself then
+// skips unless the `apply-schedule` allow-list names the tool: the same
+// two-axis default-closed shape ADR-007 stage 4 established. Pure — no I/O.
+export function isLockfileUpdateRequested(tools, scheduled) {
+  const list = Array.isArray(tools) ? tools : [];
+  if (list.includes('lockfile-update')) return true;
+  return scheduled === true && list.length === 0;
 }
 
 export function validateRepoFormat(repo) {

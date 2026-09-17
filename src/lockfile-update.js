@@ -1,0 +1,897 @@
+// Lockfile refresh for `reachable-by-update` alerts (ADR-015).
+//
+// The G13 stalled-alert detector already classifies an npm alert through the
+// trimmer's vocabulary, and `reachable-by-update` is the trimmer's REFUSAL:
+// "every parent range already admits the patch; refresh the lockfile instead".
+// Nothing in the write path acted on that refusal, so the alert sat open until
+// a human ran `npm update <pkg> --package-lock-only` by hand — five times in one
+// afternoon across this portfolio. This module is the deciding core for doing
+// that as a governance write.
+//
+// The shape is deliberately narrower than "fix the alert". npm is the transform
+// engine; the butler never edits the lockfile itself. What the butler owns is
+// the GATE: a pure comparison of the lockfile before and after that refuses
+// anything the operator would not have signed off on when doing it by hand.
+// Refusal is the default and the specification, exactly as in the trimmer.
+
+import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { REPO_NAME_PATTERN, validateIssueBody, validateIssueTitle } from './safety.js';
+import { parseVersion } from './trimmer.js';
+import { alertDirectory } from './stalled-alert.js';
+import { APPLY_PR_MARKER, isScheduleAllowed, screenApplyTarget } from './apply.js';
+
+export const LOCKFILE_UPDATE_TOOL = 'lockfile-update';
+
+const CLASSIFIABLE_ECOSYSTEM = 'npm';
+const ACTIONABLE_CLASSIFICATION = 'reachable-by-update';
+const MIN_LOCKFILE_VERSION = 2;
+const DEP_KEYS = ['dependencies', 'optionalDependencies', 'peerDependencies'];
+const NPM_TIMEOUT_MS = 120_000;
+const MANIFEST = 'package.json';
+const LOCKFILE = 'package-lock.json';
+// A package name becomes an argument to `npm update`, so it is validated
+// at the boundary (the finding, then again against the live alert) the way
+// REPO_NAME_PATTERN guards names that reach a URL. Lowercase, URL-safe, an
+// optional scope, no leading dot or underscore, and nothing that could be
+// read as a flag or a path. Linear-time by construction.
+const NPM_NAME_PATTERN = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+// The alert's directory becomes a branch suffix, a Contents API path and a
+// markdown code span, so it is held to plain repo-relative segments: no `..`,
+// no leading slash, no whitespace or markdown/mention characters. Linear-time.
+const DIRECTORY_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// Dependabot's `npm` ecosystem also covers yarn and pnpm, and names the
+// lockfile it found in `manifest_path`. This tool refreshes package-lock.json
+// and nothing else, so an alert whose manifest is yarn.lock or pnpm-lock.yaml
+// would be left unresolved by a "successful" run. Only the two npm files count.
+const NPM_MANIFEST_BASENAMES = new Set([MANIFEST, LOCKFILE]);
+// A plain release and nothing else. parseVersion tolerates any residual
+// suffix (`1.2.3-beta.0`, `1.2.3+build`, `1.2.3foo`, `1.2.3.4`) and reads it
+// as `1.2.3`, so two distinct prereleases would compare equal; the gate
+// compares only what this pattern admits and refuses the rest.
+const PLAIN_RELEASE = /^v?\d+\.\d+\.\d+$/;
+
+function manifestBasename(path) {
+  return path.slice(path.lastIndexOf('/') + 1);
+}
+
+// A plain repo-relative path: no leading slash (alertDirectory would strip
+// one and read `/package-lock.json` as the root, which the contract here does
+// not admit), no `./`, no backslashes, and an npm manifest or lockfile at the
+// end. The per-segment check happens on the derived directory.
+function isNpmManifestPath(path) {
+  if (typeof path !== 'string' || path.trim() === '') return false;
+  if (path.startsWith('/') || path.startsWith('./') || path.includes('\\')) return false;
+  return NPM_MANIFEST_BASENAMES.has(manifestBasename(path));
+}
+
+const PUBLIC_REGISTRY = 'https://registry.npmjs.org/';
+
+// A dependency spec npm resolves against the registry: a semver range, a tag,
+// `*`, or an `npm:` alias (which names another registry package). Anything
+// else — `git+…`, `github:`, an `http(s)` tarball, `file:`, `link:`,
+// `workspace:`, a bare `owner/repo` shorthand — tells npm to contact a host
+// the butler did not fix in code, which SECURITY.md rules out. The range
+// class admits letters because published packages declare prerelease-
+// tolerant peers (`^7.0.0-0`) as a matter of course; `:` and `/` stay out
+// of it, so nothing that names a host can pass as a range. Linear-time.
+const REGISTRY_SPEC = /^(npm:(?:@[^/@\s]+\/)?[^/@\s]+(?:@[\w~^>=<*.\s|-]*)?|[\w~^>=<*.\s|-]+)$/;
+const HOST_SPEC = /^(git|github|gitlab|bitbucket|gist|file|link|workspace|https?):|^git\+|^[^@/\s]+\/[^@/\s]+$/i;
+const MANIFEST_SPEC_KEYS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+
+function isRegistrySpec(spec) {
+  const s = String(spec ?? '').trim();
+  if (s === '') return true;
+  if (HOST_SPEC.test(s)) return false;
+  return REGISTRY_SPEC.test(s);
+}
+
+/**
+ * The first dependency source that would take npm beyond the public registry,
+ * or null when there is none. Checked BEFORE npm is spawned, because
+ * `npm update --package-lock-only` interprets every spec in the manifest and
+ * every `resolved` in the lockfile while building its tree — a git or tarball
+ * dependency anywhere in either is a host chosen by the target, and the gate
+ * afterwards cannot un-contact it. `overrides` values (nested one level, as
+ * npm allows) are specs too, and so are the dependency maps inside each
+ * lockfile entry: a spec there with no child entry is resolved by npm from
+ * wherever the spec points, so a git or `file:` spec on a nested package is
+ * the same host the manifest check exists to refuse. A lockfile entry with
+ * no `resolved` at all (bundled, or a shape this module does not know) is
+ * refused for the same reason the gate refuses it afterwards: it cannot be
+ * proven to come from the registry.
+ */
+export function findNonRegistrySource(manifest, lock) {
+  for (const key of MANIFEST_SPEC_KEYS) {
+    for (const [name, spec] of Object.entries(manifest?.[key] ?? {})) {
+      if (!isRegistrySpec(spec)) return `${key}.${name}: ${String(spec).slice(0, 60)}`;
+    }
+  }
+  for (const [name, value] of Object.entries(manifest?.overrides ?? {})) {
+    const specs = value && typeof value === 'object' ? Object.entries(value) : [[name, value]];
+    for (const [child, spec] of specs) {
+      if (!isRegistrySpec(spec)) return `overrides.${name}.${child}: ${String(spec).slice(0, 60)}`;
+    }
+  }
+  for (const [path, entry] of Object.entries(lock?.packages ?? {})) {
+    for (const key of MANIFEST_SPEC_KEYS) {
+      for (const [name, spec] of Object.entries(entry?.[key] ?? {})) {
+        if (!isRegistrySpec(spec)) return `${path || '(root)'}: ${key}.${name}: ${String(spec).slice(0, 60)}`;
+      }
+    }
+    if (path === '') continue;
+    if (entry?.link) return `${path}: link`;
+    const resolved = entry?.resolved;
+    if (typeof resolved !== 'string' || !resolved.startsWith(PUBLIC_REGISTRY)) {
+      return `${path}: resolved ${typeof resolved === 'string' ? resolved.slice(0, 60) : 'absent'}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * The environment npm runs with in the scratch directory: PATH and HOME so it
+ * can execute, TMPDIR so it can spill, the registry pinned to the public one,
+ * and user/global npm config pointed at files that do not exist. Nothing else
+ * — not the runner's tokens, not NODE_ENV, not any npm_config_* the caller
+ * inherited — because the manifest and lockfile are the target's files and a
+ * resolver that honoured inherited auth or a redirected registry would be
+ * acting on their behalf with the butler's credentials.
+ */
+export function npmChildEnv(inherited = process.env, scratchDir = tmpdir()) {
+  const env = {};
+  for (const key of ['PATH', 'HOME', 'TMPDIR']) {
+    if (typeof inherited[key] === 'string') env[key] = inherited[key];
+  }
+  env.npm_config_registry = PUBLIC_REGISTRY;
+  // Two DISTINCT paths that do not exist: npm reads a missing config file as
+  // empty, but refuses to load the same path twice ("double-loading config").
+  env.npm_config_userconfig = join(scratchDir, 'npmrc-user-absent');
+  env.npm_config_globalconfig = join(scratchDir, 'npmrc-global-absent');
+  return env;
+}
+
+function isPlainDirectory(directory) {
+  return directory === '' || directory.split('/').every(seg => DIRECTORY_SEGMENT.test(seg));
+}
+
+/**
+ * One target per (repo, directory), carrying only the alerts this tool can act
+ * on: npm, classified `reachable-by-update`, with a number and a package name.
+ * Grouping by directory matters because one `npm update` call refreshes one
+ * lockfile, and every reachable alert in that lockfile belongs in the same PR.
+ *
+ * Deliberately uncapped: the per-run cap is applied by the caller AFTER the
+ * PR-history screen, so targets that can produce nothing (open PR, recent
+ * decline) do not hold cap slots — the ordering `screenApplyTarget` exists for.
+ *
+ * @returns {Array<{repo: string, directory: string, alerts: Array<{number: number, package: string}>}>}
+ */
+export function selectLockfileUpdateTargets(findings) {
+  const targets = [];
+  for (const f of Array.isArray(findings) ? findings : []) {
+    if (!f || f.type !== 'stalled-alert' || !Array.isArray(f.alerts)) continue;
+    if (!f.repo || !REPO_NAME_PATTERN.test(f.repo)) {
+      if (f.repo) console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping repo with invalid name: ${f.repo}`);
+      continue;
+    }
+    for (const a of f.alerts) {
+      if (!a || a.ecosystem !== CLASSIFIABLE_ECOSYSTEM || a.classification !== ACTIONABLE_CLASSIFICATION) continue;
+      if (!Number.isInteger(a.number) || !a.package) continue;
+      if (!NPM_NAME_PATTERN.test(a.package)) {
+        console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: package name is not a valid npm name`);
+        continue;
+      }
+      // A missing manifest path must not collapse into the root: alertDirectory
+      // maps null and '' to '' exactly like a root path, and refreshing the root
+      // lockfile for an alert whose location is unknown is the fail-open shape.
+      // A yarn or pnpm manifest is refused for the same reason: the file this
+      // tool refreshes is not the file the alert is about.
+      if (!isNpmManifestPath(a.manifestPath)) {
+        console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: manifest path is missing or not an npm manifest/lockfile`);
+        continue;
+      }
+      const directory = alertDirectory(a.manifestPath);
+      if (!isPlainDirectory(directory)) {
+        console.warn(`${LOCKFILE_UPDATE_TOOL}: skipping alert #${a.number} on ${f.repo}: manifest path is not a plain repo-relative path`);
+        continue;
+      }
+      let target = targets.find(t => t.repo === f.repo && t.directory === directory);
+      if (!target) {
+        target = { repo: f.repo, directory, alerts: [] };
+        targets.push(target);
+      }
+      target.alerts.push({ number: a.number, package: a.package });
+    }
+  }
+  return targets;
+}
+
+// The package name an entry stands for: its explicit `name` (aliased installs)
+// or the last `node_modules/` segment of its path. The root entry ('') has no
+// name and is never in any family, so a change to it is refused as out-of-family.
+function entryName(path, entry) {
+  if (entry?.name) return entry.name;
+  const idx = path.lastIndexOf('node_modules/');
+  return idx === -1 ? path : path.slice(idx + 'node_modules/'.length);
+}
+
+// Key-order-independent serialisation, so a rewrite that only reorders keys
+// is not a change while any difference in content is.
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * Every `packages[]` entry that differs between two parsed lockfiles, as
+ * { path, name, from, to, kind } with null on the side the entry is absent
+ * from. `kind` is `version`, `added`, `removed`, or `metadata` — the last for
+ * an entry whose content changed (resolved, integrity, dependencies map, …)
+ * without its version moving. The whole file is what gets pushed, so a
+ * metadata change is a change and is held to the same family rule as a
+ * version bump. Ordered by path so a preview and a PR body are stable.
+ */
+export function diffLockfilePackages(before, after) {
+  const bp = before?.packages ?? {};
+  const ap = after?.packages ?? {};
+  const paths = [...new Set([...Object.keys(bp), ...Object.keys(ap)])].sort();
+  const changes = [];
+  for (const path of paths) {
+    const b = bp[path];
+    const a = ap[path];
+    const from = b?.version ?? null;
+    const to = a?.version ?? null;
+    let kind;
+    if (b === undefined) kind = 'added';
+    else if (a === undefined) kind = 'removed';
+    else if (from !== to) kind = 'version';
+    else if (stableStringify(a) !== stableStringify(b)) kind = 'metadata';
+    else continue;
+    changes.push({ path, name: entryName(path, a ?? b), from, to, kind });
+  }
+  return changes;
+}
+
+// Everything in the lockfile other than `packages`: name, version,
+// lockfileVersion, requires. A refresh leaves these alone; a rewrite that does
+// not (a lockfileVersion bump, a renamed root) is a format change, not a fix.
+// On lockfileVersion 2 — and only there — the top-level `dependencies` mirror
+// is excluded too, because npm regenerates it FROM `packages` on every v2
+// write, so the `packages` diff already accounts for its every change and
+// holding the derived copy to "unchanged" would refuse every legitimate v2
+// refresh. A v3 file has no such mirror, so one appearing or changing there is
+// exactly the unaccounted top-level change this comparison exists to catch.
+function lockfileEnvelope(lock) {
+  const { packages: _packages, dependencies, ...rest } = lock;
+  return stableStringify(Number(lock.lockfileVersion) === 2 ? rest : { ...rest, dependencies });
+}
+
+/**
+ * The set of package names a refresh of `name` is allowed to touch: `name`
+ * itself plus everything any copy of it in the tree declares, transitively.
+ * Resolution is by name across the whole lockfile rather than by npm's
+ * nearest-ancestor rule, which over-approximates the family slightly; that
+ * direction is acceptable because the release-line check still applies to
+ * every version change, while the opposite direction (missing a legitimate
+ * nested dependency) would refuse correct refreshes for no reason.
+ */
+export function familyOf(lock, name) {
+  const packages = lock?.packages ?? {};
+  const byName = new Map();
+  for (const [path, entry] of Object.entries(packages)) {
+    if (path === '') continue;
+    const n = entryName(path, entry);
+    if (!byName.has(n)) byName.set(n, []);
+    byName.get(n).push(entry ?? {});
+  }
+  const family = new Set();
+  const queue = [name];
+  while (queue.length > 0) {
+    const n = queue.pop();
+    if (family.has(n)) continue;
+    family.add(n);
+    for (const entry of byName.get(n) ?? []) {
+      for (const key of DEP_KEYS) {
+        for (const dep of Object.keys(entry[key] ?? {})) {
+          if (!family.has(dep)) queue.push(dep);
+        }
+      }
+    }
+  }
+  return family;
+}
+
+function parseJson(text) {
+  try {
+    const value = JSON.parse(text);
+    return value && typeof value === 'object' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function cmp(a, b) {
+  return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+}
+
+// Same release line: same major, and inside 0.x the same minor too, because
+// there every minor is itself a breaking line (the trimmer's lesson: a
+// major-only comparison is blind exactly where these alerts live).
+function sameReleaseLine(a, b) {
+  if (a.major !== b.major) return false;
+  return a.major !== 0 || a.minor === b.minor;
+}
+
+/**
+ * The write decision. Given the manifest and lockfile text before and after
+ * `npm update <pkgs> --package-lock-only`, either every rule holds and the
+ * refresh may become a PR, or one rule names why it may not. Rules, in order:
+ *
+ *   manifest-changed          npm touched package.json; only the lockfile may move
+ *   workspaces-unsupported    a workspaces root needs manifests the caller did not fetch
+ *   unparseable-lockfile      either side is not JSON
+ *   unsupported-lockfile      lockfileVersion < 2 has no packages map to reason over
+ *   lockfile-metadata-changed something outside packages[] moved (a format rewrite)
+ *   no-patched-version        an alert carries no parseable first_patched_version
+ *   non-release-version       a patched or compared version is not a plain
+ *                             `M.m.p` release (prerelease, build metadata, or
+ *                             any residual suffix parseVersion would tolerate)
+ *   no-change                 nothing moved, so there is nothing to open
+ *   not-updated               something moved but an alert package did not
+ *   not-patched               a copy of an alert package is still below its patch,
+ *                             or no copy remains at all
+ *   out-of-family             a change outside every alert package's dependency closure
+ *   release-line-crossing     a version change across a major, or a 0.x minor — in
+ *                             place, or by an added copy beside no existing line
+ *   unexpected-registry       a changed entry resolved from anywhere but registry.npmjs.org
+ *
+ * @returns {{ok: true, changes: Array} | {ok: false, reason: string, detail: string}}
+ */
+export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, manifestAfter, alerts } = {}) {
+  const refuse = (reason, detail) => ({ ok: false, reason, detail });
+
+  if (manifestBefore !== manifestAfter) {
+    return refuse('manifest-changed', 'package.json differs after the refresh; only package-lock.json may change');
+  }
+  const manifest = parseJson(manifestBefore);
+  if (manifest?.workspaces) {
+    return refuse('workspaces-unsupported', 'the manifest declares workspaces');
+  }
+
+  const before = parseJson(lockBefore);
+  const after = parseJson(lockAfter);
+  if (!before || !after) {
+    return refuse('unparseable-lockfile', 'a lockfile could not be parsed as JSON');
+  }
+  for (const l of [before, after]) {
+    if (!(Number(l.lockfileVersion) >= MIN_LOCKFILE_VERSION) || !l.packages || typeof l.packages !== 'object') {
+      return refuse('unsupported-lockfile', `lockfileVersion ${l.lockfileVersion ?? 'absent'} has no packages map`);
+    }
+  }
+  if (lockfileEnvelope(before) !== lockfileEnvelope(after)) {
+    return refuse('lockfile-metadata-changed', 'a top-level lockfile field other than packages changed');
+  }
+
+  // One requirement per package: the HIGHEST patched version any alert names,
+  // so two alerts on one package cannot let the later, lower one win.
+  const patched = new Map();
+  for (const a of Array.isArray(alerts) ? alerts : []) {
+    const v = parseVersion(a?.patchedVersion);
+    if (!a?.package || !v) {
+      return refuse('no-patched-version', `alert #${a?.number ?? '?'} (${a?.package ?? '?'}) has no parseable patched version`);
+    }
+    if (!PLAIN_RELEASE.test(String(a.patchedVersion))) {
+      return refuse('non-release-version', `alert #${a.number} names ${a.patchedVersion}, which is not a plain release this gate can order`);
+    }
+    const current = patched.get(a.package);
+    if (!current || cmp(v, current) > 0) patched.set(a.package, v);
+  }
+
+  const changes = diffLockfilePackages(before, after);
+  if (changes.length === 0) {
+    return refuse('no-change', 'the refresh produced an identical lockfile');
+  }
+  // Every version this gate is about to compare must be a plain release;
+  // refuse rather than let parseVersion's tolerance decide.
+  for (const c of changes) {
+    for (const v of [c.from, c.to]) {
+      if (v !== null && !PLAIN_RELEASE.test(String(v))) {
+        return refuse('non-release-version', `${c.path} is at ${v}, which is not a plain release`);
+      }
+    }
+  }
+  for (const [name] of patched) {
+    for (const [path, entry] of Object.entries(after.packages)) {
+      if (path !== '' && entryName(path, entry) === name && !PLAIN_RELEASE.test(String(entry?.version ?? ''))) {
+        return refuse('non-release-version', `${path} is at ${entry?.version ?? 'unknown'}, which is not a plain release`);
+      }
+    }
+  }
+
+  for (const [name, patch] of patched) {
+    // "Updated" means a copy moved, appeared or went away — not that npm
+    // rewrote `resolved`/`integrity` on a copy already at the patch, which
+    // changed nothing the alert is about and is not worth a PR. A removal
+    // counts as moved here so the zero-copies check below names it.
+    if (!changes.some(c => c.name === name && c.kind !== 'metadata')) {
+      return refuse('not-updated', `${name} did not move`);
+    }
+    let copies = 0;
+    for (const [path, entry] of Object.entries(after.packages)) {
+      if (path === '' || entryName(path, entry) !== name) continue;
+      copies += 1;
+      const v = parseVersion(entry?.version);
+      if (!v || cmp(v, patch) < 0) {
+        return refuse('not-patched', `${path} is at ${entry?.version ?? 'unknown'}, below ${name}@${[patch.major, patch.minor, patch.patch].join('.')}`);
+      }
+    }
+    // A refresh that drops every copy has not patched anything it can prove;
+    // the alert may well close, but that is Dependabot's call on rescan, not
+    // a lockfile this gate can vouch for.
+    if (copies === 0) {
+      return refuse('not-patched', `no copy of ${name} remains in the refreshed lockfile`);
+    }
+  }
+
+  const family = new Set();
+  for (const name of patched.keys()) {
+    for (const n of familyOf(before, name)) family.add(n);
+    for (const n of familyOf(after, name)) family.add(n);
+  }
+  for (const c of changes) {
+    if (!family.has(c.name)) {
+      return refuse('out-of-family', `${c.path} changed (${c.from ?? 'absent'} -> ${c.to ?? 'removed'}) outside the alert packages' dependency closure`);
+    }
+  }
+
+  // In-place version moves must stay on their release line. An ADDED entry is
+  // held to the same rule against every version its package had anywhere in
+  // the tree before: a relocation from one path to another, or a second copy
+  // appearing, must not be how a new major (or a new 0.x minor) enters the
+  // lockfile. A package new to the whole tree has no line to cross.
+  const versionsBefore = new Map();
+  for (const [path, entry] of Object.entries(before.packages)) {
+    if (path === '') continue;
+    const n = entryName(path, entry);
+    const v = parseVersion(entry?.version);
+    if (!v) continue;
+    if (!versionsBefore.has(n)) versionsBefore.set(n, []);
+    versionsBefore.get(n).push(v);
+  }
+  for (const c of changes) {
+    if (c.to === null) continue;
+    const to = parseVersion(c.to);
+    if (!to) return refuse('release-line-crossing', `${c.path} moved ${c.from} -> ${c.to}`);
+    if (c.from !== null) {
+      const from = parseVersion(c.from);
+      if (!from || !sameReleaseLine(from, to)) {
+        return refuse('release-line-crossing', `${c.path} moved ${c.from} -> ${c.to}`);
+      }
+      continue;
+    }
+    const prior = versionsBefore.get(c.name) ?? [];
+    if (prior.length > 0 && !prior.some(v => sameReleaseLine(v, to))) {
+      return refuse('release-line-crossing', `${c.path} adds ${c.name}@${c.to} beside no existing ${c.name} release line`);
+    }
+  }
+
+  // Every changed entry npm resolved must come from the public registry the
+  // scratch run was pinned to, and must SAY so: an entry with no `resolved`
+  // cannot be proven to come from anywhere. Otherwise the lockfile — not the
+  // butler — chose where the bytes come from.
+  for (const c of changes) {
+    if (c.to === null) continue;
+    const resolved = after.packages[c.path]?.resolved;
+    if (typeof resolved !== 'string' || !resolved.startsWith(PUBLIC_REGISTRY)) {
+      return refuse('unexpected-registry', `${c.path} ${typeof resolved === 'string' ? 'resolves outside the public npm registry' : 'has no resolved URL'}`);
+    }
+  }
+
+  return { ok: true, changes };
+}
+
+// --- the write path ---------------------------------------------------------
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * The one thing npm's stderr is allowed to contribute to a log line: its
+ * error code. The rest of that stream is built from the target repo's
+ * manifest and lockfile (package names, registry URLs, resolution trees) and
+ * Actions logs are public, so it never reaches a log or a result verbatim.
+ */
+export function npmFailureReason(stderr) {
+  const m = String(stderr ?? '').match(/npm (?:ERR!|error) code (\S+)/);
+  return m ? `npm update failed: code ${m[1].slice(0, 40)}` : 'npm update failed: no npm error code in output';
+}
+
+/**
+ * Run `npm update <pkgs> --package-lock-only` in a scratch directory holding
+ * only the manifest and the lockfile. `--package-lock-only` needs no
+ * node_modules, so the registry is the only thing npm touches. `--ignore-scripts`
+ * because nothing here should execute code from the target repo. Returns both
+ * files as written back, so the gate can prove the manifest did not move.
+ * Injectable via options.runNpmUpdate: the tests never spawn npm.
+ */
+export async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
+  const dir = await mkdtemp(join(tmpdir(), 'repo-butler-lockfile-'));
+  // A minimal environment (see npmChildEnv): among other things it leaves
+  // NODE_ENV unset, since `production` makes npm drop devDependencies from the
+  // refresh, which the gate would then refuse as out-of-family removals.
+  const env = npmChildEnv(process.env, dir);
+  try {
+    await writeFile(join(dir, MANIFEST), manifest);
+    await writeFile(join(dir, LOCKFILE), lockfile);
+    await execFileAsync('npm', [
+      'update', ...packages,
+      '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--no-progress',
+    ], { cwd: dir, timeout: NPM_TIMEOUT_MS, env, maxBuffer: 8 * 1024 * 1024 });
+    return {
+      manifest: await readFile(join(dir, MANIFEST), 'utf-8'),
+      lockfile: await readFile(join(dir, LOCKFILE), 'utf-8'),
+    };
+  } catch (err) {
+    // Only the npm error code leaves this function: the stderr it sits in is
+    // built from the target's own files and the log is public.
+    throw new Error(npmFailureReason(err.stderr ?? err.message));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+// Read a file at a ref, falling back to the blob API when the Contents API
+// declines to inline it. That API caps inline content at 1 MB and returns the
+// object with `content: ""` and `encoding: "none"` above it; real lockfiles
+// exceed 1 MB, and ADR-013 names guessing on that null as the failure this
+// caller must not have. Returns null only for a genuine 404. A response that
+// is neither inline content nor a blob pointer, or a blob without content, is
+// a malformed or partial answer and throws — absence must not be inferred
+// from an API that did not say so.
+async function readFileAtRef(gh, owner, repo, path, ref) {
+  let data;
+  try {
+    data = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, { params: { ref } });
+  } catch (err) {
+    if (err.message?.includes(': 404')) return null;
+    throw err;
+  }
+  if (typeof data?.content === 'string' && data.content.length > 0) {
+    return Buffer.from(data.content, 'base64').toString('utf-8');
+  }
+  if (typeof data?.sha !== 'string' || data.sha === '') {
+    throw new Error(`contents response for ${path} carried neither content nor a blob sha`);
+  }
+  const blob = await gh.request(`/repos/${owner}/${repo}/git/blobs/${data.sha}`);
+  if (typeof blob?.content !== 'string') {
+    throw new Error(`blob ${data.sha.slice(0, 8)} for ${path} carried no content`);
+  }
+  return Buffer.from(blob.content, 'base64').toString('utf-8');
+}
+
+// Re-read each alert LIVE at apply time (the ADR-012 posture: the finding can be
+// six hours stale). An alert that is no longer open, or whose live package,
+// ecosystem or directory disagree with the finding, is dropped — that is a
+// fixed alert or a mismatched finding, not an error. The directory check is
+// what ties the live alert to the lockfile about to be refreshed: a
+// manifest_path that moved since OBSERVE must not refresh whichever other
+// lockfile happens to contain the package. An unreadable alert throws so the
+// caller records an error rather than a skip.
+async function readOpenAlerts(gh, owner, repo, alerts, directory) {
+  const open = [];
+  for (const a of alerts) {
+    const live = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts/${a.number}`);
+    const pkg = live?.dependency?.package;
+    const livePath = live?.dependency?.manifest_path;
+    // A missing live path is unknown, not root (alertDirectory would read it
+    // as ''), and a yarn/pnpm manifest is not this tool's file at all.
+    const liveDirectory = isNpmManifestPath(livePath) ? alertDirectory(livePath) : null;
+    if (live?.state !== 'open' || pkg?.ecosystem !== CLASSIFIABLE_ECOSYSTEM || pkg?.name !== a.package || liveDirectory !== directory) {
+      console.log(`${LOCKFILE_UPDATE_TOOL}: ${owner}/${repo} alert #${a.number} is ${displayString(live?.state ?? 'unreadable')} / ${displayString(pkg?.name ?? '?')} in '${displayString(liveDirectory ?? 'unknown')}', dropping`);
+      continue;
+    }
+    open.push({ number: a.number, package: a.package, patchedVersion: live?.security_vulnerability?.first_patched_version?.identifier ?? null });
+  }
+  return open;
+}
+
+/**
+ * The per-directory tool name, which `screenApplyTarget` turns into the branch
+ * `repo-butler/apply-<tool>`. The readable slug is for humans; the hash is what
+ * keeps two directories that slugify alike (`docs/site`, `docs-site`) on
+ * separate branches with separate decline cooldowns. Bounded length.
+ */
+export function toolNameFor(directory) {
+  if (!directory) return LOCKFILE_UPDATE_TOOL;
+  const slug = directory.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  const hash = createHash('sha256').update(directory).digest('hex').slice(0, 8);
+  return `${LOCKFILE_UPDATE_TOOL}-${slug}-${hash}`;
+}
+
+/**
+ * A string from the target's lockfile (a package path, a version) made safe
+ * to print: control characters and newlines (a new log line, a workflow
+ * command), `|` (a table cell boundary) and a backtick (the end of the code
+ * span the PR body wraps paths in) all become `?`, and the length is bounded.
+ * Neutralised rather than escaped: an escape is a backslash the value can
+ * pre-empt with a backslash of its own (`\|` → `\\|`, a literal backslash
+ * and a live pipe), whereas no npm path or version legitimately carries any
+ * of these characters, so nothing is lost by replacing them. Used for every
+ * lockfile-derived value that reaches a log line or the PR body.
+ */
+export function displayString(value) {
+  return String(value ?? '').replace(/[\x00-\x1f\x7f|`]/g, '?').slice(0, 200);
+}
+
+// The PR is assembled from the gate's own output and nothing else: no LLM text,
+// no advisory prose (attacker-controlled), no @-mentions. Alert numbers link
+// through the repo's alerts page rather than being autolinked in prose.
+function buildPrBody(owner, repo, directory, alerts, changes) {
+  const lockPath = directory ? `${directory}/${LOCKFILE}` : LOCKFILE;
+  const lines = [
+    `## Governance: refresh \`${lockPath}\``,
+    '',
+    'Every parent range already admits the patched version, so the lockfile is refreshed in place with `npm update --package-lock-only`; `package.json` is untouched.',
+    '',
+    '| Alert | Package | First patched |',
+    '|---|---|---|',
+    ...alerts.map(a => `| [#${a.number}](https://github.com/${owner}/${repo}/security/dependabot/${a.number}) | \`${a.package}\` | ${displayString(a.patchedVersion)} |`),
+    '',
+    '| Lockfile entry | Before | After |',
+    '|---|---|---|',
+    ...changes.map(c => `| \`${displayString(c.path)}\` | ${c.from === null ? '—' : displayString(c.from)} | ${c.to === null ? 'removed' : displayString(c.to)} |`),
+    '',
+    `Gate: ${changes.length} change(s), all within the alert packages' dependency closure and release lines. Review and merge when ready.`,
+    '',
+    '---',
+    `*${APPLY_PR_MARKER}(https://github.com/IsmaelMartinez/repo-butler)*`,
+  ];
+  return lines.join('\n');
+}
+
+// A title has no code spans to hide a scope in, so a scoped name is rendered
+// without its leading `@` (`img/sharp-linux-x64`): the body's table carries the
+// exact name, and the title stays clear of anything a mention parser could read.
+// A directory can group many alerts; past the validator's length limit the
+// title falls back to a count and the body's table carries the detail.
+const MAX_PR_TITLE = 120;
+function buildPrTitle(alerts) {
+  const pkgs = alerts.map(a => a.package.replace(/^@/, '')).join(', ');
+  const nums = alerts.map(a => `#${a.number}`).join(', ');
+  const full = `chore(deps): refresh lockfile for ${pkgs} (Dependabot alert${alerts.length > 1 ? 's' : ''} ${nums})`;
+  return full.length <= MAX_PR_TITLE ? full : `chore(deps): refresh lockfile for ${alerts.length} Dependabot alerts`;
+}
+
+// The branch is created at `baseSha` — the commit both files were read from —
+// never at a freshly resolved head. If the default branch moved during the
+// read or the npm run, the PR simply opens behind it, which GitHub shows and a
+// merge resolves; branching at the new head would push a lockfile computed
+// against the old one over whatever changed in between. Returns the PR URL,
+// or null when a concurrent run opened one on this branch first.
+async function openPullRequest(gh, owner, repo, { branchName, defaultBranch, baseSha, lockPath, lockfile, title, body }) {
+  try {
+    await gh.request(`/repos/${owner}/${repo}/git/refs`, {
+      method: 'POST',
+      body: { ref: `refs/heads/${branchName}`, sha: baseSha },
+    });
+  } catch (err) {
+    // 422: the ref already exists. Usually a closed PR's branch, which the
+    // screen has already cleared for re-use — but the screen and this call
+    // are separate reads, and another apply run (a manual dispatch beside the
+    // cron) can create the branch AND open its PR in between. Re-read the
+    // open PRs before resetting anything: a force-reset here would push this
+    // run's lockfile over the other run's open PR. An unreadable re-check
+    // throws, so it fails closed — no reset on an unknown state.
+    if (!err.message?.includes('422')) throw err;
+    const open = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'open', head: `${owner}:${branchName}`, per_page: 10 },
+      max: 10,
+    });
+    if (open.length > 0) return null;
+    await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, {
+      method: 'PATCH',
+      body: { sha: baseSha, force: true },
+    });
+  }
+  await gh.putFile(owner, repo, lockPath, lockfile, { branch: branchName, message: title });
+  const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
+    method: 'POST',
+    body: { title, head: branchName, base: defaultBranch, body },
+  });
+  try {
+    await gh.request(`/repos/${owner}/${repo}/issues/${pr.number}/labels`, {
+      method: 'POST',
+      body: { labels: ['governance-apply'] },
+    });
+  } catch {
+    // Non-fatal: the PR is open, the label is cosmetic.
+  }
+  return pr.html_url;
+}
+
+/**
+ * Governance write (ADR-015): for every `stalled-alert` finding whose alerts
+ * the trimmer classified `reachable-by-update`, refresh the lockfile with npm,
+ * run the gate, and open a PR. One PR per (repo, directory); one target at a
+ * time. The ADR-005 gates apply unchanged: require_approval, dry-run
+ * fail-closed (only the literal `false` writes), the per-run cap, repo-name
+ * validation, and — unlike a template class — the scheduled path only when
+ * `apply-schedule` names the tool, since this is a content-transformation write.
+ *
+ * Dry-run performs every READ and runs npm in a scratch directory so the
+ * preview is the real forecast (the diff the PR would carry), but never a write.
+ */
+export async function applyLockfileUpdates(gh, owner, findings, config, options = {}) {
+  const { dryRun, maxPerRun = 5, scheduled, runNpmUpdate = runNpmUpdateInTempDir } = options;
+  const log = (msg) => console.log(`${LOCKFILE_UPDATE_TOOL}: ${msg}`);
+
+  // The boolean, not a truthy value: the YAML parser passes a quoted 'false'
+  // through as a string, and the ADR-005 master switch is `true` or nothing.
+  if (config?.limits?.require_approval !== true) {
+    console.error(`${LOCKFILE_UPDATE_TOOL}: config.limits.require_approval is not true — refusing to run`);
+    return { status: 'refused', reason: 'require_approval not set' };
+  }
+  if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], LOCKFILE_UPDATE_TOOL)) {
+    log('[scheduled]: not on the apply-schedule allow-list — skipping');
+    // Carries a summary so the scheduled run's audit line shows the deliberate
+    // gate, not the generic "nothing actionable" fallback.
+    return { status: 'skipped-unscheduled', targets: [], summary: { status: 'skipped-unscheduled', created: 0, skipped: 0, errors: 0 } };
+  }
+
+  const live = dryRun === false;
+  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const targets = selectLockfileUpdateTargets(findings);
+  const results = [];
+  // The cap counts targets that got PAST the screen, so a repo with an open or
+  // recently declined PR never holds a slot and starves the ones behind it.
+  let processed = 0;
+
+  for (const target of targets) {
+    if (processed >= cap) break;
+    const { repo, directory } = target;
+    const tool = toolNameFor(directory);
+    const prefix = directory ? `${directory}/` : '';
+    const label = `${owner}/${repo}${directory ? ` (${directory})` : ''}`;
+    try {
+      const screen = await screenApplyTarget(gh, owner, repo, tool);
+      if (!screen.eligible) {
+        results.push({ repo, directory, status: screen.status, reason: screen.reason });
+        continue;
+      }
+      processed += 1;
+
+      const alerts = await readOpenAlerts(gh, owner, repo, target.alerts, directory);
+      if (alerts.length === 0) {
+        results.push({ repo, directory, status: 'skipped', reason: 'no open alerts' });
+        continue;
+      }
+
+      // One commit is the whole frame of reference: both files are read from it
+      // and the PR branch is created at it, so a default branch that moves
+      // during the read or the npm run cannot be overwritten by a lockfile
+      // computed against its predecessor.
+      const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
+      const defaultBranch = repoMeta.default_branch || 'main';
+      const head = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
+      const baseSha = head?.object?.sha;
+      if (!baseSha) {
+        results.push({ repo, directory, status: 'error', error: 'default branch head unreadable' });
+        continue;
+      }
+      const manifestBefore = await readFileAtRef(gh, owner, repo, `${prefix}${MANIFEST}`, baseSha);
+      const lockBefore = await readFileAtRef(gh, owner, repo, `${prefix}${LOCKFILE}`, baseSha);
+      if (manifestBefore === null || lockBefore === null) {
+        log(`${label} manifest or lockfile unreadable, skipping (fail-closed)`);
+        results.push({ repo, directory, status: 'skipped', reason: 'manifest or lockfile unreadable' });
+        continue;
+      }
+      // The scratch directory holds only the two files, so a project `.npmrc`
+      // (private registry, legacy-peer-deps, …) would not shape the refresh
+      // the way it shapes the project's own installs. Carrying it over would
+      // mean honouring arbitrary config, tokens included; refusing is cheaper.
+      if (await readFileAtRef(gh, owner, repo, `${prefix}.npmrc`, baseSha) !== null) {
+        log(`${label} carries a .npmrc the scratch run cannot honour, skipping`);
+        results.push({ repo, directory, status: 'skipped', reason: 'npmrc-unsupported' });
+        continue;
+      }
+
+      // Cheap pre-flight of the gate's manifest rule so npm never runs on a
+      // shape the gate would refuse anyway.
+      const preflight = computeLockfileGate({ lockBefore, lockAfter: lockBefore, manifestBefore, manifestAfter: manifestBefore, alerts });
+      // Only the fixed rule name is logged, here and at every refusal below:
+      // the `detail` names paths, versions and keys from the target's own
+      // files, so it stays in the returned result and out of the public log.
+      if (!preflight.ok && preflight.reason !== 'no-change') {
+        log(`${label} refused before npm: ${preflight.reason}`);
+        results.push({ repo, directory, status: 'skipped', reason: `gate:${preflight.reason}`, detail: preflight.detail });
+        continue;
+      }
+      // The fixed-host boundary (SECURITY.md) has to hold BEFORE npm runs:
+      // a git, tarball or file dependency anywhere in the manifest or
+      // lockfile is a host the target chose, and npm would contact it while
+      // building the tree, long before the gate could refuse the result.
+      const source = findNonRegistrySource(parseJson(manifestBefore), parseJson(lockBefore));
+      if (source !== null) {
+        log(`${label} has a dependency source outside the public registry, skipping`);
+        results.push({ repo, directory, status: 'skipped', reason: 'non-registry-source', detail: source });
+        continue;
+      }
+
+      const packages = alerts.map(a => a.package);
+      const after = await runNpmUpdate({ manifest: manifestBefore, lockfile: lockBefore, packages });
+      const gate = computeLockfileGate({
+        lockBefore, lockAfter: after.lockfile, manifestBefore, manifestAfter: after.manifest, alerts,
+      });
+      if (!gate.ok) {
+        log(`${label} gate refused: ${gate.reason}`);
+        results.push({ repo, directory, status: 'skipped', reason: `gate:${gate.reason}`, detail: gate.detail });
+        continue;
+      }
+
+      // The preview is the audit record, so it does print lockfile-derived
+      // values — through displayString, so none of them can shape a log line.
+      const summary = gate.changes.map(c => `${displayString(c.path)}: ${c.from === null ? '—' : displayString(c.from)} -> ${c.to === null ? 'removed' : displayString(c.to)}`);
+      if (!live) {
+        log(`[DRY RUN] ${label} would open a PR for ${packages.join(', ')} with ${gate.changes.length} change(s):`);
+        for (const line of summary) log(`  ${line}`);
+        results.push({ repo, directory, status: 'would-open', alerts, changes: gate.changes });
+        continue;
+      }
+
+      // The title and body are composed from validated inputs only, and are
+      // still put through the same validators every published string passes
+      // (CLAUDE.md: composed strings, not just their parts). A failure here is
+      // a bug or hostile input, so it is an error, not a quiet skip.
+      const title = buildPrTitle(alerts);
+      const body = buildPrBody(owner, repo, directory, alerts, gate.changes);
+      const titleCheck = validateIssueTitle(title);
+      const bodyCheck = validateIssueBody(body);
+      if (!titleCheck.valid || !bodyCheck.valid) {
+        // The validator's messages quote what they matched, and what they
+        // matched came from the target's files; the public log gets a count.
+        const count = titleCheck.errors.length + bodyCheck.errors.length;
+        console.error(`${LOCKFILE_UPDATE_TOOL}: ${label} composed PR text failed validation (${count} error(s))`);
+        results.push({ repo, directory, status: 'error', error: `PR text failed validation (${count} error(s))` });
+        continue;
+      }
+
+      const url = await openPullRequest(gh, owner, repo, {
+        branchName: `repo-butler/apply-${tool}`,
+        defaultBranch,
+        baseSha,
+        lockPath: `${prefix}${LOCKFILE}`,
+        lockfile: after.lockfile,
+        title,
+        body,
+      });
+      if (url === null) {
+        log(`${label} already has an open PR for ${tool} (opened since the screen), skipping`);
+        results.push({ repo, directory, status: 'skipped', reason: 'PR already open' });
+        continue;
+      }
+      log(`${label} — PR created: ${url}`);
+      results.push({ repo, directory, status: 'created', pr: url, alerts, changes: gate.changes });
+    } catch (err) {
+      console.error(`${LOCKFILE_UPDATE_TOOL}: error on ${label}: ${err.message}`);
+      results.push({ repo, directory, status: 'error', error: err.message });
+    }
+  }
+
+  const skipped = results.filter(r => r.status === 'skipped').length;
+  const errors = results.filter(r => r.status === 'error').length;
+  if (!live) {
+    const wouldOpen = results.filter(r => r.status === 'would-open').length;
+    log(`[DRY RUN]: would open ${wouldOpen} PR(s), ${skipped} skipped, ${errors} error(s)`);
+    return { status: 'dry-run', results, summary: { created: 0, skipped, errors, wouldOpen } };
+  }
+  const created = results.filter(r => r.status === 'created').length;
+  log(`done — ${created} PR(s) created, ${skipped} skipped, ${errors} error(s)`);
+  return { status: 'completed', results, summary: { created, skipped, errors } };
+}
