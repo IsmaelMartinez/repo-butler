@@ -95,11 +95,12 @@ branch inside `applyGovernanceFindings`.
   and not this refresh, and carrying the file over would mean honouring
   arbitrary config, tokens included; the fixed-host boundary of SECURITY.md
   is checked BEFORE npm is spawned (`non-registry-source`): a git, tarball,
-  `file:`, `link:` or `workspace:` spec anywhere in the manifest or its
-  `overrides`, or a lockfile entry not `resolved` from `registry.npmjs.org`
-  (an absent `resolved` included), is a host the target chose and npm would
-  contact it while building the tree, long before the gate could refuse the
-  result; every changed entry's `resolved` must then also point at the public
+  `file:`, `link:` or `workspace:` spec anywhere in the manifest, its
+  `overrides`, or the dependency maps inside any lockfile entry (a spec
+  with no child entry is resolved from wherever it points), or a lockfile
+  entry not `resolved` from `registry.npmjs.org` (an absent `resolved`
+  included), is a host the target chose and npm would contact it while
+  building the tree, long before the gate could refuse the result; every changed entry's `resolved` must then also point at the public
   registry afterwards (`unexpected-registry`), so the lockfile, not the
   butler, can never choose where the bytes come from; and when npm
   fails, only its error code (`npm update failed: code ERESOLVE`) reaches the
@@ -110,9 +111,12 @@ branch inside `applyGovernanceFindings`.
   validators' matched text never reaches the log when a composed title or
   body fails (the log gets a count); and the dry-run preview, which must print
   lockfile-derived values because it is the audit record, prints them
-  through `displayString`, which replaces control characters, escapes table
-  delimiters and bounds the length, so no lockfile key can open a new log
-  line or a workflow command. The PR body's table cells pass through the same
+  through `displayString`, which replaces control characters, table
+  delimiters and backticks with `?` and bounds the length, so no lockfile
+  key can open a new log line, a workflow command or a table cell. They are
+  neutralised rather than escaped, because an escape is a backslash the
+  value can pre-empt with its own, and no npm path or version legitimately
+  carries any of them. The PR body's table cells pass through the same
   function.
 - **The gate is the write decision, and refusal is its specification** (→
   modes 2, 3, 4). `computeLockfileGate` is pure and returns the first rule that
@@ -163,7 +167,12 @@ branch inside `applyGovernanceFindings`.
   — and the PR branch is created at that same sha, never at a freshly resolved
   head, so a default branch that moves during the read or the npm run cannot
   be overwritten by a lockfile computed against its predecessor (the PR simply
-  opens behind). The manifest and lockfile are read from the same directory
+  opens behind). When the branch already exists, the open PRs on it are
+  re-read before it is reset: the PR-history screen and the branch write are
+  separate reads, so a second apply run (a manual dispatch beside the cron)
+  can open its PR in between, and a force-reset then would push this run's
+  lockfile over that PR. An open PR means skip; an unreadable re-check
+  throws, so nothing is reset on an unknown state. The manifest and lockfile are read from the same directory
   the alert's `manifest_path` names, so correspondence holds by construction.
   The dry-run preview prints the gate's change list, which is the diff the PR
   would carry. Nothing is reformatted: the lockfile npm wrote is the lockfile

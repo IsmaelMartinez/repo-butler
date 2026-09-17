@@ -455,7 +455,7 @@ describe('findNonRegistrySource', () => {
   });
 
   it('names a manifest spec that would make npm contact anywhere but the registry', () => {
-    for (const spec of ['git+https://github.com/x/y.git', 'github:x/y', 'https://example.com/pkg.tgz', 'file:../local', 'link:../local', 'workspace:*', 'x/y', 'git://h/r.git']) {
+    for (const spec of ['git+https://github.com/x/y.git', 'github:x/y', 'https://example.com/pkg.tgz', 'file:../local', 'link:../local', 'workspace:*', 'x/y', 'git://h/r.git', 'npm:@scope/x@file:../y', 'npm:x@git+https://h/r.git']) {
       const found = findNonRegistrySource({ dependencies: { bad: spec } }, registryLock);
       assert.ok(found && found.includes('bad'), spec);
     }
@@ -470,6 +470,21 @@ describe('findNonRegistrySource', () => {
     assert.ok(findNonRegistrySource({}, link).includes('node_modules/x'));
     const bare = JSON.parse(rawLock({ 'node_modules/x': { version: '1.0.0' } }));
     assert.ok(findNonRegistrySource({}, bare).includes('node_modules/x'));
+  });
+
+  it('walks the dependency specs inside every lockfile entry, since npm resolves a spec with no child entry from wherever it points', () => {
+    const git = JSON.parse(lock({ 'node_modules/x': { version: '1.0.0', dependencies: { y: 'git+https://github.com/a/b.git' } } }));
+    const found = findNonRegistrySource({}, git);
+    assert.ok(found && found.includes('node_modules/x') && found.includes('y'), found);
+    const opt = JSON.parse(lock({ 'node_modules/x': { version: '1.0.0', optionalDependencies: { y: 'file:../y' } } }));
+    assert.ok(findNonRegistrySource({}, opt));
+    const peer = JSON.parse(lock({ 'node_modules/x': { version: '1.0.0', peerDependencies: { y: 'a/b' } } }));
+    assert.ok(findNonRegistrySource({}, peer));
+  });
+
+  it('accepts the prerelease-tolerant ranges published packages declare, in the manifest and in lockfile entries', () => {
+    const l = JSON.parse(lock({ 'node_modules/x': { version: '1.0.0', peerDependencies: { '@babel/core': '^7.0.0-0', react: '>=16.8.0 || ^17.0.0-rc.1' }, dependencies: { z: 'npm:real-z@^2.0.0-beta.3' } } }));
+    assert.equal(findNonRegistrySource({ dependencies: { a: '^1.0.0-beta.1' } }, l), null);
   });
 });
 
@@ -508,7 +523,8 @@ describe('applyLockfileUpdates pre-flight', () => {
 describe('displayString', () => {
   it('strips control characters and newlines and bounds the length, so a lockfile key cannot shape a log line or a table row', () => {
     assert.equal(displayString('node_modules/a\n::warning::x\r\tb'), 'node_modules/a?::warning::x??b');
-    assert.equal(displayString('a|b'), 'a\\|b');
+    assert.equal(displayString('a|b`c'), 'a?b?c');
+    assert.equal(displayString('a\\|b'), 'a\\?b');
     assert.equal(displayString('x'.repeat(300)).length, 200);
     assert.equal(displayString(null), '');
   });
@@ -603,7 +619,7 @@ function fakeGh({ alerts = {}, files = {}, prs = [], writes = [], puts = [], rea
       if (m) return { content: b64(files[`blob:${m[1]}`]), encoding: 'base64' };
       throw new Error(`unexpected GET ${path}`);
     },
-    paginate: async (path, opts) => (typeof prs === 'function' ? prs(opts?.params?.head ?? '') : prs),
+    paginate: async (path, opts) => (typeof prs === 'function' ? prs(opts?.params?.head ?? '', opts?.params ?? {}) : prs),
     putFile: async (owner, repo, filePath, content, opts) => { puts.push({ repo, filePath, content, opts }); },
   };
 }
@@ -635,6 +651,13 @@ describe('applyLockfileUpdates', () => {
   it('refuses to run when require_approval is not set, without touching the API', async () => {
     const gh = baseGh();
     const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: {} }, { dryRun: false, runNpmUpdate: npmOk });
+    assert.equal(r.status, 'refused');
+    assert.equal(gh.writes.length, 0);
+  });
+
+  it('refuses a require_approval that is not the boolean true, such as the quoted string the YAML parser passes through', async () => {
+    const gh = baseGh();
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: { require_approval: 'false' } }, { dryRun: false, runNpmUpdate: npmOk });
     assert.equal(r.status, 'refused');
     assert.equal(gh.writes.length, 0);
   });
@@ -877,12 +900,24 @@ describe('applyLockfileUpdates', () => {
     assert.deepEqual(label.body, { labels: ['governance-apply'] });
   });
 
-  it('live: force-updates the branch when the ref already exists', async () => {
+  it('live: force-updates the branch when the ref already exists and no PR is open on it', async () => {
     const gh = baseGh({ fail: { refExists: true } });
     const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: false, runNpmUpdate: npmOk });
     assert.equal(r.results[0].status, 'created');
     const patch = gh.writes.find(w => w.method === 'PATCH');
     assert.deepEqual(patch.body, { sha: 'abc123', force: true });
+  });
+
+  it('live: never resets an existing branch that a concurrent run has opened a PR on since the screen', async () => {
+    // The screen (state: all) saw nothing; by the time the ref POST returns 422 a PR is open.
+    const prs = (head, params) => (params.state === 'open' ? [{ number: 7, state: 'open', html_url: 'https://github.com/o/repo-a/pull/7' }] : []);
+    const gh = baseGh({ fail: { refExists: true }, prs });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: false, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].status, 'skipped');
+    assert.equal(r.results[0].reason, 'PR already open');
+    assert.equal(gh.writes.some(w => w.method === 'PATCH'), false);
+    assert.equal(gh.puts.length, 0);
+    assert.equal(gh.writes.some(w => w.path.endsWith('/pulls')), false);
   });
 
   it('handles a non-root directory: reads and writes under it and uses a per-directory branch', async () => {

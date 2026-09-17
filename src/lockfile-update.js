@@ -75,8 +75,11 @@ const PUBLIC_REGISTRY = 'https://registry.npmjs.org/';
 // `*`, or an `npm:` alias (which names another registry package). Anything
 // else — `git+…`, `github:`, an `http(s)` tarball, `file:`, `link:`,
 // `workspace:`, a bare `owner/repo` shorthand — tells npm to contact a host
-// the butler did not fix in code, which SECURITY.md rules out. Linear-time.
-const REGISTRY_SPEC = /^(npm:(?:@[^/@\s]+\/)?[^/@\s]+(?:@[^\s]*)?|[~^>=<v\d*x.\s|-]+|latest|next|[a-z][a-z0-9-]*)$/i;
+// the butler did not fix in code, which SECURITY.md rules out. The range
+// class admits letters because published packages declare prerelease-
+// tolerant peers (`^7.0.0-0`) as a matter of course; `:` and `/` stay out
+// of it, so nothing that names a host can pass as a range. Linear-time.
+const REGISTRY_SPEC = /^(npm:(?:@[^/@\s]+\/)?[^/@\s]+(?:@[\w~^>=<*.\s|-]*)?|[\w~^>=<*.\s|-]+)$/;
 const HOST_SPEC = /^(git|github|gitlab|bitbucket|gist|file|link|workspace|https?):|^git\+|^[^@/\s]+\/[^@/\s]+$/i;
 const MANIFEST_SPEC_KEYS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
 
@@ -94,10 +97,13 @@ function isRegistrySpec(spec) {
  * every `resolved` in the lockfile while building its tree — a git or tarball
  * dependency anywhere in either is a host chosen by the target, and the gate
  * afterwards cannot un-contact it. `overrides` values (nested one level, as
- * npm allows) are specs too. A lockfile entry with no `resolved` at all
- * (bundled, or a shape this module does not know) is refused for the same
- * reason the gate refuses it afterwards: it cannot be proven to come from
- * the registry.
+ * npm allows) are specs too, and so are the dependency maps inside each
+ * lockfile entry: a spec there with no child entry is resolved by npm from
+ * wherever the spec points, so a git or `file:` spec on a nested package is
+ * the same host the manifest check exists to refuse. A lockfile entry with
+ * no `resolved` at all (bundled, or a shape this module does not know) is
+ * refused for the same reason the gate refuses it afterwards: it cannot be
+ * proven to come from the registry.
  */
 export function findNonRegistrySource(manifest, lock) {
   for (const key of MANIFEST_SPEC_KEYS) {
@@ -112,6 +118,11 @@ export function findNonRegistrySource(manifest, lock) {
     }
   }
   for (const [path, entry] of Object.entries(lock?.packages ?? {})) {
+    for (const key of MANIFEST_SPEC_KEYS) {
+      for (const [name, spec] of Object.entries(entry?.[key] ?? {})) {
+        if (!isRegistrySpec(spec)) return `${path || '(root)'}: ${key}.${name}: ${String(spec).slice(0, 60)}`;
+      }
+    }
     if (path === '') continue;
     if (entry?.link) return `${path}: link`;
     const resolved = entry?.resolved;
@@ -606,13 +617,17 @@ export function toolNameFor(directory) {
 
 /**
  * A string from the target's lockfile (a package path, a version) made safe
- * to print: control characters and newlines become `?` so it cannot open a
- * new log line or a workflow command, `|` is escaped so it cannot break a
- * markdown table row, and the length is bounded. Used for every lockfile-
- * derived value that reaches a log line or the PR body.
+ * to print: control characters and newlines (a new log line, a workflow
+ * command), `|` (a table cell boundary) and a backtick (the end of the code
+ * span the PR body wraps paths in) all become `?`, and the length is bounded.
+ * Neutralised rather than escaped: an escape is a backslash the value can
+ * pre-empt with a backslash of its own (`\|` → `\\|`, a literal backslash
+ * and a live pipe), whereas no npm path or version legitimately carries any
+ * of these characters, so nothing is lost by replacing them. Used for every
+ * lockfile-derived value that reaches a log line or the PR body.
  */
 export function displayString(value) {
-  return String(value ?? '').replace(/[\x00-\x1f\x7f]/g, '?').replace(/\|/g, '\\|').slice(0, 200);
+  return String(value ?? '').replace(/[\x00-\x1f\x7f|`]/g, '?').slice(0, 200);
 }
 
 // The PR is assembled from the gate's own output and nothing else: no LLM text,
@@ -658,7 +673,8 @@ function buildPrTitle(alerts) {
 // never at a freshly resolved head. If the default branch moved during the
 // read or the npm run, the PR simply opens behind it, which GitHub shows and a
 // merge resolves; branching at the new head would push a lockfile computed
-// against the old one over whatever changed in between.
+// against the old one over whatever changed in between. Returns the PR URL,
+// or null when a concurrent run opened one on this branch first.
 async function openPullRequest(gh, owner, repo, { branchName, defaultBranch, baseSha, lockPath, lockfile, title, body }) {
   try {
     await gh.request(`/repos/${owner}/${repo}/git/refs`, {
@@ -666,8 +682,19 @@ async function openPullRequest(gh, owner, repo, { branchName, defaultBranch, bas
       body: { ref: `refs/heads/${branchName}`, sha: baseSha },
     });
   } catch (err) {
-    // 422: the ref already exists (a closed PR's branch). Reset it to the base.
+    // 422: the ref already exists. Usually a closed PR's branch, which the
+    // screen has already cleared for re-use — but the screen and this call
+    // are separate reads, and another apply run (a manual dispatch beside the
+    // cron) can create the branch AND open its PR in between. Re-read the
+    // open PRs before resetting anything: a force-reset here would push this
+    // run's lockfile over the other run's open PR. An unreadable re-check
+    // throws, so it fails closed — no reset on an unknown state.
     if (!err.message?.includes('422')) throw err;
+    const open = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'open', head: `${owner}:${branchName}`, per_page: 10 },
+      max: 10,
+    });
+    if (open.length > 0) return null;
     await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, {
       method: 'PATCH',
       body: { sha: baseSha, force: true },
@@ -705,7 +732,9 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
   const { dryRun, maxPerRun = 5, scheduled, runNpmUpdate = runNpmUpdateInTempDir } = options;
   const log = (msg) => console.log(`${LOCKFILE_UPDATE_TOOL}: ${msg}`);
 
-  if (!config?.limits?.require_approval) {
+  // The boolean, not a truthy value: the YAML parser passes a quoted 'false'
+  // through as a string, and the ADR-005 master switch is `true` or nothing.
+  if (config?.limits?.require_approval !== true) {
     console.error(`${LOCKFILE_UPDATE_TOOL}: config.limits.require_approval is not true — refusing to run`);
     return { status: 'refused', reason: 'require_approval not set' };
   }
@@ -842,6 +871,11 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
         title,
         body,
       });
+      if (url === null) {
+        log(`${label} already has an open PR for ${tool} (opened since the screen), skipping`);
+        results.push({ repo, directory, status: 'skipped', reason: 'PR already open' });
+        continue;
+      }
       log(`${label} — PR created: ${url}`);
       results.push({ repo, directory, status: 'created', pr: url, alerts, changes: gate.changes });
     } catch (err) {
