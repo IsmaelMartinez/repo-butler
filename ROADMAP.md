@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-16
+**Last Updated:** 2026-09-17
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -130,6 +130,8 @@ Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). This release con
 Repo Butler v1.1.3 stable release deployed 2026-09-16 (v1.1.3). Resolves a critical environment-specific blockage on the Docker agent execution runner where automated lockfile updates were refused during scheduled daily roadmap planning cycles, ensuring system uptime and self-sustainability (Issue #401).
 
 Docker execution agent lockfile resolution shipped 2026-09-16 (v1.1.3). Resolves a critical environment-specific blocker on the Docker agent execution runner where automated lockfile updates were refused during scheduled daily roadmap planning cycles, ensuring system uptime and self-sustainability (Issue #401).
+
+Automated lockfile update tool for reachable-by-update alerts shipped 2026-09-17 (PR #400). Following the ADR-015 design, this implements the `lockfile-update` apply tool specifically targeting `reachable-by-update` Dependabot alerts, allowing the butler to autonomously resolve targeted security vulnerabilities by updating lockfiles.
 
 ---
 
