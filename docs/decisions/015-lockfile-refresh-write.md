@@ -104,9 +104,16 @@ branch inside `applyGovernanceFindings`.
   butler, can never choose where the bytes come from; and when npm
   fails, only its error code (`npm update failed: code ERESOLVE`) reaches the
   result and the log — the rest of stderr is built from the target's files
-  and the Actions log is public. The same rule keeps the safety validators'
-  matched text out of the log when a composed title or body fails: the log
-  gets a count.
+  and the Actions log is public. The same rule governs every other log line:
+  a refusal logs its fixed rule name and keeps the `detail` (paths, versions,
+  keys from the target's files) in the returned result; the safety
+  validators' matched text never reaches the log when a composed title or
+  body fails (the log gets a count); and the dry-run preview, which must print
+  lockfile-derived values because it is the audit record, prints them
+  through `displayString`, which replaces control characters, escapes table
+  delimiters and bounds the length, so no lockfile key can open a new log
+  line or a workflow command. The PR body's table cells pass through the same
+  function.
 - **The gate is the write decision, and refusal is its specification** (→
   modes 2, 3, 4). `computeLockfileGate` is pure and returns the first rule that
   fails, in this order: `manifest-changed` (only the lockfile may move — this
@@ -213,12 +220,25 @@ reviews the gate's table and CI's verdict, and merges. Reverting is reverting
 one commit that touched one file. Nothing auto-merges. The alert state on
 GitHub, not the PR, is the proof of fix.
 
-The worst case this ADR does **not** claim to have eliminated: the family check
-resolves dependency names across the whole lockfile rather than by npm's
-nearest-ancestor rule, so it can over-approximate a family and admit a change
-to a same-named package elsewhere in the tree. The release-line check still
-applies to every such change, which bounds it to a patch or minor bump of
-something the alert package also depends on.
+Two worst cases this ADR does **not** claim to have eliminated. The family
+check resolves dependency names across the whole lockfile rather than by
+npm's nearest-ancestor rule, so it can over-approximate a family and admit a
+change to a same-named package elsewhere in the tree; the release-line check
+still applies to every such change, which bounds it to a patch or minor bump
+of something the alert package also depends on. And npm's own egress during
+resolution is not sandboxed: the pre-flight refuses every off-registry source
+the manifest and lockfile already carry, but a newer in-range version of an
+already-trusted package could itself declare a git or tarball dependency, and
+npm would contact that host while building the tree, before the gate can
+refuse the result (which it then does, as `unexpected-registry`). What that
+exposure amounts to is one outbound request from an ephemeral runner holding
+no secrets — the child environment carries none — to a host chosen by the
+upstream of a package the target already depends on; it is the same request
+the target's own `npm ci` would make on its next install. Closing it needs a
+network sandbox that admits only `registry.npmjs.org`, which a zero-dependency
+Node action cannot provide and which is precisely the runner question the
+agentic follow-up (issue #401) exists to answer. Until then this class stays
+manual-dispatch and review-mandatory, which is where it already sits.
 
 ### Executor and lane
 

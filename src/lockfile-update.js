@@ -583,7 +583,7 @@ async function readOpenAlerts(gh, owner, repo, alerts, directory) {
     // as ''), and a yarn/pnpm manifest is not this tool's file at all.
     const liveDirectory = isNpmManifestPath(livePath) ? alertDirectory(livePath) : null;
     if (live?.state !== 'open' || pkg?.ecosystem !== CLASSIFIABLE_ECOSYSTEM || pkg?.name !== a.package || liveDirectory !== directory) {
-      console.log(`${LOCKFILE_UPDATE_TOOL}: ${owner}/${repo} alert #${a.number} is ${live?.state ?? 'unreadable'} / ${pkg?.name ?? '?'} in '${liveDirectory ?? 'unknown'}', dropping`);
+      console.log(`${LOCKFILE_UPDATE_TOOL}: ${owner}/${repo} alert #${a.number} is ${displayString(live?.state ?? 'unreadable')} / ${displayString(pkg?.name ?? '?')} in '${displayString(liveDirectory ?? 'unknown')}', dropping`);
       continue;
     }
     open.push({ number: a.number, package: a.package, patchedVersion: live?.security_vulnerability?.first_patched_version?.identifier ?? null });
@@ -604,6 +604,17 @@ export function toolNameFor(directory) {
   return `${LOCKFILE_UPDATE_TOOL}-${slug}-${hash}`;
 }
 
+/**
+ * A string from the target's lockfile (a package path, a version) made safe
+ * to print: control characters and newlines become `?` so it cannot open a
+ * new log line or a workflow command, `|` is escaped so it cannot break a
+ * markdown table row, and the length is bounded. Used for every lockfile-
+ * derived value that reaches a log line or the PR body.
+ */
+export function displayString(value) {
+  return String(value ?? '').replace(/[\x00-\x1f\x7f]/g, '?').replace(/\|/g, '\\|').slice(0, 200);
+}
+
 // The PR is assembled from the gate's own output and nothing else: no LLM text,
 // no advisory prose (attacker-controlled), no @-mentions. Alert numbers link
 // through the repo's alerts page rather than being autolinked in prose.
@@ -616,11 +627,11 @@ function buildPrBody(owner, repo, directory, alerts, changes) {
     '',
     '| Alert | Package | First patched |',
     '|---|---|---|',
-    ...alerts.map(a => `| [#${a.number}](https://github.com/${owner}/${repo}/security/dependabot/${a.number}) | \`${a.package}\` | ${a.patchedVersion} |`),
+    ...alerts.map(a => `| [#${a.number}](https://github.com/${owner}/${repo}/security/dependabot/${a.number}) | \`${a.package}\` | ${displayString(a.patchedVersion)} |`),
     '',
     '| Lockfile entry | Before | After |',
     '|---|---|---|',
-    ...changes.map(c => `| \`${c.path}\` | ${c.from ?? '—'} | ${c.to ?? 'removed'} |`),
+    ...changes.map(c => `| \`${displayString(c.path)}\` | ${c.from === null ? '—' : displayString(c.from)} | ${c.to === null ? 'removed' : displayString(c.to)} |`),
     '',
     `Gate: ${changes.length} change(s), all within the alert packages' dependency closure and release lines. Review and merge when ready.`,
     '',
@@ -765,8 +776,11 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
       // Cheap pre-flight of the gate's manifest rule so npm never runs on a
       // shape the gate would refuse anyway.
       const preflight = computeLockfileGate({ lockBefore, lockAfter: lockBefore, manifestBefore, manifestAfter: manifestBefore, alerts });
+      // Only the fixed rule name is logged, here and at every refusal below:
+      // the `detail` names paths, versions and keys from the target's own
+      // files, so it stays in the returned result and out of the public log.
       if (!preflight.ok && preflight.reason !== 'no-change') {
-        log(`${label} refused before npm: ${preflight.reason} (${preflight.detail})`);
+        log(`${label} refused before npm: ${preflight.reason}`);
         results.push({ repo, directory, status: 'skipped', reason: `gate:${preflight.reason}`, detail: preflight.detail });
         continue;
       }
@@ -776,7 +790,7 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
       // building the tree, long before the gate could refuse the result.
       const source = findNonRegistrySource(parseJson(manifestBefore), parseJson(lockBefore));
       if (source !== null) {
-        log(`${label} has a dependency source outside the public registry, skipping (${source.split(':')[0]})`);
+        log(`${label} has a dependency source outside the public registry, skipping`);
         results.push({ repo, directory, status: 'skipped', reason: 'non-registry-source', detail: source });
         continue;
       }
@@ -787,12 +801,14 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
         lockBefore, lockAfter: after.lockfile, manifestBefore, manifestAfter: after.manifest, alerts,
       });
       if (!gate.ok) {
-        log(`${label} gate refused: ${gate.reason} (${gate.detail})`);
+        log(`${label} gate refused: ${gate.reason}`);
         results.push({ repo, directory, status: 'skipped', reason: `gate:${gate.reason}`, detail: gate.detail });
         continue;
       }
 
-      const summary = gate.changes.map(c => `${c.path}: ${c.from ?? '—'} -> ${c.to ?? 'removed'}`);
+      // The preview is the audit record, so it does print lockfile-derived
+      // values — through displayString, so none of them can shape a log line.
+      const summary = gate.changes.map(c => `${displayString(c.path)}: ${c.from === null ? '—' : displayString(c.from)} -> ${c.to === null ? 'removed' : displayString(c.to)}`);
       if (!live) {
         log(`[DRY RUN] ${label} would open a PR for ${packages.join(', ')} with ${gate.changes.length} change(s):`);
         for (const line of summary) log(`  ${line}`);

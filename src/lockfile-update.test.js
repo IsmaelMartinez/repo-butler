@@ -10,6 +10,7 @@ import {
   npmFailureReason,
   npmChildEnv,
   findNonRegistrySource,
+  displayString,
 } from './lockfile-update.js';
 import { validateIssueTitle, validateIssueBody } from './safety.js';
 
@@ -501,6 +502,15 @@ describe('applyLockfileUpdates pre-flight', () => {
       alerts: [{ number: 1, package: 'libheif', patchedVersion: '1.2.3' }],
     });
     assert.equal(r.reason, 'not-patched');
+  });
+});
+
+describe('displayString', () => {
+  it('strips control characters and newlines and bounds the length, so a lockfile key cannot shape a log line or a table row', () => {
+    assert.equal(displayString('node_modules/a\n::warning::x\r\tb'), 'node_modules/a?::warning::x??b');
+    assert.equal(displayString('a|b'), 'a\\|b');
+    assert.equal(displayString('x'.repeat(300)).length, 200);
+    assert.equal(displayString(null), '');
   });
 });
 
