@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-17T22:35:40.281Z",
+  "timestamp": "2026-09-18T12:00:54.654Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-17T20:39:53Z",
+    "pushed_at": "2026-09-18T10:09:51Z",
     "archived": false
   },
   "issues": {
@@ -844,20 +844,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-06-20T08:40:57Z"
-      },
-      {
-        "number": 290,
-        "title": "docs: rewrite architecture doc as a layered 'How Repo Butler Works' with Mermaid diagrams",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-19T14:45:17Z"
-      },
-      {
-        "number": 288,
-        "title": "feat(report): calm & adaptive portfolio dashboard (round two)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-19T06:58:12Z"
       }
     ]
   },
@@ -1083,9 +1069,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 3,
-    "recently_merged_prs": 108,
+    "recently_merged_prs": 106,
     "bot_prs": 12,
-    "human_prs": 96,
+    "human_prs": 94,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
