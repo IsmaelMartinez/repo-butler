@@ -1,40 +1,53 @@
 [
   {
-    "type": "tier-uplift",
-    "repo": "teams-for-linux",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
+    "type": "stalled-alert",
+    "repo": "sound3fy",
+    "alerts": [
       {
-        "name": "Fewer than 10 open bugs",
-        "required_for": "gold"
+        "number": 26,
+        "package": "@humanfs/node",
+        "ecosystem": "npm",
+        "manifestPath": "package-lock.json",
+        "severity": "medium",
+        "ageDays": 15,
+        "classification": "reachable-by-update",
+        "detail": "every parent range already admits @humanfs/node@0.16.8; refresh the lockfile instead"
       }
     ],
-    "priority": "high",
+    "priority": "medium",
     "remediation": {
-      "executor": "agent",
+      "executor": "manual",
       "targetFiles": [],
-      "intent": "Uplift teams-for-linux from silver to gold",
-      "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
+      "intent": "Unblock 1 stalled Dependabot alert(s) in sound3fy",
+      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
       "acceptanceCriteria": [
-        "Check \"Fewer than 10 open bugs\" passes"
+        "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
     }
   },
   {
-    "type": "tier-regression",
-    "repo": "teams-for-linux",
-    "previousTier": "gold",
-    "currentTier": "silver",
-    "priorWeek": "2026-W37",
-    "priority": "high",
+    "type": "stalled-alert",
+    "repo": "yourear",
+    "alerts": [
+      {
+        "number": 79,
+        "package": "fflate",
+        "ecosystem": "npm",
+        "manifestPath": "package-lock.json",
+        "severity": "medium",
+        "ageDays": 15,
+        "classification": "reachable-by-update",
+        "detail": "every parent range already admits fflate@0.8.3; refresh the lockfile instead"
+      }
+    ],
+    "priority": "medium",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
-      "intent": "Restore teams-for-linux to gold",
-      "rationale": "Health tier regressed from gold to silver since 2026-W37.",
+      "intent": "Unblock 1 stalled Dependabot alert(s) in yourear",
+      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
       "acceptanceCriteria": [
-        "teams-for-linux is back at gold in a subsequent weekly snapshot"
+        "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
     }
   }
