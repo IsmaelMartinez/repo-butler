@@ -212,10 +212,10 @@
       "open_issues": 16,
       "open_bugs": 5,
       "commits_6mo": 373,
-      "stars": 5050,
+      "stars": 5051,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9180327868852459,
+      "ciPassRate": 0.9322033898305084,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -314,11 +314,11 @@
       "id": 786898753,
       "open_issues": 4,
       "open_bugs": 0,
-      "commits_6mo": 245,
+      "commits_6mo": 251,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.99,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -340,7 +340,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-09-19T08:45:15Z",
+      "pushed_at": "2026-09-19T17:43:58Z",
       "traffic": {
         "views_14d": {
           "count": 10,
@@ -936,7 +936,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9753086419753086,
+      "ciPassRate": 0.9878048780487805,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-09-19T09:50:57Z",
+      "pushed_at": "2026-09-19T14:56:54Z",
       "traffic": {
         "views_14d": {
           "count": 14,
@@ -1138,11 +1138,11 @@
       "id": 1201344218,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 53,
+      "commits_6mo": 54,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.8645833333333334,
+      "ciPassRate": 0.8854166666666666,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1164,7 +1164,7 @@
       },
       "ci": 8,
       "released_at": "2026-09-15T10:42:09Z",
-      "pushed_at": "2026-09-15T10:42:09Z",
+      "pushed_at": "2026-09-19T17:04:07Z",
       "traffic": {
         "views_14d": {
           "count": 20,
@@ -1267,7 +1267,7 @@
       },
       "ci": 8,
       "released_at": "2026-09-16T15:52:38Z",
-      "pushed_at": "2026-09-19T08:36:10Z",
+      "pushed_at": "2026-09-19T13:20:31Z",
       "traffic": {
         "views_14d": {
           "count": 76,
