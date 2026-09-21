@@ -1,0 +1,56 @@
+{
+  "findings": [
+    {
+      "type": "stalled-alert",
+      "repo": "sound3fy",
+      "alerts": [
+        {
+          "number": 26,
+          "package": "@humanfs/node",
+          "ecosystem": "npm",
+          "manifestPath": "package-lock.json",
+          "severity": "medium",
+          "ageDays": 17,
+          "classification": "reachable-by-update",
+          "detail": "every parent range already admits @humanfs/node@0.16.8; refresh the lockfile instead"
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Unblock 1 stalled Dependabot alert(s) in sound3fy",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 17 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
+        "acceptanceCriteria": [
+          "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
+        ]
+      }
+    },
+    {
+      "type": "stalled-alert",
+      "repo": "yourear",
+      "alerts": [
+        {
+          "number": 79,
+          "package": "fflate",
+          "ecosystem": "npm",
+          "manifestPath": "package-lock.json",
+          "severity": "medium",
+          "ageDays": 17,
+          "classification": "reachable-by-update",
+          "detail": "every parent range already admits fflate@0.8.3; refresh the lockfile instead"
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Unblock 1 stalled Dependabot alert(s) in yourear",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 17 days; classified: reachable-by-update). At least one is reachable by a lockfile refresh (npm update --package-lock-only) — no manifest change needed.",
+        "acceptanceCriteria": [
+          "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
+        ]
+      }
+    }
+  ]
+}
