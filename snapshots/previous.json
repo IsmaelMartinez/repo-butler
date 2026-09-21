@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-20T22:07:00.890Z",
+  "timestamp": "2026-09-21T13:32:41.870Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-20T19:53:50Z",
+    "pushed_at": "2026-09-21T12:12:35Z",
     "archived": false
   },
   "issues": {
@@ -760,62 +760,6 @@
         "author": "repo-butler-app[bot]",
         "labels": [],
         "merged_at": "2026-06-23T06:32:06Z"
-      },
-      {
-        "number": 302,
-        "title": "feat(propose): closed-issue look-back for duplicate detection (G7)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T22:57:02Z"
-      },
-      {
-        "number": 301,
-        "title": "feat(propose): per-target volume cap — second axis of the cap (G6)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T22:19:58Z"
-      },
-      {
-        "number": 300,
-        "title": "feat(propose): wire cross-repo routing gate into the write path (G5)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T21:31:36Z"
-      },
-      {
-        "number": 299,
-        "title": "feat(safety): deterministic cross-repo routing gate (G4)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T19:28:10Z"
-      },
-      {
-        "number": 298,
-        "title": "feat(safety): reject cross-reference autolinks in cross-repo issue bodies (G3)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T18:26:20Z"
-      },
-      {
-        "number": 297,
-        "title": "feat(ideate): add dormant TARGET_REPO field for cross-repo proposals (G2)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T15:45:37Z"
-      },
-      {
-        "number": 296,
-        "title": "docs: ADR-011 portfolio-informed generic proposals (G1)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T14:20:36Z"
-      },
-      {
-        "number": 295,
-        "title": "docs: ADR-010 cross-repo PROPOSE destinations (proposed)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-22T13:11:56Z"
       }
     ]
   },
@@ -1025,8 +969,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 83,
-    "passed": 83,
+    "total_runs": 85,
+    "passed": 85,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1041,9 +985,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 3,
-    "recently_merged_prs": 102,
+    "recently_merged_prs": 94,
     "bot_prs": 12,
-    "human_prs": 90,
+    "human_prs": 82,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
