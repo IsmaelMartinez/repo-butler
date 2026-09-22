@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-21T20:13:26.721Z",
+  "timestamp": "2026-09-22T12:17:02.402Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-21T17:18:11Z",
+    "pushed_at": "2026-09-22T10:27:43Z",
     "archived": false
   },
   "issues": {
@@ -725,41 +725,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-06-24T08:19:35Z"
-      },
-      {
-        "number": 305,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-06-23T09:06:14Z"
-      },
-      {
-        "number": 306,
-        "title": "chore(ideate): start the G10 cross-repo PROPOSE dry-run soak",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-23T08:46:21Z"
-      },
-      {
-        "number": 304,
-        "title": "feat(propose): cross-repo issue format — deterministic body, nudge label, onboarding gate, host tracker (G9)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-23T08:25:53Z"
-      },
-      {
-        "number": 303,
-        "title": "feat(council): cross-repo quality filter — statistic-grounding rule + confidence/priority gate (G8)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-06-23T06:32:31Z"
-      },
-      {
-        "number": 294,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-06-23T06:32:06Z"
       }
     ]
   },
@@ -969,8 +934,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 85,
-    "passed": 85,
+    "total_runs": 86,
+    "passed": 86,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -985,9 +950,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 3,
-    "recently_merged_prs": 94,
+    "recently_merged_prs": 89,
     "bot_prs": 12,
-    "human_prs": 82,
+    "human_prs": 77,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
