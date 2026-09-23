@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-19
+**Last Updated:** 2026-09-23
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -53,9 +53,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-06** — 8 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291, #298, #300, #301, #302, #303, #304). Full details in git history.
 
-**2026-07** — 1 entry (#326). Full details in git history.
-
-Dependabot and monitor workflow optimisations shipped 2026-07-25 (PRs #342, #343), skipping monitor jobs on Dependabot events and suppressing nudges on deterministically-failing PRs. A configuration update marked a wound-down generator release-exempt (PR #344).
+**2026-07** — 2 entries (#326, #342, #343, #344). Full details in git history.
 
 Deterministic-failure SHA verification corrected 2026-07-26 (PR #345). A moved head SHA is now treated as evidence *of* failure rather than against it.
 
