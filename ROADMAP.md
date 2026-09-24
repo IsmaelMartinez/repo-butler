@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-23
+**Last Updated:** 2026-09-24
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -53,11 +53,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-06** — 8 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291, #298, #300, #301, #302, #303, #304). Full details in git history.
 
-**2026-07** — 2 entries (#326, #342, #343, #344). Full details in git history.
-
-Deterministic-failure SHA verification corrected 2026-07-26 (PR #345). A moved head SHA is now treated as evidence *of* failure rather than against it.
-
-Dependency sweep 2026-07-26 (PRs #328, #329). Actions majors bumped across all nine workflows. Portfolio-wide, 20 of 22 open Dependabot PRs merged (oldest 34 days); 7 needed a root-cause fix. The survivor is a `typescript` 6→7 bump, blocked on `typescript-eslint` TS 7 support (upstream #10940).
+**2026-07** — 4 entries (#326, #328, #329, #342, #343, #344, #345, #10940). Full details in git history.
 
 Roadmap restructured and the shipped log compacted 2026-07-27 (PR #349). The document is now organised around what has been built and what is in flight, with older work rolled up to one line per month. `compactShippedLog` closes the gap that let it reach the 60,000-character `validateRoadmap` ceiling with 272 characters to spare: UPDATE appends to `## Implemented` on every run, but `compactRoadmap` only ever reached struck-through `###` subsections — so the one part of the document that grew was the one part compaction could not touch. Undated paragraphs pass through untouched, which is what keeps the evergreen prose and the hand-written month summaries safe. 60,000 → 21,224 characters.
 
