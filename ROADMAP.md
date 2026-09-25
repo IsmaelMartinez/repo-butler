@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-17
+**Last Updated:** 2026-09-25
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -53,19 +53,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-06** — 8 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291, #298, #300, #301, #302, #303, #304). Full details in git history.
 
-Cross-repo PROPOSE graduated its first class 2026-07-21 (PR #326). `standards-gap` became the first enabled cross-repo class, with `github-issue-triage-bot` the first enabled target.
-
-Dependabot and monitor workflow optimisations shipped 2026-07-25 (PRs #342, #343), skipping monitor jobs on Dependabot events and suppressing nudges on deterministically-failing PRs. A configuration update marked a wound-down generator release-exempt (PR #344).
-
-Deterministic-failure SHA verification corrected 2026-07-26 (PR #345). A moved head SHA is now treated as evidence *of* failure rather than against it.
-
-Dependency sweep 2026-07-26 (PRs #328, #329). Actions majors bumped across all nine workflows. Portfolio-wide, 20 of 22 open Dependabot PRs merged (oldest 34 days); 7 needed a root-cause fix. The survivor is a `typescript` 6→7 bump, blocked on `typescript-eslint` TS 7 support (upstream #10940).
-
-Roadmap restructured and the shipped log compacted 2026-07-27 (PR #349). The document is now organised around what has been built and what is in flight, with older work rolled up to one line per month. `compactShippedLog` closes the gap that let it reach the 60,000-character `validateRoadmap` ceiling with 272 characters to spare: UPDATE appends to `## Implemented` on every run, but `compactRoadmap` only ever reached struck-through `###` subsections — so the one part of the document that grew was the one part compaction could not touch. Undated paragraphs pass through untouched, which is what keeps the evergreen prose and the hand-written month summaries safe. 60,000 → 21,224 characters.
-
-Roadmap append spacing fixed 2026-07-27 (PR #352). Appended entries landed flush against the following `---`, which CommonMark reads as a setext heading underline, so the last entry in a section rendered as an `<h2>` and the horizontal rule vanished. Live since at least #330 and invisible in a diff — it showed only in the rendered file.
-
-Private-repo security watch shipped 2026-07-27 (PR #348). repo-butler is itself public, so it has three world-readable sinks rather than one: the Pages dashboard, the data branch, and the Actions run logs. `src/private-watch.js` is a standalone pass outside the pipeline that reads each private repo's alerts and delivers acute findings — critical or high, plus any secret-scanning hit — to one tracking issue on that private repo, rewritten in place and closed when the repo comes clean. An earlier attempt feeding private repos through the governance detectors with per-finding redaction was abandoned after review found 14 disclosure paths, because `context.repoDetails` and `context.governanceFindings` are shared across phases in one process and reach the report, the IDEATE prompt and the PROPOSE soak ledger without passing any filter. Redaction applied to a shared carrier is a convention, and conventions lose. A mutation-verified guard in `src/governance.test.js` fails if a detector call is widened to include private repos. The deliberate limitation stands: per-repo tuning lives in `.github/roadmap.yml` in a public repo, so the config surface cannot hold a secret, which is why private repos get watching only and not full governance.
+**2026-07** — 7 entries (#326, #328, #329, #330, #342, #343, #344, #345, #348, #349, #352, #10940). Full details in git history.
 
 G7 Gold-ratchet tier-regression detector shipped 2026-07-29 (PR #354). Detects that a repo's health tier fell since the previous weekly portfolio snapshot, diffed via the shared `detectTierChanges` core against `readLatestPortfolioWeekly({ beforeWeek })` so the finding persists for its whole week across the four-times-daily runs. Routes to `executor: 'manual'` — the route back up a tier lives in the companion tier-uplift finding.
 
