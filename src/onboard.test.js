@@ -160,6 +160,21 @@ describe('onboardRepo decline and unreadable-file guards', () => {
     assert.equal(gh.puts.length, 0);
   });
 
+  it('does not read a non-404 error whose body mentions ": 404" as an absent file', async () => {
+    // github.js formats errors as `…<path>: <status> <body>`, and the body is
+    // server-controlled — only the status right after the path means absence.
+    for (const message of [
+      'GitHub API GET /repos/o/r/contents/CLAUDE.md: 500 {"message":"upstream said: 404"}',
+      'GitHub API GET /repos/o/r/contents/CLAUDE.md: 403 proxy: 404 page',
+    ]) {
+      const gh = fakeGh({ file: () => { throw new Error(message); } });
+      const result = await onboardRepo(gh, 'o', 'r');
+      assert.deepEqual(result, { status: 'error', reason: 'CLAUDE.md unreadable' }, message);
+      assert.deepEqual(gh.writes, []);
+      assert.equal(gh.puts.length, 0);
+    }
+  });
+
   it('skips a repo whose CLAUDE.md already carries the marker', async () => {
     const gh = fakeGh({ file: () => ({ sha: 's', encoding: 'base64', content: b64(`# CLAUDE.md\n\n${MARKER}\n`) }) });
     assert.deepEqual(await onboardRepo(gh, 'o', 'r'), { status: 'skipped', reason: 'already onboarded' });

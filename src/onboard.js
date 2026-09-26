@@ -120,7 +120,10 @@ async function readClaudeMd(gh, owner, repo, ref) {
   try {
     data = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, { params: { ref } });
   } catch (err) {
-    if (err.message?.includes(': 404')) return null;
+    // Match the status github.js writes straight after the path, never a bare
+    // substring: the error carries the response body, and a 500 whose body
+    // mentions ": 404" must stay unreadable rather than become "absent".
+    if (/^GitHub API [A-Z]+ \S+: 404\b/.test(err.message ?? '')) return null;
     throw err;
   }
   if (data?.encoding !== 'base64' || typeof data.content !== 'string') {
