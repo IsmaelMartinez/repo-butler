@@ -575,6 +575,13 @@ describe('buildSectionEditPrompt', () => {
     assert.ok(prompt.includes('read-only context'));
   });
 
+  it('tells the model an issue number alone does not substantiate a shipped entry', () => {
+    // Advisory only — applyEditOps enforces it — but a model that knows the
+    // rule avoids an entry that would hold the snapshot for a tick.
+    const prompt = buildSectionEditPrompt('# Roadmap', baseSnapshot, null, null);
+    assert.match(prompt, /"Implemented" entry must cite a merged PR/);
+  });
+
   it('includes valid section names', () => {
     const prompt = buildSectionEditPrompt('# Roadmap', baseSnapshot, null, null);
     assert.ok(prompt.includes('"Implemented"'));
@@ -1305,7 +1312,7 @@ describe('applyEditOps — ref provenance', () => {
   });
 
   it('applies an append whose ref is in the run data', () => {
-    const { result, applied, skipped } = applyEditOps(roadmap, invented, '2026-09-08', { knownRefs: new Set(['#394']) });
+    const { result, applied, skipped } = applyEditOps(roadmap, invented, '2026-09-08', { knownRefs: new Set(['#394']), mergedRefs: new Set(['#394']) });
     assert.match(result, /PR #394/);
     assert.equal(applied.length, 2, 'append plus date bump');
     assert.equal(skipped.length, 0);
@@ -1345,6 +1352,219 @@ describe('applyEditOps — ref provenance', () => {
     const { unverifiable, skipped } = applyEditOps(roadmap, dup, '2026-09-08', { knownRefs: new Set() });
     assert.equal(skipped.length, 1, 'it is still skipped');
     assert.deepEqual(unverifiable, [], 'but the work is already recorded, so nothing is unverified');
+  });
+});
+
+describe('applyEditOps — shipped entries need merged-PR evidence', () => {
+  // PR #399 (2026-09-15..17) appended four entries no merged PR substantiated:
+  // two ref-less "v1.1.2 stable release" paragraphs (the second a reworded
+  // duplicate) and two "v1.1.3" paragraphs citing only Issue #401, an open
+  // issue, for a release that was never cut. #401 passed the ref-provenance
+  // guard because new_issues is run data; the ref-less ones passed by design.
+  // The trimmed baseline keeps what the guards read: the real one before #399
+  // carried no version token and neither #400 nor #401.
+  const baseline = [
+    '# Repo Butler — Roadmap',
+    '',
+    '**Last Updated:** 2026-09-10',
+    '',
+    '## Implemented',
+    '',
+    'Roadmap citation integrity guard shipped 2026-09-09 (PR #396). Prevents the automated roadmap generator from citing unverified or self-referential pull requests.',
+    '',
+    'Automated dependency deployment workflow update shipped 2026-09-10 (PR #398). Maintains CI/CD pipeline health.',
+    '',
+    '---',
+    '',
+    '## Next Up',
+    '',
+    'Active work. Everything here is unfinished; shipped items move to the log above.',
+    '',
+    '## Future',
+    '',
+    'Ideas here.',
+  ].join('\n');
+  const append = (text, section = 'Implemented') => ({ action: 'append', section, text });
+  const PR399_BAD = [
+    'Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). Following a highly productive period of feature development, this release packages prior structural work and automated roadmap planning fixes into a formal stable build, ensuring the agent continues to run reliably in its self-planning cycle.',
+    'Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). This release consolidates the stable, feature-complete state of the pipeline, including the section-edit roadmap update engine, cross-repo PROPOSE, and the completed OSV-Scanner security migration, ensuring reliable continuous planning on its daily schedule.',
+    'Repo Butler v1.1.3 stable release deployed 2026-09-16 (v1.1.3). Resolves a critical environment-specific blockage on the Docker agent execution runner where automated lockfile updates were refused during scheduled daily roadmap planning cycles, ensuring system uptime and self-sustainability (Issue #401).',
+    'Docker execution agent lockfile resolution shipped 2026-09-16 (v1.1.3). Resolves a critical environment-specific blocker on the Docker agent execution runner where automated lockfile updates were refused during scheduled daily roadmap planning cycles, ensuring system uptime and self-sustainability (Issue #401).',
+  ];
+  const PR400_ENTRY = 'Automated lockfile update tool for reachable-by-update alerts shipped 2026-09-17 (PR #400). Following the ADR-015 design, this implements the `lockfile-update` apply tool specifically targeting `reachable-by-update` Dependabot alerts, allowing the butler to autonomously resolve targeted security vulnerabilities by updating lockfiles.';
+  // What the #399 ticks had: no merged PR, #401 as a new issue, and v1.1.2 as
+  // the latest real release in the snapshot (published 2026-09-15; there has
+  // never been a v1.1.3).
+  const pr399Evidence = {
+    knownRefs: new Set(['#401']),
+    mergedRefs: new Set(),
+    newReleases: [],
+    releases: new Set(['v1.1.2', 'v1.1.1', 'v1.1.0']),
+    project: 'repo-butler',
+  };
+
+  it('replaying the #399 ops against its baseline rejects every unsubstantiated entry', () => {
+    const { result, applied, skipped, unverifiable } = applyEditOps(baseline, PR399_BAD.map(t => append(t)), '2026-09-17', pr399Evidence);
+    assert.equal(result, baseline, 'nothing from #399’s four bad entries may be written');
+    assert.equal(applied.length, 0);
+    assert.equal(skipped.length, 4);
+    assert.ok(unverifiable.length >= 4, 'each rejection is for want of evidence, so the snapshot is held');
+  });
+
+  it('still appends a shipped entry citing a merged PR from the run', () => {
+    const evidence = { ...pr399Evidence, knownRefs: new Set(['#400', '#401']), mergedRefs: new Set(['#400']) };
+    const ops = [...PR399_BAD, PR400_ENTRY].map(t => append(t));
+    const { result, applied, unverifiable } = applyEditOps(baseline, ops, '2026-09-17', evidence);
+    assert.match(result, /\(PR #400\)/);
+    assert.doesNotMatch(result, /v1\.1\.[23]/, 'the bad entries stay out beside the good one');
+    assert.equal(applied.length, 2, 'append plus date bump');
+    assert.ok(unverifiable.length > 0);
+  });
+
+  it('rejects a shipped entry whose only ref is an issue in the run data', () => {
+    const { result, skipped, unverifiable } = applyEditOps(baseline, [append('Docker fix shipped 2026-09-16 (Issue #401).')], '2026-09-17', pr399Evidence);
+    assert.equal(result, baseline);
+    assert.match(skipped[0], /merged PR/);
+    assert.deepEqual(unverifiable, ['#401']);
+  });
+
+  it('rejects a ref-less shipped entry', () => {
+    const { result, unverifiable } = applyEditOps(baseline, [append('Something important shipped 2026-09-16.')], '2026-09-17', pr399Evidence);
+    assert.equal(result, baseline);
+    assert.equal(unverifiable.length, 1);
+  });
+
+  it('accepts a shipped entry citing a ref the roadmap already carries', () => {
+    const roadmap = baseline.replace('Active work.', 'Fix the widget (issue #12).\n\nActive work.');
+    const { result } = applyEditOps(roadmap, [append('Widget fix shipped 2026-09-16 (issue #12).')], '2026-09-17', pr399Evidence);
+    assert.match(result, /Widget fix shipped/);
+  });
+
+  it('accepts a ref-less entry naming a release this run observed as new', () => {
+    const evidence = { ...pr399Evidence, newReleases: ['v1.1.2'] };
+    const { result, unverifiable } = applyEditOps(baseline, [append(PR399_BAD[0])], '2026-09-17', evidence);
+    assert.match(result, /v1\.1\.2 stable release/);
+    assert.deepEqual(unverifiable, []);
+  });
+
+  it('does not treat a release tag as named when it is only a prefix of a longer version', () => {
+    const evidence = { ...pr399Evidence, newReleases: ['v1.1'] };
+    const { result } = applyEditOps(baseline, [append('Release packaging shipped 2026-09-15 (v1.1.2).')], '2026-09-17', evidence);
+    assert.equal(result, baseline);
+  });
+
+  it('rejects a claim of a butler release that does not exist, even beside a merged PR', () => {
+    const evidence = { ...pr399Evidence, knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    const { result, skipped, unverifiable } = applyEditOps(baseline, [append('Repo Butler v1.1.3 shipped 2026-09-17 (PR #400).')], '2026-09-17', evidence);
+    assert.equal(result, baseline);
+    assert.match(skipped[0], /v1\.1\.3/);
+    assert.deepEqual(unverifiable, ['v1.1.3']);
+  });
+
+  it('accepts a butler release claim matching a snapshot release', () => {
+    const evidence = { ...pr399Evidence, knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    const { result } = applyEditOps(baseline, [append('Repo Butler v1.1.2 packaging fix shipped 2026-09-17 (PR #400).')], '2026-09-17', evidence);
+    assert.match(result, /Repo Butler v1\.1\.2 packaging fix/);
+  });
+
+  it('accepts a butler release claim the roadmap already records', () => {
+    const evidence = { ...pr399Evidence, releases: new Set(), knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    const roadmap = baseline.replace('Active work.', 'Repo Butler v2.0.0 is the next major. Active work.');
+    const { result } = applyEditOps(roadmap, [append('Repo Butler v2.0.0 groundwork shipped 2026-09-17 (PR #400).')], '2026-09-17', evidence);
+    assert.match(result, /v2\.0\.0 groundwork/);
+  });
+
+  it('leaves third-party versions alone', () => {
+    const evidence = { ...pr399Evidence, knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    const { result, skipped } = applyEditOps(baseline, [append('CI actions bumped 2026-09-17 (PR #400), moving actions/checkout v7.0.1 and setup-node (v6.2.0) onto current majors.')], '2026-09-17', evidence);
+    assert.match(result, /actions\/checkout v7\.0\.1/);
+    assert.deepEqual(skipped, []);
+  });
+
+  it('does not demand merged-PR evidence outside the shipped section', () => {
+    const ops = [append('Investigate the Docker runner lockfile refusal (issue #401).', 'Next Up'), append('Repo Butler v2.0.0 could drop Node 22.', 'Future')];
+    const { result, unverifiable } = applyEditOps(baseline, ops, '2026-09-17', pr399Evidence);
+    assert.match(result, /issue #401/);
+    assert.match(result, /Repo Butler v2\.0\.0 could/);
+    assert.deepEqual(unverifiable, []);
+  });
+
+  it('fails closed when only knownRefs is supplied: no merged-PR set means no proof', () => {
+    const { result } = applyEditOps(baseline, [append('Thing shipped 2026-09-17 (PR #400).')], '2026-09-17', { knownRefs: new Set(['#400']) });
+    assert.equal(result, baseline);
+  });
+});
+
+describe('update() derives shipped-entry evidence from the diff and snapshot', () => {
+  const b64 = (s) => Buffer.from(s).toString('base64');
+  const MAIN = '# Roadmap\n\n**Last Updated:** 2026-09-10\n\n## Implemented\n\nEntry for #398.\n\n---\n';
+
+  function harness({ diff, releases = [], text }) {
+    const puts = [];
+    const written = [];
+    const gh = {
+      paginate: async () => [{ head: { ref: 'repo-butler/roadmap-update-1' }, html_url: 'https://x/1', number: 1 }],
+      request: async (path, opts = {}) => {
+        if (opts.method === 'PUT') { puts.push({ path, body: opts.body }); return { commit: { sha: 'deadbee' } }; }
+        if (opts.method === 'PATCH') return {};
+        if (path.includes('/contents/')) return { content: b64(MAIN), sha: 'sha' };
+        return {};
+      },
+    };
+    const context = {
+      owner: 'IsmaelMartinez', repo: 'repo-butler', token: 't', gh, dryRun: false,
+      config: { roadmap: { path: 'ROADMAP.md', compact_after_days: 60 } },
+      store: { writeSnapshot: async (s) => { written.push(s); } },
+      pendingSnapshot: { repository: 'IsmaelMartinez/repo-butler' },
+      snapshot: {
+        repository: 'IsmaelMartinez/repo-butler', roadmap: { path: 'ROADMAP.md', content: MAIN },
+        meta: { default_branch: 'main' }, releases,
+        summary: { open_issues: 1, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 2, latest_release: 'v1.1.2', high_reaction_issues: [], top_open_labels: [] },
+      },
+      assessment: { assessment: 'x', diff },
+      provider: { generate: async () => JSON.stringify([{ action: 'append', section: 'Implemented', text }]) },
+    };
+    return { context, puts, written };
+  }
+
+  it('holds the snapshot when the only entry cites an issue from new_issues', async () => {
+    const h = harness({ diff: { new_merged_prs: [], new_issues: [{ number: 401, title: 'Docker', labels: [] }] }, text: 'Docker fix shipped 2026-09-16 (Issue #401).' });
+    await runUpdate(h.context);
+    assert.equal(h.puts.length, 0);
+    assert.deepEqual(h.written, [], 'nothing was recorded, so the diff must stay available');
+  });
+
+  it('holds the snapshot when the entry claims a butler release the snapshot never saw', async () => {
+    const h = harness({
+      diff: { new_merged_prs: [{ number: 400, title: 'feat', merged_at: '2026-09-17T00:00:00Z' }] },
+      releases: [{ tag: 'v1.1.2' }],
+      text: 'Repo Butler v1.1.3 shipped 2026-09-17 (PR #400).',
+    });
+    await runUpdate(h.context);
+    assert.equal(h.puts.length, 0);
+    assert.deepEqual(h.written, []);
+  });
+
+  it('accepts a butler release claim matching a snapshot release', async () => {
+    const h = harness({
+      diff: { new_merged_prs: [{ number: 400, title: 'feat', merged_at: '2026-09-17T00:00:00Z' }] },
+      releases: [{ tag: 'v1.1.2' }],
+      text: 'Repo Butler v1.1.2 follow-up shipped 2026-09-17 (PR #400).',
+    });
+    await runUpdate(h.context);
+    assert.equal(h.puts.length, 1);
+  });
+
+  it('counts first-run merged_prs as merged-PR evidence', async () => {
+    const h = harness({ diff: { isFirstRun: true, merged_prs: [{ number: 400, title: 'feat' }] }, text: 'Thing shipped 2026-09-17 (PR #400).' });
+    await runUpdate(h.context);
+    assert.equal(h.puts.length, 1);
+  });
+
+  it('accepts a ref-less entry naming a release in new_releases', async () => {
+    const h = harness({ diff: { new_merged_prs: [], new_releases: [{ tag: 'v1.2.0', published_at: '2026-09-17T00:00:00Z' }] }, text: 'Repo Butler v1.2.0 released 2026-09-17.' });
+    await runUpdate(h.context);
+    assert.equal(h.puts.length, 1);
   });
 });
 

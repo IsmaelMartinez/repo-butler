@@ -43,19 +43,62 @@ export function isRoadmapUpdatePr(pr) {
   return pr?.title === ROADMAP_PR_TITLE;
 }
 
-// Every #NN this run has evidence for: the PR and issue numbers ASSESS put in
-// the diff. applyEditOps refuses an append citing anything outside this set
-// that the roadmap does not already carry. A missing diff yields an empty
-// set, so the guard fails closed rather than off.
-function assessmentRefs(assessment) {
+// What this run has evidence for, as applyEditOps' provenance options.
+// `knownRefs` is every #NN ASSESS put in the diff: an append citing anything
+// outside it that the roadmap does not already carry is refused. `mergedRefs`
+// is the subset that proves work shipped — merged PRs only, because an issue
+// number says work was asked for, not that it landed (#399 recorded a release
+// on the strength of an open issue). `newReleases` are tags first seen this
+// run; `releases` adds every tag the snapshot holds, so a claim about the
+// project's own version can be checked against releases that exist. A missing
+// diff yields empty sets, so every guard fails closed rather than off.
+function assessmentEvidence(assessment, snapshot, project) {
   const diff = assessment?.diff || {};
-  const refs = new Set();
-  for (const key of ['new_merged_prs', 'merged_prs', 'new_issues', 'resolved_issues', 'closed_issues']) {
-    for (const item of diff[key] || []) {
-      if (Number.isInteger(item?.number)) refs.add(`#${item.number}`);
+  const collect = (keys) => {
+    const refs = new Set();
+    for (const key of keys) {
+      for (const item of diff[key] || []) {
+        if (Number.isInteger(item?.number)) refs.add(`#${item.number}`);
+      }
     }
-  }
-  return refs;
+    return refs;
+  };
+  const tags = (list) => (list || []).map(r => r?.tag).filter(t => typeof t === 'string' && t);
+  const newReleases = tags(diff.new_releases);
+  return {
+    knownRefs: collect(['new_merged_prs', 'merged_prs', 'new_issues', 'resolved_issues', 'closed_issues']),
+    mergedRefs: collect(['new_merged_prs', 'merged_prs']),
+    newReleases,
+    releases: new Set([...newReleases, ...tags(snapshot?.releases)]),
+    project,
+  };
+}
+
+// The section whose entries assert that work shipped. Only appends here need
+// merged-PR evidence; Next Up and Future describe intent, where an issue ref
+// or no ref at all is the honest citation.
+const SHIPPED_SECTION = 'Implemented';
+
+const VERSION_REGEXP = /\bv?(\d{1,6}\.\d{1,6}\.\d{1,6})\b/g;
+const normalizeVersion = (v) => v.replace(/^v/i, '');
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Versions the entry claims for the project itself: a `vX.Y.Z` directly after
+// the project's name, written with spaces, hyphens or underscores between its
+// words ("Repo Butler v1.1.3", "repo-butler v1.1.3"). Deliberately that narrow:
+// entries routinely name third-party versions ("actions/checkout v7.0.1"),
+// which are not claims about this project's releases and must pass untouched.
+function projectVersionClaims(text, project) {
+  const words = (project || '').split(/[-_\s]+/).filter(Boolean).map(escapeRegExp);
+  if (words.length === 0) return [];
+  const re = new RegExp(`\\b${words.join('[-_ ]')}\\s+v(\\d{1,6}\\.\\d{1,6}\\.\\d{1,6})\\b`, 'gi');
+  return [...new Set([...text.matchAll(re)].map(m => `v${m[1]}`))];
+}
+
+// Whether the text names one of `tags` as a whole token, so a new release
+// `v1.1` is not "named" by an entry about `v1.1.2`.
+function namesTag(text, tags) {
+  return tags.some(t => new RegExp(`(?:^|[^\\w.])${escapeRegExp(t)}(?!\\w|\\.\\w)`).test(text));
 }
 
 // Read the roadmap as it exists on one ref. Returns { content, sha } or null
@@ -326,7 +369,7 @@ export async function update(context) {
 
   // Apply ops to the compacted baseline. Compare against the ORIGINAL roadmap
   // below, so a compaction-only run (LLM returned nothing new) still opens a PR.
-  const { result: updatedRoadmap, applied, skipped, unverifiable } = applyEditOps(baseRoadmap, parsed.ops, today, { knownRefs: assessmentRefs(assessment) });
+  const { result: updatedRoadmap, applied, skipped, unverifiable } = applyEditOps(baseRoadmap, parsed.ops, today, assessmentEvidence(assessment, snapshot, repo));
   console.log(`SECTION-EDIT: ${applied.length} ops applied, ${skipped.length} skipped.`);
   for (const op of applied) console.log(`  applied: ${op}`);
   for (const op of skipped) console.warn(`  skipped: ${op}`);
@@ -525,17 +568,26 @@ export function normalizeEditOp(op) {
 // Apply edit operations to the roadmap deterministically. Only additive
 // operations are supported — the LLM cannot delete or rewrite content.
 // Exported for testing.
-export function applyEditOps(roadmap, ops, today, { knownRefs = null } = {}) {
+export function applyEditOps(roadmap, ops, today, {
+  knownRefs = null, mergedRefs = new Set(), newReleases = [], releases = new Set(), project = null,
+} = {}) {
   let result = roadmap;
   const applied = [];
   const skipped = [];
-  // Refs the document already carries, for the provenance check below. Only
-  // computed when a caller supplies knownRefs; without them the check is off.
+  // Refs and versions the document already carries, for the provenance
+  // checks below. Only computed when a caller supplies knownRefs; without them
+  // every provenance check is off. With them, an absent mergedRefs or releases
+  // is empty, so a caller that forgets one fails closed.
   const roadmapRefs = knownRefs ? extractIssueRefs(roadmap) : null;
-  // Refs rejected for want of evidence, kept apart from `skipped` because the
-  // two mean opposite things to the caller: a duplicate or re-summary skip
-  // means the work is already recorded, while an unverifiable one means this
-  // run recorded nothing and its diff must stay available.
+  const roadmapVersions = knownRefs
+    ? new Set([...roadmap.matchAll(VERSION_REGEXP)].map(m => m[1]))
+    : null;
+  const releaseVersions = new Set([...releases].map(normalizeVersion));
+  // Refs (or claimed versions) rejected for want of evidence, kept apart from
+  // `skipped` because the two mean opposite things to the caller: a duplicate
+  // or re-summary skip means the work is already recorded, while an
+  // unverifiable one means this run recorded nothing and its diff must stay
+  // available.
   const unverifiable = [];
   // Refs the roadmap already records as completed work: only refs on lines
   // carrying the shipped convention (~~strikethrough~~ or a "shipped" marker)
@@ -614,6 +666,30 @@ export function applyEditOps(roadmap, ops, today, { knownRefs = null } = {}) {
           skipped.push(`append: ref(s) ${unknown.join(', ')} appear in neither this run's data nor the roadmap — unverifiable, not written`);
           unverifiable.push(...unknown);
           continue;
+        }
+        // A shipped entry must be substantiated, not merely cite something
+        // real. PR #399 recorded a "v1.1.3 stable release" that was never cut
+        // on the strength of Issue #401 (an open issue, so run data), and two
+        // ref-less v1.1.2 paragraphs, which the check above cannot judge at
+        // all. Proof is a merged PR from this run, a ref the roadmap already
+        // carries (a follow-up to recorded work), or a release first seen
+        // this run named in the entry — the prompt offers new releases as a
+        // source of entries, and one with no PR would otherwise be refused on
+        // every tick it appears.
+        if (section === SHIPPED_SECTION) {
+          const proven = refs.some(r => mergedRefs.has(r) || roadmapRefs.has(r)) || namesTag(text, newReleases);
+          if (!proven) {
+            skipped.push(`append: "${section}" entry cites no merged PR${refs.length ? ` (only ${refs.slice(0, 10).join(', ')})` : ''} — issue refs are not proof of shipping, not written`);
+            unverifiable.push(...(refs.length ? refs : ['(no ref)']));
+            continue;
+          }
+          const unreleased = projectVersionClaims(text, project)
+            .filter(v => !releaseVersions.has(normalizeVersion(v)) && !roadmapVersions.has(normalizeVersion(v)));
+          if (unreleased.length > 0) {
+            skipped.push(`append: "${section}" entry claims release ${unreleased.join(', ')}, which neither the releases nor the roadmap carry — unverifiable, not written`);
+            unverifiable.push(...unreleased);
+            continue;
+          }
         }
       }
       if (refs.length > 0 && refs.every(r => shippedRefs.has(r))) {
@@ -973,6 +1049,7 @@ export function buildSectionEditPrompt(currentRoadmap, snapshot, assessment, pro
       '- If nothing meaningful changed since the last update, return an empty array: []',
       '- Each "text" value should be a single markdown paragraph in the style of existing entries (e.g. "Feature X shipped 2026-05-26 (PR #N). Description of what changed.").',
       '- Do not invent PR numbers, issue numbers, or dates not present in the data above.',
+      `- An "${SHIPPED_SECTION}" entry must cite a merged PR from the data above, or name a new release listed there. An issue number alone is not evidence that work shipped, and a release not listed does not exist.`,
       '- Date each entry by the merge date shown beside its PR, never by Today.',
       '- Output ONLY the JSON array, no commentary, no markdown fences, no explanation.',
     ],
