@@ -100,8 +100,10 @@ function compareConfig(defaults, node, path, errors) {
     const isMap = value && typeof value === 'object';
     const expected = isMap ? 'object' : JSON_TYPE(value);
     if (sub.type !== expected) errors.push(`schema ${at} type ${sub.type} != DEFAULTS type ${expected}`);
-    if ('default' in sub && !isMap) {
-      if (sub.default !== value) errors.push(`schema ${at} default ${JSON.stringify(sub.default)} != DEFAULTS ${JSON.stringify(value)}`);
+    // Every scalar DEFAULTS defines must be declared as the schema default, or
+    // deleting the schema's `default` would let the two drift unnoticed.
+    if (!isMap && sub.default !== value) {
+      errors.push(`schema ${at} default ${JSON.stringify(sub.default)} != DEFAULTS ${JSON.stringify(value)}`);
     }
     if (isMap && Object.keys(value).length > 0) compareConfig(value, sub, at, errors);
   }
@@ -129,6 +131,10 @@ describe('config schema matches DEFAULTS', () => {
     const extraSchema = structuredClone(schema);
     extraSchema.properties.observe.properties.new_window = { type: 'integer' };
     assert.deepEqual(compareConfig(DEFAULTS, extraSchema, '', []), ['schema observe.new_window has no DEFAULTS entry']);
+
+    const noDefault = structuredClone(schema);
+    delete noDefault.properties.limits.properties.max_issues_per_run.default;
+    assert.deepEqual(compareConfig(DEFAULTS, noDefault, '', []), ['schema limits.max_issues_per_run default undefined != DEFAULTS 3']);
   });
 
   it('every schema-only key is actually read by src', async () => {
