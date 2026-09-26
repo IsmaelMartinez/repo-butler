@@ -105,6 +105,13 @@ export async function onboard(token, repos) {
   return results;
 }
 
+// Whether a github.js request error carries HTTP `status`. Matches the status
+// github.js writes straight after the path, never a bare substring: the error
+// also carries the server-controlled response body, which can mention any
+// status at all.
+const isStatus = (err, status) =>
+  new RegExp(`^GitHub API [A-Z]+ \\S+: ${status}\\b`).test(err?.message ?? '');
+
 /**
  * Read CLAUDE.md at commit `ref` as `{ content, sha }`, `null` when the file is
  * absent (404), or throw when it exists but cannot be read.
@@ -120,10 +127,8 @@ async function readClaudeMd(gh, owner, repo, ref) {
   try {
     data = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, { params: { ref } });
   } catch (err) {
-    // Match the status github.js writes straight after the path, never a bare
-    // substring: the error carries the response body, and a 500 whose body
-    // mentions ": 404" must stay unreadable rather than become "absent".
-    if (/^GitHub API [A-Z]+ \S+: 404\b/.test(err.message ?? '')) return null;
+    // A 500 whose body mentions ": 404" must stay unreadable, not "absent".
+    if (isStatus(err, 404)) return null;
     throw err;
   }
   if (data?.encoding !== 'base64' || typeof data.content !== 'string') {
@@ -197,7 +202,7 @@ export async function onboardRepo(gh, owner, repo) {
       body: { ref: `refs/heads/${BRANCH_NAME}`, sha: headSha },
     });
   } catch (err) {
-    if (!err.message?.includes(': 422')) throw err;
+    if (!isStatus(err, 422)) throw err;
     await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${BRANCH_NAME}`, {
       method: 'PATCH',
       body: { sha: headSha, force: true },

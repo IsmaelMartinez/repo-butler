@@ -220,4 +220,11 @@ describe('onboardRepo decline and unreadable-file guards', () => {
     assert.ok(!gh.writes.some(w => w.startsWith('PATCH')));
     assert.equal(gh.puts.length, 0);
   });
+
+  it('does not force-reset the branch when a non-422 body mentions ": 422"', async () => {
+    const gh = fakeGh({ refPost: () => { throw new Error('GitHub API POST /repos/o/r/git/refs: 500 {"message":"upstream said: 422"}'); } });
+    await assert.rejects(() => onboardRepo(gh, 'o', 'r'), /: 500/);
+    assert.ok(!gh.writes.some(w => w.startsWith('PATCH')));
+    assert.equal(gh.puts.length, 0);
+  });
 });
