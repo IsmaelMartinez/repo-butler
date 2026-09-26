@@ -9,14 +9,14 @@ name: Repo Butler Weekly Ideate
 # route to another repo versus fall back to the host backlog. This is the
 # month-long dry-run soak that gates graduating any cross-repo class live (G10).
 # The cross-repo allow-lists (propose-targets / propose-classes in roadmap.yml)
-# stay empty for now, so every targeted idea falls back to the host and the log
-# surfaces the candidate flow without filing any issues. (The only writes PROPOSE
-# still makes in dry-run are the idempotent host-label ensure — a no-op once the
-# proposal/agent labels exist on this repo — and the soak-ledger append below,
-# both on this host repo and never a cross-repo write.) A live
-# cross-repo write additionally requires BOTH maps populated AND
-# require_approval:false AND INPUT_DRY_RUN:false — three deliberate, separately-
-# reviewed flips. Each run's routing records also persist to a rolling ledger at
+# admit one class and one target since 2026-07-20 (#326), but in dry-run the log
+# only records where each idea would route; no issue is filed anywhere. (The
+# only writes PROPOSE still makes in dry-run are the idempotent host-label
+# ensure — a no-op once the proposal/agent labels exist on this repo — and the
+# soak-ledger append below, both on this host repo and never a cross-repo
+# write.) A live cross-repo write additionally requires require_approval:false
+# AND INPUT_DRY_RUN:false — the two remaining deliberate, separately-reviewed
+# flips. Each run's routing records also persist to a rolling ledger at
 # snapshots/propose-soak.json on the repo-butler-data branch (max 26 entries),
 # so the graduation review reads a durable history rather than scraping these
 # Actions logs before they age out.
@@ -29,7 +29,7 @@ name: Repo Butler Weekly Ideate
 
 on:
   schedule:
-    # Mondays at 06:00 UTC — after the daily observe/assess/report at 02:00.
+    # Mondays at 06:00 UTC — before the first daily self-test tick at 07:00.
     - cron: '0 6 * * 1'
   workflow_dispatch:
     inputs:
@@ -56,7 +56,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Generate GitHub App token
         id: app-token
