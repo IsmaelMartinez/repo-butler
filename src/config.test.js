@@ -93,6 +93,28 @@ describe('loadConfig', () => {
     assert.deepEqual(config['standards-exclude'], {});
   });
 
+  it('a config loaded with no file cannot mutate DEFAULTS', async () => {
+    // loadConfig/loadConfigSync hand back DEFAULTS itself when the file is
+    // missing, so a caller (or a test) writing into it would change the
+    // defaults every later load sees in the same process.
+    const config = await loadConfig('/nonexistent/path.yml');
+    const sync = loadConfigSync('/nonexistent/path.yml');
+    assert.throws(() => { config.limits.require_approval = false; }, TypeError);
+    assert.throws(() => { sync['apply-automerge']['dependabot-actions'] = true; }, TypeError);
+    assert.equal((await loadConfig('/nonexistent/path.yml')).limits.require_approval, true);
+  });
+
+  it('merging a file over DEFAULTS copies rather than mutates', async () => {
+    await withTempYaml('limits:\n  max_issues_per_run: 7\napply-automerge:\n  codeowners: true\n', async (path) => {
+      const config = await loadConfig(path);
+      assert.equal(config.limits.max_issues_per_run, 7);
+      assert.equal(config['apply-automerge'].codeowners, true);
+    });
+    const fresh = await loadConfig('/nonexistent/path.yml');
+    assert.equal(fresh.limits.max_issues_per_run, 3);
+    assert.deepEqual(fresh['apply-automerge'], {});
+  });
+
   it('defaults release_exempt to empty string', async () => {
     const config = await loadConfig('/nonexistent/path/roadmap.yml');
     assert.equal(config.release_exempt, '');

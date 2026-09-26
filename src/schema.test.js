@@ -75,75 +75,80 @@ describe('repository-snapshot schema matches observe() output keys', () => {
   });
 });
 
-// --- Test 3: config schema matches DEFAULTS ---
+// --- Test 3: config schema matches DEFAULTS, in both directions ---
+
+// Schema properties with no DEFAULTS entry, each for a stated reason. Anything
+// else present on one side only is drift and fails.
+const CONFIG_SCHEMA_ONLY = new Set([
+  'repository',        // runtime-injected / set in YAML; index.js falls back to GITHUB_REPOSITORY
+  'council',           // readers default inline (ideate.js `enabled !== false`, council.js `mode || 'quick'`)
+  'monitor',           // monitor.js defaults `stale_days || 30`
+  'providers.deep',    // index.js falls back to the claude provider, then the default
+]);
+
+const JSON_TYPE = (v) => (Number.isInteger(v) ? 'integer' : typeof v);
+
+// Walk DEFAULTS and the schema together. Nested objects with keys are compared
+// key-for-key; an empty object in DEFAULTS is a user-keyed map, which the
+// schema describes with additionalProperties rather than properties.
+function compareConfig(defaults, node, path, errors) {
+  const props = node?.properties || {};
+  for (const [key, value] of Object.entries(defaults)) {
+    const at = path ? `${path}.${key}` : key;
+    const sub = props[key];
+    if (!sub) { errors.push(`DEFAULTS.${at} has no schema property`); continue; }
+    const isMap = value && typeof value === 'object';
+    const expected = isMap ? 'object' : JSON_TYPE(value);
+    if (sub.type !== expected) errors.push(`schema ${at} type ${sub.type} != DEFAULTS type ${expected}`);
+    if ('default' in sub && !isMap) {
+      if (sub.default !== value) errors.push(`schema ${at} default ${JSON.stringify(sub.default)} != DEFAULTS ${JSON.stringify(value)}`);
+    }
+    if (isMap && Object.keys(value).length > 0) compareConfig(value, sub, at, errors);
+  }
+  for (const key of Object.keys(props)) {
+    const at = path ? `${path}.${key}` : key;
+    if (!(key in defaults) && !CONFIG_SCHEMA_ONLY.has(at)) errors.push(`schema ${at} has no DEFAULTS entry`);
+  }
+  return errors;
+}
 
 describe('config schema matches DEFAULTS', () => {
-  it('all schema top-level properties exist in the DEFAULTS object', async () => {
+  it('schema and the real DEFAULTS agree in both directions, recursively', async () => {
+    const { DEFAULTS } = await import('./config.js');
     const schema = await loadSchema('config.v1.schema.json');
+    assert.deepEqual(compareConfig(DEFAULTS, schema, '', []), []);
+  });
 
-    // DEFAULTS from src/config.js (lines 4-22)
-    const DEFAULTS = {
-      roadmap: { path: 'ROADMAP.md' },
-      schedule: { assess: 'daily', ideate: 'weekly' },
-      providers: { default: 'gemini' },
-      context: '',
-      limits: {
-        max_issues_per_run: 3,
-        require_approval: true,
-        labels: { proposal: 'roadmap-proposal', agent: 'agent-generated' },
-      },
-      observe: {
-        issues_closed_days: 90,
-        prs_merged_days: 90,
-        releases_count: 10,
-      },
-      standards: {},
-      'standards-exclude': {},
-      'apply-cap': {},
-      'apply-schedule': {},
-      'apply-automerge': {},
-    };
+  it('the comparison fails on drift either way (guards the guard)', async () => {
+    const { DEFAULTS } = await import('./config.js');
+    const schema = await loadSchema('config.v1.schema.json');
+    const extraDefault = structuredClone(DEFAULTS);
+    extraDefault.limits.new_knob = 1;
+    assert.deepEqual(compareConfig(extraDefault, schema, '', []), ['DEFAULTS.limits.new_knob has no schema property']);
 
-    // The schema also has a `repository` property (runtime-injected, not in DEFAULTS) — skip it
-    const schemaOnlyKeys = ['repository'];
+    const extraSchema = structuredClone(schema);
+    extraSchema.properties.observe.properties.new_window = { type: 'integer' };
+    assert.deepEqual(compareConfig(DEFAULTS, extraSchema, '', []), ['schema observe.new_window has no DEFAULTS entry']);
+  });
 
-    for (const key of Object.keys(schema.properties)) {
-      if (schemaOnlyKeys.includes(key)) continue;
-      assert.ok(key in DEFAULTS, `schema property "${key}" not found in DEFAULTS`);
+  it('every schema-only key is actually read by src', async () => {
+    const files = (await readdir(__dirname)).filter(f => f.endsWith('.js') && !f.endsWith('.test.js'));
+    const src = (await Promise.all(files.map(f => readFile(join(__dirname, f), 'utf-8')))).join('\n');
+    for (const at of CONFIG_SCHEMA_ONLY) {
+      const leaf = at.split('.').pop();
+      assert.match(src, new RegExp(`config\\??\\.(?:[a-z]+\\??\\.)?${leaf}\\b`), `schema-only key "${at}" has no reader in src`);
     }
   });
 
-  it('nested config schema properties match DEFAULTS sub-keys', async () => {
-    const schema = await loadSchema('config.v1.schema.json');
-
-    const DEFAULTS = {
-      roadmap: { path: 'ROADMAP.md', compact_after_days: 60 },
-      schedule: { assess: 'daily', ideate: 'weekly' },
-      providers: { default: 'gemini' },
-      limits: {
-        max_issues_per_run: 3,
-        require_approval: true,
-        labels: { proposal: 'roadmap-proposal', agent: 'agent-generated' },
-      },
-      observe: {
-        issues_closed_days: 90,
-        prs_merged_days: 90,
-        releases_count: 10,
-      },
-    };
-
-    const nestedSections = ['roadmap', 'schedule', 'providers', 'limits', 'observe'];
-    for (const section of nestedSections) {
-      const schemaSub = schema.properties[section]?.properties || {};
-      for (const subKey of Object.keys(schemaSub)) {
-        // limits.labels is itself nested — just check it exists
-        if (section === 'limits' && subKey === 'labels') {
-          assert.ok('labels' in DEFAULTS.limits, 'DEFAULTS.limits.labels missing');
-          continue;
-        }
-        assert.ok(subKey in DEFAULTS[section], `schema.${section}.${subKey} not found in DEFAULTS.${section}`);
-      }
-    }
+  it('DEFAULTS is deeply frozen', async () => {
+    const { DEFAULTS } = await import('./config.js');
+    const unfrozen = [];
+    (function walk(obj, path) {
+      if (!Object.isFrozen(obj)) unfrozen.push(path || '<root>');
+      for (const [k, v] of Object.entries(obj)) if (v && typeof v === 'object') walk(v, path ? `${path}.${k}` : k);
+    })(DEFAULTS, '');
+    assert.deepEqual(unfrozen, []);
+    assert.throws(() => { DEFAULTS.limits.labels.agent = 'x'; }, TypeError);
   });
 });
 
@@ -220,21 +225,23 @@ describe('health-tier schema enum matches computeHealthTier output', () => {
 // --- Test 5: portfolio-details schema documents fetchPortfolioDetails shape ---
 
 describe('portfolio-details schema documents fetchPortfolioDetails shape', () => {
-  it('schema has properties for all camelCase fields assigned at details[r.name]', async () => {
+  it('schema properties and the keys fetchPortfolioDetails writes agree in both directions', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     const schema = await loadSchema('portfolio-details.v1.schema.json');
-    const repoDetails = schema.$defs.RepoDetails.properties;
+    const schemaKeys = new Set(Object.keys(schema.$defs.RepoDetails.properties));
 
-    // Fields directly assigned at line 173 of src/report-portfolio.js:
-    // { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues, sbom, released_at, hasIssueTemplate, libyear: null, traffic }
-    // Plus `contributors` added later (documented in schema as optional)
-    const expectedFields = [
-      'commits', 'weekly', 'license', 'ci', 'communityHealth', 'vulns',
-      'ciPassRate', 'open_issues', 'sbom', 'released_at', 'hasIssueTemplate',
-      'libyear', 'contributors', 'codeScanning', 'secretScanning', 'traffic',
-    ];
+    // Every endpoint failing still produces the full details object — each
+    // fetch has its own fallback — so the key set is the one the code writes.
+    const fail = () => Promise.reject(new Error('GitHub API 500: /x'));
+    const gh = { request: fail, paginate: fail, getFileContent: () => Promise.resolve(null) };
+    const repos = [{ name: 'r', pushed_at: '2026-01-01T00:00:00Z', open_issues: 0, archived: false, fork: false }];
+    const written = new Set(Object.keys((await fetchPortfolioDetails(gh, 'owner', repos)).r));
 
-    for (const field of expectedFields) {
-      assert.ok(field in repoDetails, `portfolio-details schema missing property "${field}"`);
+    for (const key of written) assert.ok(schemaKeys.has(key), `fetchPortfolioDetails writes "${key}" but the schema has no property for it`);
+    // contributors is attached later, in report.js, not by fetchPortfolioDetails.
+    for (const key of schemaKeys) {
+      if (key === 'contributors') continue;
+      assert.ok(written.has(key), `schema property "${key}" is not written by fetchPortfolioDetails`);
     }
   });
 

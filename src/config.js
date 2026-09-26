@@ -1,9 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 
-const DEFAULTS = {
+// Deep-frozen: loadConfig and loadConfigSync return this object itself when the
+// config file is missing, and deepMerge shares any nested section the file does
+// not override, so a mutable export would let one caller change the defaults
+// every later load in the process sees. Merging copies, so freezing costs it
+// nothing. Mirrored key-for-key by schemas/v1/config.v1.schema.json (schema.test.js).
+export const DEFAULTS = deepFreeze({
   roadmap: { path: 'ROADMAP.md', compact_after_days: 60 },
-  schedule: { assess: 'daily', ideate: 'weekly' },
   providers: { default: 'gemini' },
   context: '',
   limits: {
@@ -68,7 +72,12 @@ const DEFAULTS = {
   // reviewed config change. Empty by default (default-closed).
   'propose-classes': {},
   release_exempt: '',
-};
+});
+
+function deepFreeze(obj) {
+  for (const v of Object.values(obj)) if (v && typeof v === 'object') deepFreeze(v);
+  return Object.freeze(obj);
+}
 
 // Parse raw roadmap YAML over the defaults. Pure — shared by both the async
 // and sync loaders so neither can drift from the other's defaults. Internal:
