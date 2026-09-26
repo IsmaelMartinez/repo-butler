@@ -23,7 +23,7 @@ import { promisify } from 'node:util';
 import { REPO_NAME_PATTERN, validateIssueBody, validateIssueTitle } from './safety.js';
 import { parseVersion } from './trimmer.js';
 import { alertDirectory } from './stalled-alert.js';
-import { APPLY_PR_MARKER, isScheduleAllowed, screenApplyTarget } from './apply.js';
+import { APPLY_PR_MARKER, isScheduleAllowed, positiveCap, requireApprovalGate, screenApplyTarget } from './apply.js';
 
 export const LOCKFILE_UPDATE_TOOL = 'lockfile-update';
 
@@ -732,10 +732,7 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
   const { dryRun, maxPerRun = 5, scheduled, runNpmUpdate = runNpmUpdateInTempDir } = options;
   const log = (msg) => console.log(`${LOCKFILE_UPDATE_TOOL}: ${msg}`);
 
-  // The boolean, not a truthy value: the YAML parser passes a quoted 'false'
-  // through as a string, and the ADR-005 master switch is `true` or nothing.
-  if (config?.limits?.require_approval !== true) {
-    console.error(`${LOCKFILE_UPDATE_TOOL}: config.limits.require_approval is not true — refusing to run`);
+  if (!requireApprovalGate(config, LOCKFILE_UPDATE_TOOL)) {
     return { status: 'refused', reason: 'require_approval not set' };
   }
   if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], LOCKFILE_UPDATE_TOOL)) {
@@ -746,7 +743,7 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
   }
 
   const live = dryRun === false;
-  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const cap = positiveCap(maxPerRun);
   const targets = selectLockfileUpdateTargets(findings);
   const results = [];
   // The cap counts targets that got PAST the screen, so a repo with an open or
