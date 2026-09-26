@@ -59,6 +59,25 @@ const STALE_DATA_HOURS = 48;
 // question of a different checkout.
 const CHECKOUT_DIR = join(__dirname, '..');
 
+// Every subprocess this server runs goes through `io`, so the tests can answer
+// from a fixture data branch and a stubbed gh instead of whatever this
+// checkout's refs and gh login happen to hold. Nothing in production replaces
+// it. `git` has runGit's contract (trimmed stdout, or null on any failure);
+// `gh` throws like execFileSync, because the governance-PR tool tells a
+// missing gh (ENOENT) apart from a per-repo failure.
+const io = {
+  git: (args) => runGit(args, { cwd: CHECKOUT_DIR }),
+  commitsBehindMain: () => readCommitsBehindMain(CHECKOUT_DIR),
+  gh: (args) => execFileSync('gh', args, { encoding: 'utf8', cwd: CHECKOUT_DIR, timeout: 10000 }),
+};
+
+// Test seam: replace some of `io`, returning a function that restores it.
+function setIo(overrides) {
+  const previous = { ...io };
+  Object.assign(io, overrides);
+  return () => Object.assign(io, previous);
+}
+
 // Pure: turns the two raw readings into an envelope. Split out from the git
 // calls so the thresholds and the wording are testable without a fixture repo.
 // An unreadable probe warns rather than staying silent — "we could not check"
@@ -106,9 +125,9 @@ function computeStaleness(dataCommittedAt, commitsBehindMain, now = Date.now()) 
 function readStaleness() {
   // `||` not `??`: an empty string is as unusable as null here, and should
   // fall through to the bare local ref rather than be reported as a timestamp.
-  const dataCommittedAt = runGit(['log', '-1', '--format=%cI', 'origin/repo-butler-data'], { cwd: CHECKOUT_DIR })
-    || runGit(['log', '-1', '--format=%cI', 'repo-butler-data'], { cwd: CHECKOUT_DIR });
-  return computeStaleness(dataCommittedAt, readCommitsBehindMain(CHECKOUT_DIR));
+  const dataCommittedAt = io.git(['log', '-1', '--format=%cI', 'origin/repo-butler-data'])
+    || io.git(['log', '-1', '--format=%cI', 'repo-butler-data']);
+  return computeStaleness(dataCommittedAt, io.commitsBehindMain());
 }
 
 // --- Data loading ---
@@ -116,22 +135,15 @@ function readStaleness() {
 // Run a git subcommand against the repo-butler-data branch, trying the
 // origin/-prefixed ref first and falling back to the bare local ref. The
 // caller supplies argsFor(ref) which builds the full git argv given a ref
-// name. Returns stdout, or throws if neither ref works.
+// name. Returns trimmed stdout, or null if neither ref works. `??`, not `||`:
+// an origin ref that answered with nothing (an empty listing) is an answer,
+// and only a failed command falls through to the local ref.
 function runGitOnDataBranch(argsFor) {
-  const opts = { encoding: 'utf8', cwd: CHECKOUT_DIR, timeout: 5000 };
-  try {
-    return execFileSync('git', argsFor('origin/repo-butler-data'), opts);
-  } catch {
-    return execFileSync('git', argsFor('repo-butler-data'), opts);
-  }
+  return io.git(argsFor('origin/repo-butler-data')) ?? io.git(argsFor('repo-butler-data'));
 }
 
 function loadFromDataBranch(path) {
-  try {
-    return runGitOnDataBranch(ref => ['show', `${ref}:${path}`]);
-  } catch {
-    return null;
-  }
+  return runGitOnDataBranch(ref => ['show', `${ref}:${path}`]);
 }
 
 function loadSnapshot() {
@@ -140,53 +152,35 @@ function loadSnapshot() {
 }
 
 function loadPortfolioWeekly() {
-  // Find the latest weekly file by listing the directory.
   try {
-    const listing = runGitOnDataBranch(ref => ['ls-tree', '--name-only', ref, 'snapshots/portfolio-weekly/']).trim();
-    if (!listing) return null;
-    const files = listing.split('\n').filter(f => f.endsWith('.json')).sort();
+    const files = listWeeklyFiles('portfolio-weekly');
     if (files.length === 0) return null;
     const latest = files[files.length - 1];
-    const raw = loadFromDataBranch(latest);
+    const raw = loadFromDataBranch(`snapshots/portfolio-weekly/${latest}`);
     return raw ? { week: latest.match(/(\d{4}-W\d{2})/)?.[1], data: JSON.parse(raw) } : null;
   } catch {
     return null;
   }
 }
 
-// List portfolio-weekly files (basenames like "2026-W18.json"), sorted oldest→newest.
-function listPortfolioWeeklyFiles() {
-  try {
-    const listing = runGitOnDataBranch(ref => ['ls-tree', '--name-only', ref, 'snapshots/portfolio-weekly/']).trim();
-    if (!listing) return [];
-    return listing.split('\n')
-      .map(p => p.replace(/^snapshots\/portfolio-weekly\//, ''))
-      .filter(f => f.endsWith('.json'))
-      .sort();
-  } catch {
-    return [];
-  }
-}
+// Matches exactly the isoWeekKey format store.js writes ("2026-W18.json") for
+// both weekly streams — strict, not just *.json, so a stray non-week file
+// dropped into the directory (or a future naming change) can't be mistaken
+// for a weekly snapshot. loadPortfolioWeekly relies on the last file and
+// loadPriorGovernanceWeekly on file[length-2] being a real ISO-week snapshot
+// with an extractable week label; "notes.json" sorts after every week.
+const WEEKLY_FILE_PATTERN = /^\d{4}-W\d{2}\.json$/;
 
-// Matches exactly the isoWeekKey format store.js writes ("2026-W18.json") —
-// strict, not just *.json, so a stray non-week file dropped into the
-// directory (or a future naming change) can't be mistaken for a weekly
-// snapshot. loadPriorGovernanceWeekly relies on file[length-2] being a real
-// ISO-week snapshot with an extractable week label.
-const GOVERNANCE_WEEKLY_FILE_PATTERN = /^\d{4}-W\d{2}\.json$/;
-
-// List governance-weekly files (basenames like "2026-W18.json"), sorted oldest→newest.
-function listGovernanceWeeklyFiles() {
-  try {
-    const listing = runGitOnDataBranch(ref => ['ls-tree', '--name-only', ref, 'snapshots/governance-weekly/']).trim();
-    if (!listing) return [];
-    return listing.split('\n')
-      .map(p => p.replace(/^snapshots\/governance-weekly\//, ''))
-      .filter(f => GOVERNANCE_WEEKLY_FILE_PATTERN.test(f))
-      .sort();
-  } catch {
-    return [];
-  }
+// List the weekly files under snapshots/<dir>/ (basenames like
+// "2026-W18.json"), sorted oldest→newest; empty when the branch is unreadable.
+function listWeeklyFiles(dir) {
+  const prefix = `snapshots/${dir}/`;
+  const listing = runGitOnDataBranch(ref => ['ls-tree', '--name-only', ref, prefix]);
+  if (!listing) return [];
+  return listing.split('\n')
+    .map(p => p.slice(prefix.length))
+    .filter(f => WEEKLY_FILE_PATTERN.test(f))
+    .sort();
 }
 
 // Load the "prior" governance-weekly snapshot for the trends the MCP tool
@@ -204,7 +198,7 @@ function listGovernanceWeeklyFiles() {
 // the in-process context.priorAutofixNotDrivenCount.
 function loadPriorGovernanceWeekly() {
   try {
-    const files = listGovernanceWeeklyFiles();
+    const files = listWeeklyFiles('governance-weekly');
     if (files.length < 2) return null;
     const prior = files[files.length - 2];
     const raw = loadFromDataBranch(`snapshots/governance-weekly/${prior}`);
@@ -569,15 +563,8 @@ function toolGetGovernanceFindings() {
 }
 
 function getRepoSlug() {
-  try {
-    const url = execFileSync('git', ['remote', 'get-url', 'origin'], {
-      encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 5000,
-    }).trim();
-    const match = url.match(/github\.com[/:]([^/]+\/[^/.]+)/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
+  const match = io.git(['remote', 'get-url', 'origin'])?.match(/github\.com[/:]([^/]+\/[^/.]+)/);
+  return match ? match[1] : null;
 }
 
 function toolTriggerRefresh(phase) {
@@ -592,14 +579,14 @@ function toolTriggerRefresh(phase) {
   }
 
   try {
-    const output = execFileSync('gh', [
+    const output = io.gh([
       'workflow', 'run', 'Repo Butler',
       '--repo', repo,
       '--ref', 'main',
       '-f', `phase=${phase}`,
       '-f', 'dry-run=false',
       '-f', 'force-report=true',
-    ], { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 10000 });
+    ]);
 
     return {
       status: 'triggered',
@@ -733,7 +720,7 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
     return { error: 'Invalid repo name. Must match [A-Za-z0-9][A-Za-z0-9._-]{0,99}.' };
   }
 
-  const files = listPortfolioWeeklyFiles();
+  const files = listWeeklyFiles('portfolio-weekly');
   if (files.length === 0) return { error: 'No portfolio-weekly snapshots available.' };
 
   const selected = files.slice(-weeks);
@@ -810,13 +797,13 @@ function toolGetOpenGovernancePrs() {
       // gh's --head is exact-match, not prefix-match. List ALL open PRs and
       // filter client-side for our prefix. Modest per-repo cost; the pre-filter
       // approach silently returned empty for every repo.
-      const output = execFileSync('gh', [
+      const output = io.gh([
         'pr', 'list',
         '--repo', `${owner}/${repo}`,
         '--state', 'open',
         '--json', 'number,url,headRefName,createdAt',
         '--limit', '50',
-      ], { encoding: 'utf8', cwd: join(__dirname, '..'), timeout: 10000 });
+      ]);
 
       const list = JSON.parse(output || '[]');
       for (const pr of list) {
@@ -1026,4 +1013,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, GOVERNANCE_WEEKLY_FILE_PATTERN, callTool, weekTier, computeStaleness, TOOLS, RESOURCES };
+export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, WEEKLY_FILE_PATTERN, callTool, setIo, weekTier, computeStaleness, TOOLS, RESOURCES };
