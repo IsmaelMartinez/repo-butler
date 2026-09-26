@@ -39,7 +39,7 @@ Observation covers issues, PRs, labels, milestones, releases, workflows, repo me
 
 Reporting generates per-repo dashboards — full charts for active repos, lightweight cards for quieter ones — behind a snapshot-hash cache. Health is expressed as Gold/Silver/Bronze tiers with explicit pass/fail checklists. A safety layer validates every piece of LLM output before it is published, and all prompt-building wraps external data in delimiters with an injection-defence preamble.
 
-Governance is a first-class phase with five deterministic finding types, each carrying a remediation plan (an executor hint plus a change spec). Findings reach the dashboard, the MCP server and the apply path. Consumers are served by a zero-dependency MCP server (`src/mcp.js`), JSON Schema 2020-12 data contracts in `schemas/v1/`, an A2A AgentCard and an AsyncAPI 3.0 spec — the latter two discovery-only, with no live transport.
+Governance is a first-class phase with eight deterministic finding types, each carrying a remediation plan (an executor hint plus a change spec). Findings reach the dashboard, the MCP server and the apply path. Consumers are served by a zero-dependency MCP server (`src/mcp.js`), JSON Schema 2020-12 data contracts in `schemas/v1/`, an A2A AgentCard and an AsyncAPI 3.0 spec — the latter two discovery-only, with no live transport.
 
 ### Shipped log
 
@@ -111,13 +111,7 @@ Roadmap citation integrity guard shipped 2026-09-09 (PR #396). Prevents the auto
 
 Automated dependency deployment workflow update shipped 2026-09-10 (PR #398). Maintains CI/CD pipeline health and ensures the project's documentation and live roadmap deployment workflows remain fully functional and secure by updating dependency actions.
 
-Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). Following a highly productive period of feature development, this release packages prior structural work and automated roadmap planning fixes into a formal stable build, ensuring the agent continues to run reliably in its self-planning cycle.
-
 Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). This release consolidates the stable, feature-complete state of the pipeline, including the section-edit roadmap update engine, cross-repo PROPOSE, and the completed OSV-Scanner security migration, ensuring reliable continuous planning on its daily schedule.
-
-Repo Butler v1.1.3 stable release deployed 2026-09-16 (v1.1.3). Resolves a critical environment-specific blockage on the Docker agent execution runner where automated lockfile updates were refused during scheduled daily roadmap planning cycles, ensuring system uptime and self-sustainability (Issue #401).
-
-Docker execution agent lockfile resolution shipped 2026-09-16 (v1.1.3). Resolves a critical environment-specific blocker on the Docker agent execution runner where automated lockfile updates were refused during scheduled daily roadmap planning cycles, ensuring system uptime and self-sustainability (Issue #401).
 
 Automated lockfile update tool for reachable-by-update alerts shipped 2026-09-17 (PR #400). Following the ADR-015 design, this implements the `lockfile-update` apply tool specifically targeting `reachable-by-update` Dependabot alerts, allowing the butler to autonomously resolve targeted security vulnerabilities by updating lockfiles.
 
@@ -146,24 +140,6 @@ It ships manual-dispatch only, absent from both `apply-schedule` and `apply-auto
 This document hit the 60,000-character `validateRoadmap` ceiling on 2026-07-26 with 272 characters of headroom, because the UPDATE phase appends to `## Implemented` on every run while `compactRoadmap` only ever compacted struck-through `###` subsections. The growing section was the one the compactor could not reach.
 
 `compactShippedLog` closes that gap: dated prose entries older than `compact_after_days` are rolled up in place to one machine-generated line per month, keeping every PR reference and dropping the prose to git history. Undated paragraphs — the evergreen capability description, and hand-written month summaries like the three above — are passed through untouched. Deferred and worth revisiting if the document grows again: `compactRoadmap` still skips struck subsections that carry no date at all, and shipped bullets nested inside active sections are never compacted because only `###` blocks are eligible.
-
-### ~~Live skills are still bound to a working tree (#350)~~ SHIPPED
-
-Both halves have shipped: the MCP one as G8 (PR #361) and the skills one as PR #365 on 2026-08-02, and the second confirmed the first's guess. The fix really was a staleness signal rather than an installer, and `computeStaleness` really was the shape to reuse — so literally that the behind-main probe moved into `src/staleness.js` and both surfaces now share one classification.
-
-The symlink remains the right design and is unchanged; what changed is that the checkout it points at is no longer anonymous. Two things only turned up in the building. Node collapses `..` lexically, so a skill cannot hand the registry path straight to `node` and expect the symlink to be traversed — it must `cd -P` first, which was measured rather than reasoned about after the obvious form failed. And a checkout old enough to lack `scripts/check-skills.js` predates the check itself, which makes empty output a positive staleness signal rather than a failed one.
-
-The remaining judgement call is that the write-side reading informs rather than blocks. Refusing to dispatch from a stale revision is the owner's call, and a skill that refuses becomes one more thing to work around.
-
-### ~~UPDATE loses what it records~~ SHIPPED
-
-Both halves have now shipped, and the first diagnosis was wrong in a way worth keeping on the record.
-
-The visible symptom was that #354, #355 and #356 never reached the shipped log and had to be backfilled by hand on 2026-08-01. The first explanation was that the prompt never carried merged PR titles — only a 90-day count — so entry generation depended on the assessment prose happening to name the work. That was a real defect and shipped as #362, but it was not the cause. Reading #353's commit history showed the LLM had written a correct entry on *every* tick: #354, then #355, then #356, then #357/#358, each one replacing the last.
-
-The actual cause was that a refresh rebuilt the document from the default branch. `snapshot.roadmap` is what OBSERVE read from `main`, and using it as the baseline meant each tick appended its entry to `main`'s copy and pushed that over the open PR, discarding the previous tick's work. Entries were never re-offered either, because ASSESS computes `new_merged_prs` against the previous snapshot, so a PR that was new last tick is not new this tick — lost meant lost. Fixed by reading the roadmap from the open PR's head ref before compaction and using that as the baseline, falling back to the snapshot when the branch copy is unreadable.
-
-The lesson is the one this codebase keeps relearning: a plausible cause that explains the symptom is not the same as the cause. The prompt gap was real, visible in a diff, and would have been accepted as the explanation if the commit history of the failing PR had not been read.
 
 ### Dashboard round-two follow-ons
 
