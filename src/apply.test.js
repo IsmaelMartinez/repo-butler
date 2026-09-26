@@ -39,6 +39,12 @@ describe('isRecentlyDeclined', () => {
     assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(-1) }, now), false);
     assert.equal(isRecentlyDeclined({ state: 'closed', merged_at: null, closed_at: daysAgo(-9999) }, now), false);
   });
+
+  it('measures the window against a caller-supplied cooldown', () => {
+    const pr = { state: 'closed', merged_at: null, closed_at: daysAgo(10) };
+    assert.equal(isRecentlyDeclined(pr, now, 5), false);
+    assert.equal(isRecentlyDeclined(pr, now, 15), true);
+  });
 });
 
 describe('validateFindings', () => {
