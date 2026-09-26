@@ -1478,6 +1478,38 @@ describe('applyEditOps — shipped entries need merged-PR evidence', () => {
     }
   });
 
+  it('rejects an over-limit version claim instead of letting it collapse to a real release', () => {
+    // Beyond the bounded token shape, backtracking used to stop at the real
+    // core (`\b` holds before `.` or `-`), so these read as `v1.1.2`.
+    const evidence = { ...pr399Evidence, knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    for (const v of ['v1.1.2.1234567', `v1.1.2-${'a'.repeat(70)}`, 'v1.1.2.1.2.3.4.5']) {
+      const { result, unverifiable } = applyEditOps(baseline, [append(`Repo Butler ${v} shipped 2026-09-17 (PR #400).`)], '2026-09-17', evidence);
+      assert.equal(result, baseline, `${v.slice(0, 20)} must be rejected`);
+      assert.deepEqual(unverifiable, [v]);
+    }
+  });
+
+  it('keeps accepting a real release claim that ends a sentence', () => {
+    const evidence = { ...pr399Evidence, knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    const { result, unverifiable } = applyEditOps(baseline, [append('Packaging shipped 2026-09-17 (PR #400) as Repo Butler v1.1.2.')], '2026-09-17', evidence);
+    assert.match(result, /as Repo Butler v1\.1\.2\./);
+    assert.deepEqual(unverifiable, []);
+  });
+
+  it('does not record a prefix of an over-limit roadmap version as a known version', () => {
+    const evidence = { ...pr399Evidence, releases: new Set(), knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    const roadmap = baseline.replace('Active work.', `Planned v9.9.9-${'a'.repeat(70)} line. Active work.`);
+    const { result, unverifiable } = applyEditOps(roadmap, [append('Repo Butler v9.9.9 shipped 2026-09-17 (PR #400).')], '2026-09-17', evidence);
+    assert.equal(result, roadmap);
+    assert.deepEqual(unverifiable, ['v9.9.9']);
+  });
+
+  it('does not treat a new release as named by its prerelease', () => {
+    const evidence = { ...pr399Evidence, newReleases: ['v1.1.2'] };
+    const { result } = applyEditOps(baseline, [append('Release candidate shipped 2026-09-15 (v1.1.2-beta).')], '2026-09-17', evidence);
+    assert.equal(result, baseline);
+  });
+
   it('accepts a prerelease claim matching a real prerelease tag', () => {
     const evidence = { ...pr399Evidence, releases: new Set(['v1.2.0-rc.1']), knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
     const { result } = applyEditOps(baseline, [append('Repo Butler v1.2.0-rc.1 candidate shipped 2026-09-17 (PR #400).')], '2026-09-17', evidence);

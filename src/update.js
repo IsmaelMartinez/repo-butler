@@ -83,8 +83,10 @@ const SHIPPED_SECTION = 'Implemented';
 // prerelease/build suffix — so `v1.2.0-beta` or `v1.2.0.1` is compared as
 // itself and never collapses to a real `v1.2.0`. Every quantifier is bounded
 // and each suffix segment starts after an unambiguous separator, so matching
-// stays linear on LLM-written text.
-const VERSION_SOURCE = String.raw`(\d{1,6}\.\d{1,6}\.\d{1,6}(?:\.\d{1,6}){0,4}(?:[-+][0-9A-Za-z-]{1,64}(?:\.[0-9A-Za-z-]{1,64}){0,8})?)\b`;
+// stays linear on LLM-written text. The tail is a lookahead, not `\b`: `\b`
+// holds before `.` and `-`, so an over-limit token backtracked to a shorter
+// prefix; a sentence-ending period still ends the token.
+const VERSION_SOURCE = String.raw`(\d{1,6}\.\d{1,6}\.\d{1,6}(?:\.\d{1,6}){0,4}(?:[-+][0-9A-Za-z-]{1,64}(?:\.[0-9A-Za-z-]{1,64}){0,8})?)(?![\w-]|[.+]\w)`;
 const VERSION_REGEXP = new RegExp(String.raw`\bv?${VERSION_SOURCE}`, 'g');
 const normalizeVersion = (v) => v.replace(/^v/i, '');
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -94,17 +96,20 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // words ("Repo Butler v1.1.3", "repo-butler v1.1.3"). Deliberately that narrow:
 // entries routinely name third-party versions ("actions/checkout v7.0.1"),
 // which are not claims about this project's releases and must pass untouched.
+// The claim is the whole loose token after the name (sentence-ending periods
+// stripped), compared exactly: a token outside VERSION_SOURCE's bounded shape
+// must fail as unverifiable, not stop matching and pass as "no claim".
 function projectVersionClaims(text, project) {
   const words = (project || '').split(/[-_\s]+/).filter(Boolean).map(escapeRegExp);
   if (words.length === 0) return [];
-  const re = new RegExp(`\\b${words.join('[-_ ]')}\\s+v${VERSION_SOURCE}`, 'gi');
-  return [...new Set([...text.matchAll(re)].map(m => `v${m[1]}`))];
+  const re = new RegExp(`\\b${words.join('[-_ ]')}\\s+v(\\d{1,6}\\.\\d{1,6}\\.\\d[0-9A-Za-z.+-]{0,200})`, 'gi');
+  return [...new Set([...text.matchAll(re)].map(m => `v${m[1].replace(/\.+$/, '')}`))];
 }
 
 // Whether the text names one of `tags` as a whole token, so a new release
 // `v1.1` is not "named" by an entry about `v1.1.2`.
 function namesTag(text, tags) {
-  return tags.some(t => new RegExp(`(?:^|[^\\w.])${escapeRegExp(t)}(?!\\w|\\.\\w)`).test(text));
+  return tags.some(t => new RegExp(`(?:^|[^\\w.])${escapeRegExp(t)}(?![\\w-]|[.+]\\w)`).test(text));
 }
 
 // Read the roadmap as it exists on one ref. Returns { content, sha } or null
