@@ -26,22 +26,6 @@
         }
       }
     },
-    "schedule": {
-      "type": "object",
-      "description": "Frequency settings for pipeline phases",
-      "properties": {
-        "assess": {
-          "type": "string",
-          "default": "daily",
-          "description": "How often the ASSESS phase runs"
-        },
-        "ideate": {
-          "type": "string",
-          "default": "weekly",
-          "description": "How often the IDEATE phase runs"
-        }
-      }
-    },
     "providers": {
       "type": "object",
       "description": "LLM provider settings",
@@ -51,6 +35,11 @@
           "default": "gemini",
           "enum": ["gemini", "claude"],
           "description": "Default LLM provider to use when no phase-specific override is set"
+        },
+        "deep": {
+          "type": "string",
+          "enum": ["gemini", "claude"],
+          "description": "Provider for the IDEATE and MONITOR phases (index.js providerForPhase). No default: when unset or unavailable, index.js falls back to the claude provider, then to the default provider."
         }
       }
     },
@@ -67,6 +56,11 @@
           "type": "integer",
           "default": 3,
           "description": "Maximum number of GitHub issues the PROPOSE phase creates per pipeline run"
+        },
+        "max_issues_per_target": {
+          "type": "integer",
+          "default": 1,
+          "description": "Per-cross-repo-target ceiling (ADR-011 two-axis cap): the most issues one run may file into any ONE other portfolio repo. Applies to cross-repo targets only; the host backlog stays bounded by max_issues_per_run."
         },
         "require_approval": {
           "type": "boolean",
@@ -86,6 +80,11 @@
               "type": "string",
               "default": "agent-generated",
               "description": "Label applied to all issues created by the agent"
+            },
+            "portfolioNudge": {
+              "type": "string",
+              "default": "portfolio-nudge",
+              "description": "Label applied only to issues filed into ANOTHER portfolio repo by cross-repo PROPOSE (ADR-011, G9); never applied to host issues"
             }
           }
         }
@@ -124,6 +123,12 @@
       "additionalProperties": { "type": "string" },
       "examples": [{ "coderabbit": "archived-repo,experimental-fork" }]
     },
+    "policy-drift-exempt": {
+      "type": "object",
+      "description": "Per-category exemptions from policy-drift detection (governance.js parseExemptions). Keys are drift categories (e.g. license), values are comma-separated repo names exempt from that check.",
+      "additionalProperties": { "type": "string" },
+      "examples": [{ "license": "teams-for-linux,bonnie-wee-plot" }]
+    },
     "apply-cap": {
       "type": "object",
       "description": "Per-tool override for the Governance Apply per-run PR cap (ADR-007 stage 3). Keys are templatable tool names, values are the max PRs per run for that tool. Tools absent here fall back to the global cap (INPUT_MAX_APPLY_PER_RUN, default 5). Blast-radius sizing only — every other ADR-005 gate stays global.",
@@ -141,6 +146,49 @@
       "description": "Per-finding-class auto-merge allow-list (ADR-007 stage 5). Key-presence allow-list: a deterministic template tool mapped to true lets the butler squash-merge its OWN green templated governance-apply PRs for that class. Opt-in, never global, bounded to the template tools (settings/nudge/policy-drift/tier-uplift/agent/manual classes are never eligible). Defaults to empty (default-closed), so nothing auto-merges until a class is explicitly added in a reviewed change. Preconditions: required CI green and PR mergeable; merges are squash (clean revert) with the merge SHA recorded. Kill switches: empty this, set require_approval false, or disable the scheduled workflow.",
       "additionalProperties": { "type": "boolean" },
       "examples": [{ "dependabot-actions": true }]
+    },
+    "propose-targets": {
+      "type": "object",
+      "description": "Cross-repo PROPOSE target allow-list (ADR-010 / ADR-011). Key-presence map of portfolio repo short-names that may receive cross-repo issues; a repo mapped to true is opted in. The owner always comes from context, never config. Defaults to empty (default-closed).",
+      "additionalProperties": { "type": "boolean" },
+      "examples": [{ "github-issue-triage-bot": true }]
+    },
+    "propose-classes": {
+      "type": "object",
+      "description": "Per-finding-class promotion control for cross-repo PROPOSE (ADR-011). Key-presence map of governance finding classes (standards-gap, policy-drift, tier-uplift); a class crosses only when it is enabled here AND its target is on propose-targets. Defaults to empty (default-closed).",
+      "additionalProperties": { "type": "boolean" },
+      "examples": [{ "standards-gap": true }]
+    },
+    "release_exempt": {
+      "type": "string",
+      "default": "",
+      "description": "Comma-separated repo names exempt from the release-recency health-tier check (report-shared.js isReleaseExempt), applied by the dashboard, governance and the MCP server alike.",
+      "examples": ["sound3fy,generator-atlassian-compass-event-catalog"]
+    },
+    "council": {
+      "type": "object",
+      "description": "Agent-council deliberation settings. Not in src/config.js DEFAULTS; each reader supplies its own fallback.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Set false to skip council review of ideated proposals (ideate.js). Any other value, including absent, leaves it on."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["quick", "full"],
+          "description": "Deliberation depth for reviewProposals and triageEvents (council.js); falls back to quick when unset."
+        }
+      }
+    },
+    "monitor": {
+      "type": "object",
+      "description": "MONITOR phase settings. Not in src/config.js DEFAULTS; monitor.js supplies the fallback.",
+      "properties": {
+        "stale_days": {
+          "type": "integer",
+          "description": "Days without an update after which an open issue is reported stale; falls back to 30 when unset."
+        }
+      }
     }
   }
 }
