@@ -79,7 +79,13 @@ function assessmentEvidence(assessment, snapshot, project) {
 // or no ref at all is the honest citation.
 const SHIPPED_SECTION = 'Implemented';
 
-const VERSION_REGEXP = /\bv?(\d{1,6}\.\d{1,6}\.\d{1,6})\b/g;
+// A whole version token — core, any extra numeric segments, and any
+// prerelease/build suffix — so `v1.2.0-beta` or `v1.2.0.1` is compared as
+// itself and never collapses to a real `v1.2.0`. Every quantifier is bounded
+// and each suffix segment starts after an unambiguous separator, so matching
+// stays linear on LLM-written text.
+const VERSION_SOURCE = String.raw`(\d{1,6}\.\d{1,6}\.\d{1,6}(?:\.\d{1,6}){0,4}(?:[-+][0-9A-Za-z-]{1,64}(?:\.[0-9A-Za-z-]{1,64}){0,8})?)\b`;
+const VERSION_REGEXP = new RegExp(String.raw`\bv?${VERSION_SOURCE}`, 'g');
 const normalizeVersion = (v) => v.replace(/^v/i, '');
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -91,7 +97,7 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function projectVersionClaims(text, project) {
   const words = (project || '').split(/[-_\s]+/).filter(Boolean).map(escapeRegExp);
   if (words.length === 0) return [];
-  const re = new RegExp(`\\b${words.join('[-_ ]')}\\s+v(\\d{1,6}\\.\\d{1,6}\\.\\d{1,6})\\b`, 'gi');
+  const re = new RegExp(`\\b${words.join('[-_ ]')}\\s+v${VERSION_SOURCE}`, 'gi');
   return [...new Set([...text.matchAll(re)].map(m => `v${m[1]}`))];
 }
 
