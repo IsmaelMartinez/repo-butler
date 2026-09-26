@@ -1,10 +1,78 @@
 // MCP server tests — verify JSON-RPC protocol handling and tool/resource responses.
 // Tests the message handler directly without spawning a subprocess.
 
-import { describe, it, beforeEach, mock } from 'node:test';
+import { describe, it, before, after, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+
+// Every tool answers from a fixture data branch and a stubbed `gh`, never from
+// whatever this checkout's repo-butler-data ref and gh login happen to hold.
+// Tests that depended on those accepted "data or error" and so mostly
+// exercised the error path; these assert exact answers instead. The fixture is
+// a trimmed copy of the real snapshot shapes with fake repo names.
+const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/mcp-data-branch.json', import.meta.url), 'utf8'));
+// Five hours after the fixture's data commit, so the envelope is warning-free
+// and every recomputed tier is pinned rather than decaying with the calendar.
+const FIXTURE_NOW = Date.parse('2026-09-26T12:00:00Z');
+const DATA_REF = 'origin/repo-butler-data';
+
+// Answers the git argv mcp.js issues, from the fixture, with runGit's contract:
+// trimmed stdout, or null on any failure. `refs` lists which data-branch refs
+// exist. An argv it does not recognise throws, so a new git call cannot slip
+// past the fake unnoticed.
+function fixtureGit({ refs = [DATA_REF], files = FIXTURE.files, remoteUrl = 'git@github.com:example-owner/repo-butler.git' } = {}) {
+  const calls = [];
+  const git = (args) => {
+    calls.push(args);
+    const [cmd] = args;
+    if (cmd === 'remote' && args[1] === 'get-url') return remoteUrl;
+    if (cmd === 'log') return refs.includes(args.at(-1)) ? FIXTURE.committed_at : null;
+    if (cmd === 'show') {
+      const spec = args[1];
+      const ref = spec.slice(0, spec.indexOf(':'));
+      const content = files[spec.slice(spec.indexOf(':') + 1)];
+      if (!refs.includes(ref) || content === undefined) return null;
+      return JSON.stringify(content, null, 2);
+    }
+    if (cmd === 'ls-tree' && args[1] === '--name-only') {
+      if (!refs.includes(args[2])) return null;
+      const dir = args[3];
+      return Object.keys(files).filter(p => p.startsWith(dir) && !p.slice(dir.length).includes('/')).join('\n');
+    }
+    throw new Error(`fixtureGit: unexpected git ${args.join(' ')}`);
+  };
+  git.calls = calls;
+  return git;
+}
+
+// Answers `gh pr list --repo owner/<repo>` from `prsByRepo`; a repo mapped to
+// an Error throws it, as execFileSync would.
+function fixtureGh(prsByRepo = {}) {
+  const calls = [];
+  const gh = (args) => {
+    calls.push(args);
+    if (args[0] === 'pr' && args[1] === 'list') {
+      const repo = args[args.indexOf('--repo') + 1].split('/')[1];
+      const answer = prsByRepo[repo] ?? [];
+      if (answer instanceof Error) throw answer;
+      return JSON.stringify(answer);
+    }
+    if (args[0] === 'workflow' && args[1] === 'run') return '';
+    throw new Error(`fixtureGh: unexpected gh ${args.join(' ')}`);
+  };
+  gh.calls = calls;
+  return gh;
+}
+
+const mcp = await import('./mcp.js');
+mcp.setIo({ git: fixtureGit(), gh: fixtureGh(), commitsBehindMain: () => 0 });
+
+// Swap the I/O for one test and put the file-wide fixture back afterwards.
+async function withIo(overrides, fn) {
+  const restore = mcp.setIo(overrides);
+  try { return await fn(); } finally { restore(); }
+}
 
 // Capture stdout writes to verify JSON-RPC responses.
 let responses = [];
@@ -22,22 +90,18 @@ function restoreStdout() {
   process.stdout.write = originalWrite;
 }
 
-// Dynamic import to avoid top-level side effects.
-let handleMessage, TOOLS, RESOURCES, callTool;
+const { handleMessage, TOOLS, RESOURCES, callTool } = mcp;
 
 describe('MCP server', async () => {
-  // Import once for all tests.
-  const mod = await import('./mcp.js');
-  handleMessage = mod.handleMessage;
-  TOOLS = mod.TOOLS;
-  RESOURCES = mod.RESOURCES;
-  callTool = mod.callTool;
+  const mod = mcp;
   const unwrapWeeklyRepos = mod.unwrapWeeklyRepos;
   const computeAutofixNotDrivenTrend = mod.computeAutofixNotDrivenTrend;
   const computeOpenVulnerabilitiesTrend = mod.computeOpenVulnerabilitiesTrend;
   const computeTierRegressionsTrend = mod.computeTierRegressionsTrend;
-  const GOVERNANCE_WEEKLY_FILE_PATTERN = mod.GOVERNANCE_WEEKLY_FILE_PATTERN;
+  const WEEKLY_FILE_PATTERN = mod.WEEKLY_FILE_PATTERN;
 
+  before(() => mock.timers.enable({ apis: ['Date'], now: FIXTURE_NOW }));
+  after(() => mock.timers.reset());
   beforeEach(() => captureResponses());
 
   describe('unwrapWeeklyRepos', () => {
@@ -170,17 +234,17 @@ describe('MCP server', async () => {
     });
   });
 
-  describe('GOVERNANCE_WEEKLY_FILE_PATTERN', () => {
-    it('matches ISO-week filenames written by store.js writeGovernanceWeekly', () => {
-      assert.ok(GOVERNANCE_WEEKLY_FILE_PATTERN.test('2026-W18.json'));
-      assert.ok(GOVERNANCE_WEEKLY_FILE_PATTERN.test('2025-W01.json'));
+  describe('WEEKLY_FILE_PATTERN', () => {
+    it('matches ISO-week filenames store.js writes for both weekly streams', () => {
+      assert.ok(WEEKLY_FILE_PATTERN.test('2026-W18.json'));
+      assert.ok(WEEKLY_FILE_PATTERN.test('2025-W01.json'));
     });
 
     it('rejects non-week JSON files so a stray file cannot be read as a weekly snapshot', () => {
-      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('governance.json'), false);
-      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('init.json'), false);
-      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('2026-W18.json.bak'), false);
-      assert.equal(GOVERNANCE_WEEKLY_FILE_PATTERN.test('notes/2026-W18.json'), false);
+      assert.equal(WEEKLY_FILE_PATTERN.test('governance.json'), false);
+      assert.equal(WEEKLY_FILE_PATTERN.test('init.json'), false);
+      assert.equal(WEEKLY_FILE_PATTERN.test('2026-W18.json.bak'), false);
+      assert.equal(WEEKLY_FILE_PATTERN.test('notes/2026-W18.json'), false);
     });
   });
 
@@ -323,208 +387,249 @@ describe('MCP server', async () => {
       assert.equal(responses[0].error.code, -32602);
     });
 
-    it('get_health_tier returns tier and checks for a known repo', () => {
+    // Through the JSON-RPC layer once, so the tools/call envelope is covered;
+    // the rest call callTool directly.
+    it('get_health_tier returns the tier, checks and next-tier gap for a known repo', () => {
       handleMessage(JSON.stringify({
         jsonrpc: '2.0', id: 23, method: 'tools/call',
-        params: { name: 'get_health_tier', arguments: { repo: 'repo-butler' } },
+        params: { name: 'get_health_tier', arguments: { repo: 'beta' } },
       }));
       restoreStdout();
 
       assert.equal(responses.length, 1);
-      // Result will either have tier data or an error about no data — both are valid responses.
-      const r = responses[0];
-      assert.ok(r.result, 'should have a result');
-      assert.ok(r.result.content, 'tool result should have content array');
-      const data = JSON.parse(r.result.content[0].text);
-      // If data is available, check structure. If not, it's an error message.
-      if (data.tier) {
-        assert.ok(['gold', 'silver', 'bronze', 'none'].includes(data.tier));
-        assert.ok(Array.isArray(data.checks));
-      }
+      const data = JSON.parse(responses[0].result.content[0].text);
+      assert.equal(data.repo, 'beta');
+      assert.equal(data.tier, 'silver');
+      assert.equal(data.week, '2026-W39', 'reads the latest real week, not the stray notes.json');
+      assert.equal(data.checks.length, 11);
+      assert.equal(data.next_tier, 'gold');
+      assert.deepEqual(data.needed_for_next, [
+        'Release in the last 90 days',
+        'Community health above 80%',
+        'Zero critical/high security findings',
+      ]);
     });
 
-    it('get_campaign_status returns campaign array', () => {
-      handleMessage(JSON.stringify({
-        jsonrpc: '2.0', id: 24, method: 'tools/call',
-        params: { name: 'get_campaign_status', arguments: {} },
-      }));
+    it('get_health_tier names the available repos when the repo is unknown', () => {
       restoreStdout();
-
-      assert.equal(responses.length, 1);
-      const r = responses[0];
-      assert.ok(r.result?.content);
-      const data = JSON.parse(r.result.content[0].text);
-      if (data.campaigns) {
-        assert.ok(Array.isArray(data.campaigns));
-        for (const c of data.campaigns) {
-          assert.ok(c.name);
-          assert.ok(typeof c.percentage === 'number');
-        }
-      }
+      const result = callTool('get_health_tier', { repo: 'nope' });
+      assert.equal(result.error, "Repo 'nope' not found. Available: alpha, beta, gamma-test-repo");
     });
 
-    it('query_portfolio returns repos array', () => {
-      handleMessage(JSON.stringify({
-        jsonrpc: '2.0', id: 25, method: 'tools/call',
-        params: { name: 'query_portfolio', arguments: {} },
-      }));
+    it('get_campaign_status excludes test repos and scores each campaign', () => {
       restoreStdout();
-
-      assert.equal(responses.length, 1);
-      const r = responses[0];
-      assert.ok(r.result?.content);
-      const data = JSON.parse(r.result.content[0].text);
-      if (data.repos) {
-        assert.ok(Array.isArray(data.repos));
-        // The v1 envelope keys must not leak through as pseudo-repos.
-        const names = data.repos.map(r => r.name);
-        assert.ok(!names.includes('schema_version'), 'schema_version leaked as a repo');
-        assert.ok(!names.includes('repos'), 'repos envelope key leaked as a repo');
-      }
+      const result = callTool('get_campaign_status', {});
+      assert.equal(result.week, '2026-W39');
+      const byName = Object.fromEntries(result.campaigns.map(c => [c.name, c]));
+      assert.deepEqual(Object.keys(byName), ['Community Health', 'Vulnerability Free', 'CI Reliability', 'License Compliance', 'Issue Templates']);
+      // gamma-test-repo matches REPO_EXCLUSION_PATTERNS, so the pool is alpha + beta.
+      assert.deepEqual(byName['Community Health'], {
+        name: 'Community Health', description: byName['Community Health'].description,
+        total: 2, compliant: 1, percentage: 50, non_compliant: ['beta'],
+      });
+      assert.deepEqual(byName['Vulnerability Free'].non_compliant, ['beta']);
+      assert.equal(byName['CI Reliability'].percentage, 50);
+      assert.equal(byName['License Compliance'].percentage, 100);
+      assert.deepEqual(byName['Issue Templates'].non_compliant, ['beta']);
     });
 
-    it('get_snapshot_diff returns comparison or first-run message', () => {
-      handleMessage(JSON.stringify({
-        jsonrpc: '2.0', id: 26, method: 'tools/call',
-        params: { name: 'get_snapshot_diff', arguments: {} },
-      }));
+    it('query_portfolio returns every repo with its tier, and filters by tier', () => {
       restoreStdout();
+      const all = callTool('query_portfolio', {});
+      assert.equal(all.week, '2026-W39');
+      assert.equal(all.count, 3);
+      // The v1 envelope keys must not leak through as pseudo-repos.
+      assert.deepEqual(all.repos.map(r => [r.name, r.tier]), [['alpha', 'gold'], ['beta', 'silver'], ['gamma-test-repo', 'bronze']]);
 
-      assert.equal(responses.length, 1);
-      const r = responses[0];
-      assert.ok(r.result?.content);
-      const data = JSON.parse(r.result.content[0].text);
-      assert.ok(data.changes || data.message || data.error);
+      const silver = callTool('query_portfolio', { tier: 'silver' });
+      assert.equal(silver.count, 1);
+      assert.equal(silver.repos[0].name, 'beta');
     });
 
-    it('get_governance_findings returns findings or empty message', () => {
-      handleMessage(JSON.stringify({
-        jsonrpc: '2.0', id: 27, method: 'tools/call',
-        params: { name: 'get_governance_findings', arguments: {} },
-      }));
+    it('get_snapshot_diff compares the latest snapshot against the previous one', () => {
       restoreStdout();
-
-      assert.equal(responses.length, 1);
-      const r = responses[0];
-      assert.ok(r.result?.content);
-      const data = JSON.parse(r.result.content[0].text);
-      assert.ok(Array.isArray(data.findings));
-      if (data.summary) {
-        assert.equal(typeof data.summary.tierRegressions, 'number',
-          'summary counts tier-regression findings (G7)');
-        assert.equal(typeof data.summary.stalledAlerts, 'number',
-          'summary counts stalled-alert findings (G13)');
-        // Either no prior governance-weekly snapshot exists yet (null) or a
-        // fully-shaped trend object — never a bare number or partial object.
-        for (const trend of [data.summary.autofixNotDrivenTrend, data.summary.openVulnerabilitiesTrend, data.summary.tierRegressionsTrend]) {
-          if (trend !== null) {
-            assert.equal(typeof trend.current, 'number');
-            assert.equal(typeof trend.previous, 'number');
-            assert.equal(typeof trend.delta, 'number');
-            assert.ok(['improving', 'worsening', 'unchanged'].includes(trend.direction));
-            assert.equal(typeof trend.previousWeek, 'string', 'previousWeek must be set alongside the trend');
-          }
-        }
-      }
+      const result = callTool('get_snapshot_diff', {});
+      assert.equal(result.current_timestamp, '2026-09-26T06:44:53.206Z');
+      assert.equal(result.previous_timestamp, '2026-09-25T20:40:11.000Z');
+      assert.deepEqual(result.changes.open_issues, { was: 5, now: 3, delta: -2 });
+      assert.deepEqual(result.changes.merged_prs, { was: 7, now: 10, delta: 3 });
+      assert.deepEqual(result.changes.releases, { was: 2, now: 2, delta: 0 });
+      assert.deepEqual(result.changes.community_health, { was: 90, now: 100 });
     });
 
-    it('get_weekly_trend returns a series for an aggregate query', () => {
+    it('get_snapshot_diff reports a first run when there is no previous snapshot', async () => {
+      restoreStdout();
+      const files = { ...FIXTURE.files };
+      delete files['snapshots/previous.json'];
+      const result = await withIo({ git: fixtureGit({ files }) }, () => callTool('get_snapshot_diff', {}));
+      assert.equal(result.message, 'No previous snapshot to compare against (first run?)');
+    });
+
+    it('get_governance_findings summarises the findings with week-over-week trends', () => {
+      restoreStdout();
+      const { findings, summary } = callTool('get_governance_findings', {});
+      assert.equal(findings.length, 7);
+      assert.equal(summary.total, 7);
+      assert.equal(summary.gaps, 1);
+      assert.equal(summary.tierRegressions, 1, 'summary counts tier-regression findings (G7)');
+      assert.equal(summary.staleButlerPRs, 0);
+      assert.equal(summary.stalledAlerts, 1, 'summary counts stalled-alert findings (G13)');
+      assert.equal(summary.openVulnerabilities, 2);
+      assert.equal(summary.autofixInFlight, 1);
+      assert.equal(summary.autofixNotDriven, 1);
+      assert.deepEqual(summary.byExecutor, { template: 1, settings: 0, agent: 0, manual: 5 });
+      // The prior week is the second-newest real weekly file (W38), never the
+      // stray init.json, which would otherwise sort last and shift it to W39.
+      assert.deepEqual(summary.autofixNotDrivenTrend,
+        { current: 1, previous: 2, delta: -1, direction: 'improving', previousWeek: '2026-W38' });
+      assert.deepEqual(summary.openVulnerabilitiesTrend,
+        { current: 2, previous: 2, delta: 0, direction: 'unchanged', previousWeek: '2026-W38' });
+      assert.deepEqual(summary.tierRegressionsTrend,
+        { current: 1, previous: 0, delta: 1, direction: 'worsening', previousWeek: '2026-W38' });
+    });
+
+    it('get_governance_findings reports no trend when there is no prior weekly file', async () => {
+      restoreStdout();
+      const files = { ...FIXTURE.files };
+      delete files['snapshots/governance-weekly/2026-W38.json'];
+      const { summary } = await withIo({ git: fixtureGit({ files }) }, () => callTool('get_governance_findings', {}));
+      assert.equal(summary.autofixNotDrivenTrend, null);
+      assert.equal(summary.openVulnerabilitiesTrend, null);
+      assert.equal(summary.tierRegressionsTrend, null);
+    });
+
+    it('get_monitor_events projects the monitor cursor', () => {
+      restoreStdout();
+      const result = callTool('get_monitor_events', { min_severity: 'high' });
+      assert.equal(result.last_run, '2026-09-26T06:44:53.206Z');
+      assert.equal(result.total_events, 3);
+      assert.equal(result.known_issues, 2);
+      assert.equal(result.known_prs, 1);
+      assert.equal(result.known_security_alerts, 3);
+      assert.equal(result.filter, 'high');
+    });
+
+    it('get_watchlist projects each item including its target and hold-back reason', () => {
+      restoreStdout();
+      const result = callTool('get_watchlist', {});
+      assert.equal(result.total, 1);
+      assert.deepEqual(result.items[0], {
+        title: 'Resolve stale Dependabot PRs', type: 'proposal', severity: 'medium',
+        targetRepo: 'beta', held_back_reason: 'cross-repo bar not cleared',
+        added_at: '2026-09-07T11:47:12.269Z', review_count: 0,
+        council_summary: 'Watch until the statistic holds for a second week.',
+      });
+    });
+
+    it('get_weekly_trend aggregates every real week, oldest first', () => {
       restoreStdout();
       const result = callTool('get_weekly_trend', {});
-      assert.ok(result, 'expected a result');
-      // Either real data is available (series array) or a clear error payload.
-      if (Array.isArray(result.series)) {
-        assert.equal(typeof result.weeks, 'number');
-        for (const row of result.series) {
-          assert.ok(typeof row.week === 'string', 'each row must have a week label');
-          assert.ok(row.tier_distribution, 'aggregate row must include tier_distribution');
-          assert.ok(typeof row.repos === 'number');
-        }
-      } else {
-        assert.ok(result.error, 'when no series, an error must be present');
-      }
+      assert.equal(result.weeks, 3);
+      assert.deepEqual(result.series.map(r => r.week), ['2026-W37', '2026-W38', '2026-W39']);
+      const w39 = result.series[2];
+      assert.equal(w39.repos, 3);
+      assert.equal(w39.total_open_issues, 8);
+      assert.deepEqual(w39.tier_distribution, { gold: 1, silver: 1, bronze: 1, none: 0 });
+      // W37 predates `computed`, so its only repo is recomputed: a May release
+      // is past the 90-day window today, hence silver.
+      assert.deepEqual(result.series[0].tier_distribution, { gold: 0, silver: 1, bronze: 0, none: 0 });
     });
 
-    it('get_weekly_trend per-repo query returns repo-keyed series', () => {
+    it('get_weekly_trend follows a renamed repo back through history by id', () => {
       restoreStdout();
-      const result = callTool('get_weekly_trend', { repo: 'repo-butler', weeks: 4 });
-      assert.ok(result);
-      if (Array.isArray(result.series)) {
-        assert.equal(result.repo, 'repo-butler');
-        for (const row of result.series) {
-          assert.ok(typeof row.week === 'string');
-          assert.ok(['gold', 'silver', 'bronze', 'none'].includes(row.tier));
-        }
-      } else {
-        assert.ok(result.error);
-      }
+      const result = callTool('get_weekly_trend', { repo: 'alpha', weeks: 4 });
+      assert.equal(result.repo, 'alpha');
+      assert.deepEqual(result.series, [
+        { week: '2026-W37', open_issues: 4, ci_pass_rate: 0.8, community_health: 100, tier: 'silver' },
+        // Stored gold is read, not recomputed from the same May release.
+        { week: '2026-W38', open_issues: 2, ci_pass_rate: 0.9, community_health: 100, tier: 'gold' },
+        { week: '2026-W39', open_issues: 1, ci_pass_rate: 0.95, community_health: 100, tier: 'gold' },
+      ]);
     });
 
     it('get_weekly_trend rejects invalid repo names', () => {
       restoreStdout();
       const result = callTool('get_weekly_trend', { repo: '../etc/passwd' });
-      assert.ok(result?.error, 'expected an error for invalid repo name');
       assert.match(result.error, /Invalid repo name/);
     });
 
-    it('get_weekly_trend clamps weeks beyond the 1–12 range', () => {
+    it('get_weekly_trend clamps weeks to the 1–12 range', () => {
       restoreStdout();
-      const result = callTool('get_weekly_trend', { weeks: 9999 });
-      assert.ok(result);
-      if (Array.isArray(result.series)) {
-        // Should never exceed 12 weeks even when caller asks for more.
-        assert.ok(result.series.length <= 12);
-      } else {
-        assert.ok(result.error);
-      }
+      assert.equal(callTool('get_weekly_trend', { weeks: 9999 }).weeks, 3, '9999 clamps to 12, which is every week here');
+      assert.deepEqual(callTool('get_weekly_trend', { weeks: 0 }).series.map(r => r.week), ['2026-W39'], '0 clamps to 1');
     });
 
-    it('get_open_governance_prs returns a prs array', () => {
+    it('get_open_governance_prs lists only repo-butler/apply-* PRs across the portfolio', async () => {
       restoreStdout();
-      const result = callTool('get_open_governance_prs', {});
-      assert.ok(result);
-      // Either we get a prs array (possibly empty) or an error explaining why we couldn't list.
-      if (Array.isArray(result.prs)) {
-        for (const pr of result.prs) {
-          assert.ok(typeof pr.repo === 'string');
-          assert.ok(typeof pr.pr_number === 'number');
-          assert.ok(typeof pr.pr_url === 'string');
-          assert.ok('opened_at' in pr);
-        }
-      } else {
-        assert.ok(result.error);
-      }
+      const gh = fixtureGh({
+        alpha: [
+          { number: 12, url: 'https://github.com/example-owner/alpha/pull/12', headRefName: 'repo-butler/apply-security-md', createdAt: '2026-09-20T00:00:00Z' },
+          { number: 13, url: 'https://github.com/example-owner/alpha/pull/13', headRefName: 'dependabot/npm/x', createdAt: '2026-09-21T00:00:00Z' },
+        ],
+      });
+      const result = await withIo({ gh }, () => callTool('get_open_governance_prs', {}));
+      assert.deepEqual(gh.calls.map(a => a[a.indexOf('--repo') + 1]),
+        ['example-owner/alpha', 'example-owner/beta', 'example-owner/gamma-test-repo'],
+        'owner comes from the origin remote, repos from the latest weekly snapshot');
+      assert.equal(result.owner, 'example-owner');
+      assert.equal(result.count, 1);
+      assert.deepEqual(result.prs, [{
+        repo: 'alpha', pr_number: 12, pr_url: 'https://github.com/example-owner/alpha/pull/12',
+        tool: 'security-md', opened_at: '2026-09-20T00:00:00Z',
+      }]);
+      assert.equal(result.warnings, undefined, 'a clean run carries no warnings');
     });
 
-    it('list_stale_dependabot_prs returns a prs array projected from governance.json', () => {
+    // "No PRs" must stay distinguishable from "could not look".
+    it('get_open_governance_prs warns once and stops when gh is not installed', async () => {
+      restoreStdout();
+      const missing = Object.assign(new Error('spawnSync gh ENOENT'), { code: 'ENOENT' });
+      const gh = fixtureGh({ alpha: missing, beta: missing });
+      const result = await withIo({ gh }, () => callTool('get_open_governance_prs', {}));
+      assert.equal(gh.calls.length, 1, 'no point retrying every repo without gh');
+      assert.deepEqual(result.warnings, [{ kind: 'gh_unavailable', message: 'gh CLI not found in PATH' }]);
+      assert.equal(result.count, 0);
+    });
+
+    it('get_open_governance_prs reports a per-repo failure and carries on', async () => {
+      restoreStdout();
+      const gh = fixtureGh({ beta: new Error('HTTP 404: Not Found\nmore detail') });
+      const result = await withIo({ gh }, () => callTool('get_open_governance_prs', {}));
+      assert.equal(gh.calls.length, 3);
+      assert.deepEqual(result.warnings, [{ kind: 'repo_query_failed', repo: 'beta', message: 'HTTP 404: Not Found' }]);
+    });
+
+    it('get_open_governance_prs errors when the owner cannot be read from the remote', async () => {
+      restoreStdout();
+      const result = await withIo({ git: fixtureGit({ remoteUrl: null }) }, () => callTool('get_open_governance_prs', {}));
+      assert.equal(result.error, 'Could not determine repo owner from git remote.');
+    });
+
+    it('list_stale_dependabot_prs projects valid stale PRs, oldest first', () => {
       restoreStdout();
       const result = callTool('list_stale_dependabot_prs', {});
-      assert.ok(result);
-      if (Array.isArray(result.prs)) {
-        assert.equal(result.min_age_days, 30);
-        for (const pr of result.prs) {
-          assert.ok(typeof pr.repo === 'string');
-          assert.ok(typeof pr.pr_number === 'number');
-          assert.ok(typeof pr.age_days === 'number');
-          assert.ok(pr.age_days >= 30, 'age must respect min_age_days threshold');
-        }
-      } else {
-        assert.ok(result.message || result.error);
-      }
+      assert.equal(result.min_age_days, 30);
+      // PR 9 is too young; the traversal-shaped number and the invalid repo are dropped.
+      assert.deepEqual(result.prs, [
+        { repo: 'alpha', pr_number: 8, pr_url: 'https://github.com/example-owner/alpha/pull/8', age_days: 90, title: 'bump b' },
+        { repo: 'alpha', pr_number: 7, pr_url: 'https://github.com/example-owner/alpha/pull/7', age_days: 45, title: 'bump a' },
+      ]);
     });
 
     it('list_stale_dependabot_prs honours a custom min_age_days', () => {
       restoreStdout();
       const result = callTool('list_stale_dependabot_prs', { min_age_days: 60 });
-      assert.ok(result);
-      if (Array.isArray(result.prs)) {
-        assert.equal(result.min_age_days, 60);
-        for (const pr of result.prs) {
-          assert.ok(pr.age_days >= 60);
-        }
-      } else {
-        assert.ok(result.message || result.error);
-      }
+      assert.equal(result.min_age_days, 60);
+      assert.deepEqual(result.prs.map(p => p.pr_number), [8]);
+    });
+
+    it('trigger_refresh dispatches the workflow on the remote repo through gh', async () => {
+      restoreStdout();
+      const gh = fixtureGh();
+      const result = await withIo({ gh }, () => callTool('trigger_refresh', { phase: 'report' }));
+      assert.equal(result.status, 'triggered');
+      assert.deepEqual(gh.calls, [['workflow', 'run', 'Repo Butler', '--repo', 'example-owner/repo-butler', '--ref', 'main',
+        '-f', 'phase=report', '-f', 'dry-run=false', '-f', 'force-report=true']]);
     });
   });
 
@@ -731,20 +836,69 @@ describe('MCP staleness guard', async () => {
       assert.equal(result.staleness, undefined);
     });
 
-    it('attaches a well-formed envelope to a data-branch tool', () => {
-      const result = callTool('get_health_tier', { repo: 'repo-butler' });
-      assert.ok(result.staleness, 'a data-branch answer must say how old it is');
-      assert.ok(Array.isArray(result.staleness.warnings));
-      assert.ok('data_age_hours' in result.staleness);
-      assert.ok('commits_behind_main' in result.staleness);
+    it('attaches the envelope read from the data branch to a data-branch tool', () => {
+      mock.timers.enable({ apis: ['Date'], now: FIXTURE_NOW });
+      try {
+        const result = callTool('get_health_tier', { repo: 'alpha' });
+        assert.equal(result.tier, 'gold');
+        assert.deepEqual(result.staleness, {
+          data_committed_at: FIXTURE.committed_at,
+          data_age_hours: 5,
+          commits_behind_main: 0,
+          behind_main_state: 'measured',
+          warnings: [],
+        });
+      } finally {
+        mock.timers.reset();
+      }
     });
 
     // An error is exactly when the caller most wants to know the checkout
     // might be the cause, so the envelope rides along with it.
     it('annotates an error result too', () => {
       const result = callTool('get_health_tier', { repo: 'definitely-not-a-repo' });
-      assert.ok(result.error, 'sanity: this repo does not exist');
+      assert.match(result.error, /not found/, 'sanity: this repo does not exist');
       assert.ok(result.staleness, 'an error still needs its staleness context');
+    });
+  });
+
+  // The data branch is read from origin/repo-butler-data first and the bare
+  // local ref second, and a checkout with neither must say it could not check
+  // rather than look like a healthy empty answer.
+  describe('data-branch reads', () => {
+    it('falls back to the local ref when origin/repo-butler-data is absent', async () => {
+      const git = fixtureGit({ refs: ['repo-butler-data'] });
+      const result = await withIo({ git }, () => callTool('get_health_tier', { repo: 'alpha' }));
+      assert.equal(result.week, '2026-W39');
+      assert.equal(result.staleness.data_committed_at, FIXTURE.committed_at);
+      assert.ok(git.calls.some(a => a[0] === 'show' && a[1].startsWith('origin/repo-butler-data:')),
+        'sanity: the origin ref was tried first');
+    });
+
+    it('says it could not check when there is no data branch at all', async () => {
+      const result = await withIo({ git: fixtureGit({ refs: [] }), commitsBehindMain: () => null },
+        () => callTool('get_health_tier', { repo: 'alpha' }));
+      assert.equal(result.error, 'No portfolio data available');
+      assert.equal(result.staleness.data_age_hours, null);
+      assert.equal(result.staleness.behind_main_state, 'unknown');
+      assert.equal(result.staleness.warnings.length, 2);
+      assert.ok(result.staleness.warnings.every(w => /Could not/.test(w)));
+    });
+
+    it('surfaces an unfetched checkout from the behind-main probe', async () => {
+      const result = await withIo({ commitsBehindMain: () => 'unfetched' },
+        () => callTool('get_watchlist', {}));
+      assert.equal(result.staleness.behind_main_state, 'unfetched');
+      assert.equal(result.staleness.commits_behind_main, null);
+    });
+
+    it('does not retry an empty origin listing on the local ref', async () => {
+      const files = Object.fromEntries(Object.entries(FIXTURE.files).filter(([p]) => !p.includes('-weekly/')));
+      const git = fixtureGit({ refs: [DATA_REF, 'repo-butler-data'], files });
+      const result = await withIo({ git }, () => callTool('get_weekly_trend', {}));
+      assert.equal(result.error, 'No portfolio-weekly snapshots available.');
+      assert.equal(git.calls.filter(a => a[0] === 'ls-tree').length, 1,
+        'an origin ref that answered with nothing is an answer, not a failure');
     });
   });
 });
