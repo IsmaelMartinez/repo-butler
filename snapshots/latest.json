@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-25T23:00:39.714Z",
+  "timestamp": "2026-09-26T12:00:34.068Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,17 +7,393 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 1,
+    "open_issues_count": 34,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-25T20:48:53Z",
+    "pushed_at": "2026-09-26T10:27:44Z",
     "archived": false
   },
   "issues": {
     "open": [
+      {
+        "number": 429,
+        "title": "Simplification plan (2026-09-26): tracking",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:44:39Z",
+        "updated_at": "2026-09-26T07:11:53Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 438,
+        "title": "simplify W2: detect 404 by status, not by a substring of the error message",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T07:11:42Z",
+        "updated_at": "2026-09-26T07:11:42Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 409,
+        "title": "simplify W1: make the CI test guard real and align workflows on Node 24",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "github_actions",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:42:56Z",
+        "updated_at": "2026-09-26T06:43:47Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 428,
+        "title": "decision: private-watch cannot read 3 of 4 private repos",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "question",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:22Z",
+        "updated_at": "2026-09-26T06:43:22Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 427,
+        "title": "decision: delete unused discovery surfaces (AsyncAPI spec, A2A agent card)",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "question",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:20Z",
+        "updated_at": "2026-09-26T06:43:20Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 426,
+        "title": "decision: does the IDEATE → council → PROPOSE soak earn its keep?",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "question",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:19Z",
+        "updated_at": "2026-09-26T06:43:19Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 425,
+        "title": "decision: keep, repair or remove the monitor phase",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "question",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:17Z",
+        "updated_at": "2026-09-26T06:43:17Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 424,
+        "title": "decision: is repo-butler a reusable Action or an own-portfolio tool?",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "question",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:16Z",
+        "updated_at": "2026-09-26T06:43:16Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 423,
+        "title": "decision: require_approval means opposite things in apply and PROPOSE",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "question",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:15Z",
+        "updated_at": "2026-09-26T06:43:15Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 422,
+        "title": "simplify W3: dead-export sweep",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:14Z",
+        "updated_at": "2026-09-26T06:43:14Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 421,
+        "title": "simplify W3: split report-portfolio.js into data and rendering",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:12Z",
+        "updated_at": "2026-09-26T06:43:12Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 420,
+        "title": "simplify W3: split report.test.js per report module",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:11Z",
+        "updated_at": "2026-09-26T06:43:11Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 419,
+        "title": "simplify W2: archive executed plans and one-shot verify scripts",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "documentation",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:10Z",
+        "updated_at": "2026-09-26T06:43:10Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 418,
+        "title": "simplify W2: user-facing docs match the code",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "documentation",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:08Z",
+        "updated_at": "2026-09-26T06:43:08Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 417,
+        "title": "simplify W2: move runApply out of index.js",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:07Z",
+        "updated_at": "2026-09-26T06:43:07Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 416,
+        "title": "simplify W2: one eligibleRepos and listOpenPRs for the governance audits",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:06Z",
+        "updated_at": "2026-09-26T06:43:06Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 415,
+        "title": "simplify W2: report-side shared predicates (autofix, actionable bugs, campaigns)",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:04Z",
+        "updated_at": "2026-09-26T06:43:04Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 414,
+        "title": "simplify W2: extract a pure apply-templates module",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:03Z",
+        "updated_at": "2026-09-26T06:43:03Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 413,
+        "title": "simplify W1: MCP tests depend on the local data branch and live gh",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:02Z",
+        "updated_at": "2026-09-26T06:43:02Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 412,
+        "title": "simplify W1: config and schema truth (dead schedule key, one-way drift tests)",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:43:00Z",
+        "updated_at": "2026-09-26T06:43:00Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 411,
+        "title": "simplify W1: remove fabricated entries from ROADMAP.md",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "documentation",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:42:58Z",
+        "updated_at": "2026-09-26T06:42:58Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 410,
+        "title": "simplify W1: roadmap provenance guard accepts issue refs and ref-less entries as proof of shipped work",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:42:57Z",
+        "updated_at": "2026-09-26T06:42:57Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 408,
+        "title": "simplify W1: onboard must not re-open declined PRs or overwrite an unreadable CLAUDE.md",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:42:54Z",
+        "updated_at": "2026-09-26T06:42:54Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 407,
+        "title": "simplify W1: private-watch closes tracking issues for repos it could not read",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:42:53Z",
+        "updated_at": "2026-09-26T06:42:53Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 406,
+        "title": "simplify W1: apply require_approval gate fails open on quoted values",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:42:51Z",
+        "updated_at": "2026-09-26T06:42:51Z",
+        "assignees": [],
+        "milestone": null
+      },
       {
         "number": 401,
         "title": "Agentic lockfile fix for the cases lockfile-update refuses: daily flow on docker agent (spike first)",
@@ -63,6 +439,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 405,
+        "title": "ci: run apply workflows on Node 24 so lockfile-update works on npm-11 lockfiles",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-26T07:39:54Z"
+      },
       {
         "number": 403,
         "title": "chore: update roadmap (repo-butler)",
@@ -936,10 +1319,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 1,
-    "total_runs": 90,
-    "passed": 90,
-    "failed": 0
+    "pass_rate": 0.926829268292683,
+    "total_runs": 82,
+    "passed": 76,
+    "failed": 6
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -947,21 +1330,24 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 1,
-    "open_bugs": 0,
-    "open_features": 1,
+    "open_issues": 26,
+    "open_bugs": 6,
+    "open_features": 11,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 3,
-    "recently_merged_prs": 89,
+    "recently_merged_prs": 90,
     "bot_prs": 13,
-    "human_prs": 76,
+    "human_prs": 77,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
-      "enhancement (1)",
-      "agent-generated (1)"
+      "agent-generated (26)",
+      "enhancement (11)",
+      "bug (6)",
+      "question (6)",
+      "documentation (3)"
     ],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
@@ -972,7 +1358,7 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 1,
+    "ci_pass_rate": 0.926829268292683,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 8.2,
