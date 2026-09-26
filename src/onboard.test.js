@@ -77,17 +77,20 @@ describe('onboardRepo decline and unreadable-file guards', () => {
   function fakeGh({ file = notFound, prs = () => [], refPost = () => ({}) } = {}) {
     const writes = [];
     const puts = [];
-    let historyParams;
+    let historyParams, contentsRef, branchSha;
     return {
-      writes, puts, get historyParams() { return historyParams; },
+      writes, puts,
+      get historyParams() { return historyParams; },
+      get contentsRef() { return contentsRef; },
+      get branchSha() { return branchSha; },
       async paginate(path, opts) { historyParams = opts?.params; return prs(); },
       async request(path, opts = {}) {
         const method = opts.method ?? 'GET';
         if (method !== 'GET') writes.push(`${method} ${path}`);
-        if (method === 'GET' && path.endsWith('/contents/CLAUDE.md')) return file();
+        if (method === 'GET' && path.endsWith('/contents/CLAUDE.md')) { contentsRef = opts.params?.ref; return file(); }
         if (method === 'GET' && path === '/repos/o/r') return { default_branch: 'main' };
         if (method === 'GET' && path.includes('/git/ref/heads/')) return { object: { sha: 'head-sha' } };
-        if (method === 'POST' && path.endsWith('/git/refs')) return refPost();
+        if (method === 'POST' && path.endsWith('/git/refs')) { branchSha = opts.body.sha; return refPost(); }
         if (method === 'POST' && path.endsWith('/pulls')) return { html_url: 'https://github.com/o/r/pull/9' };
         return {};
       },
@@ -171,6 +174,16 @@ describe('onboardRepo decline and unreadable-file guards', () => {
     assert.equal(gh.puts[0].branch, 'repo-butler/onboard');
     assert.ok(gh.puts[0].content.startsWith('# Mine\n\nkeep me\n'));
     assert.ok(gh.puts[0].content.includes(MARKER));
+  });
+
+  it('reads CLAUDE.md at the same commit the branch is created from', async () => {
+    // A read of the moving default branch could predate the branch's commit,
+    // so the explicit sha would 409 and putFile's retry would overwrite a
+    // newer edit with content built from the older read.
+    const gh = fakeGh({ file: () => ({ sha: 'file-sha', encoding: 'base64', content: b64('# Mine\n') }) });
+    await onboardRepo(gh, 'o', 'r');
+    assert.equal(gh.contentsRef, 'head-sha');
+    assert.equal(gh.branchSha, 'head-sha');
   });
 
   it('creates a fresh CLAUDE.md when none exists', async () => {

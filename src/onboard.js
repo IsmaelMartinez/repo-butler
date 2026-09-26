@@ -106,8 +106,8 @@ export async function onboard(token, repos) {
 }
 
 /**
- * Read CLAUDE.md on the default branch as `{ content, sha }`, `null` when the
- * file is absent (404), or throw when it exists but cannot be read.
+ * Read CLAUDE.md at commit `ref` as `{ content, sha }`, `null` when the file is
+ * absent (404), or throw when it exists but cannot be read.
  *
  * Deliberately not getFileContent: that returns null for absent, any error AND
  * a file over 1 MB (the contents API then sends `encoding: "none"` with no
@@ -115,10 +115,10 @@ export async function onboard(token, repos) {
  * from whatever it read — so an unreadable CLAUDE.md read as "absent" would be
  * replaced wholesale by `# CLAUDE.md` plus the section.
  */
-async function readClaudeMd(gh, owner, repo) {
+async function readClaudeMd(gh, owner, repo, ref) {
   let data;
   try {
-    data = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`);
+    data = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, { params: { ref } });
   } catch (err) {
     if (err.message?.includes(': 404')) return null;
     throw err;
@@ -130,9 +130,17 @@ async function readClaudeMd(gh, owner, repo) {
 }
 
 export async function onboardRepo(gh, owner, repo) {
+  const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
+  const defaultBranch = repoMeta.default_branch || 'main';
+  const headSha = (await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`)).object.sha;
+
+  // Read at the exact commit the branch will be created from, so the sha
+  // passed to putFile below matches the branch and the write cannot 409 into
+  // putFile's re-read-and-retry — which would overwrite a newer edit with
+  // content built from this older read.
   let file;
   try {
-    file = await readClaudeMd(gh, owner, repo);
+    file = await readClaudeMd(gh, owner, repo, headSha);
   } catch (err) {
     // Fail CLOSED: the new file is built from this read, so a file we cannot
     // read must never be written over.
@@ -172,35 +180,28 @@ export async function onboardRepo(gh, owner, repo) {
     return { status: 'skipped', reason: 'recently declined' };
   }
 
-  const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
-  const defaultBranch = repoMeta.default_branch || 'main';
-
   const section = CONSUMER_GUIDE_SECTION.replace(/\{REPO_NAME\}/g, repo);
   const newContent = file?.content
     ? file.content + '\n' + section
     : `# CLAUDE.md\n\n${section}`;
 
-  // Create a branch from the default branch. Only a 422 (the branch already
-  // exists, from a previous attempt) resets it to the current HEAD; any other
+  // Create the branch at the commit CLAUDE.md was read from. Only a 422 (the
+  // branch already exists, from a previous attempt) resets it; any other
   // failure is not evidence the branch exists and must not force-push over it.
-  const ref = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
-
   try {
     await gh.request(`/repos/${owner}/${repo}/git/refs`, {
       method: 'POST',
-      body: { ref: `refs/heads/${BRANCH_NAME}`, sha: ref.object.sha },
+      body: { ref: `refs/heads/${BRANCH_NAME}`, sha: headSha },
     });
   } catch (err) {
     if (!err.message?.includes(': 422')) throw err;
     await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${BRANCH_NAME}`, {
       method: 'PATCH',
-      body: { sha: ref.object.sha, force: true },
+      body: { sha: headSha, force: true },
     });
   }
 
-  // Pass the sha read with the content above, so the write targets the file
-  // that was read (putFile re-reads it only on a 409); with no file, putFile
-  // looks the path up on the branch and creates it on 404.
+  // With no file, putFile looks the path up on the branch and creates it on 404.
   await gh.putFile(owner, repo, 'CLAUDE.md', newContent, {
     branch: BRANCH_NAME,
     message: 'chore: add repo-butler consumer guide to CLAUDE.md',
@@ -245,7 +246,7 @@ if (isMain) {
     .then(results => {
       console.log('\nOnboarding results:');
       for (const r of results) {
-        console.log(`  ${r.repo}: ${r.status}${r.pr ? ` — ${r.pr}` : ''}${r.error ? ` — ${r.error}` : ''}`);
+        console.log(`  ${r.repo}: ${r.status}${r.pr ? ` — ${r.pr}` : ''}${(r.reason ?? r.error) ? ` — ${r.reason ?? r.error}` : ''}`);
       }
     })
     .catch(err => {
