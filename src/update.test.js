@@ -1504,6 +1504,14 @@ describe('applyEditOps — shipped entries need merged-PR evidence', () => {
     assert.deepEqual(unverifiable, ['v9.9.9']);
   });
 
+  it('does not let a third-party version in the roadmap vouch for a butler release claim', () => {
+    const evidence = { ...pr399Evidence, releases: new Set(), knownRefs: new Set(['#400']), mergedRefs: new Set(['#400']) };
+    const roadmap = baseline.replace('Active work.', 'CI moved to actions/checkout v7.0.1. Active work.');
+    const { result, unverifiable } = applyEditOps(roadmap, [append('Repo Butler v7.0.1 shipped 2026-09-17 (PR #400).')], '2026-09-17', evidence);
+    assert.equal(result, roadmap);
+    assert.deepEqual(unverifiable, ['v7.0.1']);
+  });
+
   it('does not treat a new release as named by its prerelease', () => {
     const evidence = { ...pr399Evidence, newReleases: ['v1.1.2'] };
     const { result } = applyEditOps(baseline, [append('Release candidate shipped 2026-09-15 (v1.1.2-beta).')], '2026-09-17', evidence);

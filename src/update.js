@@ -79,15 +79,6 @@ function assessmentEvidence(assessment, snapshot, project) {
 // or no ref at all is the honest citation.
 const SHIPPED_SECTION = 'Implemented';
 
-// A whole version token — core, any extra numeric segments, and any
-// prerelease/build suffix — so `v1.2.0-beta` or `v1.2.0.1` is compared as
-// itself and never collapses to a real `v1.2.0`. Every quantifier is bounded
-// and each suffix segment starts after an unambiguous separator, so matching
-// stays linear on LLM-written text. The tail is a lookahead, not `\b`: `\b`
-// holds before `.` and `-`, so an over-limit token backtracked to a shorter
-// prefix; a sentence-ending period still ends the token.
-const VERSION_SOURCE = String.raw`(\d{1,6}\.\d{1,6}\.\d{1,6}(?:\.\d{1,6}){0,4}(?:[-+][0-9A-Za-z-]{1,64}(?:\.[0-9A-Za-z-]{1,64}){0,8})?)(?![\w-]|[.+]\w)`;
-const VERSION_REGEXP = new RegExp(String.raw`\bv?${VERSION_SOURCE}`, 'g');
 const normalizeVersion = (v) => v.replace(/^v/i, '');
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -96,9 +87,11 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // words ("Repo Butler v1.1.3", "repo-butler v1.1.3"). Deliberately that narrow:
 // entries routinely name third-party versions ("actions/checkout v7.0.1"),
 // which are not claims about this project's releases and must pass untouched.
-// The claim is the whole loose token after the name (sentence-ending periods
-// stripped), compared exactly: a token outside VERSION_SOURCE's bounded shape
-// must fail as unverifiable, not stop matching and pass as "no claim".
+// The claim is the whole token after the name (sentence-ending periods
+// stripped), compared exactly, so `v1.2.0-beta` or `v1.2.0.1` never collapses
+// to a real `v1.2.0`; one bounded character class keeps matching linear on
+// LLM-written text. The same function reads the roadmap's own claims, so a
+// third-party version there never vouches for a butler release.
 function projectVersionClaims(text, project) {
   const words = (project || '').split(/[-_\s]+/).filter(Boolean).map(escapeRegExp);
   if (words.length === 0) return [];
@@ -591,7 +584,7 @@ export function applyEditOps(roadmap, ops, today, {
   // is empty, so a caller that forgets one fails closed.
   const roadmapRefs = knownRefs ? extractIssueRefs(roadmap) : null;
   const roadmapVersions = knownRefs
-    ? new Set([...roadmap.matchAll(VERSION_REGEXP)].map(m => m[1]))
+    ? new Set(projectVersionClaims(roadmap, project).map(normalizeVersion))
     : null;
   const releaseVersions = new Set([...releases].map(normalizeVersion));
   // Refs (or claimed versions) rejected for want of evidence, kept apart from
