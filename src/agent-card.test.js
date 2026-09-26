@@ -67,8 +67,3 @@ describe('buildAgentCard', () => {
     assert.equal(card.iconUrl, 'https://octocat.github.io/demo-repo/badges/demo-repo.svg');
   });
 });
-
-// THROWAWAY (#409 acceptance): a describe that throws must turn CI red.
-describe('throwaway throwing describe', () => {
-  throw new Error('deliberate build failure');
-});
