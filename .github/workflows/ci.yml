@@ -26,24 +26,33 @@ jobs:
       # The exit code alone is not enough: a `describe` that throws reports
       # `not ok` while the footer says `# fail 0` (run 33000289833 shipped
       # thirteen vanished tests green), a deleted test file reports nothing,
-      # and an empty one reports a synthetic pass. The reporter is forced to TAP because CI
-      # otherwise defaults to spec, which has no `not ok` line to grep. JUnit
-      # goes to a file because it is the only built-in reporter that names
-      # each test's file. No workflow input is interpolated here.
+      # and an empty one reports a synthetic pass. The reporter is forced to
+      # TAP because CI otherwise defaults to spec, which has no `not ok` line
+      # to grep. JUnit goes to a file because it is the only built-in reporter
+      # that names each test's file. No workflow input is interpolated here.
       - name: Run tests
         env:
           # Linux CI runs 1716 (macOS 1701: the Linux-only suite at
           # apply.test.js:429), so this floor is CI-only. It sits a little
           # below the real count to absorb small deliberate deletions; a larger
-          # drop means a file stopped loading or went missing. Raise it when the
-          # suite grows, lower it only on purpose.
+          # drop means tests stopped registering. Raise it when the suite
+          # grows, lower it only on purpose.
           MIN_TESTS: 1700
+          # A deleted file leaves nothing to check below, and a small one sits
+          # inside the test-count margin, so the file count has its own floor.
+          # Set to the current count; adjust in the PR that adds or removes one.
+          MIN_TEST_FILES: 37
         run: |
-          set -o pipefail
+          set -eo pipefail
           npm test -- --test-reporter=tap --test-reporter-destination=stdout \
             --test-reporter=junit --test-reporter-destination=junit.xml 2>&1 | tee test-output.txt
           if grep -qE '^[[:space:]]*not ok [0-9]+' test-output.txt; then
             echo "::error::TAP reported 'not ok': a suite failed or failed to build."
+            exit 1
+          fi
+          files=$(find src -name '*.test.js' | wc -l)
+          if [ "$files" -lt "$MIN_TEST_FILES" ]; then
+            echo "::error::Only $files test files found; floor is $MIN_TEST_FILES."
             exit 1
           fi
           # Exactly one summary: two would mean xargs split the run.
@@ -59,8 +68,7 @@ jobs:
           # A self-closing <testcase .../> is a pass (failures and skips carry
           # a child element). A file that registers no tests still gets one
           # synthetic passing testcase named after its own path, so that name
-          # is excluded. This catches a file that loads but runs nothing; a
-          # deleted file is gone from disk, so the floor above catches that.
+          # is excluded. This catches a file that loads but runs nothing.
           # (`grep -c`, not `-q`: an early exit would SIGPIPE the first grep,
           # which pipefail turns into a false miss.)
           missing=0
