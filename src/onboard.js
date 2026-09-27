@@ -7,9 +7,15 @@
 
 import { createClient } from './github.js';
 import { validateGitHubUsername, REPO_NAME_PATTERN } from './safety.js';
+import { isRecentlyDeclined } from './apply.js';
 
 const BRANCH_NAME = 'repo-butler/onboard';
 export const MARKER = 'repo-butler';
+
+// How long a closed-unmerged onboarding PR suppresses a re-open. The auto-onboard
+// pass runs on every live pipeline tick (4x/day), so without this a declined PR
+// would be re-opened within hours. Same 30 days as apply and PROPOSE.
+export const ONBOARD_DECLINE_COOLDOWN_DAYS = 30;
 
 /**
  * Does a repo carry the repo-butler onboarding marker in its CLAUDE.md? The
@@ -99,72 +105,115 @@ export async function onboard(token, repos) {
   return results;
 }
 
-async function onboardRepo(gh, owner, repo) {
-  const existing = await gh.getFileContent(owner, repo, 'CLAUDE.md');
+// Whether a github.js request error carries HTTP `status`. Matches the status
+// github.js writes straight after the path, never a bare substring: the error
+// also carries the server-controlled response body, which can mention any
+// status at all.
+const isStatus = (err, status) =>
+  new RegExp(`^GitHub API [A-Z]+ \\S+: ${status}\\b`).test(err?.message ?? '');
 
-  if (existing && existing.includes(MARKER)) {
+/**
+ * Read CLAUDE.md at commit `ref` as `{ content, sha }`, `null` when the file is
+ * absent (404), or throw when it exists but cannot be read.
+ *
+ * Deliberately not getFileContent: that returns null for absent, any error AND
+ * a file over 1 MB (the contents API then sends `encoding: "none"` with no
+ * content while the sha is still present), and the caller rewrites the file
+ * from whatever it read — so an unreadable CLAUDE.md read as "absent" would be
+ * replaced wholesale by `# CLAUDE.md` plus the section.
+ */
+async function readClaudeMd(gh, owner, repo, ref) {
+  let data;
+  try {
+    data = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, { params: { ref } });
+  } catch (err) {
+    // A 500 whose body mentions ": 404" must stay unreadable, not "absent".
+    if (isStatus(err, 404)) return null;
+    throw err;
+  }
+  if (data?.encoding !== 'base64' || typeof data.content !== 'string') {
+    throw new Error('CLAUDE.md content not returned');
+  }
+  return { content: Buffer.from(data.content, 'base64').toString('utf-8'), sha: data.sha };
+}
+
+export async function onboardRepo(gh, owner, repo) {
+  const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
+  const defaultBranch = repoMeta.default_branch || 'main';
+  const headSha = (await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`)).object.sha;
+
+  // Read at the exact commit the branch will be created from, so the sha
+  // passed to putFile below matches the branch and the write cannot 409 into
+  // putFile's re-read-and-retry — which would overwrite a newer edit with
+  // content built from this older read.
+  let file;
+  try {
+    file = await readClaudeMd(gh, owner, repo, headSha);
+  } catch (err) {
+    // Fail CLOSED: the new file is built from this read, so a file we cannot
+    // read must never be written over.
+    console.log(`${owner}/${repo}: CLAUDE.md unreadable, skipping (fail-closed): ${err.message}`);
+    return { status: 'error', reason: 'CLAUDE.md unreadable' };
+  }
+
+  if (file?.content.includes(MARKER)) {
     console.log(`${owner}/${repo}: already onboarded, skipping.`);
     return { status: 'skipped', reason: 'already onboarded' };
   }
 
-  let existingPRs;
+  // Same decline rules as apply's screenApplyTarget: `state: 'all'` so a PR
+  // the maintainer closed unmerged is seen; the read fails closed and reports
+  // 'error'; anything not definitively closed blocks; merged PRs never suppress
+  // (re-onboarding after a merge is legitimate).
+  let branchPRs;
   try {
-    existingPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
-      params: { state: 'open', head: `${owner}:${BRANCH_NAME}`, per_page: 10 },
+    branchPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'all', head: `${owner}:${BRANCH_NAME}`, per_page: 10 },
       max: 10,
     });
-  } catch {
-    existingPRs = [];
+  } catch (err) {
+    console.log(`${owner}/${repo}: onboarding PR history unreadable, skipping (fail-closed): ${err.message}`);
+    return { status: 'error', reason: 'PR history unreadable' };
   }
 
-  if (existingPRs.length > 0) {
-    console.log(`${owner}/${repo}: onboarding PR already open (#${existingPRs[0].number}), skipping.`);
-    return { status: 'skipped', reason: 'PR already open', pr: existingPRs[0].html_url };
+  const openPR = branchPRs.find(pr => pr.state !== 'closed');
+  if (openPR) {
+    console.log(`${owner}/${repo}: onboarding PR already open (#${openPR.number}), skipping.`);
+    return { status: 'skipped', reason: 'PR already open', pr: openPR.html_url };
   }
 
-  const repoMeta = await gh.request(`/repos/${owner}/${repo}`);
-  const defaultBranch = repoMeta.default_branch || 'main';
+  const declined = branchPRs.find(pr => isRecentlyDeclined(pr, Date.now(), ONBOARD_DECLINE_COOLDOWN_DAYS));
+  if (declined) {
+    console.log(`${owner}/${repo}: onboarding PR #${declined.number} was closed unmerged within ${ONBOARD_DECLINE_COOLDOWN_DAYS}d, skipping.`);
+    return { status: 'skipped', reason: 'recently declined' };
+  }
 
   const section = CONSUMER_GUIDE_SECTION.replace(/\{REPO_NAME\}/g, repo);
-  const newContent = existing
-    ? existing + '\n' + section
+  const newContent = file?.content
+    ? file.content + '\n' + section
     : `# CLAUDE.md\n\n${section}`;
 
-  // Create a branch from the default branch. If it already exists (from a
-  // previous failed attempt), update it to point at the current HEAD.
-  const ref = await gh.request(`/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`);
-
+  // Create the branch at the commit CLAUDE.md was read from. Only a 422 (the
+  // branch already exists, from a previous attempt) resets it; any other
+  // failure is not evidence the branch exists and must not force-push over it.
   try {
     await gh.request(`/repos/${owner}/${repo}/git/refs`, {
       method: 'POST',
-      body: { ref: `refs/heads/${BRANCH_NAME}`, sha: ref.object.sha },
+      body: { ref: `refs/heads/${BRANCH_NAME}`, sha: headSha },
     });
-  } catch {
-    // Branch already exists — update it instead.
+  } catch (err) {
+    if (!isStatus(err, 422)) throw err;
     await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${BRANCH_NAME}`, {
       method: 'PATCH',
-      body: { sha: ref.object.sha, force: true },
+      body: { sha: headSha, force: true },
     });
   }
 
-  let fileSha;
-  try {
-    const existingFile = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, {
-      params: { ref: defaultBranch },
-    });
-    fileSha = existingFile.sha;
-  } catch {
-    // File doesn't exist yet.
-  }
-
-  await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, {
-    method: 'PUT',
-    body: {
-      message: 'chore: add repo-butler consumer guide to CLAUDE.md',
-      content: Buffer.from(newContent).toString('base64'),
-      branch: BRANCH_NAME,
-      ...(fileSha ? { sha: fileSha } : {}),
-    },
+  // With no file, putFile looks the path up on the branch and creates it on 404.
+  await gh.putFile(owner, repo, 'CLAUDE.md', newContent, {
+    branch: BRANCH_NAME,
+    message: 'chore: add repo-butler consumer guide to CLAUDE.md',
+    sha: file?.sha,
   });
 
   const prBody = PR_BODY.replace(/\{REPO_NAME\}/g, repo);
@@ -205,7 +254,7 @@ if (isMain) {
     .then(results => {
       console.log('\nOnboarding results:');
       for (const r of results) {
-        console.log(`  ${r.repo}: ${r.status}${r.pr ? ` — ${r.pr}` : ''}${r.error ? ` — ${r.error}` : ''}`);
+        console.log(`  ${r.repo}: ${r.status}${r.pr ? ` — ${r.pr}` : ''}${(r.reason ?? r.error) ? ` — ${r.reason ?? r.error}` : ''}`);
       }
     })
     .catch(err => {

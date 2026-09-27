@@ -207,6 +207,59 @@ describe('runPrivateWatch', () => {
     assert.equal(result.unreadable, 0, 'an empty array is readable-and-clean, not unreadable');
   });
 
+  // Live-mode close path. The tracking issue exists; the only question is
+  // whether this run read enough to call the repo clean. `unread` lists the
+  // alert endpoints that answer 404 (feature off / no scope → fetcher null).
+  const liveCloseFetch = (unread) => {
+    const calls = [];
+    const fn = mock.fn(async (url, opts = {}) => {
+      const u = String(url);
+      calls.push({ url: u, method: opts.method || 'GET' });
+      if (unread.some(e => u.includes(`/${e}/alerts`))) {
+        return { ok: false, status: 404, headers: new Map(), text: async () => '{}', json: async () => ({}) };
+      }
+      const body = u.includes('/issues?') || u.endsWith('/issues')
+        ? [{ number: 7, title: 'Repo Butler: open governance findings' }]
+        : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body };
+    });
+    return { fn, calls };
+  };
+  const patchCount = calls => calls.filter(c => c.method === 'PATCH').length;
+
+  it('closes the tracking issue of a fully-read repo with no findings', async () => {
+    const { fn, calls } = liveCloseFetch([]);
+    globalThis.fetch = fn;
+
+    const result = await runPrivateWatch(ctx([{ name: 'fake-private-a' }], { dryRun: false }));
+
+    assert.equal(result.closed, 1);
+    assert.equal(patchCount(calls), 1);
+  });
+
+  it('does not close the tracking issue of a repo it could not read', async () => {
+    const { fn, calls } = liveCloseFetch(['dependabot', 'code-scanning', 'secret-scanning']);
+    globalThis.fetch = fn;
+
+    const result = await runPrivateWatch(ctx([{ name: 'fake-private-a' }], { dryRun: false }));
+
+    assert.equal(result.unreadable, 1);
+    assert.equal(result.closed, 0);
+    assert.equal(patchCount(calls), 0, 'an unread repo is unknown, not clean');
+  });
+
+  it('does not close the tracking issue of a partially read repo', async () => {
+    // The unread source is exactly where the alert that opened the issue may be.
+    const { fn, calls } = liveCloseFetch(['dependabot']);
+    globalThis.fetch = fn;
+
+    const result = await runPrivateWatch(ctx([{ name: 'fake-private-a' }], { dryRun: false }));
+
+    assert.equal(result.unreadable, 0, 'partial is not counted as unreadable');
+    assert.equal(result.closed, 0);
+    assert.equal(patchCount(calls), 0, 'a partially read repo is not clean');
+  });
+
   it('writes nothing when dryRun is true', async () => {
     const calls = [];
     globalThis.fetch = mock.fn(async (url, opts = {}) => {

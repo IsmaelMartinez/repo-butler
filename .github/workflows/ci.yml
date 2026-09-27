@@ -23,23 +23,63 @@ jobs:
         with:
           node-version: '24'
 
-      # A `describe` callback that throws builds no subtests, so node:test
-      # reports the suite as `not ok` in TAP while the footer still says
-      # `# fail 0` — and on Node 22 that did not reach the exit code either.
-      # That shipped a broken suite as a green `test` check on run 33000289833:
-      # thirteen tests silently stopped existing, including the guard that
-      # merged PR titles pass through the prompt sanitiser. Asserting on TAP is
-      # version-independent, and a genuinely failing test also emits `not ok`,
-      # so this can only be stricter than the exit code, never weaker.
-      # No workflow input is interpolated here — it reads only npm's own output.
+      # The exit code alone is not enough: a `describe` that throws reports
+      # `not ok` while the footer says `# fail 0` (run 33000289833 shipped
+      # thirteen vanished tests green), a deleted test file reports nothing,
+      # and an empty one reports a synthetic pass. The reporter is forced to
+      # TAP because CI otherwise defaults to spec, which has no `not ok` line
+      # to grep. JUnit goes to a file because it is the only built-in reporter
+      # that names each test's file. No workflow input is interpolated here.
       - name: Run tests
+        env:
+          # Linux CI runs 1716 (macOS 1701: the Linux-only suite at
+          # apply.test.js:429), so this floor is CI-only. It sits a little
+          # below the real count to absorb small deliberate deletions; a larger
+          # drop means tests stopped registering. Raise it when the suite
+          # grows, lower it only on purpose.
+          MIN_TESTS: 1700
+          # A deleted file leaves nothing to check below, and a small one sits
+          # inside the test-count margin, so the file count has its own floor.
+          # Set to the current count; adjust in the PR that adds or removes one.
+          MIN_TEST_FILES: 37
         run: |
-          set -o pipefail
-          npm test 2>&1 | tee test-output.txt
+          set -eo pipefail
+          npm test -- --test-reporter=tap --test-reporter-destination=stdout \
+            --test-reporter=junit --test-reporter-destination=junit.xml 2>&1 | tee test-output.txt
           if grep -qE '^[[:space:]]*not ok [0-9]+' test-output.txt; then
-            echo "TAP reported 'not ok' — a suite failed or failed to build, even if the summary says 0 failures."
+            echo "::error::TAP reported 'not ok': a suite failed or failed to build."
             exit 1
           fi
+          files=$(find src -name '*.test.js' | wc -l)
+          if [ "$files" -lt "$MIN_TEST_FILES" ]; then
+            echo "::error::Only $files test files found; floor is $MIN_TEST_FILES."
+            exit 1
+          fi
+          # Exactly one summary: two would mean xargs split the run.
+          if [ "$(grep -cE '^# tests [0-9]+$' test-output.txt)" -ne 1 ]; then
+            echo "::error::Expected exactly one '# tests' summary line."
+            exit 1
+          fi
+          tests=$(sed -n 's/^# tests \([0-9][0-9]*\)$/\1/p' test-output.txt)
+          if [ "$tests" -lt "$MIN_TESTS" ]; then
+            echo "::error::Only $tests tests ran; floor is $MIN_TESTS."
+            exit 1
+          fi
+          # A self-closing <testcase .../> is a pass (failures and skips carry
+          # a child element). A file that registers no tests still gets one
+          # synthetic passing testcase named after its own path, so that name
+          # is excluded. This catches a file that loads but runs nothing.
+          # (`grep -c`, not `-q`: an early exit would SIGPIPE the first grep,
+          # which pipefail turns into a false miss.)
+          missing=0
+          for f in $(find src -name '*.test.js' | sort); do
+            passed=$(grep -F "file=\"$PWD/$f\"/>" junit.xml | grep -cvF "name=\"$f\"" || true)
+            if [ "$passed" -eq 0 ]; then
+              echo "::error file=$f::No passing test reported from this file."
+              missing=1
+            fi
+          done
+          exit "$missing"
 
   lint:
     runs-on: ubuntu-latest
@@ -48,15 +88,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '22'
-
       - name: Check for API key leaks
         run: |
           # Ensure no API keys are hardcoded in source files
           # Exclude safety.js and test files (they contain patterns and fixtures, not real keys)
-          if grep -rn 'AIza\|sk-ant-\|sk-[a-zA-Z0-9]\{40\}\|-----BEGIN RSA PRIVATE KEY-----\|-----BEGIN EC PRIVATE KEY-----\|github_pat_' src/ --include='*.js' --exclude='safety.js' --exclude='*.test.js'; then
+          # The PEM header class covers RSA, EC, PKCS8 (`BEGIN PRIVATE KEY`,
+          # `BEGIN ENCRYPTED PRIVATE KEY`) and OpenSSH; one bracket class, no nesting.
+          if grep -rn 'AIza\|sk-ant-\|sk-[a-zA-Z0-9]\{40\}\|-----BEGIN [A-Z ]*PRIVATE KEY-----\|github_pat_' src/ --include='*.js' --exclude='safety.js' --exclude='*.test.js'; then
             echo "ERROR: Potential API key found in source code"
             exit 1
           fi

@@ -68,6 +68,16 @@
           "type": "integer",
           "description": "True open issue count excluding PRs (fetched via paginate, not open_issues_count)"
         },
+        "open_bugs": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Open issues labelled as bugs and not blocked; null when the issue listing failed (open_issues then falls back to the repo's open_issues_count)"
+        },
+        "open_prs": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Open pull request count (paginated, capped at 100); null when the listing failed"
+        },
         "sbom": {
           "oneOf": [
             { "$ref": "#/$defs/SBOMSummary" },
@@ -83,6 +93,34 @@
         "hasIssueTemplate": {
           "type": "boolean",
           "description": "True if any issue template was found (API or .github/ISSUE_TEMPLATE/ directory fallback)"
+        },
+        "hasAutoMergeWorkflow": {
+          "type": ["boolean", "null"],
+          "description": "dependabot-auto-merge.yml is present on the default branch (contents API, not the workflow registration listing). Tri-state: null when the workflows directory could not be read; only false opens a remediation PR."
+        },
+        "hasReleaseWorkflow": {
+          "type": "boolean",
+          "description": "Any registered workflow whose path or display name mentions release, or a truncated listing. Fails toward true on a request error, because it gates a cross-repo write."
+        },
+        "hasOsvScanner": {
+          "type": ["boolean", "null"],
+          "description": "osv-scanner.yml is present on the default branch (exact filename match). Tri-state: null when the workflows directory could not be read."
+        },
+        "allowAutoMerge": {
+          "type": "boolean",
+          "description": "The repository's allow_auto_merge setting; false when the repo metadata read fails"
+        },
+        "hasCodeowners": {
+          "type": "boolean",
+          "description": "A CODEOWNERS file exists at the root, .github/ or docs/"
+        },
+        "hasSecurityPolicy": {
+          "type": "boolean",
+          "description": "A SECURITY.md (or security.markdown) exists at the root, .github/ or docs/"
+        },
+        "hasCopilotReview": {
+          "type": ["boolean", "null"],
+          "description": "An active repository ruleset carries a copilot_code_review rule (ADR-009). Tri-state: null when the ruleset scan could not complete and no last-known value exists; only an explicit false authorises the settings write."
         },
         "libyear": {
           "oneOf": [

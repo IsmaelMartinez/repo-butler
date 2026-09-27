@@ -17,10 +17,6 @@ roadmap:
   # the default so it is easy to find and tune; lower it to keep less detail.
   compact_after_days: 60
 
-schedule:
-  assess: daily
-  ideate: weekly
-
 providers:
   default: gemini
 

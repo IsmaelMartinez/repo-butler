@@ -1,6 +1,6 @@
 name: Repo Butler Monitor
 
-# Continuous monitoring: runs on events and every 15 minutes.
+# Continuous monitoring: runs on issue/PR events and every 6 hours.
 # Detects new threats, issues, PRs, security alerts, and CI failures.
 # Events are triaged by the agent council (product, dev, stability, maintainability, security).
 
@@ -12,11 +12,6 @@ on:
   pull_request:
     types: [opened, labeled, ready_for_review]
   workflow_dispatch:
-    inputs:
-      council-mode:
-        description: 'Council deliberation mode (quick or full)'
-        required: false
-        default: 'quick'
 
 # All API reads/writes use the GitHub App token generated in the job, not the
 # workflow GITHUB_TOKEN — the default token only needs read access for checkout.
@@ -42,7 +37,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Generate GitHub App token
         id: app-token
@@ -60,5 +55,4 @@ jobs:
           INPUT_DRY_RUN: 'true'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
-          COUNCIL_MODE: ${{ github.event.inputs.council-mode || 'quick' }}
         run: node src/index.js --phase=monitor
