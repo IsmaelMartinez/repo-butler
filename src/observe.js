@@ -176,7 +176,7 @@ export async function observePortfolio(context) {
         max: 200,
       });
     } catch (err) {
-      if (!err.message?.includes('404')) throw err;
+      if (err.status !== 404) throw err;
       repos = await gh.paginate(`/orgs/${owner}/repos`, {
         params: { sort: 'pushed', direction: 'desc' },
         max: 200,
@@ -293,8 +293,7 @@ async function fetchInstallationRepos(gh) {
     }
     return results.length > 0 ? results : null;
   } catch (err) {
-    const msg = err.message || '';
-    if (msg.includes('404') || msg.includes('403') || msg.includes('401')) return null;
+    if (err.status === 404 || err.status === 403 || err.status === 401) return null;
     throw err;
   }
 }
@@ -306,8 +305,7 @@ async function fetchUserRepos(gh) {
       max: 500,
     });
   } catch (err) {
-    const msg = err.message || '';
-    if (msg.includes('404') || msg.includes('403') || msg.includes('401')) return null;
+    if (err.status === 404 || err.status === 403 || err.status === 401) return null;
     throw err;
   }
 }
@@ -474,7 +472,7 @@ async function fetchCommunityProfile(gh, owner, repo) {
   }
 }
 
-async function fetchDependabotAlerts(gh, owner, repo) {
+export async function fetchDependabotAlerts(gh, owner, repo) {
   try {
     const data = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts`, {
       params: { state: 'open', per_page: 100 },
@@ -482,7 +480,7 @@ async function fetchDependabotAlerts(gh, owner, repo) {
     const alerts = Array.isArray(data) ? data : [];
     return getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity);
   } catch (err) {
-    if (err.message?.includes('403') || err.message?.includes('404')) {
+    if (err.status === 403 || err.status === 404) {
       console.log(`Note: Dependabot alerts not available for ${owner}/${repo} (${err.message})`);
     }
     return null;
@@ -497,7 +495,7 @@ export async function fetchCodeScanningAlerts(gh, owner, repo) {
     const alerts = Array.isArray(data) ? data : [];
     return getAlertSummary(alerts, a => a.rule?.security_severity_level);
   } catch (err) {
-    if (err.message?.includes('403') || err.message?.includes('404')) {
+    if (err.status === 403 || err.status === 404) {
       console.log(`Note: Code scanning alerts not available for ${owner}/${repo} (${err.message})`);
     }
     return null;
@@ -512,7 +510,7 @@ export async function fetchSecretScanningAlerts(gh, owner, repo) {
     const alerts = Array.isArray(data) ? data : [];
     return { count: alerts.length };
   } catch (err) {
-    if (err.message?.includes('403') || err.message?.includes('404')) {
+    if (err.status === 403 || err.status === 404) {
       console.log(`Note: Secret scanning alerts not available for ${owner}/${repo} (${err.message})`);
     }
     return null;

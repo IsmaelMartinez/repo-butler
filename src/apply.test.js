@@ -840,7 +840,7 @@ describe('applyGovernanceFindings', () => {
         // Root listing GET 404s (empty repo root, Contents API behaviour).
         if (path.endsWith('/contents/') && !opts?.method) {
           calls.push({ type: 'request', path, opts });
-          throw new Error('GitHub API GET /repos/owner/repo-a/contents/: 404 Not Found');
+          throw Object.assign(new Error('GitHub API GET /repos/owner/repo-a/contents/: 404 Not Found'), { status: 404 });
         }
         return mockGh.request(path, opts);
       },
@@ -855,6 +855,42 @@ describe('applyGovernanceFindings', () => {
     const content = Buffer.from(put.opts.body.content, 'base64').toString();
     assert.ok(!content.includes('package-ecosystem: "npm"'), '404 root means no manifest — no npm entry');
     assert.ok(content.includes('package-ecosystem: "github-actions"'));
+  });
+
+  it('does not read a 500 whose body mentions ": 404" as an empty repo root (#438)', async () => {
+    // Only err.status means absence; the message tail is the server's body.
+    const flakyGh = {
+      ...mockGh,
+      request: async (path, opts) => {
+        if (path.endsWith('/contents/') && !opts?.method) {
+          throw Object.assign(new Error('GitHub API GET /repos/owner/repo-a/contents/: 500 {"message":"upstream said: 404"}'), { status: 500 });
+        }
+        return mockGh.request(path, opts);
+      },
+    };
+    const findings = [
+      { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+    ];
+    await applyGovernanceFindings(flakyGh, 'owner', findings, baseConfig, { dryRun: false });
+    const put = calls.find(c => c.type === 'request' && c.opts?.method === 'PUT' && c.path.includes('dependabot.yml'));
+    const content = Buffer.from(put.opts.body.content, 'base64').toString();
+    assert.ok(content.includes('package-ecosystem: "npm"'), 'unreadable root falls back to the ecosystem default, not "no manifests"');
+  });
+
+  it('does not force-reset the branch when a non-422 body mentions ": 422" (#438)', async () => {
+    const gh = {
+      ...mockGh,
+      request: async (path, opts) => {
+        if (path.endsWith('/git/refs') && opts?.method === 'POST') {
+          calls.push({ type: 'request', path, opts });
+          throw Object.assign(new Error('GitHub API POST /repos/owner/repo-a/git/refs: 500 {"message":"upstream said: 422"}'), { status: 500 });
+        }
+        return mockGh.request(path, opts);
+      },
+    };
+    const result = await applyGovernanceFindings(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
+    assert.equal(result.results[0].status, 'error');
+    assert.ok(!calls.some(c => c.opts?.method === 'PATCH'), 'a 500 must never reach the force-reset');
   });
 
   it('skips repos with existing open PR (dedup)', async () => {
@@ -955,7 +991,7 @@ describe('applyGovernanceFindings', () => {
     const brokenGh = {
       ...mockGh,
       paginate: async (path) => {
-        if (path.includes('repo-a')) throw new Error('GitHub API GET /pulls: 500');
+        if (path.includes('repo-a')) throw Object.assign(new Error('GitHub API GET /pulls: 500'), { status: 500 });
         return [];
       },
     };
@@ -1391,7 +1427,7 @@ describe('nudgeStaleDependabotPRs', () => {
     const gh = {
       request: async (path, opts) => {
         calls.push({ path, opts });
-        if (/\/pulls\/\d+$/.test(path)) throw new Error('GitHub API GET /pulls/7: 404 not found');
+        if (/\/pulls\/\d+$/.test(path)) throw Object.assign(new Error('GitHub API GET /pulls/7: 404 not found'), { status: 404 });
         return {};
       },
       paginate: async () => [],
@@ -1574,7 +1610,7 @@ describe('applyCopilotReviewRulesets', () => {
     // the write.
     const posts = [];
     const gh = {
-      paginate: async () => { throw new Error('GitHub API GET /rulesets: 403'); },
+      paginate: async () => { throw Object.assign(new Error('GitHub API GET /rulesets: 403'), { status: 403 }); },
       request: async (path, opts) => {
         if (opts?.method === 'POST') posts.push(path);
         return {};
@@ -1593,7 +1629,7 @@ describe('applyCopilotReviewRulesets', () => {
     // every repo was already enabled — so the operator reads success while the
     // standard is silently never applied, week after week.
     const gh = {
-      paginate: async () => { throw new Error('GitHub API GET /rulesets: 403'); },
+      paginate: async () => { throw Object.assign(new Error('GitHub API GET /rulesets: 403'), { status: 403 }); },
       request: async () => ({}),
     };
     const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, baseConfig, { dryRun: false });
@@ -1667,7 +1703,7 @@ describe('findButlerCopilotRuleset / removeCopilotReviewRuleset', () => {
     // running the ADR-009 reversal on a repo whose ruleset is still LIVE read
     // `skipped: no butler ruleset` and believed it was gone.
     const gh = {
-      paginate: async () => { throw new Error('GitHub API GET /rulesets: 403'); },
+      paginate: async () => { throw Object.assign(new Error('GitHub API GET /rulesets: 403'), { status: 403 }); },
       request: async () => ({}),
     };
     const result = await removeCopilotReviewRuleset(gh, 'owner', 'repo-a');
@@ -2254,7 +2290,7 @@ describe('autoMergeGovernancePRs', () => {
   it('treats a 409 from mergePR as skip (head advanced), not an error', async () => {
     const merges = [];
     const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] }, merges });
-    gh.mergePR = async () => { throw new Error('GitHub API PUT /repos/owner/repo-a/pulls/7/merge: 409 head changed'); };
+    gh.mergePR = async () => { throw Object.assign(new Error('GitHub API PUT /repos/owner/repo-a/pulls/7/merge: 409 head changed'), { status: 409 }); };
     const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
     assert.equal(r.summary.errors, 0, '409 is not an error');
     assert.equal(r.summary.merged, 0);
@@ -2263,9 +2299,17 @@ describe('autoMergeGovernancePRs', () => {
     assert.match(r.results[0].reason, /409/);
   });
 
+  it('treats a non-409 mergePR failure whose body mentions ": 409" as an error, not a skip (#438)', async () => {
+    const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] } });
+    gh.mergePR = async () => { throw Object.assign(new Error('GitHub API PUT /repos/owner/repo-a/pulls/7/merge: 500 {"message":"upstream said: 409"}'), { status: 500 }); };
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
+    assert.equal(r.summary.errors, 1);
+    assert.equal(r.results[0].status, 'error');
+  });
+
   it('surfaces a paginate failure as an error (no longer swallowed)', async () => {
     const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] } });
-    gh.paginate = async () => { throw new Error('GitHub API GET /pulls: 500 boom'); };
+    gh.paginate = async () => { throw Object.assign(new Error('GitHub API GET /pulls: 500 boom'), { status: 500 }); };
     const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
     assert.equal(r.summary.errors, 1);
     assert.equal(r.results[0].status, 'error');

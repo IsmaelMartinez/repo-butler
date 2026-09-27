@@ -6,6 +6,15 @@ import { fileURLToPath } from 'node:url';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { resolveCrossRepoDestination } from './safety.js';
 
+// Run fn with console.log captured; returns the lines logged.
+async function captureLogs(fn) {
+  const lines = [];
+  const orig = console.log;
+  console.log = (...a) => { lines.push(a.join(' ')); };
+  try { await fn(); } finally { console.log = orig; }
+  return lines;
+}
+
 // --- helpers ---
 
 function daysAgoISO(n) {
@@ -218,7 +227,7 @@ describe('stale-butler-pr detection', () => {
     const gh = {
       paginate: async (path) => {
         if (path.includes('bad-repo')) {
-          throw new Error('GitHub API GET /repos/owner/bad-repo/pulls: 403 Resource not accessible');
+          throw Object.assign(new Error('GitHub API GET /repos/owner/bad-repo/pulls: 403 Resource not accessible'), { status: 403 });
         }
         return [makePR(1, 'repo-butler/apply-codeowners', 20)];
       },
@@ -230,6 +239,16 @@ describe('stale-butler-pr detection', () => {
 
     assert.equal(findings.length, 1);
     assert.equal(findings[0].repo, 'good-repo');
+  });
+
+  it('stale-butler-pr: logs "skipping" only for a real 403/404 status, not a 500 whose body mentions ": 404" (#438)', async () => {
+    const run = (err) => captureLogs(() => auditButlerPRs({
+      paginate: async () => { throw err; }, prCiState: async () => 'green', prCiHistory: async () => [],
+    }, 'owner', [makeRepo('bad-repo')]));
+    const forbidden = await run(Object.assign(new Error('GitHub API GET /repos/owner/bad-repo/pulls: 403'), { status: 403 }));
+    assert.ok(forbidden.some(l => l.includes('butler-pr-audit: skipping bad-repo')));
+    const server = await run(Object.assign(new Error('GitHub API GET /repos/owner/bad-repo/pulls: 500 {"message":"upstream said: 404"}'), { status: 500 }));
+    assert.ok(!server.some(l => l.includes('skipping')), server.join('\n'));
   });
 
   it('stale-butler-pr: reuses a pre-fetched openPRs map instead of re-listing', async () => {

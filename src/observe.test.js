@@ -229,6 +229,30 @@ describe('observePortfolio — repo discovery', () => {
     assert.equal(result.repos[0].languages, null);
   });
 
+  // #438: discovery falls through to the next endpoint only on a real
+  // 401/403/404 status. A 500 whose body happens to say "404" is a failure and
+  // must surface, not silently demote discovery to a narrower endpoint.
+  const err500 = { ok: false, status: 500, headers: new Map(), text: async () => 'upstream said: 401 403 404', json: async () => ({}) };
+  const notFound = { ok: false, status: 404, headers: new Map(), text: async () => 'Not Found', json: async () => ({}) };
+  for (const [label, failAt] of [
+    ['/installation/repositories', 0],
+    ['/user/repos', 1],
+    ['/users/{owner}/repos', 2],
+  ]) {
+    it(`surfaces a 500 on ${label} whose body mentions 404, rather than falling through (#438)`, async () => {
+      const seen = [];
+      globalThis.fetch = mock.fn(async (url) => {
+        const u = typeof url === 'string' ? url : url.toString();
+        const step = u.includes('/installation/repositories') ? 0 : u.includes('/user/repos') ? 1 : u.includes('/users/alice/repos') ? 2 : 3;
+        seen.push(step);
+        return step === failAt ? err500 : notFound;
+      });
+      const { observePortfolio } = await import('./observe.js');
+      await assert.rejects(() => observePortfolio({ owner: 'alice', token: 'fake' }), /: 500/);
+      assert.ok(!seen.some(st => st > failAt), `must not fall through past ${label}: ${seen}`);
+    });
+  }
+
   it('filters installation results to the requested owner', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
@@ -409,23 +433,41 @@ describe('fetchCodeScanningAlerts', () => {
 
   it('returns null on 403', async () => {
     const { fetchCodeScanningAlerts } = await import('./observe.js');
-    const gh = { request: async () => { throw new Error('403 Forbidden'); } };
+    const gh = { request: async () => { throw Object.assign(new Error('403 Forbidden'), { status: 403 }); } };
     const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
     assert.equal(result, null);
   });
 
   it('returns null on 404', async () => {
     const { fetchCodeScanningAlerts } = await import('./observe.js');
-    const gh = { request: async () => { throw new Error('404 Not Found'); } };
+    const gh = { request: async () => { throw Object.assign(new Error('404 Not Found'), { status: 404 }); } };
     const result = await fetchCodeScanningAlerts(gh, 'owner', 'repo');
     assert.equal(result, null);
   });
 });
 
+describe('scanner "not available" note keys on status (#438)', () => {
+  for (const name of ['fetchDependabotAlerts', 'fetchCodeScanningAlerts', 'fetchSecretScanningAlerts']) {
+    it(`${name} notes a real 404 but not a 500 whose body mentions 404`, async () => {
+      const mod = await import('./observe.js');
+      const logs = [];
+      const spy = mock.method(console, 'log', (m) => { logs.push(String(m)); });
+      try {
+        const throwing = (err) => ({ request: async () => { throw err; } });
+        assert.equal(await mod[name](throwing(Object.assign(new Error('GitHub API GET x: 404 Not Found'), { status: 404 })), 'o', 'r'), null);
+        assert.equal(logs.filter(l => l.includes('not available')).length, 1);
+        assert.equal(await mod[name](throwing(Object.assign(new Error('GitHub API GET x: 500 upstream said: 404'), { status: 500 })), 'o', 'r'), null);
+        assert.equal(logs.filter(l => l.includes('not available')).length, 1, 'a 500 is not "not available"');
+      } finally {
+        spy.mock.restore();
+      }
+    });
+  }
+});
+
 describe('fetchDependabotAlerts (via observe)', () => {
-  // fetchDependabotAlerts isn't exported, but observe() calls it as part of the
-  // parallel fetch. Drive it via globalThis.fetch and check the return shape
-  // matches the report-shared.getAlertSummary contract.
+  // observe() calls fetchDependabotAlerts as part of the parallel fetch; check
+  // its severity extractor matches the report-shared.getAlertSummary contract.
   let originalFetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });
   afterEach(() => { globalThis.fetch = originalFetch; });
@@ -484,14 +526,14 @@ describe('fetchSecretScanningAlerts', () => {
 
   it('returns null on 403', async () => {
     const { fetchSecretScanningAlerts } = await import('./observe.js');
-    const gh = { request: async () => { throw new Error('403 Forbidden'); } };
+    const gh = { request: async () => { throw Object.assign(new Error('403 Forbidden'), { status: 403 }); } };
     const result = await fetchSecretScanningAlerts(gh, 'owner', 'repo');
     assert.equal(result, null);
   });
 
   it('returns null on 404', async () => {
     const { fetchSecretScanningAlerts } = await import('./observe.js');
-    const gh = { request: async () => { throw new Error('404 Not Found'); } };
+    const gh = { request: async () => { throw Object.assign(new Error('404 Not Found'), { status: 404 }); } };
     const result = await fetchSecretScanningAlerts(gh, 'owner', 'repo');
     assert.equal(result, null);
   });

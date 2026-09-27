@@ -319,7 +319,7 @@ export async function detectStalledAlerts(gh, owner, repos, {
         priority: reported.some(a => a.severity === 'critical') ? 'high' : 'medium',
       };
     } catch (err) {
-      if (err.message?.includes(': 403') || err.message?.includes(': 404')) {
+      if (err.status === 403 || err.status === 404) {
         console.log(`stalled-alert: skipping ${repo.name} (${err.message.slice(0, 80)})`);
       }
       return null;

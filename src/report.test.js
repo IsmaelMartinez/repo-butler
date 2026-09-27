@@ -1710,11 +1710,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // information than the cached verdict: without the fallback one 500 on the
     // contents API turns a cached `false` — a real, actionable gap — into
     // `null`, governance skips the repo as unknown, and the run reports no gap
-    // at all. The rejection is exactly what github.js throws: a plain Error
-    // carrying the status in its MESSAGE, with no `status` property, because a
-    // richer mock than the real client would make this test evidence of nothing.
+    // at all. The rejection is shaped exactly like github.js's: the status in
+    // the message and as `err.status`, no richer and no poorer than the client.
     const gh = cachedWorkflowsGh(() => Promise.reject(
-      new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error')
+      Object.assign(new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error'), { status: 500 })
     ));
     const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
       cache: cachedWorkflowsCache({ hasOsvScanner: false }),
@@ -1745,11 +1744,11 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // to this field on a bad read decides whether an unattended scheduled run
     // opens a PR. An unknown live read is strictly less information than the
     // cached verdict, so the cached `true` stands rather than decaying to null.
-    // The rejection is exactly what github.js throws — a plain Error carrying
-    // the code in its MESSAGE, with no `status` property — because a mock richer
-    // than the real client would make this test evidence of nothing.
+    // The rejection is shaped exactly like github.js's (message plus numeric
+    // `err.status`), because a mock richer than the real client would make
+    // this test evidence of nothing.
     const gh = cachedWorkflowsGh(() => Promise.reject(
-      new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error')
+      Object.assign(new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error'), { status: 500 })
     ));
     const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
       cache: cachedWorkflowsCache({ hasAutoMergeWorkflow: true }),
@@ -2285,14 +2284,12 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // A 404 on the contents listing is a genuine answer, not a failure: the repo
     // has no .github/workflows directory, so the scanner is definitively absent
     // and the standard is a real gap worth a remediation PR.
-    // The error is EXACTLY what github.js throws — a plain Error whose message
-    // embeds the code, with no `status` property. Deliberately not a richer
-    // fake: an earlier version of this test set `err.status = 404` as well, and
-    // so passed against a `.catch` keyed on `err.status === 404` that could
-    // never match in production. A mock more capable than the real client turns
-    // a green test into evidence of nothing.
+    // The error is EXACTLY what github.js throws — the code in the message and
+    // as a numeric `err.status` (#438; github.test.js pins that the real client
+    // sets it). A mock more capable than the real client turns a green test
+    // into evidence of nothing.
     const notFound = () => Promise.reject(
-      new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 404 Not Found')
+      Object.assign(new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 404 Not Found'), { status: 404 })
     );
     const gh = makeWorkflowsGh(notFound);
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
@@ -2303,11 +2300,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // Rate limit, 403, network blip: we do not know what is on the default
     // branch. Unknown is honest; governance skips unknowns, and `false` here
-    // would open an apply PR on every repo the failure touched. Again the error
-    // is exactly what github.js throws: a plain Error, no `status` property, so
-    // the message test is the only thing that can distinguish it from the 404.
+    // would open an apply PR on every repo the failure touched. The body
+    // mentions ": 404" on purpose: only `err.status` may mean absence (#438).
     const serverError = () => Promise.reject(
-      new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 500 Internal Server Error')
+      Object.assign(new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 500 {"message":"upstream said: 404"}'), { status: 500 })
     );
     const gh = makeWorkflowsGh(serverError);
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
@@ -2442,13 +2438,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // A 404 on the contents listing is a genuine answer, not a failure: there is
     // no .github/workflows directory, so the workflow is definitively absent and
-    // this is a real gap. The error is EXACTLY what github.js throws — a plain
-    // Error whose message embeds the code, with NO `status` property — so the
-    // message test in the `.catch` is the only thing that can classify it. A
-    // mock richer than the real client would turn a green test into evidence of
-    // nothing.
+    // this is a real gap. The error is EXACTLY what github.js throws — the code
+    // in the message and as a numeric `err.status`, which the `.catch` keys on.
     const gh = makeWorkflowsGh(
-      () => Promise.reject(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 404 Not Found')),
+      () => Promise.reject(Object.assign(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 404 Not Found'), { status: 404 })),
       amRegistered,
     );
     const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
@@ -2460,9 +2453,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // Rate limit, 403, network blip: we do not know what is on the default
     // branch. `false` here would open an apply PR on every repo the failure
     // touched, unattended, on the apply schedule. Unknown is honest, and
-    // governance excludes unknowns from both compliance arrays.
+    // governance excludes unknowns from both compliance arrays. The body
+    // mentions ": 404" on purpose: only `err.status` may mean absence (#438).
     const gh = makeWorkflowsGh(
-      () => Promise.reject(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 500 Internal Server Error')),
+      () => Promise.reject(Object.assign(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 500 {"message":"upstream said: 404"}'), { status: 500 })),
       amRegistered,
     );
     const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
