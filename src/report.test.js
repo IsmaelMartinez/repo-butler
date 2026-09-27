@@ -1751,6 +1751,17 @@ describe('fetchPortfolioDetails incremental cache', () => {
   // The dependabot.yml config-only fallback exists for a token without alert
   // scope (403). It reports count 0, which passes the Gold check, so applying
   // it to a transient 500 would turn "could not read" into "no alerts".
+  it('reads a non-array secret-scanning response as unknown, not as zero alerts', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = securityGh({
+      dependabot: () => Promise.resolve([]),
+      codeScanning: () => Promise.resolve([]),
+      secretScanning: () => Promise.resolve({ message: 'unexpected shape' }),
+    });
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache: cachedWorkflowsCache(cleanCachedDetails) });
+    assert.equal(details['cached-repo'].secretScanning, null);
+  });
+
   it('keeps the config-only dependabot fallback to a 403; any other failure is unknown', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     const withDependabotYml = (dependabot) => ({

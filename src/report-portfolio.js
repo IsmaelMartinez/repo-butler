@@ -295,7 +295,8 @@ function fetchCodeScanningSummary(gh, owner, repo) {
 
 function fetchSecretScanningSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/secret-scanning/alerts?state=open&per_page=100`)
-    .then(alerts => ({ count: Array.isArray(alerts) ? alerts.length : 0 }))
+    // A non-array body is not a list of zero alerts; zero would pass Gold.
+    .then(alerts => (Array.isArray(alerts) ? { count: alerts.length } : null))
     .catch(() => null);
 }
 
