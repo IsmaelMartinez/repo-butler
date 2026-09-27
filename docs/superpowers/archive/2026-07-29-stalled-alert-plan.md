@@ -1,10 +1,12 @@
 # Plan: the stalled-alert watcher (G13), and what stays parked
 
 Date: 2026-07-29
+Status: EXECUTED — plan merged in #357, G13 shipped in #358; archived 2026-09-27.
+The parked items below remain parked.
 
 Supersedes the rescan-nudging proposal in
 [the autonomous garden plan](2026-07-25-autonomous-garden-plan.md) lines 47/59.
-Rests on [ADR-014](../decisions/014-no-programmatic-dependabot-rescan.md) and the
+Rests on [ADR-014](../../decisions/014-no-programmatic-dependabot-rescan.md) and the
 [spike](2026-07-29-dependabot-rescan-spike.md) that produced it.
 
 ## The property being added
@@ -102,7 +104,7 @@ cause.
 ### Verifier — the loopable goal
 
 ```bash
-cd <repo-butler> && bash scripts/verify-g13.sh
+cd <repo-butler> && bash docs/superpowers/archive/verify-g13.sh
 ```
 
 It must fail **now**, before the work exists, and fail closed when inputs are

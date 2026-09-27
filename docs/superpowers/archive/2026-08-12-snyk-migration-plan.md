@@ -1,7 +1,11 @@
 # Snyk removal and SCA migration — plan of record
 
 Date: 2026-08-12
-Status: proposed (one emergency step already applied, recorded below)
+Status: EXECUTED, archived 2026-09-27. Plan #370; the OSV-Scanner replacement
+shipped via #371–#374 and betis-escocia's blocking gate was restored. Out-of-repo
+residue remained at archive time: the teams-for-linux README Snyk badge,
+ismaelmartinez.me.uk's `.snyk`, betis-escocia's `.gitignore` lines and
+bonnie-wee-plot's `SNYK_TOKEN` secret.
 
 ## Why this exists
 
