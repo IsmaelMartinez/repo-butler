@@ -17,7 +17,7 @@
 #      before G13 ships, so the committed capture is what keeps the goal
 #      meaningful afterwards.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../../.."
 
 ADR=docs/decisions/014-no-programmatic-dependabot-rescan.md
 FIXTURE=src/fixtures/stalled-alert-live.json

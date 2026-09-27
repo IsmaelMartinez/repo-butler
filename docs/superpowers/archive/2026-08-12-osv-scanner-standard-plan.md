@@ -1,7 +1,9 @@
 # OSV-Scanner as a portfolio standard — implementation plan
 
 Date: 2026-08-12
-Status: proposed, pending review
+Status: EXECUTED, archived 2026-09-27. Phases 1–2 in #371, canary #372, rollout
+#373/#374 plus the per-repo `add osv-scanner configuration` PRs; Phase 5 is live
+(`scan-pr / osv-scan` is a required check on betis-escocia ruleset 7682156).
 Predecessor: [2026-08-12-snyk-migration-plan.md](2026-08-12-snyk-migration-plan.md) (merged, `5cf5f34c`)
 
 ## Goal
