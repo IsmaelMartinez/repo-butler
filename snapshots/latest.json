@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-27T13:16:28.471Z",
+  "timestamp": "2026-09-27T13:27:35.286Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 22,
+    "open_issues_count": 20,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-27T13:16:13Z",
+    "pushed_at": "2026-09-27T13:26:00Z",
     "archived": false
   },
   "issues": {
@@ -257,36 +257,6 @@
         "milestone": null
       },
       {
-        "number": 415,
-        "title": "simplify W2: report-side shared predicates (autofix, actionable bugs, campaigns)",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "enhancement",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:43:04Z",
-        "updated_at": "2026-09-26T06:43:04Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 414,
-        "title": "simplify W2: extract a pure apply-templates module",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "enhancement",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:43:03Z",
-        "updated_at": "2026-09-26T06:43:03Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
         "number": 401,
         "title": "Agentic lockfile fix for the cases lockfile-update refuses: daily flow on docker agent (spike first)",
         "author": "IsmaelMartinez",
@@ -303,6 +273,28 @@
       }
     ],
     "recently_closed": [
+      {
+        "number": 415,
+        "title": "simplify W2: report-side shared predicates (autofix, actionable bugs, campaigns)",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T13:25:20Z",
+        "created_at": "2026-09-26T06:43:04Z"
+      },
+      {
+        "number": 414,
+        "title": "simplify W2: extract a pure apply-templates module",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T13:19:33Z",
+        "created_at": "2026-09-26T06:43:03Z"
+      },
       {
         "number": 419,
         "title": "simplify W2: archive executed plans and one-shot verify scripts",
@@ -431,6 +423,20 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 444,
+        "title": "refactor: share autofix, actionable-bug and campaign predicates (#415)",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T13:25:19Z"
+      },
+      {
+        "number": 443,
+        "title": "refactor: extract a pure apply-templates module",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T13:19:32Z"
+      },
       {
         "number": 445,
         "title": "docs: archive executed plans and one-shot verify scripts (#419)",
@@ -1374,10 +1380,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9655172413793104,
-    "total_runs": 87,
+    "pass_rate": 1,
+    "total_runs": 84,
     "passed": 84,
-    "failed": 3
+    "failed": 0
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1385,21 +1391,21 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 19,
+    "open_issues": 17,
     "open_bugs": 1,
-    "open_features": 11,
+    "open_features": 9,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 12,
-    "recently_merged_prs": 99,
+    "recently_closed": 14,
+    "recently_merged_prs": 101,
     "bot_prs": 13,
-    "human_prs": 86,
+    "human_prs": 88,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
-      "agent-generated (17)",
-      "enhancement (11)",
+      "agent-generated (15)",
+      "enhancement (9)",
       "question (6)",
       "bug (1)",
       "documentation (1)"
@@ -1413,11 +1419,11 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 0.9655172413793104,
+    "ci_pass_rate": 1,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1,
-      "sample_size": 12
+      "sample_size": 14
     }
   }
 }
