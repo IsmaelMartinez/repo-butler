@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-27T06:32:15.604Z",
+  "timestamp": "2026-09-27T06:32:24.362Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-27T06:32:11Z",
+    "pushed_at": "2026-09-27T06:32:16Z",
     "archived": false
   },
   "issues": {
@@ -73,22 +73,6 @@
         "comments": 0,
         "created_at": "2026-09-26T07:11:42Z",
         "updated_at": "2026-09-26T07:11:42Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 409,
-        "title": "simplify W1: make the CI test guard real and align workflows on Node 24",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "bug",
-          "github_actions",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:42:56Z",
-        "updated_at": "2026-09-27T06:32:08Z",
         "assignees": [],
         "milestone": null
       },
@@ -333,21 +317,6 @@
         "milestone": null
       },
       {
-        "number": 410,
-        "title": "simplify W1: roadmap provenance guard accepts issue refs and ref-less entries as proof of shipped work",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "bug",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:42:57Z",
-        "updated_at": "2026-09-27T06:32:12Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
         "number": 401,
         "title": "Agentic lockfile fix for the cases lockfile-update refuses: daily flow on docker agent (spike first)",
         "author": "IsmaelMartinez",
@@ -364,6 +333,29 @@
       }
     ],
     "recently_closed": [
+      {
+        "number": 410,
+        "title": "simplify W1: roadmap provenance guard accepts issue refs and ref-less entries as proof of shipped work",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T06:32:12Z",
+        "created_at": "2026-09-26T06:42:57Z"
+      },
+      {
+        "number": 409,
+        "title": "simplify W1: make the CI test guard real and align workflows on Node 24",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "github_actions",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T06:32:08Z",
+        "created_at": "2026-09-26T06:42:56Z"
+      },
       {
         "number": 412,
         "title": "simplify W1: config and schema truth (dead schedule key, one-way drift tests)",
@@ -455,18 +447,18 @@
         "merged_at": "2026-09-27T06:32:11Z"
       },
       {
-        "number": 435,
-        "title": "ci: make the test guard real and move workflows to Node 24",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-09-27T06:32:07Z"
-      },
-      {
         "number": 434,
         "title": "fix: align config schema and DEFAULTS to prevent silent drift",
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-09-27T06:32:02Z"
+      },
+      {
+        "number": 435,
+        "title": "ci: make the test guard real and move workflows to Node 24",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T06:32:07Z"
       },
       {
         "number": 432,
@@ -1387,12 +1379,12 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 23,
-    "open_bugs": 3,
+    "open_issues": 21,
+    "open_bugs": 1,
     "open_features": 12,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 8,
+    "recently_closed": 10,
     "recently_merged_prs": 97,
     "bot_prs": 13,
     "human_prs": 84,
@@ -1400,11 +1392,11 @@
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
-      "agent-generated (21)",
+      "agent-generated (19)",
       "enhancement (12)",
       "question (6)",
-      "bug (3)",
-      "documentation (2)"
+      "documentation (2)",
+      "bug (1)"
     ],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
@@ -1419,7 +1411,7 @@
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1,
-      "sample_size": 8
+      "sample_size": 10
     }
   }
 }
