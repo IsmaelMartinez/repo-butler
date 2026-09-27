@@ -137,6 +137,16 @@ describe('config schema matches DEFAULTS', () => {
     assert.deepEqual(compareConfig(DEFAULTS, noDefault, '', []), ['schema limits.max_issues_per_run default undefined != DEFAULTS 3']);
   });
 
+  it('every schema-only key still exists in the schema', async () => {
+    // The exemption set only suppresses "no DEFAULTS entry"; without this, deleting
+    // an exempted section from the schema would pass silently.
+    const schema = await loadSchema('config.v1.schema.json');
+    for (const at of CONFIG_SCHEMA_ONLY) {
+      const node = at.split('.').reduce((n, k) => n?.properties?.[k], schema);
+      assert.ok(node, `schema-only key "${at}" is missing from config.v1.schema.json`);
+    }
+  });
+
   it('every schema-only key is actually read by src', async () => {
     const files = (await readdir(__dirname)).filter(f => f.endsWith('.js') && !f.endsWith('.test.js'));
     const src = (await Promise.all(files.map(f => readFile(join(__dirname, f), 'utf-8')))).join('\n');
