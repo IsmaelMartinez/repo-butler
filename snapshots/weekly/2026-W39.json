@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-27T13:30:49.946Z",
+  "timestamp": "2026-09-27T14:25:45.232Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,17 +7,31 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 18,
+    "open_issues_count": 15,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-27T13:30:35Z",
+    "pushed_at": "2026-09-27T14:25:29Z",
     "archived": false
   },
   "issues": {
     "open": [
+      {
+        "number": 452,
+        "title": "Alert summaries conflate 'scanner not enabled' with 'read failed'",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-27T14:25:14Z",
+        "updated_at": "2026-09-27T14:25:14Z",
+        "assignees": [],
+        "milestone": null
+      },
       {
         "number": 429,
         "title": "Simplification plan (2026-09-26): tracking",
@@ -29,7 +43,7 @@
         "reactions": 0,
         "comments": 0,
         "created_at": "2026-09-26T06:44:39Z",
-        "updated_at": "2026-09-27T13:06:41Z",
+        "updated_at": "2026-09-27T14:00:08Z",
         "assignees": [],
         "milestone": null
       },
@@ -197,51 +211,6 @@
         "milestone": null
       },
       {
-        "number": 418,
-        "title": "simplify W2: user-facing docs match the code",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "documentation",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:43:08Z",
-        "updated_at": "2026-09-26T06:43:08Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 417,
-        "title": "simplify W2: move runApply out of index.js",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "enhancement",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:43:07Z",
-        "updated_at": "2026-09-26T06:43:07Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 416,
-        "title": "simplify W2: one eligibleRepos and listOpenPRs for the governance audits",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "enhancement",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:43:06Z",
-        "updated_at": "2026-09-26T06:43:06Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
         "number": 401,
         "title": "Agentic lockfile fix for the cases lockfile-update refuses: daily flow on docker agent (spike first)",
         "author": "IsmaelMartinez",
@@ -258,6 +227,49 @@
       }
     ],
     "recently_closed": [
+      {
+        "number": 449,
+        "title": "Repo details cache never hits: repo-cache.json exceeds the 1 MB Contents API limit",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug"
+        ],
+        "closed_at": "2026-09-27T14:25:25Z",
+        "created_at": "2026-09-27T13:37:02Z"
+      },
+      {
+        "number": 417,
+        "title": "simplify W2: move runApply out of index.js",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T13:59:54Z",
+        "created_at": "2026-09-26T06:43:07Z"
+      },
+      {
+        "number": 416,
+        "title": "simplify W2: one eligibleRepos and listOpenPRs for the governance audits",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T13:54:33Z",
+        "created_at": "2026-09-26T06:43:06Z"
+      },
+      {
+        "number": 418,
+        "title": "simplify W2: user-facing docs match the code",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "documentation",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T13:40:44Z",
+        "created_at": "2026-09-26T06:43:08Z"
+      },
       {
         "number": 438,
         "title": "simplify W2: detect 404 by status, not by a substring of the error message",
@@ -419,6 +431,34 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 451,
+        "title": "fix: read repo-cache.json through the blob API above the 1 MB Contents ceiling",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T14:25:24Z"
+      },
+      {
+        "number": 448,
+        "title": "simplify W2: move runApply out of index.js",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T13:59:53Z"
+      },
+      {
+        "number": 450,
+        "title": "refactor: share one eligibleRepos and listOpenPRs across the governance audits",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T13:54:32Z"
+      },
+      {
+        "number": 447,
+        "title": "docs: make user-facing docs match the code",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T13:40:43Z"
+      },
       {
         "number": 446,
         "title": "fix: branch on numeric err.status instead of the error message",
@@ -1383,10 +1423,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 1,
-    "total_runs": 85,
-    "passed": 85,
-    "failed": 0
+    "pass_rate": 0.9759036144578314,
+    "total_runs": 83,
+    "passed": 81,
+    "failed": 2
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1394,23 +1434,23 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 16,
-    "open_bugs": 0,
-    "open_features": 9,
+    "open_issues": 14,
+    "open_bugs": 1,
+    "open_features": 7,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 15,
-    "recently_merged_prs": 102,
+    "recently_closed": 19,
+    "recently_merged_prs": 106,
     "bot_prs": 13,
-    "human_prs": 89,
+    "human_prs": 93,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
-      "agent-generated (14)",
-      "enhancement (9)",
+      "agent-generated (11)",
+      "enhancement (7)",
       "question (6)",
-      "documentation (1)"
+      "bug (1)"
     ],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
@@ -1421,11 +1461,11 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 1,
+    "ci_pass_rate": 0.9759036144578314,
     "bus_factor": 1,
     "time_to_close_median": {
-      "median_days": 1,
-      "sample_size": 15
+      "median_days": 1.3,
+      "sample_size": 19
     }
   }
 }
