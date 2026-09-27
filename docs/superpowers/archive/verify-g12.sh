@@ -4,7 +4,7 @@
 #
 # Exits 0 only when the detector's named tests exist, run, and pass. Two
 # properties are deliberate, both required of every verifier by
-# docs/superpowers/2026-07-25-autonomous-garden-plan.md:
+# docs/superpowers/archive/2026-07-25-autonomous-garden-plan.md:
 #
 #   1. It must be able to FAIL before the work is done.
 #   2. It must FAIL CLOSED when its inputs are unavailable.
@@ -16,7 +16,7 @@
 # would have reported this goal as ALREADY MET before a single line was written
 # — "a verifier that is green before the work starts is worse than none".
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../../.."
 
 MIN_TESTS=8
 

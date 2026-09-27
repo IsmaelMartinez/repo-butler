@@ -1,5 +1,5 @@
 {
-  "_comment": "Real capture 2026-07-29: teams-for-linux alert #153, open since 2026-06-24. Lockfile trimmed from 1498 entries to the deciding subgraph. The live alert may be fixed later; this preserves the case. See docs/superpowers/2026-07-29-dependabot-rescan-spike.md",
+  "_comment": "Real capture 2026-07-29: teams-for-linux alert #153, open since 2026-06-24. Lockfile trimmed from 1498 entries to the deciding subgraph. The live alert may be fixed later; this preserves the case. See docs/superpowers/archive/2026-07-29-dependabot-rescan-spike.md",
   "repo": "teams-for-linux",
   "alert": {
     "number": 153,
