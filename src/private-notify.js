@@ -154,21 +154,25 @@ export async function notifyPrivateFindings(gh, owner, findings, options = {}) {
  * Close a private repo's tracking issue once it has no findings left, so the
  * channel goes quiet rather than leaving a stale issue open.
  *
+ * Only repos passed in `readRepoNames` are candidates, so the caller must pass
+ * the repos whose alerts were actually read in full this run. A repo it could
+ * not read (or read only in part) is unknown, not clean, and its issue stays open.
+ *
  * @param {object} gh
  * @param {string} owner
- * @param {Array<string>} privateRepoNames every private repo the butler saw
+ * @param {Array<string>} readRepoNames private repos whose alert sources were all read this run
  * @param {Array} findings ALL findings from this run
  * @param {{dryRun?: boolean}} options
  * @returns {Promise<number>} count of issues closed
  */
-export async function closeResolvedPrivateIssues(gh, owner, privateRepoNames, findings, options = {}) {
+export async function closeResolvedPrivateIssues(gh, owner, readRepoNames, findings, options = {}) {
   const { dryRun = true } = options;
-  if (!Array.isArray(privateRepoNames) || privateRepoNames.length === 0) return 0;
+  if (!Array.isArray(readRepoNames) || readRepoNames.length === 0) return 0;
 
   const withFindings = new Set(
     (Array.isArray(findings) ? findings : []).filter(f => f?.private && f?.repo).map(f => f.repo),
   );
-  const clean = privateRepoNames.filter(name => !withFindings.has(name));
+  const clean = readRepoNames.filter(name => !withFindings.has(name));
   if (clean.length === 0) return 0;
 
   if (dryRun) {
