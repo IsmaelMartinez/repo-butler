@@ -115,6 +115,8 @@ Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). This release con
 
 Automated lockfile update tool for reachable-by-update alerts shipped 2026-09-17 (PR #400). Following the ADR-015 design, this implements the `lockfile-update` apply tool specifically targeting `reachable-by-update` Dependabot alerts, allowing the butler to autonomously resolve targeted security vulnerabilities by updating lockfiles.
 
+CI workflow alignments on Node 24 and lockfile dependency updates shipped 2026-09-26 (PR #405). Aligns the CI test run execution and lockfile updates with Node 24 to support modern npm-11 lockfile formats, preventing environment-specific blockages during scheduled planning cycles.
+
 ---
 
 ## Next Up
