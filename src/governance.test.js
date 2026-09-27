@@ -1150,9 +1150,24 @@ describe('runGovernance — private repos must never enter the governance pipeli
       labels: [],
       draft: false,
     }];
+    // A stale open Dependabot alert for every repo, so detectStalledAlerts (G13)
+    // fires too; with an empty alerts page it emits nothing and a private repo
+    // widened into its call would go unnoticed.
+    const staleAlert = [{
+      number: 1,
+      state: 'open',
+      created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
+      dependency: { package: { ecosystem: 'npm', name: 'left-pad' }, manifest_path: 'package-lock.json' },
+      security_vulnerability: { severity: 'medium', first_patched_version: { identifier: '1.3.1' } },
+    }];
+    // Every requested URL, so a detector that merely LISTS a private repo's PRs
+    // or alerts (fetchOpenPRs, whose map is only read back by public names) is
+    // caught even when it never produces a finding.
+    const fetched = [];
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
-      const body = u.includes('/pulls') ? stalePR : [];
+      fetched.push(u);
+      const body = u.includes('/pulls') ? stalePR : u.includes('/dependabot/alerts') ? staleAlert : [];
       return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
     };
 
@@ -1213,6 +1228,10 @@ describe('runGovernance — private repos must never enter the governance pipeli
     // version already suffered once.
     assert.ok(context.governanceFindings.some(f => f.type === 'stale-butler-pr'),
       'the stale-butler-pr detector must have run for this guard to mean anything');
+    assert.ok(context.governanceFindings.some(f => f.type === 'stalled-alert'),
+      'the stalled-alert detector must have run for this guard to mean anything');
+    assert.ok(!fetched.some(u => u.includes(CANARY)),
+      `a governance request named the private repo:\n${fetched.filter(u => u.includes(CANARY)).join('\n')}`);
 
     // Serialised, so the canary is caught wherever it hides — `repo`, a
     // `nonCompliant`/`compliant` array, a remediation plan, a rationale string.
