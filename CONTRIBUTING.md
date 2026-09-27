@@ -4,12 +4,12 @@ Thanks for your interest in contributing! This guide covers the workflow and con
 
 ## Getting Started
 
-Repo Butler is a GitHub Action built with Node 22 and ES modules. It has zero npm dependencies by design -- do not add any packages. The project uses only Node built-in APIs (fetch, crypto, fs/promises).
+Repo Butler is a GitHub Action that runs on the Actions `node24` runtime and uses ES modules. It has zero npm dependencies by design -- do not add any packages. The project uses only Node built-in APIs (fetch, crypto, fs/promises).
 
 To set up locally:
 
 1. Fork and clone the repository.
-2. Ensure you have Node.js 22 or later installed.
+2. Ensure you have Node.js 24 installed, the version the action and every workflow run on.
 3. Copy `.env.example` to `.env.local` and add your GitHub token (if running the pipeline locally).
 
 ## Making Changes
@@ -24,6 +24,8 @@ npm test
 
 Tests use `node:test` and `node:assert/strict`, and are colocated as `*.test.js` files alongside the modules they test. If you're adding new functionality, add tests in the same pattern.
 
+CI does more than check that the run passed. It fails on any `not ok` line, on a total test count below `MIN_TESTS`, on fewer test files than `MIN_TEST_FILES`, and on any test file that reports no passing test, because a suite that silently stops registering tests otherwise looks green. Both floors live in `.github/workflows/ci.yml`; a PR that adds or removes a test file adjusts `MIN_TEST_FILES` in the same change. A separate lint job greps `src/` for hardcoded API keys and keys passed in URL query strings.
+
 For a dry run of the full pipeline without writing to GitHub:
 
 ```bash
@@ -32,7 +34,7 @@ INPUT_DRY_RUN=true npm start
 
 ## Project Conventions
 
-All source code lives in `src/`. The pipeline runs seven phases (OBSERVE, ASSESS, UPDATE, GOVERNANCE, IDEATE, PROPOSE, REPORT), each as an independent module. `src/github.js` is the shared API client, and `src/safety.js` validates all LLM output before it reaches GitHub.
+All source code lives in `src/`. The pipeline runs seven phases (OBSERVE, ASSESS, UPDATE, GOVERNANCE, IDEATE, PROPOSE, REPORT), each as an independent module; [`docs/architecture.md`](docs/architecture.md) describes what each does. `src/github.js` is the shared API client, and `src/safety.js` validates all LLM output before it reaches GitHub.
 
 When working with the GitHub API, prefer list/paginate endpoints over the search API to stay within rate limits. New API fetchers in `observe.js` should follow the existing try/catch pattern and return `null` on failure.
 
@@ -40,15 +42,15 @@ Config lives in `.github/roadmap.yml` with defaults in `src/config.js`.
 
 ## Further Reading
 
-For a visual map of how the four scheduled workflows + on-demand `apply` and `onboard` interleave, plus the data flow through the `repo-butler-data` orphan branch, see [`docs/architecture.md`](docs/architecture.md).
+For a visual map of how the scheduled workflows and the on-demand `apply` and `onboard` workflows interleave, plus the data flow through the `repo-butler-data` orphan branch, see [`docs/architecture.md`](docs/architecture.md).
 
-Architecture decisions live in [`docs/decisions/`](docs/decisions/), currently ADR-001 through ADR-014 — read the directory rather than a list here, which goes stale. The ones most likely to constrain a change are the boundary between Repo Butler and the issue triage bot (ADR-001, whose integration half is superseded), the portfolio governance scope (ADR-002), the cross-repo write trust model (ADR-005), agents and execution (ADR-007), and content-transformation writes (ADR-013). Read the relevant ones before proposing changes that cross those boundaries.
+Architecture decisions live in [`docs/decisions/`](docs/decisions/), currently ADR-001 through ADR-015 — read the directory rather than a list here, which goes stale. The ones most likely to constrain a change are the boundary between Repo Butler and the issue triage bot (ADR-001, whose integration half is superseded), the portfolio governance scope (ADR-002), the cross-repo write trust model (ADR-005), agents and execution (ADR-007), and content-transformation writes (ADR-013, with the lockfile refresh under ADR-015). Read the relevant ones before proposing changes that cross those boundaries.
 
 Security expectations and the trust model for the `repo-butler-data` branch and the GitHub App token are documented in [`SECURITY.md`](SECURITY.md).
 
 ## Pull Request Process
 
-Every PR receives automated code review from CodeRabbit and Gemini Code Assist. These reviews typically complete within a few minutes. Please address or respond to all review comments before requesting a merge.
+Every PR receives automated code review from GitHub Copilot, the portfolio's review bot (ADR-009); the earlier CodeRabbit and Gemini Code Assist bots are retired. The review usually lands within a few minutes. Please address or reply to every review comment before requesting a merge.
 
 Your PR should include a brief summary of the change, a test plan, and confirmation that `npm test` passes.
 

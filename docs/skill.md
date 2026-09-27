@@ -22,13 +22,13 @@ Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phas
 
 `GOVERNANCE` — Runs deterministic detectors over the portfolio, producing eight finding types: standards-gap, policy-drift, tier-uplift proposals, tier-regression (a repo's tier fell since the previous weekly snapshot), open-vulnerability (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit), stalled-alert (an open Dependabot alert at or above `medium`, older than 14 days, with no Dependabot PR addressing it), stale-butler-pr (the butler's own unmerged PRs on target repos), and dependabot-stale PR audits. `tier-regression`, `open-vulnerability` and `stalled-alert` are per-repo state findings routed to `executor: 'manual'` — never to the templated-PR path or cross-repo PROPOSE. No LLM cost. Findings persist to `snapshots/governance.json` on the data branch and feed both the IDEATE prompt and the `get_governance_findings` MCP tool. Daily pipeline runs it 4×/day.
 
-`IDEATE` — Generates improvement proposals. Uses deep LLM provider (Claude Sonnet if configured, else falls back to default). Input is snapshot + portfolio context + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
+`IDEATE` — Generates improvement proposals. Uses the deep provider: `providers.deep` if set, otherwise Claude when `CLAUDE_API_KEY` is supplied, otherwise the default provider. This repository's workflows supply no Claude key, so its IDEATE runs on Gemini. Input is snapshot + portfolio context + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
 
-`PROPOSE` — Creates GitHub issues from IDEATE output. Applies Jaccard similarity duplicate detection (threshold 0.6, title word comparison normalized to lowercase). Capped at `config.limits.max_issues_per_run` (default 3). Labels: `roadmap-proposal`, `agent-generated`.
+`PROPOSE` — Creates GitHub issues from IDEATE output. Applies Jaccard similarity duplicate detection (threshold 0.6, title word comparison normalized to lowercase). Capped at `config.limits.max_issues_per_run` (default 3). Labels: `roadmap-proposal`, `agent-generated`. While `config.limits.require_approval` is true (the default) it files nothing and only logs the ideas it would propose.
 
-`REPORT` — Generates per-repo HTML dashboards and a portfolio landing page. Deploys to GitHub Pages. Caches by SHA-256 hash of `snapshot.summary`. Full chart dashboard for repos with 10+ commits; lightweight card for quieter repos. Source: `src/report.js`.
+`REPORT` — Generates per-repo HTML dashboards and a portfolio landing page. Deploys to GitHub Pages as a workflow artifact (the HTML is not stored on the data branch). The cache key is a SHA-256 of `snapshot.summary` plus a daily date-bucket and a hash of the report source files; the daily workflow sets `REPORT_FORCE` on scheduled and push runs, so only a manual dispatch can skip regeneration. Full chart dashboard for repos with 10+ commits; lightweight card for quieter repos. Source: `src/report.js`.
 
-`MONITOR` — Not part of `all`, and not one of the seven. It runs on its own schedule (`.github/workflows/monitor.yml`, every 6 hours) and detects events that landed between pipeline runs — PRs opened, issues filed, CI failures — handing them to the agent council for triage. Source: `src/monitor.js`.
+`MONITOR` — Not one of the seven, though it is the last entry in the `all` phase list. It normally runs on its own schedule (`.github/workflows/monitor.yml`, every 6 hours and on issue/PR events) and detects events that landed between pipeline runs — PRs opened, issues filed, CI failures — handing them to the agent council for triage. Source: `src/monitor.js`.
 
 ---
 
@@ -128,12 +128,12 @@ Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (s
 `options.releaseExempt` waives the 90-day release check for a repo listed in `release_exempt` in `.github/roadmap.yml`, resolved with `isReleaseExempt(name, config)`. Every caller must pass it — a caller that omits it silently reports an exempt repo one tier lower than the rest of the pipeline does. Note also that the release and activity checks are measured against `Date.now()`, so recomputing a tier from an *archived* weekly snapshot re-scores it with today's clock rather than reproducing what that week actually was. The stored `computed.tier` in each weekly snapshot is the historical record, and `get_weekly_trend` reads it rather than re-deriving.
 
 **Gold** — all silver checks pass AND all gold checks pass:
-- `ci >= 2` (2+ CI workflows)
-- `open_issues < 20` (or `open_bugs < 10` when bug counts are available)
+- `ci >= 2` (2+ CI workflows; a `null` count fails)
+- `open_bugs < 10` when bug counts are available, else `open_issues < 20`
 - `released_at` within 90 days, unless `options.releaseExempt`
 - `communityHealth >= 80`
-- `vulns != null` (Dependabot/Renovate configured)
-- `vulns.max_severity` is not `'critical'` or `'high'`
+- at least one of `vulns`, `codeScanning`, `secretScanning` is non-null (a scanner is configured and readable)
+- no configured scanner reports a finding: `vulns.max_severity` and `codeScanning.max_severity` are not `'critical'` or `'high'`, and `secretScanning.count` is 0
 
 **Silver** — all silver checks pass (gold may fail):
 - `license` is truthy and not `'None'`
@@ -159,11 +159,14 @@ Return value: `{ tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed,
 | `commits` | number | search/commits count (last 180 days) |
 | `weekly` | number[] | `/stats/participation` owner slice (last 26 weeks) |
 | `license` | string (SPDX) | repo metadata `.license.spdx_id` |
-| `ci` | number | `/actions/workflows` `.total_count` |
+| `ci` | number\|null | `/actions/workflows` `.total_count`; on a failed read the last known count, else `null` |
 | `communityHealth` | number\|null | `community_profile.health_percentage` (maps from snake_case) |
 | `vulns` | `{ count, max_severity }`\|null | `/dependabot/alerts` (null if inaccessible) |
 | `ciPassRate` | 0-1\|null | `/actions/runs` success ratio (maps from `ci_pass_rate.pass_rate`) |
 | `open_issues` | number | paginated issues filtered `!pull_request` |
+| `open_bugs` | number\|null | open issues with a bug label, excluding `blocked` (null if the issue list could not be read) |
+| `codeScanning` | `{ count, critical, high, medium, low, max_severity }`\|null | code scanning alerts (null if inaccessible) |
+| `secretScanning` | `{ count }`\|null | secret scanning alerts (null if inaccessible) |
 | `sbom` | `{ count, packages[] }`\|null | `/dependency-graph/sbom` |
 | `released_at` | ISO string\|null | latest release `.published_at` |
 | `hasIssueTemplate` | boolean | community profile + `.github/ISSUE_TEMPLATE/` fallback |
@@ -182,11 +185,11 @@ Source: `src/safety.js`. Every phase that writes to GitHub must pass LLM output 
 
 `validateIssueBody(body)` — checks non-empty string, max 8000 chars, URL allowlist (`github.com`, `ismaelmartinez.github.io`), no `@mentions` (except `@repo-butler`, `@dependabot`, `@github-actions`), no blocked patterns.
 
-`validateRoadmap(content)` — checks non-empty string, max 60000 chars, min 100 chars, must contain `#` (markdown heading), URL allowlist, no blocked patterns.
+`validateRoadmap(content)` — checks non-empty string, max 60000 chars, min 100 chars, must contain `#` (markdown heading), URL allowlist (which here also admits `docs.github.com`, `nodejs.org` and `developer.mozilla.org`), no `@mentions`, no blocked patterns.
 
 `validateIdeas(ideas)` — validates an array of idea objects; each idea runs `validateIssueTitle` + `validateIssueBody` + priority check (`'high'|'medium'|'low'`). Returns `{ valid, errors, filtered }` where `filtered` contains only ideas that passed.
 
-`validateProvider(provider)` — async; sends `"Respond with exactly the word OK"` to the LLM and checks the response starts with `OK`. Used before running the full pipeline.
+`validateProvider(provider)` — async; sends `"Respond with exactly the word OK and nothing else."` to the LLM and checks the response starts with `OK`. The exception to the return shape above: it returns `{ valid, error }` with a single string. Used before running the full pipeline.
 
 ---
 
@@ -200,9 +203,9 @@ Source: `src/store.js`. `createStore(context)` returns:
 
 `readWeeklyHistory(weeks?)` — reads up to `weeks` (default 12) weekly snapshots sorted by ISO week key. Returns an array of full snapshot objects, each with `_week: "YYYY-WNN"` added. Nulls are filtered out. Weekly files are sorted alphabetically (ISO week strings sort chronologically), so the array is oldest-first.
 
-`writePortfolioWeekly(portfolio, repoDetails)` / `readRepoWeeklyHistory(repoName, weeks?)` — lightweight per-repo trend data stored in `snapshots/portfolio-weekly/`. Each file is a map of `repoName → { open_issues, commits_6mo, stars }`. Same 12-week cap applies.
+`writePortfolioWeekly(portfolio, repoDetails, config)` / `readRepoWeeklyHistory(repoName, weeks?)` — per-repo trend data stored in `snapshots/portfolio-weekly/`, written by the REPORT phase. Each file is `{ schema_version, repos }`, where `repos` maps a repo name to its tier inputs (open issues and bugs, commits, stars, license, community health, CI, security scanners, release and push dates) plus a `computed` block holding the tier, checks and next step as they stood that week. Same 12-week cap applies.
 
-`readLastHash()` / `writeHash(hash)` — reads/writes `snapshots/hash.txt` for REPORT phase cache invalidation. Hash is SHA-256 of `snapshot.summary`.
+`readLastHash()` / `writeHash(hash)` — reads/writes `snapshots/hash.txt` for REPORT phase cache invalidation. Hash is `computeSnapshotHash`: SHA-256 of `snapshot.summary` plus the date-bucket and template version.
 
 ---
 

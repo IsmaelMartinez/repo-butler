@@ -57,10 +57,6 @@ roadmap:
   path: ROADMAP.md
   compact_after_days: 60
 
-schedule:
-  assess: daily
-  ideate: weekly
-
 providers:
   default: gemini
 
@@ -72,25 +68,17 @@ limits:
   require_approval: true
 ```
 
-The `context` field tells the LLM about your project so it can generate relevant improvement ideas. The `providers.default` field selects the LLM provider (`gemini` for Gemini Flash free tier, `claude` for Claude Sonnet). Setting `require_approval: true` means proposed issues are created with a `needs-approval` label for human review before any action is taken.
+The `context` field tells the LLM about your project so it can generate relevant improvement ideas. The `providers.default` field selects the model for ASSESS and UPDATE (`gemini` for Gemini Flash free tier, `claude` for Claude). IDEATE and MONITOR use `providers.deep` if set, otherwise Claude when a Claude key is supplied, otherwise the default provider; this repository's own workflows supply no Claude key, so every phase here runs on Gemini.
 
-The `schedule` section controls how often each phase runs. Setting `assess: daily` and `ideate: weekly` means the butler checks project health every day but only generates new ideas once a week, keeping noise low.
+`require_approval: true` (the default) holds PROPOSE in dry-run: it logs the issues it would file and creates none, and setting it to `false` lets it file up to `max_issues_per_run`. Governance Apply reads the same key as its master switch the other way round, acting only when it is the boolean `true`, so `false` halts every apply write.
+
+How often each phase runs is decided by the workflows that invoke the action, not by this file; [`docs/architecture.md`](docs/architecture.md#workflow-choreography) describes this repository's own schedule.
 
 The UPDATE phase only ever *appends* to your roadmap — it can add entries but never delete or rewrite them — so without compaction the document would grow forever and eventually fail the 60,000-character safety check. `roadmap.compact_after_days` sets how much full detail to keep: completed `~~SHIPPED~~` subsections older than that are trimmed to a one-line pointer, and older dated entries in the free-prose `## Implemented` section are rolled up to one line per month. The prose always stays in git history. Undated paragraphs are never touched, so evergreen descriptions survive — if you want a paragraph kept verbatim, leave a full `YYYY-MM-DD` date out of it.
 
 ## How it works
 
-Repo Butler follows a seven-phase loop: **OBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT**
-
-- **OBSERVE** gathers project state via the GitHub API (issues, PRs, releases, labels, workflows, roadmap content) and classifies all portfolio repos by activity level. No LLM needed.
-- **ASSESS** diffs the current snapshot against the previous run, computes weekly trends (growing/shrinking/stable), and optionally summarises changes with Gemini Flash.
-- **UPDATE** generates an updated roadmap document, validates it through a safety layer, and opens a PR.
-- **GOVERNANCE** runs deterministic detectors over the portfolio — standards gaps, policy drift, tier-uplift opportunities, tier regressions, open vulnerabilities, stalled security alerts, stale Dependabot PRs, and the butler's own unmerged PRs — and persists findings to the data branch. No LLM cost, so the daily pipeline runs it 4×/day.
-- **IDEATE** generates improvement ideas using an LLM (Claude for deeper reasoning, Gemini Flash as default), feeding off the fresh governance findings.
-- **PROPOSE** safety-filters ideas (URL allowlist, @mention blocking, secret detection), then creates GitHub issues capped at `max_issues_per_run`, sorted by priority, labelled for human review.
-- **REPORT** generates HTML dashboards for every active repo in the portfolio, deployed to GitHub Pages.
-
-For a visual map of how the four scheduled workflows + on-demand `apply` and `onboard` interleave, see [`docs/architecture.md`](docs/architecture.md).
+Repo Butler runs a seven-phase pipeline, OBSERVE → ASSESS → UPDATE → GOVERNANCE → IDEATE → PROPOSE → REPORT, plus a MONITOR phase that triages events between runs. Separately, Governance Apply opens remediation PRs on portfolio repos (on manual dispatch, and on a weekly scheduled run for the finding classes allow-listed in `apply-schedule`), and an onboarding pass adds the Repo Butler section to repos' `CLAUDE.md`. [`docs/architecture.md`](docs/architecture.md) is the canonical description of what each phase does, which workflow runs it and when, and what it writes.
 
 ## Reports
 
@@ -98,7 +86,7 @@ The portfolio page (`index.html`) is the landing page with a stacked weekly comm
 
 Per-repo pages (`{repo-name}.html`) are generated for every active, non-fork, non-test repo. Repos with 10 or more commits in the last 6 months get full charts covering PR merge velocity (12 months), issues opened vs closed (12 months), release cadence, PR author distribution, open issues by label, and weekly trend lines when history is available. Repos with less activity get a lightweight summary card.
 
-Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Caching skips regeneration when the snapshot hash hasn't changed, reducing quiet-day runs from ~15 minutes to seconds.
+Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Scheduled and push runs always regenerate; the snapshot-hash cache lets a manual dispatch skip regeneration when nothing has changed, and per-repo enrichment is cached separately until a repo's last push or open-issue count moves.
 
 ## Quick start
 
@@ -119,7 +107,7 @@ npm run all       # Full pipeline (needs GEMINI_API_KEY)
 
 ## Architecture
 
-Zero external dependencies. Runs on the GitHub Actions `node24` runtime and uses Node's built-in `fetch` for all API calls. The GitHub API client handles rate limiting with automatic retry and backoff. Search API calls are throttled to stay under secondary rate limits. A safety layer validates all LLM output before publishing.
+Zero external dependencies. Runs on the GitHub Actions `node24` runtime and uses Node's built-in `fetch` for all API calls. The GitHub API client handles rate limiting with automatic retry and backoff, and the code prefers list endpoints over the Search API, whose secondary rate limit is far tighter. A safety layer validates all LLM output before publishing.
 
 ```
 src/
@@ -127,11 +115,12 @@ src/
 ├── observe.js            # OBSERVE: GitHub API data gathering + portfolio classification
 ├── assess.js             # ASSESS: snapshot diffing, trend computation, LLM summarisation
 ├── update.js             # UPDATE: roadmap PR generation with safety validation
-├── governance.js         # GOVERNANCE: standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability detection (deterministic)
+├── governance.js         # GOVERNANCE: deterministic detectors for all eight finding types
 ├── dependabot-audit.js   # Stale Dependabot PR detector (called by governance)
 ├── butler-pr-audit.js    # Stale-butler-pr detector: the butler's own PRs nobody landed (called by governance)
 ├── stalled-alert.js      # Stalled-alert detector: open Dependabot alerts with no PR driving them (called by governance)
 ├── trimmer.js            # Parent-scoped npm override decider for transitive vulns (ADR-013; no caller in the write path yet)
+├── lockfile-update.js    # Lockfile refresh apply tool for reachable-by-update alerts (ADR-015)
 ├── private-watch.js      # Private-repo security watch — standalone pass, never enters the governance pipeline
 ├── private-notify.js     # Tracking-issue delivery for private-watch findings
 ├── tier-change.js        # Shared tier-diff core behind G7 regression detection and trend reporting
@@ -144,10 +133,11 @@ src/
 ├── report-portfolio.js   # Portfolio reports, campaigns, dependency inventory
 ├── report-repo.js        # Per-repo charts, health sections, data fetchers
 ├── report-styles.js      # CSS template
-├── apply.js              # Governance Apply: opens remediation PRs on target repos (manual dispatch)
+├── apply.js              # Governance Apply: remediation PRs and settings writes (manual dispatch + weekly allow-listed schedule)
+├── apply-templates.js    # Pure TEMPLATES map of remediation-PR file templates used by apply.js
 ├── council.js            # Agent-council deliberation on proposals and events
 ├── monitor.js            # Continuous event monitoring between daily runs
-├── onboard.js            # Auto-onboarding PRs (CLAUDE.md marker) for new repos
+├── onboard.js            # Onboarding PRs adding the Repo Butler section to a repo's CLAUDE.md
 ├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
 ├── agent-card.js         # A2A AgentCard generator (served at .well-known/agent-card.json)
 ├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths
@@ -164,7 +154,7 @@ docs/
 ├── architecture.md       # Visual pipeline diagram + data flow
 ├── consumer-guide.md     # Repo-owner guide for the per-repo dashboards
 ├── skill.md              # Claude Code skill for AI agent consumption
-├── decisions/            # Architecture Decision Records (ADR-001 through ADR-014)
+├── decisions/            # Architecture Decision Records (ADR-001 through ADR-015)
 ├── research/             # Research notes for open roadmap items
 └── superpowers/          # Implementation plans, kept as a record once executed
 ```
@@ -226,7 +216,7 @@ For A2A-protocol-aware agents, the butler publishes an AgentCard at [`ismaelmart
 
 - Zero dependencies. No `npm install` needed.
 - Generic. Any repo can use it by adding a config file and a workflow.
-- Conservative. Max 3 issues per run, `require_approval` gate enforced, dry-run by default.
+- Conservative. PROPOSE files at most three issues per run, and none while `require_approval` is true; writes to other repos go only through Governance Apply, which is capped per run and, when it runs unattended, limited to allow-listed finding classes.
 - Safe. All LLM output validated before publishing — URL allowlist, @mention blocking, secret detection, XSS prevention.
 - Free to run. GitHub Actions is unlimited for public repos, Gemini Flash free tier for LLM calls.
 - Self-dogfooding. This repo uses itself as its own planner.
