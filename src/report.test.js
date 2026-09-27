@@ -3310,6 +3310,12 @@ describe('shared report predicates', () => {
     assert.equal(res.percentage, 50);
     assert.equal(evaluateCampaign(c, [], details).percentage, 0);
   });
+
+  it('evaluateCampaign rounds the percentage to the nearest integer', () => {
+    const c = CAMPAIGN_DEFS.find(x => x.name === 'CI Reliability');
+    const details = { a: { ciPassRate: 0.95 }, b: { ciPassRate: 0.95 }, c: { ciPassRate: 0.5 } };
+    assert.equal(evaluateCampaign(c, [{ name: 'a' }, { name: 'b' }, { name: 'c' }], details).percentage, 67);
+  });
 });
 
 describe('fetchPortfolioDetails open_bugs (tri-state, cache miss)', () => {

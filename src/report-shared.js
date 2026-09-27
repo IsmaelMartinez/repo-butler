@@ -115,13 +115,6 @@ export function isHighSeverity(summary) {
   return summary?.max_severity === 'critical' || summary?.max_severity === 'high';
 }
 
-// True for an open-vulnerability finding whose Dependabot automated security
-// fixes are not actively driving remediation (ADR-012 Phase 3). autofixEnabled
-// is only ever attached to dependabot-sourced findings (see governance.js), so
-// this check alone is sufficient — no separate sources check needed. Single
-// source of truth for both the MCP get_governance_findings summary count
-// (mcp.js) and the portfolio dashboard's not-driven nudge (report-portfolio.js),
-// so the two never drift apart.
 // Tri-state "is Dependabot actively opening bump PRs" from the raw
 // { enabled, paused } | null state (ADR-012 Phase 3): true when enabled and
 // not paused, false when off or paused, null when the state is unreadable.
@@ -129,6 +122,13 @@ export function autofixActive(state) {
   return state == null ? null : (state.enabled === true && state.paused !== true);
 }
 
+// True for an open-vulnerability finding whose Dependabot automated security
+// fixes are not actively driving remediation (ADR-012 Phase 3). autofixEnabled
+// is only ever attached to dependabot-sourced findings (see governance.js), so
+// this check alone is sufficient — no separate sources check needed. Single
+// source of truth for both the MCP get_governance_findings summary count
+// (mcp.js) and the portfolio dashboard's not-driven nudge (report-portfolio.js),
+// so the two never drift apart.
 export function isAutofixNotDriven(finding) {
   return finding.type === 'open-vulnerability' && finding.autofixEnabled === false;
 }
