@@ -18,7 +18,7 @@
 // is the signal an operator acts on ("a rebase will not fix this"), via the
 // already-tested isDeterministicFailure().
 
-import { REPO_EXCLUSION_PATTERNS } from './report-shared.js';
+import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { APPLY_PR_MARKER, isDeterministicFailure } from './apply-templates.js';
 
 const BRANCH_PREFIX = 'repo-butler/';
@@ -117,18 +117,13 @@ async function classifyPR(gh, owner, repo, pr) {
 export async function auditButlerPRs(gh, owner, repos, { openPRs = null } = {}) {
   if (!Array.isArray(repos)) return [];
 
-  const eligible = repos.filter(r =>
-    !r.archived && !r.fork && !REPO_EXCLUSION_PATTERNS.some(p => r.name.includes(p))
-  );
+  const eligible = eligibleRepos(repos);
 
   const now = Date.now();
 
   const results = await Promise.all(eligible.map(async (repo) => {
     try {
-      const prs = openPRs?.[repo.name] ?? await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
-        params: { state: 'open', sort: 'created', direction: 'asc' },
-        max: 100,
-      });
+      const prs = await listOpenPRs(gh, owner, repo.name, openPRs);
       if (!Array.isArray(prs)) return null;
 
       const stale = [];

@@ -2,7 +2,7 @@
 // days across portfolio repos. Returns findings in the standard governance shape
 // for integration into the IDEATE prompt and governance dashboard.
 
-import { REPO_EXCLUSION_PATTERNS } from './report-shared.js';
+import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 
 const STALE_THRESHOLD_DAYS = 30;
 const HIGH_PRIORITY_DAYS = 60;
@@ -20,18 +20,13 @@ const HIGH_PRIORITY_DAYS = 60;
  * @returns {Array} findings of type 'dependabot-stale'
  */
 export async function auditDependabot(gh, owner, repos, { openPRs = null } = {}) {
-  const eligible = repos.filter(r =>
-    !r.archived && !r.fork && !REPO_EXCLUSION_PATTERNS.some(p => r.name.includes(p))
-  );
+  const eligible = eligibleRepos(repos);
 
   const now = Date.now();
 
   const results = await Promise.all(eligible.map(async (repo) => {
     try {
-      const prs = openPRs?.[repo.name] ?? await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
-        params: { state: 'open', sort: 'created', direction: 'asc' },
-        max: 100,
-      });
+      const prs = await listOpenPRs(gh, owner, repo.name, openPRs);
 
       const stalePRs = [];
       for (const pr of prs) {
