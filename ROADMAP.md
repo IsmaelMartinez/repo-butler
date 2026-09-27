@@ -119,6 +119,10 @@ Core agent logic refactored for pure module extraction and shared predicates shi
 
 Robust numeric error handling for scheduler resiliency shipped 2026-09-27 (PR #446). Replaces fragile error string parsing with robust validation of numeric error statuses (`err.status`) in the scheduler branch logic, preventing silent automation failures and hardening the agent's scheduled execution loop.
 
+GitHub Contents API 1 MB ceiling workaround shipped 2026-09-27 (PR #451). Resolves a critical scalability issue for repositories with large cache files by switching to the Blob API to read the `repo-cache.json` snapshot database, ensuring reliable state tracking across larger portfolios.
+
+Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450). Reduces technical debt and optimizes the scheduled apply path by moving the `runApply` routine out of the main index and consolidating shared `eligibleRepos` and `listOpenPRs` predicates across the active governance audits.
+
 ---
 
 ## Next Up
