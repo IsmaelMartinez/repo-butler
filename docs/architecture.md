@@ -19,8 +19,9 @@ planner.
 
 The whole system fits in one picture. Schedules trigger the pipeline; the
 pipeline reads and writes a single orphan branch that acts as its database; the
-report deploys to Pages; and external agents read the same data through MCP. A
-single safety boundary sits in front of what gets published to GitHub.
+REPORT output is uploaded straight to Pages as a workflow artifact; and external
+agents read the branch through MCP. A single safety boundary sits in front of
+what gets published to GitHub.
 
 ```mermaid
 flowchart LR
@@ -28,7 +29,7 @@ flowchart LR
         D["Daily ×4<br/>+ push"]
         W["Weekly"]
         M["Monitor 6h"]
-        A["Apply<br/>(manual)"]
+        A["Apply<br/>(manual + weekly)"]
     end
     P["Seven-phase pipeline<br/>OBSERVE → … → REPORT<br/>+ agent council"]
     DB[("repo-butler-data<br/>orphan branch")]
@@ -45,7 +46,7 @@ flowchart LR
     A --> GH
     P <--> DB
     P --> SF --> GH
-    DB --> PG
+    P -- "Pages artifact" --> PG
     DB --> MCP --> AG
     PG -. "discovery (agent-card)" .-> AG
 
@@ -84,8 +85,9 @@ Dependabot alerts, and stale Dependabot PRs — and persists the findings. `IDEA
 generates improvement ideas with the deep model, feeding off freshly-detected
 governance findings, then convenes the agent council to deliberate. `PROPOSE`
 runs the approved ideas through the safety layer and files them as GitHub issues,
-capped and labelled for human review. `REPORT` builds the HTML dashboards and the
-A2A AgentCard and hands them to the Pages deploy. `MONITOR` is separate: it
+capped and labelled, but only when `limits.require_approval` is `false`; while it
+is `true` (the default, and this repository's setting) PROPOSE logs what it would
+file and creates nothing. `REPORT` builds the HTML dashboards and the A2A AgentCard and hands them to the Pages deploy. `MONITOR` is separate: it
 detects events that happen between scheduled runs and feeds them to the council
 for triage.
 
@@ -96,9 +98,11 @@ validates the LLM provider, then loops the selected phases calling each module's
 downstream phase sees whatever upstream phases attached to it (the snapshot, the
 portfolio classification, the ideas, and so on). Two design choices in the
 dispatcher are worth calling out. Each phase runs the right model for its job —
-`IDEATE` and `MONITOR` get the deep provider (Claude) for harder reasoning, while
-`ASSESS` and `UPDATE` use the default provider (Gemini Flash). And `runPhases`
-isolates failures per phase: an exception in one phase logs loudly and sets a
+`IDEATE` and `MONITOR` get the deep provider, while `ASSESS` and `UPDATE` use the
+default provider (Gemini Flash). The deep provider is `providers.deep` if set,
+otherwise Claude when a Claude key is supplied, otherwise the default; this
+repository's workflows supply no Claude key, so in practice every phase here runs
+on Gemini. And `runPhases` isolates failures per phase: an exception in one phase logs loudly and sets a
 non-zero exit code but does not skip the phases after it, so a flaky upstream
 step can never silently swallow `REPORT` and turn the Pages deploy into a no-op.
 
@@ -122,7 +126,7 @@ flowchart TB
         d1["OBSERVE"] --> d2["ASSESS"] --> d3["UPDATE"] --> d4["GOVERNANCE<br/>deterministic · no LLM"] --> d5["REPORT"]
     end
     subgraph Weekly["Weekly (Mon, dry-run) — the expensive LLM run"]
-        w1["OBSERVE"] --> w2["IDEATE<br/>(Claude)"] --> w3["COUNCIL<br/>5 personas · deliberation only"]
+        w1["OBSERVE"] --> w2["IDEATE<br/>(deep provider)"] --> w3["COUNCIL<br/>5 personas · deliberation only"] --> w4["PROPOSE<br/>dry-run · files no issues"]
     end
     note["GOVERNANCE detection is pure JS, so IDEATE<br/>re-runs it fresh — cheap to repeat, no handoff needed"]
     d4 -.-> note
@@ -132,6 +136,7 @@ flowchart TB
     classDef llm fill:#fef3c7,stroke:#b8860b;
     class d1,d4,d5 det;
     class w2,w3 llm;
+    class w4 det;
 ```
 
 Because detection is cheap, the weekly `IDEATE` re-runs it from scratch rather
@@ -140,29 +145,33 @@ in-process idempotency guard — it skips re-detection when findings are already
 `context` (for example during an `--phase=all` run where the governance phase ran
 before ideate), not by reading the daily `governance.json` back off the branch.
 The persisted `governance.json` is consumed by the dashboard, the MCP tools, and
-the apply workflow, not by weekly ideation. On top of that, `REPORT` is cached:
-its key is a SHA-256 over the snapshot summary plus a daily date-bucket and a hash
-of the report source files, so a changed metric, a new day, or a CSS tweak each
-force regeneration while an otherwise-identical run skips it — taking a quiet day
-from roughly fifteen minutes down to seconds.
+the apply workflow, not by weekly ideation. On top of that, `REPORT` has a
+cache: its key is a SHA-256 over the snapshot summary plus a daily date-bucket and
+a hash of the report source files, so a changed metric, a new day, or a CSS tweak
+each force regeneration. Only a manual dispatch honours it, though. The daily
+workflow sets `REPORT_FORCE` on scheduled and push runs so every one of them
+redeploys, and the saving meant to matter on those runs is the per-repo
+enrichment cache described below — which currently never hits, because
+`repo-cache.json` has outgrown the 1 MB Contents API read (#449).
 
 ### The data branch is the database
 
 There is no database and no server. All persistent state lives on a single orphan
 branch, `repo-butler-data`. The Git Data API (blobs → trees → commits → ref) is
 used once, to create that branch on the first run; after that the pipeline reads
-and writes its files through the Contents API. The same workflow run that writes
-the branch also deploys the reports to Pages, and the MCP server reads the branch
-back with `git show` — so most agent queries hit no live GitHub API at all.
+and writes its files through the Contents API. The HTML reports are not stored
+there: the same workflow run uploads them to Pages as a build artifact. The MCP
+server reads the branch back with `git show`, so most agent queries hit no live
+GitHub API at all.
 
 ```mermaid
 flowchart LR
     subgraph Pipeline["Pipeline phases"]
-        wr["OBSERVE / ASSESS /<br/>GOVERNANCE / REPORT"]
+        wr["OBSERVE / UPDATE / GOVERNANCE /<br/>IDEATE / PROPOSE / MONITOR / REPORT"]
     end
-    wr -- "Contents API<br/>(Git Data API only creates the branch)" --> DB[("repo-butler-data<br/>snapshots/ + reports/")]
+    wr -- "Contents API<br/>(Git Data API only creates the branch)" --> DB[("repo-butler-data<br/>snapshots/")]
     DB -- "git show" --> MCP["MCP server"]
-    DB -- "deploy" --> PG["Pages dashboards"]
+    wr -- "REPORT: Pages artifact" --> PG["Pages dashboards"]
     MCP --> AG["AI agents"]
 
     classDef store fill:#eef,stroke:#557;
@@ -225,34 +234,48 @@ considered verdict rather than an immediate alert.
 
 ## Workflow choreography
 
-Four scheduled workflows and two on-demand ones interleave to keep the portfolio
-observed, governed, and remediated.
+Four scheduled workflows and two dispatch-only ones interleave to keep the
+portfolio observed, governed, and remediated.
 
 | Workflow | Trigger | Runs | Produces |
 |----------|---------|------|----------|
 | `self-test.yml` (daily) | cron 07/11/16/20 UTC + push | observe → assess → update → governance → report, then auto-onboard | snapshot, trends, roadmap PR, `governance.json`, dashboards |
 | `weekly-ideate.yml` | cron Mon 06:00 UTC | observe → ideate → propose (dry-run; council deliberates inside ideate) | council verdicts + watchlist + a `snapshots/propose-soak.json` ledger entry (no issues filed here) |
-| `monitor.yml` | cron every 6h | monitor → council triage | `monitor-events.json` (read via MCP) |
-| `apply.yml` | manual dispatch only | read `governance.json` → open remediation PRs | up to 5 PRs/run on target repos |
+| `monitor.yml` | cron every 6h + issue/PR opened or labelled, PR ready for review | monitor → council triage | `monitor-cursor.json` (read by `get_monitor_events`) |
+| `apply-scheduled.yml` | cron Sun 05:00 UTC (live) + manual dispatch (dry-run by default) | read `governance.json` → act only on classes in `apply-schedule`, then auto-merge its own green PRs for classes in `apply-automerge` | up to 5 PRs/run, the Copilot-ruleset settings write, stale-Dependabot nudges |
+| `apply.yml` | manual dispatch only | read `governance.json` → open remediation PRs or settings writes for the named `tools` | up to 5 PRs/run on target repos |
+| `onboard.yml` | manual dispatch only (`repos` input) | onboard the named repos | onboarding PRs adding the Repo Butler section to `CLAUDE.md` |
 
 The daily/weekly split is the cost choreography from above made concrete: cheap
 deterministic governance every few hours, the expensive LLM ideation and council
 once a week — and because that weekly run is dry-run by default, it deliberates
-without filing issues (`PROPOSE` files issues only on a non-dry-run run). The
-`apply` workflow is deliberately dispatch-only and never on cron — it is the one
-workflow that opens PRs on other people's repositories, so it stays manual,
-dry-run by default, capped at five PRs per run, and gated per finding-class behind
-an allow-list. The supporting workflows are routine: `ci.yml` runs the tests plus
-a secret-leak grep on every push and PR, `codeql.yml` is the standard CodeQL scan,
-`dependabot-auto-merge.yml` merges green non-major dependency bumps, and
-`onboard.yml` opens onboarding PRs (adding the consumer-guide section to
-`CLAUDE.md`) on any repo that lacks the marker, both on dispatch and via the
-GitHub App installation webhook.
+without filing issues (`PROPOSE` files issues only on a non-dry-run run with
+`require_approval: false`). Governance Apply is the path that opens PRs on other
+repositories, and it runs two ways. `apply.yml` is dispatch-only and dry-run by
+default, and acts on whatever `tools` the operator names. `apply-scheduled.yml`
+runs live every Sunday without a human at dispatch, but only for the finding
+classes promoted in the `apply-schedule` allow-list, and it is where the butler
+merges its own work: on the real cron it squash-merges its own green templated
+PRs for the classes listed in `apply-automerge`, while a hands-on dispatch opens
+PRs without merging unless the operator names `tools=automerge`. Both share the ADR-005 gates,
+namely `require_approval` as master switch, a per-run cap of five, and repo-name
+validation, and both skip a repo whose apply PR is open or was closed unmerged
+within the cooldown. Onboarding also runs two ways: the daily workflow's live runs
+end with an auto-onboard pass over active repos that lack the marker, and
+`onboard.yml` onboards the repos named in its `repos` input. There is no
+installation webhook. Either way, a closed-unmerged onboarding PR suppresses a
+re-open for thirty days. The supporting workflows are routine: `ci.yml` runs the
+tests on every push and PR with floors on the test and test-file counts (so a
+suite that stops registering fails rather than passing quietly) plus a
+secret-leak grep, `codeql.yml` and `osv-scanner.yml` are the code and dependency
+scans, `dependabot-auto-merge.yml` merges green non-major dependency bumps, and
+`release.yml` cuts a patch release when the last one is sixty days old and
+unreleased commits exist.
 
 Alongside the templated-PR path, `apply` carries two **PR-less settings writes** —
 a modality with no reviewable diff, so each has its own trust ADR. Enabling the
-Copilot review ruleset (ADR-009) is *promotable* onto the scheduled path via the
-`apply-schedule` allow-list. Enabling GitHub's Dependabot automated security fixes
+Copilot review ruleset (ADR-009) was promoted onto the scheduled path via the
+`apply-schedule` allow-list on 2026-07-13. Enabling GitHub's Dependabot automated security fixes
 (ADR-012) is fenced far tighter: because flipping it on delegates autonomous PR
 generation to GitHub (a bump burst outside the per-run cap, on an un-name-guardable
 flag), it is **manual-dispatch only and off the `apply-schedule` allow-list by
@@ -301,19 +324,22 @@ Everything the butler remembers is laid out under two top-level directories on t
 ```
 repo-butler-data branch:
   snapshots/
-    latest.json               ← OBSERVE writes (current snapshot)
-    weekly/YYYY-Www.json      ← ASSESS appends (12-week rolling cap)
-    portfolio-weekly/…json    ← OBSERVE writes (per-week portfolio shape)
+    latest.json               ← current snapshot (OBSERVE, or UPDATE once it has recorded the diff)
+    previous.json             ← the snapshot latest.json replaced
+    weekly/YYYY-Www.json      ← written alongside latest.json (12-week rolling cap)
+    portfolio-weekly/…json    ← REPORT writes (per-week portfolio shape + stored tier)
     governance.json           ← GOVERNANCE writes (4×/day, may be an empty array)
+    governance-weekly/…json   ← GOVERNANCE writes (per-week findings, for trends)
+    watchlist.json            ← IDEATE writes (council watch verdicts, max 100)
+    propose-soak.json         ← PROPOSE appends (routing records, max 26)
     monitor-cursor.json       ← MONITOR writes (last-seen event marker + counts)
-    repo-cache.json           ← OBSERVE/REPORT cache (per-repo enrichment)
+    repo-cache.json           ← REPORT's per-repo enrichment cache
     hash.txt                  ← REPORT cache key (snapshot + date + template hash)
-  reports/                    ← REPORT writes, deployed to GitHub Pages
-    index.html                ← portfolio dashboard
-    {repo}.html               ← per-repo dashboards
-    .well-known/
-      agent-card.json         ← A2A AgentCard for capability discovery
 ```
+
+The dashboards themselves (`index.html`, `digest.html`, `{repo}.html`, the tier
+badges and `.well-known/agent-card.json`) are written to a local `reports/`
+directory and uploaded as the Pages artifact; they never touch this branch.
 
 `src/store.js` owns all of this. It creates the orphan branch on first run (the
 one place it uses the Git Data API), then reads and writes the files above through
@@ -361,7 +387,7 @@ orchestration around it — snapshot persistence, governance detection, council
 deliberation, storing results back on `context` for downstream phases. Adding a
 phase means writing the module, exporting its `runX`, and registering it in
 `PHASE_RUNNERS` — and in `PHASES` too if it should run under `--phase=all`
-(`apply` is deliberately kept out of `PHASES` so it stays dispatch-only).
+(`apply` is deliberately kept out of `PHASES` so it never runs under `--phase=all`).
 
 One pass sits deliberately outside all of that. `src/private-watch.js` reads each
 private repo's security alerts and delivers acute findings to a tracking issue on
@@ -381,7 +407,7 @@ A few rules keep the boundaries clean. `src/safety.js` is the only file allowed 
 interpolate untrusted data into prompts or GitHub-bound output; everything else
 routes through it. New GitHub API fetchers go in `observe.js` following the
 existing try/catch-and-return-null pattern. New remediation templates for
-Governance Apply go in the `TEMPLATES` map in `apply.js`. New MCP tools go in
+Governance Apply go in the `TEMPLATES` map in `apply-templates.js`. New MCP tools go in
 `mcp.js` next to their data-branch read. And no module constructs its own `fetch`
 calls — the custom client in `src/github.js` (`createClient(token)`) is used
 everywhere, because it handles rate limiting with exponential backoff on 429/403
@@ -398,7 +424,7 @@ and provides `request`, `paginate`, `getFileContent`, `listDir`, `putFile`, and
   cross-repo proposal destinations and portfolio-informed generic proposals
   (ADR-010, ADR-011); the Dependabot security-updates settings write (ADR-012);
   the content-transformation trust model that the trimmer breaks ADR-005's
-  fixed-string invariant under (ADR-013); and why there is no programmatic
-  Dependabot rescan (ADR-014).
+  fixed-string invariant under (ADR-013); why there is no programmatic
+  Dependabot rescan (ADR-014); and the lockfile-refresh write (ADR-015).
 - `docs/consumer-guide.md` — the repo-owner's guide to reading a per-repo
   dashboard.

@@ -36,7 +36,7 @@ export async function hasOnboardingMarker(gh, owner, repo) {
 
 const CONSUMER_GUIDE_SECTION = `## Repo Butler
 
-This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler), a portfolio health agent that observes repo health daily and generates dashboards, governance proposals, and tier classifications.
+This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler), a portfolio health agent that observes repo health four times a day and generates dashboards, governance findings, and tier classifications.
 
 **Your report:** https://ismaelmartinez.github.io/repo-butler/{REPO_NAME}.html
 **Portfolio dashboard:** https://ismaelmartinez.github.io/repo-butler/
@@ -50,7 +50,7 @@ To query your repo's health tier, governance findings, and portfolio data from a
 claude mcp add repo-butler node /path/to/repo-butler/src/mcp.js
 \`\`\`
 
-Available tools: \`get_health_tier\`, \`get_campaign_status\`, \`query_portfolio\`, \`get_snapshot_diff\`, \`get_governance_findings\`, \`trigger_refresh\`.
+Available tools: \`get_health_tier\`, \`get_campaign_status\`, \`query_portfolio\`, \`get_snapshot_diff\`, \`get_governance_findings\`, \`trigger_refresh\`, \`get_monitor_events\`, \`get_watchlist\`, \`get_council_personas\`, \`get_weekly_trend\`, \`get_open_governance_prs\`, \`list_stale_dependabot_prs\`.
 
 When working on health improvements, check the per-repo report for the current tier checklist and use the consumer guide for fix instructions.
 
