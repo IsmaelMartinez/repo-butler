@@ -479,13 +479,15 @@ export const APPLY_DECLINE_COOLDOWN_DAYS = 30;
  * about here — the open-PR check has already run, so the worst case is one
  * duplicate PR attempt against an existing branch rather than a silently
  * disabled standard.
+ *
+ * `cooldownDays` lets onboard.js apply the same decline rule on its own clock.
  */
-export function isRecentlyDeclined(pr, now = Date.now()) {
+export function isRecentlyDeclined(pr, now = Date.now(), cooldownDays = APPLY_DECLINE_COOLDOWN_DAYS) {
   if (!pr || pr.state !== 'closed' || pr.merged_at) return false;
   const closedAt = new Date(pr.closed_at ?? '').getTime();
   if (Number.isNaN(closedAt)) return false;
   const age = now - closedAt;
-  return age >= 0 && age <= APPLY_DECLINE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+  return age >= 0 && age <= cooldownDays * 24 * 60 * 60 * 1000;
 }
 
 /**
@@ -580,22 +582,38 @@ export function validateFindings(findings) {
   return valid;
 }
 
+// The ADR-005 master switch: true only for the boolean `true`. The hand-rolled
+// YAML parser passes a quoted `"false"` (and `no`, `False`) through as a string,
+// which is truthy, so a truthiness test would read the halt switch as go. On
+// refusal the log names the received TYPE, never the value, so a quoted
+// `"true"` that now stops a scheduled run says why without echoing config.
+export function requireApprovalGate(config, label) {
+  const value = config?.limits?.require_approval;
+  if (value === true) return true;
+  const kind = value === null ? 'null' : typeof value;
+  console.error(`${label}: config.limits.require_approval is not the boolean true (received ${kind}) — refusing to run`);
+  return false;
+}
+
+// Coerce a configured cap to a positive integer, else the fallback — a
+// non-numeric YAML typo, null, negative or zero can never silently defer every
+// write, nor lift the cap. Pure function.
+export function positiveCap(raw, fallback = 5) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 // Cap (repo, tool) pairs per tool: each tool keeps at most its own cap, which is
 // the `apply-cap` override for that tool when set, else the global default. Order
 // is preserved so the kept pairs match the input ordering. Pure function.
 export function capPerTool(pairs, applyCap, globalCap) {
-  // Coerce a configured cap to a positive integer; fall back to the global cap
-  // for anything malformed (a non-numeric YAML typo, null, negative, zero), so a
-  // bad config entry can never silently defer every PR for a tool.
-  const toCap = (raw, fallback) => {
-    const n = Number(raw);
-    return Number.isInteger(n) && n > 0 ? n : fallback;
-  };
-  const globalEffective = toCap(globalCap, 5);
+  // A malformed per-tool entry falls back to the global cap, so a bad config
+  // entry can never silently defer every PR for a tool.
+  const globalEffective = positiveCap(globalCap);
   const kept = [];
   const countByTool = {};
   for (const p of pairs) {
-    const cap = toCap(applyCap?.[p.tool], globalEffective);
+    const cap = positiveCap(applyCap?.[p.tool], globalEffective);
     const used = countByTool[p.tool] || 0;
     if (used < cap) {
       kept.push(p);
@@ -619,8 +637,7 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
   const { dryRun, maxPerRun = 5, tools, scheduled } = options;
 
   // Require approval gate
-  if (!config?.limits?.require_approval) {
-    console.error('apply: config.limits.require_approval is not true — refusing to run');
+  if (!requireApprovalGate(config, 'apply')) {
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
@@ -848,7 +865,7 @@ const NUDGE_DEDUP_DAYS = 7;
 // From dependabot-stale findings, pick the single oldest stale PR per repo,
 // validate the repo name, sort most-stale first, and cap. Pure function.
 export function selectNudgeTargets(findings, maxPerRun = 5) {
-  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const cap = positiveCap(maxPerRun);
   const targets = [];
   for (const f of Array.isArray(findings) ? findings : []) {
     if (!f || f.type !== 'dependabot-stale') continue;
@@ -967,8 +984,7 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
   // Gate 3: require_approval master switch.
-  if (!config?.limits?.require_approval) {
-    console.error('nudge: config.limits.require_approval is not true — refusing to run');
+  if (!requireApprovalGate(config, 'nudge')) {
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
@@ -1074,7 +1090,7 @@ export function buildCopilotReviewRuleset() {
 // From code-review-bot standards-gap findings, collect the non-compliant repos,
 // validate names (gate 5), dedup, and cap (gate 4). Pure function.
 export function selectCopilotReviewTargets(findings, maxPerRun = 5) {
-  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const cap = positiveCap(maxPerRun);
   const repos = [];
   for (const f of Array.isArray(findings) ? findings : []) {
     if (!f || f.type !== 'standards-gap' || f.tool !== 'code-review-bot') continue;
@@ -1094,8 +1110,7 @@ export async function applyCopilotReviewRulesets(gh, owner, findings, config, op
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
   // Gate 3: require_approval master switch.
-  if (!config?.limits?.require_approval) {
-    console.error('copilot-review: config.limits.require_approval is not true — refusing to run');
+  if (!requireApprovalGate(config, 'copilot-review')) {
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
@@ -1233,7 +1248,7 @@ export async function removeCopilotReviewRuleset(gh, owner, repo) {
 // security updates cannot fix those (they need a code change or a secret rotation),
 // so only dependabot-sourced findings are actionable here.
 export function selectDependabotSecurityTargets(findings, maxPerRun = 5) {
-  const cap = Number.isInteger(Number(maxPerRun)) && Number(maxPerRun) > 0 ? Number(maxPerRun) : 5;
+  const cap = positiveCap(maxPerRun);
   const repos = [];
   for (const f of Array.isArray(findings) ? findings : []) {
     if (!f || f.type !== 'open-vulnerability') continue;
@@ -1251,8 +1266,7 @@ export async function applyDependabotSecurityUpdates(gh, owner, findings, config
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
   // Gate 3: require_approval master switch.
-  if (!config?.limits?.require_approval) {
-    console.error('dependabot-security: config.limits.require_approval is not true — refusing to run');
+  if (!requireApprovalGate(config, 'dependabot-security')) {
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
@@ -1393,8 +1407,7 @@ export async function disableDependabotSecurityUpdates(gh, owner, findings, conf
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
   // Gate 3: require_approval master switch.
-  if (!config?.limits?.require_approval) {
-    console.error('dependabot-security-off: config.limits.require_approval is not true — refusing to run');
+  if (!requireApprovalGate(config, 'dependabot-security-off')) {
     return { status: 'refused', reason: 'require_approval not set' };
   }
 
@@ -1470,8 +1483,7 @@ export async function autoMergeGovernancePRs(gh, owner, findings, config, option
 
   // Master operating gate / system-wide kill switch (see header). Refuse unless
   // require_approval is true, exactly like every other apply action.
-  if (!config?.limits?.require_approval) {
-    console.error('automerge: config.limits.require_approval is not true — refusing to run');
+  if (!requireApprovalGate(config, 'automerge')) {
     return { status: 'refused', reason: 'require_approval not set' };
   }
 

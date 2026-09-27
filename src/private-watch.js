@@ -148,6 +148,10 @@ export async function runPrivateWatch(context) {
   const gh = createClient(token, { redactPaths: true });
 
   const allFindings = [];
+  // Repos whose three alert sources all answered. Only these can be called
+  // clean: a null source is unknown, and it may be exactly where the alert that
+  // opened the tracking issue lives, so a partial read keeps the issue open.
+  const fullyRead = [];
   for (const repo of privateRepos) {
     const name = repo.name;
     const [dependabot, codeScanning, secretScanning] = await Promise.all([
@@ -161,6 +165,7 @@ export async function runPrivateWatch(context) {
     ]);
 
     if (dependabot === null && codeScanning === null && secretScanning === null) result.unreadable++;
+    if (dependabot !== null && codeScanning !== null && secretScanning !== null) fullyRead.push(name);
 
     const findings = buildPrivateFindings(name, { dependabot, codeScanning, secretScanning });
     if (findings.length > 0) result.withFindings++;
@@ -172,7 +177,7 @@ export async function runPrivateWatch(context) {
   const notified = await notifyPrivateFindings(gh, owner, allFindings, { dryRun });
   result.notified = notified.notified;
   result.closed = await closeResolvedPrivateIssues(
-    gh, owner, privateRepos.map(r => r.name), allFindings, { dryRun },
+    gh, owner, fullyRead, allFindings, { dryRun },
   );
 
   return result;
