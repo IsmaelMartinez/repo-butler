@@ -560,7 +560,7 @@ async function readFileAtRef(gh, owner, repo, path, ref) {
   try {
     data = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, { params: { ref } });
   } catch (err) {
-    if (err.message?.includes(': 404')) return null;
+    if (err.status === 404) return null;
     throw err;
   }
   if (typeof data?.content === 'string' && data.content.length > 0) {
@@ -689,7 +689,7 @@ async function openPullRequest(gh, owner, repo, { branchName, defaultBranch, bas
     // open PRs before resetting anything: a force-reset here would push this
     // run's lockfile over the other run's open PR. An unreadable re-check
     // throws, so it fails closed — no reset on an unknown state.
-    if (!err.message?.includes('422')) throw err;
+    if (err.status !== 422) throw err;
     const open = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
       params: { state: 'open', head: `${owner}:${branchName}`, per_page: 10 },
       max: 10,

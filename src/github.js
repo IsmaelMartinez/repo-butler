@@ -31,6 +31,12 @@ export function redactRepoPath(path) {
 export function createClient(token, options = {}) {
   const redactPaths = !!options.redactPaths;
   const safePath = p => (redactPaths ? redactRepoPath(p) : p);
+  // Errors carry the HTTP status as `err.status` (a number) so callers branch
+  // on it rather than on the message, whose tail is the server-controlled
+  // response body and can mention any status at all. Only the number is
+  // attached — never the path or body — so a redacting client leaks nothing
+  // through it that its message does not already withhold.
+  const httpError = (message, status) => Object.assign(new Error(message), { status });
   const headers = {
     'Accept': 'application/vnd.github+json',
     'Authorization': `Bearer ${token}`,
@@ -70,9 +76,9 @@ export function createClient(token, options = {}) {
             // 403-permission is the LIKELIEST error against a private repo (a
             // token missing vulnerability_alerts scope, say), so this throw is
             // the one that most needs redacting.
-            throw new Error(redactPaths
+            throw httpError(redactPaths
               ? `GitHub API ${method} ${safePath(path)}: ${res.status}`
-              : `GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+              : `GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`, res.status);
           }
         }
 
@@ -95,9 +101,9 @@ export function createClient(token, options = {}) {
         // The response body is dropped when redacting: GitHub error bodies echo
         // the requested path (and sometimes the repo's full_name) back, so
         // including it would defeat the path redaction above.
-        throw new Error(redactPaths
+        throw httpError(redactPaths
           ? `GitHub API ${method} ${safePath(path)}: ${res.status}`
-          : `GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+          : `GitHub API ${method} ${path}: ${res.status} ${text.slice(0, 200)}`, res.status);
       }
 
       // Settings writes such as PUT/DELETE automated-security-fixes and
@@ -108,6 +114,8 @@ export function createClient(token, options = {}) {
       return res.json();
     }
 
+    // Deliberately no `status`: this is a rate limit, not an answer, and must
+    // not read as the 403 "not available" a caller may treat as a real reply.
     throw new Error(`GitHub API ${method} ${safePath(path)}: rate limited after 3 retries`);
   }
 
@@ -170,7 +178,7 @@ export function createClient(token, options = {}) {
           const existing = await request(apiPath, branch ? { params: { ref: branch } } : undefined);
           resolvedSha = existing.sha;
         } catch (err) {
-          if (err.message?.includes(': 404')) {
+          if (err.status === 404) {
             // File doesn't exist — first write.
             resolvedSha = undefined;
           } else {
@@ -194,7 +202,7 @@ export function createClient(token, options = {}) {
         // On 409 conflict, retry once with a fresh sha lookup. If the caller
         // passed an explicit sha, the retry must also re-discover (a stale
         // explicit sha is exactly the conflict case worth retrying).
-        if (attempt === 0 && err.message?.includes(': 409')) {
+        if (attempt === 0 && err.status === 409) {
           sha = undefined;
           continue;
         }

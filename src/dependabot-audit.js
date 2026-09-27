@@ -52,7 +52,7 @@ export async function auditDependabot(gh, owner, repos, { openPRs = null } = {})
         priority: maxAge > HIGH_PRIORITY_DAYS ? 'high' : 'medium',
       };
     } catch (err) {
-      if (err.message?.includes(': 403') || err.message?.includes(': 404')) {
+      if (err.status === 403 || err.status === 404) {
         console.log(`dependabot-audit: skipping ${repo.name} (${err.message.slice(0, 80)})`);
       }
       return null;

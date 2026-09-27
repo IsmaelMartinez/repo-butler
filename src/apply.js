@@ -786,7 +786,7 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
       // The Contents API 404s on an empty repo root: that is a real "no
       // manifests exist" answer, so gate every manager out rather than
       // falling back to an ecosystem default. Other errors leave null.
-      if (err.message?.includes(': 404')) rootFiles = [];
+      if (err.status === 404) rootFiles = [];
     }
   }
 
@@ -804,7 +804,7 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
     });
   } catch (err) {
     // 422 means the ref already exists — update it; rethrow anything else
-    if (!err.message?.includes('422')) throw err;
+    if (err.status !== 422) throw err;
     await gh.request(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, {
       method: 'PATCH',
       body: { sha: ref.object.sha, force: true },
@@ -1576,7 +1576,7 @@ export async function autoMergeGovernancePRs(gh, owner, findings, config, option
         // was checked — not an error, just not-ready. Skip (recording the PR
         // number for auditability) and let the next reconcile pass retry; re-throw
         // anything else to the per-candidate catch below.
-        if (err.message?.includes(': 409')) {
+        if (err.status === 409) {
           results.push({ repo, tool, number: pr.number, status: 'skipped', reason: 'head advanced since CI (409)' });
           continue;
         }

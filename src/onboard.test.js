@@ -68,7 +68,7 @@ describe('hasOnboardingMarker (G9 cross-repo precondition)', () => {
 describe('onboardRepo decline and unreadable-file guards', () => {
   const DAY = 24 * 60 * 60 * 1000;
   const daysAgo = (d) => new Date(Date.now() - d * DAY).toISOString();
-  const notFound = () => { throw new Error('GitHub API GET /repos/o/r/contents/CLAUDE.md: 404 Not Found'); };
+  const notFound = () => { throw Object.assign(new Error('GitHub API GET /repos/o/r/contents/CLAUDE.md: 404 Not Found'), { status: 404 }); };
   const b64 = (s) => Buffer.from(s).toString('base64');
 
   // A client double that records every write. `file` is the contents-API
@@ -136,7 +136,7 @@ describe('onboardRepo decline and unreadable-file guards', () => {
   });
 
   it('reports error and writes nothing when the PR history read throws', async () => {
-    const gh = fakeGh({ prs: () => { throw new Error('GitHub API GET /repos/o/r/pulls: 403'); } });
+    const gh = fakeGh({ prs: () => { throw Object.assign(new Error('GitHub API GET /repos/o/r/pulls: 403'), { status: 403 }); } });
     const result = await onboardRepo(gh, 'o', 'r');
     assert.deepEqual(result, { status: 'error', reason: 'PR history unreadable' });
     assert.deepEqual(gh.writes, []);
@@ -153,7 +153,7 @@ describe('onboardRepo decline and unreadable-file guards', () => {
   });
 
   it('refuses, with no write, when the CLAUDE.md read fails for a reason other than 404', async () => {
-    const gh = fakeGh({ file: () => { throw new Error('GitHub API GET /repos/o/r/contents/CLAUDE.md: 500'); } });
+    const gh = fakeGh({ file: () => { throw Object.assign(new Error('GitHub API GET /repos/o/r/contents/CLAUDE.md: 500'), { status: 500 }); } });
     const result = await onboardRepo(gh, 'o', 'r');
     assert.deepEqual(result, { status: 'error', reason: 'CLAUDE.md unreadable' });
     assert.deepEqual(gh.writes, []);
@@ -162,12 +162,12 @@ describe('onboardRepo decline and unreadable-file guards', () => {
 
   it('does not read a non-404 error whose body mentions ": 404" as an absent file', async () => {
     // github.js formats errors as `…<path>: <status> <body>`, and the body is
-    // server-controlled — only the status right after the path means absence.
-    for (const message of [
-      'GitHub API GET /repos/o/r/contents/CLAUDE.md: 500 {"message":"upstream said: 404"}',
-      'GitHub API GET /repos/o/r/contents/CLAUDE.md: 403 proxy: 404 page',
+    // server-controlled — only `err.status` means absence.
+    for (const [message, status] of [
+      ['GitHub API GET /repos/o/r/contents/CLAUDE.md: 500 {"message":"upstream said: 404"}', 500],
+      ['GitHub API GET /repos/o/r/contents/CLAUDE.md: 403 proxy: 404 page', 403],
     ]) {
-      const gh = fakeGh({ file: () => { throw new Error(message); } });
+      const gh = fakeGh({ file: () => { throw Object.assign(new Error(message), { status }); } });
       const result = await onboardRepo(gh, 'o', 'r');
       assert.deepEqual(result, { status: 'error', reason: 'CLAUDE.md unreadable' }, message);
       assert.deepEqual(gh.writes, []);
@@ -209,20 +209,20 @@ describe('onboardRepo decline and unreadable-file guards', () => {
   });
 
   it('resets an existing branch only when the create answers 422', async () => {
-    const gh = fakeGh({ refPost: () => { throw new Error('GitHub API POST /repos/o/r/git/refs: 422 Reference already exists'); } });
+    const gh = fakeGh({ refPost: () => { throw Object.assign(new Error('GitHub API POST /repos/o/r/git/refs: 422 Reference already exists'), { status: 422 }); } });
     assert.equal((await onboardRepo(gh, 'o', 'r')).status, 'created');
     assert.ok(gh.writes.includes('PATCH /repos/o/r/git/refs/heads/repo-butler/onboard'));
   });
 
   it('does not force-reset the branch on any other create failure', async () => {
-    const gh = fakeGh({ refPost: () => { throw new Error('GitHub API POST /repos/o/r/git/refs: 403'); } });
+    const gh = fakeGh({ refPost: () => { throw Object.assign(new Error('GitHub API POST /repos/o/r/git/refs: 403'), { status: 403 }); } });
     await assert.rejects(() => onboardRepo(gh, 'o', 'r'), /403/);
     assert.ok(!gh.writes.some(w => w.startsWith('PATCH')));
     assert.equal(gh.puts.length, 0);
   });
 
   it('does not force-reset the branch when a non-422 body mentions ": 422"', async () => {
-    const gh = fakeGh({ refPost: () => { throw new Error('GitHub API POST /repos/o/r/git/refs: 500 {"message":"upstream said: 422"}'); } });
+    const gh = fakeGh({ refPost: () => { throw Object.assign(new Error('GitHub API POST /repos/o/r/git/refs: 500 {"message":"upstream said: 422"}'), { status: 500 }); } });
     await assert.rejects(() => onboardRepo(gh, 'o', 'r'), /: 500/);
     assert.ok(!gh.writes.some(w => w.startsWith('PATCH')));
     assert.equal(gh.puts.length, 0);

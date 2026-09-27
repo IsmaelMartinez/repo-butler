@@ -33,6 +33,11 @@ describe('detectSecurityAlerts (via monitor)', () => {
       json: async () => body,
     };
   }
+  // An HTTP error response, so the real client builds the error (message AND
+  // numeric err.status) rather than the test inventing one.
+  function errorResponse(status, text) {
+    return { ok: false, status, headers: new Map(), text: async () => text, json: async () => ({}) };
+  }
   function failingResponse() {
     return {
       ok: false,
@@ -150,11 +155,11 @@ describe('detectSecurityAlerts (via monitor)', () => {
   it('logs a "not available" note for 403/404 scanner errors with humanised labels', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
-      // Errors carry "403" / "404" in their message so detectSecurityAlerts
-      // routes them to console.log (informational, not a real failure).
-      if (u.includes('/dependabot/alerts')) throw new Error('GitHub API GET ...: 403 Forbidden');
-      if (u.includes('/code-scanning/alerts')) throw new Error('GitHub API GET ...: 404 Not Found');
-      if (u.includes('/secret-scanning/alerts')) throw new Error('GitHub API GET ...: 403 token lacks scope');
+      // A 403/404 status routes detectSecurityAlerts to console.log
+      // (informational, not a real failure).
+      if (u.includes('/dependabot/alerts')) return errorResponse(403, 'Forbidden');
+      if (u.includes('/code-scanning/alerts')) return errorResponse(404, 'Not Found');
+      if (u.includes('/secret-scanning/alerts')) return errorResponse(403, 'token lacks scope');
       throw new Error(`Unexpected URL: ${u}`);
     });
 
@@ -179,13 +184,14 @@ describe('detectSecurityAlerts (via monitor)', () => {
     assert.ok(findNote('Dependabot'), 'expected a Dependabot not-available note');
     assert.ok(findNote('Code scanning'), 'expected a Code scanning not-available note');
     assert.ok(findNote('Secret scanning'), 'expected a Secret scanning not-available note');
-    assert.ok(findNote('Dependabot').includes('403 Forbidden'), 'note should include the original error');
+    assert.ok(findNote('Dependabot').includes(': 403 Forbidden'), 'note should include the original error');
   });
 
   it('logs a warning (not a Note) for non-403/404 scanner failures', async () => {
     globalThis.fetch = mock.fn(async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
-      if (u.includes('/dependabot/alerts')) throw new Error('GitHub API GET ...: 500 Internal Server Error');
+      // The body mentions 403 and 404 on purpose: only err.status classifies (#438).
+      if (u.includes('/dependabot/alerts')) return errorResponse(500, 'upstream said: 404 / 403');
       if (u.includes('/code-scanning/alerts')) return mockResponse([]);
       if (u.includes('/secret-scanning/alerts')) return mockResponse([]);
       throw new Error(`Unexpected URL: ${u}`);

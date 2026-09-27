@@ -589,7 +589,7 @@ function fakeGh({ alerts = {}, files = {}, prs = [], writes = [], puts = [], rea
       const method = opts?.method ?? 'GET';
       if (method !== 'GET') {
         writes.push({ path, method, body: opts?.body });
-        if (path.endsWith('/git/refs') && fail.refExists) throw new Error('GitHub API error: 422 Reference already exists');
+        if (path.endsWith('/git/refs') && fail.refExists) throw Object.assign(new Error('GitHub API error: 422 Reference already exists'), { status: 422 });
         if (path.endsWith('/pulls')) return { number: 42, html_url: 'https://github.com/o/r/pull/42' };
         return {};
       }
@@ -602,16 +602,16 @@ function fakeGh({ alerts = {}, files = {}, prs = [], writes = [], puts = [], rea
       }
       let m = path.match(/\/dependabot\/alerts\/(\d+)$/);
       if (m) {
-        if (fail.alerts) throw new Error('GitHub API error: 500 boom');
+        if (fail.alerts) throw Object.assign(new Error('GitHub API error: 500 boom'), { status: 500 });
         const a = alerts[m[1]];
-        if (!a) throw new Error('GitHub API error: 404 Not Found');
+        if (!a) throw Object.assign(new Error('GitHub API error: 404 Not Found'), { status: 404 });
         return a;
       }
       m = path.match(/\/contents\/(.+)$/);
       if (m) {
         reads.push({ path: m[1], ref: opts?.params?.ref });
         const f = files[m[1]];
-        if (f === undefined) throw new Error('GitHub API error: 404 Not Found');
+        if (f === undefined) throw Object.assign(new Error('GitHub API error: 404 Not Found'), { status: 404 });
         if (typeof f === 'object') return f; // caller-shaped response (e.g. the >1 MB form)
         return { content: b64(f), encoding: 'base64', sha: 'filesha' };
       }
@@ -800,6 +800,20 @@ describe('applyLockfileUpdates', () => {
     assert.equal(r2.results[0].status, 'error');
   });
 
+  it('treats a 500 whose body mentions ": 404" as an error, never as an absent lockfile (#438)', async () => {
+    const gh = baseGh();
+    gh.request = ((orig) => async (path, opts) => {
+      if (path.endsWith('/contents/package-lock.json')) {
+        throw Object.assign(new Error('GitHub API GET /repos/o/repo-a/contents/package-lock.json: 500 {"message":"upstream said: 404"}'), { status: 500 });
+      }
+      return orig(path, opts);
+    })(gh.request);
+    let ran = false;
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, runNpmUpdate: async () => { ran = true; } });
+    assert.equal(r.results[0].status, 'error');
+    assert.equal(ran, false);
+  });
+
   it('skips a project that carries its own .npmrc, since the scratch run cannot honour it', async () => {
     const gh = baseGh({ files: { 'package.json': manifest, 'package-lock.json': BEFORE_LOCK, '.npmrc': 'legacy-peer-deps=true\n' } });
     let ran = false;
@@ -915,6 +929,21 @@ describe('applyLockfileUpdates', () => {
     assert.equal(r.results[0].status, 'created');
     const patch = gh.writes.find(w => w.method === 'PATCH');
     assert.deepEqual(patch.body, { sha: 'abc123', force: true });
+  });
+
+  it('live: never resets the branch when a non-422 create failure mentions ": 422" in its body (#438)', async () => {
+    const gh = baseGh();
+    gh.request = ((orig) => async (path, opts) => {
+      if (path.endsWith('/git/refs') && opts?.method === 'POST') {
+        gh.writes.push({ path, method: 'POST', body: opts.body });
+        throw Object.assign(new Error('GitHub API POST /repos/o/repo-a/git/refs: 500 {"message":"upstream said: 422"}'), { status: 500 });
+      }
+      return orig(path, opts);
+    })(gh.request);
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: false, runNpmUpdate: npmOk });
+    assert.equal(r.results[0].status, 'error');
+    assert.equal(gh.writes.some(w => w.method === 'PATCH'), false);
+    assert.equal(gh.puts.length, 0);
   });
 
   it('live: never resets an existing branch that a concurrent run has opened a PR on since the screen', async () => {

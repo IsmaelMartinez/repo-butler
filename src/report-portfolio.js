@@ -255,16 +255,10 @@ export const PORTFOLIO_DETAIL_LIMIT = 40;
 // listing could not be read. A 404 is a real answer — no .github/workflows
 // directory — and yields an empty Set, so every templated workflow reads as
 // genuinely absent. Anything else is `null`, i.e. unknown.
-//
-// The 404 is detected from the message, not `err.status`: github.js throws plain
-// Errors and never sets a status property, so a `.status === 404` check silently
-// never matches and would send every directory-less repo down the unknown arm —
-// skipping precisely the repos most in need of these standards. Every other 404
-// consumer in this codebase uses this same message test.
 async function fetchDefaultBranchWorkflows(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/contents/.github/workflows`)
     .then(d => new Set(Array.isArray(d) ? d.map(f => f.name) : []))
-    .catch(err => (err?.message?.includes(': 404') ? new Set() : null));
+    .catch(err => (err?.status === 404 ? new Set() : null));
 }
 
 // Presence of a templated workflow file, as the tri-state the governance

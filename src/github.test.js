@@ -211,6 +211,32 @@ describe('createClient — putFile', () => {
     assert.equal(puts, 0, 'must not attempt PUT when read fails with non-404');
   });
 
+  it('does not read a 500 whose body mentions ": 404" as a missing file (#438)', async () => {
+    let puts = 0;
+    globalThis.fetch = mock.fn(async (url, init) => {
+      if ((init?.method ?? 'GET') === 'GET') return errorResponse(500, '{"message":"upstream said: 404"}');
+      puts++;
+      return jsonResponse({});
+    });
+
+    const gh = createClient('tok');
+    await assert.rejects(gh.putFile('o', 'r', 'p', 'x', { branch: 'b' }), /: 500/);
+    assert.equal(puts, 0, 'an unreadable file must not be written as a first write');
+  });
+
+  it('does not retry a non-409 PUT failure whose body mentions ": 409" (#438)', async () => {
+    let puts = 0;
+    globalThis.fetch = mock.fn(async (url, init) => {
+      if ((init?.method ?? 'GET') === 'GET') return jsonResponse({ sha: 'x' });
+      puts++;
+      return errorResponse(500, '{"message":"upstream said: 409"}');
+    });
+
+    const gh = createClient('tok');
+    await assert.rejects(gh.putFile('o', 'r', 'p', 'x', { branch: 'b' }), /: 500/);
+    assert.equal(puts, 1);
+  });
+
   it('does not retry on non-409 errors', async () => {
     let puts = 0;
     globalThis.fetch = mock.fn(async (url, init) => {
@@ -770,6 +796,61 @@ describe('redactRepoPath', () => {
   it('tolerates non-string input', () => {
     assert.equal(redactRepoPath(undefined), 'undefined');
     assert.equal(redactRepoPath(null), 'null');
+  });
+});
+
+// Callers branch on `err.status`, never on the message, whose tail is the
+// server-controlled body (#438). Pin that the real client sets it, so test
+// doubles that set it are no richer than production.
+describe('createClient — err.status', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('carries the numeric status on the generic !res.ok throw', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(404, 'Not Found'));
+    await assert.rejects(() => createClient('tok').request('/repos/o/r/contents/x'), (err) => {
+      assert.equal(err.status, 404);
+      return true;
+    });
+  });
+
+  it('carries the numeric status on the 403-permission throw', async () => {
+    globalThis.fetch = mock.fn(async () => errorResponse(403, 'Resource not accessible'));
+    await assert.rejects(() => createClient('tok').request('/repos/o/r/pulls'), (err) => {
+      assert.equal(err.status, 403);
+      return true;
+    });
+  });
+
+  it('carries no status once retries are exhausted — a rate limit is not an answer', async () => {
+    globalThis.fetch = mock.fn(async () => jsonResponse({}, {
+      status: 429, headers: new Map([['retry-after', '0'], ['x-ratelimit-remaining', '0']]),
+    }));
+    const origLog = console.log;
+    console.log = () => {};
+    try {
+      await assert.rejects(() => createClient('tok').request('/repos/o/r/pulls'), (err) => {
+        assert.match(err.message, /rate limited after 3 retries/);
+        assert.equal(err.status, undefined);
+        return true;
+      });
+    } finally {
+      console.log = origLog;
+    }
+  });
+
+  it('adds nothing but the number to a redacted error — no path, no body', async () => {
+    const CANARY = 'ZZLEAKCANARYZZ';
+    for (const status of [403, 500]) {
+      globalThis.fetch = mock.fn(async () => errorResponse(status, `/repos/alice/${CANARY}`));
+      await assert.rejects(() => createClient('tok', { redactPaths: true }).request(`/repos/alice/${CANARY}/dependabot/alerts`), (err) => {
+        assert.equal(err.status, status);
+        assert.deepEqual(Object.keys(err), ['status'], 'the only own enumerable property is the numeric status');
+        assert.ok(!JSON.stringify({ ...err, message: err.message }).includes(CANARY));
+        return true;
+      });
+    }
   });
 });
 
