@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER, isRecentlyDeclined, APPLY_DECLINE_COOLDOWN_DAYS } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER, isRecentlyDeclined, APPLY_DECLINE_COOLDOWN_DAYS, requireApprovalGate, positiveCap } from './apply.js';
 
 describe('isRecentlyDeclined', () => {
   const now = Date.parse('2026-08-13T00:00:00Z');
@@ -2263,5 +2263,91 @@ describe('autoMergeGovernancePRs', () => {
     const r = await autoMergeGovernancePRs(gh, 'owner', findings, cfg({ 'dependabot-actions': true }), { dryRun: false });
     assert.equal(r.summary.errors, 1);
     assert.equal(r.results[0].status, 'error');
+  });
+});
+
+// Issue #406: the hand-rolled YAML parser passes a quoted `"false"` (and `no`,
+// `False`) through as a string, which is truthy. Every apply entry point must
+// refuse unless require_approval is the boolean true.
+describe('require_approval gate is the boolean true, never a truthy value', () => {
+  const findings = [
+    { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
+    { type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a'] },
+    { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [{ number: 7, title: 'bump lodash', age: 45 }] },
+    { type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'] },
+  ];
+  const entryPoints = {
+    applyGovernanceFindings,
+    nudgeStaleDependabotPRs,
+    applyCopilotReviewRulesets,
+    applyDependabotSecurityUpdates,
+    disableDependabotSecurityUpdates,
+    autoMergeGovernancePRs,
+  };
+  function mkGh() {
+    const calls = [];
+    return {
+      calls,
+      gh: {
+        request: async (path) => { calls.push(path); return null; },
+        paginate: async (path) => { calls.push(path); return []; },
+        prCiHistory: async (o, r, ref) => { calls.push(`ci-history:${ref}`); return []; },
+      },
+    };
+  }
+  const nonBooleans = [
+    ['"false"', { require_approval: 'false' }],
+    ['"true"', { require_approval: 'true' }],
+    ['1', { require_approval: 1 }],
+    ['absent', {}],
+  ];
+
+  for (const [name, fn] of Object.entries(entryPoints)) {
+    for (const [label, limits] of nonBooleans) {
+      it(`${name} refuses require_approval ${label} without touching the API`, async () => {
+        const { gh, calls } = mkGh();
+        const r = await fn(gh, 'owner', findings, { limits }, { dryRun: false });
+        assert.deepEqual(r, { status: 'refused', reason: 'require_approval not set' });
+        assert.equal(calls.length, 0);
+      });
+    }
+
+    it(`${name} proceeds past the gate on the boolean true`, async () => {
+      const { gh } = mkGh();
+      const r = await fn(gh, 'owner', findings, { limits: { require_approval: true } }, { dryRun: true });
+      assert.notEqual(r.status, 'refused');
+    });
+  }
+
+  it('requireApprovalGate logs the received type, never the value', () => {
+    const errors = [];
+    const orig = console.error;
+    console.error = (m) => errors.push(m);
+    try {
+      assert.equal(requireApprovalGate({ limits: { require_approval: 'false' } }, 'apply'), false);
+      assert.equal(requireApprovalGate({ limits: {} }, 'apply'), false);
+      assert.equal(requireApprovalGate(undefined, 'apply'), false);
+      assert.equal(requireApprovalGate({ limits: { require_approval: true } }, 'apply'), true);
+    } finally {
+      console.error = orig;
+    }
+    assert.equal(errors.length, 3);
+    assert.match(errors[0], /^apply: .*received string/);
+    assert.doesNotMatch(errors[0], /false/);
+    assert.match(errors[1], /received undefined/);
+  });
+});
+
+describe('positiveCap', () => {
+  it('keeps a positive integer, coercing a numeric string', () => {
+    assert.equal(positiveCap(3), 3);
+    assert.equal(positiveCap('7'), 7);
+  });
+
+  it('falls back to 5, or the given fallback, for anything else', () => {
+    for (const bad of [0, -1, 2.5, 'abc', null, undefined, NaN]) {
+      assert.equal(positiveCap(bad), 5, String(bad));
+    }
+    assert.equal(positiveCap('x', 9), 9);
   });
 });
