@@ -86,6 +86,12 @@ function parseConfig(raw) {
   return deepMerge(DEFAULTS, parseSimpleYaml(raw));
 }
 
+// The INPUT_DRY_RUN action input, fail-closed: only the literal string 'false'
+// goes live; unset, empty, 'FALSE' or anything else is a dry run.
+export function parseDryRun(raw) {
+  return (raw || 'true') !== 'false';
+}
+
 export async function loadConfig(path) {
   if (!existsSync(path)) {
     console.log(`Config not found at ${path}, using defaults.`);

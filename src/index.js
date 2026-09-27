@@ -1,5 +1,5 @@
 import { appendFileSync } from 'node:fs';
-import { loadConfig } from './config.js';
+import { loadConfig, parseDryRun } from './config.js';
 import { runObserve } from './observe.js';
 import { runPrivateWatch } from './private-watch.js';
 import { runAssess } from './assess.js';
@@ -9,235 +9,14 @@ import { runPropose } from './propose.js';
 import { runReport, reportCacheHit } from './report.js';
 import { runMonitor } from './monitor.js';
 import { runGovernance } from './governance.js';
+import { runApply } from './apply-run.js';
 import { createStore } from './store.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ClaudeProvider } from './providers/claude.js';
 import { validateProvider } from './safety.js';
 import { onboard } from './onboard.js';
-import { createClient } from './github.js';
 
 const PHASES = ['observe', 'assess', 'update', 'governance', 'ideate', 'propose', 'report', 'monitor'];
-
-async function runApply(context) {
-  const { owner, token, config, store } = context;
-  const findings = store ? await store.readGovernanceFindings() : [];
-  if (!findings || findings.length === 0) {
-    console.log('No governance findings to apply.');
-    return;
-  }
-  const maxPerRun = parseInt(process.env.INPUT_MAX_APPLY_PER_RUN, 10) || 5;
-  const tools = (process.env.INPUT_TOOLS || '').split(',').map(s => s.trim()).filter(Boolean);
-  const isDryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
-  // Stage 4 (ADR-007): set by the scheduled apply workflow only. On the no-human
-  // path, apply.js gates each finding class behind the apply-schedule allow-list.
-  const scheduled = process.env.INPUT_SCHEDULED === 'true';
-  let applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, disableDependabotSecurityUpdates, autoMergeGovernancePRs;
-  try {
-    ({ applyGovernanceFindings, nudgeStaleDependabotPRs, applyCopilotReviewRulesets, applyDependabotSecurityUpdates, disableDependabotSecurityUpdates, autoMergeGovernancePRs } = await import('./apply.js'));
-  } catch {
-    console.error('Apply module not available yet (src/apply.js). Skipping.');
-    return;
-  }
-  const gh = createClient(token);
-  const result = await applyGovernanceFindings(gh, owner, findings, config, {
-    dryRun: isDryRun,
-    maxPerRun,
-    tools: tools.length > 0 ? tools : null,
-    scheduled,
-  });
-  const processed = result?.results?.length || 0;
-  console.log(`Apply complete: ${processed} repos processed.`);
-
-  const summary = result?.summary;
-  if (summary && process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `apply=${JSON.stringify(summary)}\n`,
-    );
-  }
-
-  // Stale-Dependabot nudge rides the same dispatch and gates. It runs on a blank
-  // `tools` (all actionable) or when `tools` explicitly names `dependabot-rebase`
-  // — so a tool-scoped dispatch (e.g. tools=code-scanning) never nudges by
-  // surprise, and tools=dependabot-rebase is a nudge-only run.
-  const nudgeRequested = tools.length === 0 || tools.includes('dependabot-rebase');
-  const nudgeResult = nudgeRequested
-    ? await nudgeStaleDependabotPRs(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
-    : null;
-  if (nudgeResult?.summary && process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `nudge=${JSON.stringify(nudgeResult.summary)}\n`,
-    );
-  }
-
-  // Copilot-review enablement (ADR-009 settings write) rides the same dispatch and
-  // gates. It runs on a blank `tools` (all actionable) or when `tools` explicitly
-  // names `code-review-bot` — so a tool-scoped dispatch never enables it by
-  // surprise. Live writes need the App's `administration: write` scope; without it
-  // the dry-run preview still runs and live writes surface as per-repo errors.
-  const copilotRequested = tools.length === 0 || tools.includes('code-review-bot');
-  const copilotResult = copilotRequested
-    ? await applyCopilotReviewRulesets(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
-    : null;
-  if (copilotResult?.summary && process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `copilotReview=${JSON.stringify(copilotResult.summary)}\n`,
-    );
-  }
-
-  // Dependabot security-updates enablement (ADR-012 settings write) rides the same
-  // dispatch and gates, but is fenced OFF the no-human scheduled path BY
-  // CONSTRUCTION: enabling GitHub's automated security fixes delegates autonomous PR
-  // generation to GitHub, so a scheduled run must never trigger it. It is never
-  // dispatched here on a scheduled run, and (unlike the Copilot settings write) is
-  // never promotable via apply-schedule. Manual dispatch only: it runs on a blank
-  // `tools` (all actionable) or when `tools` explicitly names `dependabot-security`.
-  // The enable and disable toggles are mutually exclusive (see the helper) — naming
-  // both is contradictory and runs neither. Live writes need `administration: write`.
-  const depSecDispatch = resolveDependabotSecurityDispatch(tools, scheduled);
-  if (depSecDispatch.conflict) {
-    console.error('apply: `tools` names both dependabot-security and dependabot-security-off — contradictory dispatch; skipping BOTH settings writes.');
-  }
-  const depSecRequested = depSecDispatch.enable;
-  const depSecResult = depSecRequested
-    ? await applyDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
-    : null;
-  if (depSecResult?.summary && process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `dependabotSecurity=${JSON.stringify(depSecResult.summary)}\n`,
-    );
-  }
-
-  // Dependabot security-updates DISABLE (ADR-012 reversibility, the mirror of
-  // dependabot-security). Behind the identical fences, and — like the enable path —
-  // fenced OFF the no-human scheduled path by construction. EXPLICIT dispatch only:
-  // it never fires on a blank `tools` run (which enables actionable findings), only
-  // when `tools` names `dependabot-security-off`, so a rollback is always a
-  // deliberate operator action and never rides an enable/apply run. Live DELETEs
-  // need the App's `administration: write` scope. DELETE reverts the SETTING, not
-  // any bump PR GitHub already opened.
-  const depSecOffRequested = depSecDispatch.disable;
-  const depSecOffResult = depSecOffRequested
-    ? await disableDependabotSecurityUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled })
-    : null;
-  if (depSecOffResult?.summary && process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `dependabotSecurityOff=${JSON.stringify(depSecOffResult.summary)}\n`,
-    );
-  }
-
-  // Lockfile refresh for `reachable-by-update` alerts (ADR-015). The first
-  // content-transformation write in the apply path: npm refreshes the lockfile
-  // in a scratch directory and a deterministic gate decides whether the result
-  // may become a PR. Explicit on a manual dispatch, allow-list-gated on the
-  // scheduled path (see isLockfileUpdateRequested); dry-run runs npm and the
-  // gate so the preview is the real diff, but writes nothing.
-  let lockfileResult = null;
-  if (isLockfileUpdateRequested(tools, scheduled)) {
-    const { applyLockfileUpdates } = await import('./lockfile-update.js');
-    lockfileResult = await applyLockfileUpdates(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun, scheduled });
-    if (lockfileResult?.summary && process.env.GITHUB_OUTPUT) {
-      appendFileSync(
-        process.env.GITHUB_OUTPUT,
-        `lockfileUpdate=${JSON.stringify(lockfileResult.summary)}\n`,
-      );
-    }
-  }
-
-  // Selective auto-merge reconcile pass (ADR-007 stage 5). Squash-merges the
-  // butler's own green templated apply PRs for `apply-automerge`-allow-listed
-  // classes (default empty → no-op). Deliberately NOT triggered by a blank-tools
-  // full run: it fires only on the real scheduled cron (the workflow sets
-  // INPUT_AUTOMERGE only when github.event_name == 'schedule') or an explicit
-  // `tools=automerge` dispatch — so opening PRs (a normal live apply run) never
-  // auto-merges by surprise once a class is allow-listed. Honours the run's dry-run.
-  const autoMergeRequested = process.env.INPUT_AUTOMERGE === 'true' || tools.includes('automerge');
-  const autoMergeResult = autoMergeRequested
-    ? await autoMergeGovernancePRs(gh, owner, findings, config, { dryRun: isDryRun, maxPerRun })
-    : null;
-  if (autoMergeResult?.summary && process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `automerge=${JSON.stringify(autoMergeResult.summary)}\n`,
-    );
-  }
-
-  // Per-repo errors (e.g. App lacks workflows: write on a target installation)
-  // are operator-actionable failures: each one represents a finding the operator
-  // explicitly asked to remediate that did not produce a PR. Surface them by
-  // throwing so runPhases marks the phase failed and the workflow exits non-zero.
-  const errParts = [];
-  if (summary?.errors > 0) {
-    const failed = result.results
-      .filter(r => r.status === 'error')
-      .map(r => `${r.repo}/${r.tool}`)
-      .join(', ');
-    errParts.push(
-      `apply: ${summary.errors} per-repo error(s) [${failed}]; ${summary.created} PR(s) created, ${summary.skipped} skipped`,
-    );
-  }
-  if (nudgeResult?.summary?.errors > 0) {
-    const failed = nudgeResult.results
-      .filter(r => r.status === 'error')
-      .map(r => `${r.repo}#${r.number}`)
-      .join(', ');
-    errParts.push(
-      `nudge: ${nudgeResult.summary.errors} error(s) [${failed}]; ${nudgeResult.summary.nudged} rebased, ${nudgeResult.summary.skipped} skipped`,
-    );
-  }
-  if (copilotResult?.summary?.errors > 0) {
-    const failed = copilotResult.results
-      .filter(r => r.status === 'error')
-      .map(r => r.repo)
-      .join(', ');
-    errParts.push(
-      `copilot-review: ${copilotResult.summary.errors} error(s) [${failed}]; ${copilotResult.summary.created} created, ${copilotResult.summary.skipped} skipped`,
-    );
-  }
-  if (depSecResult?.summary?.errors > 0) {
-    const failed = depSecResult.results
-      .filter(r => r.status === 'error')
-      .map(r => r.repo)
-      .join(', ');
-    errParts.push(
-      `dependabot-security: ${depSecResult.summary.errors} error(s) [${failed}]; ${depSecResult.summary.enabled} enabled, ${depSecResult.summary.skipped} skipped`,
-    );
-  }
-  if (depSecOffResult?.summary?.errors > 0) {
-    const failed = depSecOffResult.results
-      .filter(r => r.status === 'error')
-      .map(r => r.repo)
-      .join(', ');
-    errParts.push(
-      `dependabot-security-off: ${depSecOffResult.summary.errors} error(s) [${failed}]; ${depSecOffResult.summary.removed} disabled`,
-    );
-  }
-  if (autoMergeResult?.summary?.errors > 0) {
-    const failed = autoMergeResult.results
-      .filter(r => r.status === 'error')
-      .map(r => `${r.repo}/${r.tool}`)
-      .join(', ');
-    errParts.push(
-      `automerge: ${autoMergeResult.summary.errors} error(s) [${failed}]; ${autoMergeResult.summary.merged} merged, ${autoMergeResult.summary.skipped} skipped`,
-    );
-  }
-  if (lockfileResult?.summary?.errors > 0) {
-    const failed = lockfileResult.results
-      .filter(r => r.status === 'error')
-      .map(r => (r.directory ? `${r.repo}/${r.directory}` : r.repo))
-      .join(', ');
-    errParts.push(
-      `lockfile-update: ${lockfileResult.summary.errors} error(s) [${failed}]; ${lockfileResult.summary.created} PR(s) created, ${lockfileResult.summary.skipped} skipped`,
-    );
-  }
-  if (errParts.length > 0) {
-    throw new Error(errParts.join(' | '));
-  }
-}
 
 const PHASE_RUNNERS = {
   observe: runObserve,
@@ -250,37 +29,6 @@ const PHASE_RUNNERS = {
   monitor: runMonitor,
   apply: runApply,
 };
-
-// Resolve which of the two mutually-exclusive ADR-012 settings toggles a manual
-// apply dispatch requests. Enabling (`dependabot-security`, or a blank `tools` =
-// all actionable) and disabling (`dependabot-security-off`, explicit only) target
-// the same repo setting, so naming BOTH in one dispatch is contradictory — it
-// would PUT then DELETE in a single run, netting an unpredictable toggle. Fail
-// SAFE: on conflict, run NEITHER. Both are off the no-human scheduled path by
-// construction, so a scheduled run resolves to neither. Pure — no I/O.
-export function resolveDependabotSecurityDispatch(tools, scheduled) {
-  const list = Array.isArray(tools) ? tools : [];
-  const conflict = list.includes('dependabot-security') && list.includes('dependabot-security-off');
-  return {
-    conflict,
-    enable: !scheduled && !conflict && (list.length === 0 || list.includes('dependabot-security')),
-    disable: !scheduled && !conflict && list.includes('dependabot-security-off'),
-  };
-}
-
-// Whether an apply run should offer the lockfile refresh (ADR-015). It is a
-// content-transformation write, so on a MANUAL dispatch it never rides a blank
-// `tools` (= all actionable): the operator must name it. On the scheduled path
-// it is offered on a BLANK run only — the scheduled workflow sets `scheduled`
-// for its manual dispatches too, and an explicit `tools=code-scanning` there
-// must not drag a content write along — and `applyLockfileUpdates` itself then
-// skips unless the `apply-schedule` allow-list names the tool: the same
-// two-axis default-closed shape ADR-007 stage 4 established. Pure — no I/O.
-export function isLockfileUpdateRequested(tools, scheduled) {
-  const list = Array.isArray(tools) ? tools : [];
-  if (list.includes('lockfile-update')) return true;
-  return scheduled === true && list.length === 0;
-}
 
 export function validateRepoFormat(repo) {
   if (!repo.includes('/')) {
@@ -443,7 +191,7 @@ async function main() {
     || 'all';
 
   const configPath = process.env.INPUT_CONFIG_PATH || '.github/roadmap.yml';
-  const dryRun = (process.env.INPUT_DRY_RUN || 'true') !== 'false';
+  const dryRun = parseDryRun(process.env.INPUT_DRY_RUN);
   const token = process.env.INPUT_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
 
   if (!token) {
