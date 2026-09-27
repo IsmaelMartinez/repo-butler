@@ -4,13 +4,14 @@
 
 import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, TIER_RANK } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
 import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlerts } from './stalled-alert.js';
+import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
 
@@ -144,10 +145,7 @@ export async function fetchOpenPRs(gh, owner, repos) {
   const eligible = eligibleRepos(repos || []);
   const entries = await Promise.all(eligible.map(async (repo) => {
     try {
-      const prs = await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
-        params: { state: 'open', sort: 'created', direction: 'asc' },
-        max: 100,
-      });
+      const prs = await listOpenPRs(gh, owner, repo.name);
       return Array.isArray(prs) ? [repo.name, prs] : null;
     } catch (err) {
       // Log it here, or the operator sees only the two downstream symptoms (both
@@ -236,17 +234,9 @@ function median(sorted) {
     : sorted[Math.floor(n / 2)];
 }
 
-/**
- * Filter repos to governance-eligible ones (not archived, not fork, not test/shadow).
- * Exported so the cross-repo PROPOSE routing gate can honour the same eligibility
- * filter on a proposal's target (ADR-011 defence-in-depth) without duplicating the
- * archived/fork/exclusion predicate.
- */
-export function eligibleRepos(repos) {
-  return repos.filter(r =>
-    !r.archived && !r.fork && !REPO_EXCLUSION_PATTERNS.some(p => r.name.includes(p))
-  );
-}
+// Defined in the governance-repos.js leaf (the audits cannot import this module);
+// re-exported so propose.js's routing gate keeps importing it from here.
+export { eligibleRepos };
 
 /**
  * Check if a repo matches an ecosystem-scoped standard.
@@ -669,12 +659,8 @@ export function detectOpenVulnerabilities(repos, details) {
     //   false → autofix OFF or paused: the alerts are not being driven to resolution;
     //   null  → state unreadable/unknown (feature unavailable or missing scope) —
     //           we don't annotate and behave exactly as before.
-    let autofixEnabled = null;
     const dependabotSourced = sources.includes('dependabot');
-    if (dependabotSourced) {
-      const st = d.autofix;
-      autofixEnabled = st == null ? null : (st.enabled === true && st.paused !== true);
-    }
+    const autofixEnabled = dependabotSourced ? autofixActive(d.autofix) : null;
 
     // When autofix is ON and Dependabot is the ONLY source, GitHub is already
     // driving the fix — downgrade high→medium so the high-priority governance

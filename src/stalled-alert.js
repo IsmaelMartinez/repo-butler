@@ -17,7 +17,7 @@
 // is recorded as a classification and never acted on; making that jump is
 // ADR-013's business and needs its own deliberate wiring.
 
-import { REPO_EXCLUSION_PATTERNS } from './report-shared.js';
+import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { planOverride } from './trimmer.js';
 
 // Severity floor. Deliberately BELOW open-vulnerability's critical/high bar:
@@ -201,9 +201,7 @@ export async function detectStalledAlerts(gh, owner, repos, {
 } = {}) {
   if (!Array.isArray(repos)) return [];
 
-  const eligible = repos.filter(r =>
-    !r.archived && !r.fork && !REPO_EXCLUSION_PATTERNS.some(p => r.name.includes(p))
-  );
+  const eligible = eligibleRepos(repos);
 
   const floor = SEVERITY_RANK[severityFloor] ?? SEVERITY_RANK[DEFAULT_SEVERITY_FLOOR];
   const now = Date.now();
@@ -247,10 +245,7 @@ export async function detectStalledAlerts(gh, owner, repos, {
       // The branch prefix is the locator, not the author login: a Dependabot PR
       // reopened or rebased by a human still carries the branch, and reading the
       // branch is what makes "possibly addressing" decidable at all.
-      const prs = openPRs?.[repo.name] ?? await gh.paginate(`/repos/${owner}/${repo.name}/pulls`, {
-        params: { state: 'open', sort: 'created', direction: 'asc' },
-        max: 100,
-      });
+      const prs = await listOpenPRs(gh, owner, repo.name, openPRs);
       const branches = (Array.isArray(prs) ? prs : [])
         .map(pr => pr?.head?.ref)
         .filter(ref => typeof ref === 'string' && ref.startsWith(BRANCH_PREFIX));
@@ -319,7 +314,7 @@ export async function detectStalledAlerts(gh, owner, repos, {
         priority: reported.some(a => a.severity === 'critical') ? 'high' : 'medium',
       };
     } catch (err) {
-      if (err.message?.includes(': 403') || err.message?.includes(': 404')) {
+      if (err.status === 403 || err.status === 404) {
         console.log(`stalled-alert: skipping ${repo.name} (${err.message.slice(0, 80)})`);
       }
       return null;

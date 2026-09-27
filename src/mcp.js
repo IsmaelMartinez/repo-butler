@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
 import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
 import { runGit, readCommitsBehindMain } from './staleness.js';
@@ -907,18 +907,13 @@ function computeCampaigns() {
   return {
     week: weekly.week,
     campaigns: CAMPAIGN_DEFS.map(c => {
-      const pool = c.applicable ? repos.filter(r => c.applicable(r, details)) : repos;
-      const { compliant, nonCompliant } = pool.reduce((acc, r) => {
-        if (c.test(r, details)) acc.compliant.push(r);
-        else acc.nonCompliant.push(r);
-        return acc;
-      }, { compliant: [], nonCompliant: [] });
+      const { total, compliant, nonCompliant, percentage } = evaluateCampaign(c, repos, details);
       return {
         name: c.name,
         description: c.description,
-        total: pool.length,
+        total,
         compliant: compliant.length,
-        percentage: pool.length > 0 ? Math.round((compliant.length / pool.length) * 100) : 0,
+        percentage,
         non_compliant: nonCompliant.map(r => r.name),
       };
     }),

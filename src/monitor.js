@@ -197,7 +197,7 @@ async function detectSecurityAlerts(gh, owner, repo, cursor) {
       // a warning so it's visible in monitor logs.
       const msg = err?.message || String(err);
       const label = scanner.source.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
-      if (msg.includes('403') || msg.includes('404')) {
+      if (err?.status === 403 || err?.status === 404) {
         console.log(`Note: ${label} alerts not available for ${owner}/${repo} (${msg})`);
       } else {
         console.warn(`Monitor: failed to detect ${label} alerts for ${owner}/${repo}: ${msg}`);

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection, buildAutofixNudge, reportCacheHit } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
 
 describe('jsStr', () => {
   it('quotes and escapes strings for inline <script> embedding', () => {
@@ -846,14 +846,13 @@ describe('CAMPAIGN_DEFS shared definitions', () => {
       'my-shadow': { communityHealth: 95, vulns: { count: 0, max_severity: null }, ciPassRate: 1, license: 'MIT', hasIssueTemplate: true },
     };
 
-    // Mirror what mcp.js computeCampaigns does:
+    // mcp.js computeCampaigns applies the exclusion filter, then evaluateCampaign.
     const mcpRepos = Object.keys(data)
       .filter(name => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)))
       .map(name => ({ name }));
     const mcpResult = CAMPAIGN_DEFS.map(c => {
-      const pool = c.applicable ? mcpRepos.filter(r => c.applicable(r, data)) : mcpRepos;
-      const compliant = pool.filter(r => c.test(r, data));
-      return { name: c.name, total: pool.length, compliant: compliant.length };
+      const { total, compliant } = evaluateCampaign(c, mcpRepos, data);
+      return { name: c.name, total, compliant: compliant.length };
     });
 
     // Build the dashboard HTML for the same portfolio and parse the per-campaign
@@ -1711,11 +1710,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // information than the cached verdict: without the fallback one 500 on the
     // contents API turns a cached `false` — a real, actionable gap — into
     // `null`, governance skips the repo as unknown, and the run reports no gap
-    // at all. The rejection is exactly what github.js throws: a plain Error
-    // carrying the status in its MESSAGE, with no `status` property, because a
-    // richer mock than the real client would make this test evidence of nothing.
+    // at all. The rejection is shaped exactly like github.js's: the status in
+    // the message and as `err.status`, no richer and no poorer than the client.
     const gh = cachedWorkflowsGh(() => Promise.reject(
-      new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error')
+      Object.assign(new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error'), { status: 500 })
     ));
     const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
       cache: cachedWorkflowsCache({ hasOsvScanner: false }),
@@ -1746,11 +1744,11 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // to this field on a bad read decides whether an unattended scheduled run
     // opens a PR. An unknown live read is strictly less information than the
     // cached verdict, so the cached `true` stands rather than decaying to null.
-    // The rejection is exactly what github.js throws — a plain Error carrying
-    // the code in its MESSAGE, with no `status` property — because a mock richer
-    // than the real client would make this test evidence of nothing.
+    // The rejection is shaped exactly like github.js's (message plus numeric
+    // `err.status`), because a mock richer than the real client would make
+    // this test evidence of nothing.
     const gh = cachedWorkflowsGh(() => Promise.reject(
-      new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error')
+      Object.assign(new Error('GitHub API GET /repos/owner/cached-repo/contents/.github/workflows: 500 Internal Server Error'), { status: 500 })
     ));
     const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
       cache: cachedWorkflowsCache({ hasAutoMergeWorkflow: true }),
@@ -2286,14 +2284,12 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // A 404 on the contents listing is a genuine answer, not a failure: the repo
     // has no .github/workflows directory, so the scanner is definitively absent
     // and the standard is a real gap worth a remediation PR.
-    // The error is EXACTLY what github.js throws — a plain Error whose message
-    // embeds the code, with no `status` property. Deliberately not a richer
-    // fake: an earlier version of this test set `err.status = 404` as well, and
-    // so passed against a `.catch` keyed on `err.status === 404` that could
-    // never match in production. A mock more capable than the real client turns
-    // a green test into evidence of nothing.
+    // The error is EXACTLY what github.js throws — the code in the message and
+    // as a numeric `err.status` (#438; github.test.js pins that the real client
+    // sets it). A mock more capable than the real client turns a green test
+    // into evidence of nothing.
     const notFound = () => Promise.reject(
-      new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 404 Not Found')
+      Object.assign(new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 404 Not Found'), { status: 404 })
     );
     const gh = makeWorkflowsGh(notFound);
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
@@ -2304,11 +2300,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // Rate limit, 403, network blip: we do not know what is on the default
     // branch. Unknown is honest; governance skips unknowns, and `false` here
-    // would open an apply PR on every repo the failure touched. Again the error
-    // is exactly what github.js throws: a plain Error, no `status` property, so
-    // the message test is the only thing that can distinguish it from the 404.
+    // would open an apply PR on every repo the failure touched. The body
+    // mentions ": 404" on purpose: only `err.status` may mean absence (#438).
     const serverError = () => Promise.reject(
-      new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 500 Internal Server Error')
+      Object.assign(new Error('GitHub API GET /repos/owner/osv-repo/contents/.github/workflows: 500 {"message":"upstream said: 404"}'), { status: 500 })
     );
     const gh = makeWorkflowsGh(serverError);
     const details = await fetchPortfolioDetails(gh, 'owner', osvRepos);
@@ -2443,13 +2438,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // A 404 on the contents listing is a genuine answer, not a failure: there is
     // no .github/workflows directory, so the workflow is definitively absent and
-    // this is a real gap. The error is EXACTLY what github.js throws — a plain
-    // Error whose message embeds the code, with NO `status` property — so the
-    // message test in the `.catch` is the only thing that can classify it. A
-    // mock richer than the real client would turn a green test into evidence of
-    // nothing.
+    // this is a real gap. The error is EXACTLY what github.js throws — the code
+    // in the message and as a numeric `err.status`, which the `.catch` keys on.
     const gh = makeWorkflowsGh(
-      () => Promise.reject(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 404 Not Found')),
+      () => Promise.reject(Object.assign(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 404 Not Found'), { status: 404 })),
       amRegistered,
     );
     const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
@@ -2461,9 +2453,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     // Rate limit, 403, network blip: we do not know what is on the default
     // branch. `false` here would open an apply PR on every repo the failure
     // touched, unattended, on the apply schedule. Unknown is honest, and
-    // governance excludes unknowns from both compliance arrays.
+    // governance excludes unknowns from both compliance arrays. The body
+    // mentions ": 404" on purpose: only `err.status` may mean absence (#438).
     const gh = makeWorkflowsGh(
-      () => Promise.reject(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 500 Internal Server Error')),
+      () => Promise.reject(Object.assign(new Error('GitHub API GET /repos/owner/am-tri/contents/.github/workflows: 500 {"message":"upstream said: 404"}'), { status: 500 })),
       amRegistered,
     );
     const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
@@ -3282,5 +3275,68 @@ describe('reportCacheHit', () => {
     assert.equal(reportCacheHit(undefined), false);
     // Defensive: a truthy-but-not-true cached value must not read as a cache-hit.
     assert.equal(reportCacheHit({ reportResult: { cached: 'true' } }), false);
+  });
+});
+
+describe('shared report predicates', () => {
+  it('autofixActive is tri-state: null stays null, paused or disabled is false', () => {
+    assert.equal(autofixActive(null), null);
+    assert.equal(autofixActive(undefined), null);
+    assert.equal(autofixActive({ enabled: true, paused: false }), true);
+    assert.equal(autofixActive({ enabled: true, paused: true }), false);
+    assert.equal(autofixActive({ enabled: false, paused: false }), false);
+  });
+
+  it('isActionableBug excludes blocked bugs and non-bugs, for string and object labels', () => {
+    assert.equal(isActionableBug(['bug']), true);
+    assert.equal(isActionableBug([{ name: 'Defect' }]), true);
+    assert.equal(isActionableBug(['bug', 'blocked']), false);
+    assert.equal(isActionableBug(['enhancement']), false);
+  });
+
+  it('evaluateCampaign drops non-applicable repos from the pool and scores the rest', () => {
+    const c = CAMPAIGN_DEFS.find(x => x.name === 'CI Reliability');
+    const details = { a: { ciPassRate: 0.95 }, b: { ciPassRate: 0.5 }, c: { ciPassRate: null } };
+    const res = evaluateCampaign(c, [{ name: 'a' }, { name: 'b' }, { name: 'c' }], details);
+    assert.equal(res.total, 2, 'unknown pass rate leaves the pool rather than failing');
+    assert.deepEqual(res.compliant.map(r => r.name), ['a']);
+    assert.deepEqual(res.nonCompliant.map(r => r.name), ['b']);
+    assert.equal(res.percentage, 50);
+    assert.equal(evaluateCampaign(c, [], details).percentage, 0);
+  });
+
+  it('evaluateCampaign rounds the percentage to the nearest integer', () => {
+    const c = CAMPAIGN_DEFS.find(x => x.name === 'CI Reliability');
+    const details = { a: { ciPassRate: 0.95 }, b: { ciPassRate: 0.95 }, c: { ciPassRate: 0.5 } };
+    assert.equal(evaluateCampaign(c, [{ name: 'a' }, { name: 'b' }, { name: 'c' }], details).percentage, 67);
+  });
+});
+
+describe('fetchPortfolioDetails open_bugs (tri-state, cache miss)', () => {
+  const repos = [{ name: 'fresh', pushed_at: '2026-04-01T00:00:00Z', open_issues: 7, archived: false, fork: false, stars: 1 }];
+  const mkGh = (issuesResponder) => ({
+    request: () => Promise.resolve({}),
+    paginate: (path) => (path === '/repos/owner/fresh/issues' ? issuesResponder() : Promise.resolve([])),
+    getFileContent: () => Promise.resolve(null),
+  });
+
+  it('counts actionable bugs only: excludes PRs, blocked bugs and non-bugs', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const issues = [
+      { number: 1, labels: [{ name: 'bug' }] },
+      { number: 2, labels: [{ name: 'Type: Bug' }, { name: 'blocked' }] },
+      { number: 3, labels: [{ name: 'bug' }], pull_request: {} },
+      { number: 4, labels: [{ name: 'enhancement' }] },
+    ];
+    const details = await fetchPortfolioDetails(mkGh(() => Promise.resolve(issues)), 'owner', repos, {});
+    assert.equal(details.fresh.open_issues, 3, 'PRs are filtered out of the issue total');
+    assert.equal(details.fresh.open_bugs, 1, 'blocked bugs and PRs do not count as actionable bugs');
+  });
+
+  it('reports open_bugs as null (unknown, never 0) when the issue listing fails', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const details = await fetchPortfolioDetails(mkGh(() => Promise.reject(new Error('500'))), 'owner', repos, {});
+    assert.equal(details.fresh.open_bugs, null);
+    assert.equal(details.fresh.open_issues, 7, 'falls back to the repo listing count');
   });
 });
