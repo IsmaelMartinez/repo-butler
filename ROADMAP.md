@@ -115,6 +115,8 @@ Model Context Protocol test fixture isolation shipped 2026-09-27 (PR #437). Deco
 
 Executed plans and one-shot verification scripts archived 2026-09-27 (PR #445). Cleans up historical execution artifacts and past agent run files to keep the repository's codebase and documentation organized and free of clutter, resolving issue #419.
 
+Core agent logic refactored for pure module extraction and shared predicates shipped 2026-09-27 (PRs #443, #444). Simplifies the decision-making runtime by extracting a pure `apply-templates` module and consolidating shared predicates across `autofix`, `actionable-bug`, and `campaign` behaviors, improving internal code health and maintainability.
+
 ---
 
 ## Next Up
