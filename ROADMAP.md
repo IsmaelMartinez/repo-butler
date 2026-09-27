@@ -111,6 +111,8 @@ CI workflow alignments on Node 24 and lockfile dependency updates shipped 2026-0
 
 Governance configuration schema alignment and onboarding safeguards shipped 2026-09-27 (PRs #431, #432, #434, #436). Hardens the repository onboarding flow by skipping declined pull requests, refusing unreadable CLAUDE.md files, and strictly requiring boolean true values for approval gates. Additionally, prevents silent configuration drift by aligning the core configuration schema with system defaults and enforces stricter roadmap integrity by requiring merged-PR evidence for all shipped entries.
 
+Model Context Protocol test fixture isolation shipped 2026-09-27 (PR #437). Decouples the MCP test suite from live, volatile GitHub branches by injecting an IO seam to run tests against predictable, local fixture data, improving CI/CD pipeline reliability and deterministic agent execution.
+
 ---
 
 ## Next Up
