@@ -472,7 +472,7 @@ async function fetchCommunityProfile(gh, owner, repo) {
   }
 }
 
-async function fetchDependabotAlerts(gh, owner, repo) {
+export async function fetchDependabotAlerts(gh, owner, repo) {
   try {
     const data = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts`, {
       params: { state: 'open', per_page: 100 },

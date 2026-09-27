@@ -447,7 +447,7 @@ describe('fetchCodeScanningAlerts', () => {
 });
 
 describe('scanner "not available" note keys on status (#438)', () => {
-  for (const name of ['fetchCodeScanningAlerts', 'fetchSecretScanningAlerts']) {
+  for (const name of ['fetchDependabotAlerts', 'fetchCodeScanningAlerts', 'fetchSecretScanningAlerts']) {
     it(`${name} notes a real 404 but not a 500 whose body mentions 404`, async () => {
       const mod = await import('./observe.js');
       const logs = [];
@@ -466,9 +466,8 @@ describe('scanner "not available" note keys on status (#438)', () => {
 });
 
 describe('fetchDependabotAlerts (via observe)', () => {
-  // fetchDependabotAlerts isn't exported, but observe() calls it as part of the
-  // parallel fetch. Drive it via globalThis.fetch and check the return shape
-  // matches the report-shared.getAlertSummary contract.
+  // observe() calls fetchDependabotAlerts as part of the parallel fetch; check
+  // its severity extractor matches the report-shared.getAlertSummary contract.
   let originalFetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });
   afterEach(() => { globalThis.fetch = originalFetch; });
