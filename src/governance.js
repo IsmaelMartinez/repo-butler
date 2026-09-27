@@ -3,6 +3,7 @@
 // Pure functions that receive portfolio data and return governance findings.
 
 import { detectEcosystem } from './safety.js';
+import { TEMPLATES } from './apply-templates.js';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, TIER_RANK } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio.js';
@@ -718,22 +719,13 @@ export function detectOpenVulnerabilities(repos, details) {
 // write as a static file route to `template`; tools needing tailored content
 // route to `agent`; everything that needs human judgement routes to `manual`.
 
-// Standards tools the butler can emit as a static templated file (apply.js has
-// a generator for these), each matching an apply.js TEMPLATES key directly:
-// code-scanning, dependabot-actions, issue-form-templates (a generic
-// bug-report form — one file in .github/ISSUE_TEMPLATE/ satisfies the detector),
-// dependabot-auto-merge (a single ecosystem-agnostic workflow that enables
-// auto-merge on non-major Dependabot PRs), codeowners (a `* @<owner>` file
-// routing review to the repo owner), and security-md (a generic SECURITY.md
-// vulnerability-reporting policy).
-// release-cadence adds a scheduled patch-release workflow (ecosystem-agnostic:
-// it only reads git history and calls `gh release create`, never builds or
-// publishes artifacts, so it cannot go red on heterogeneous repos).
-// ci-workflows is deliberately NOT here: a static CI workflow fanned across
-// heterogeneous repos would open red-CI PRs, so it stays agent-routed.
-// osv-scanner adds a dependency-scanning workflow that calls google's reusable
-// workflow (ecosystem-agnostic: OSV-Scanner discovers lockfiles itself).
-const TEMPLATABLE_TOOLS = new Set(['code-scanning', 'dependabot-actions', 'issue-form-templates', 'dependabot-auto-merge', 'codeowners', 'security-md', 'release-cadence', 'osv-scanner']);
+// Standards tools the butler can emit as a static templated file: exactly the
+// keys of apply-templates.js TEMPLATES, derived rather than copied so a new
+// template cannot fall through to 'manual' (a hand-kept copy drifted once, for
+// osv-scanner). ci-workflows is deliberately NOT a template: a static CI
+// workflow fanned across heterogeneous repos would open red-CI PRs, so it stays
+// agent-routed.
+const TEMPLATABLE_TOOLS = new Set(Object.keys(TEMPLATES));
 
 // Standards tools that need tailored, per-repo content an agent must reason about.
 const AGENT_TOOLS = new Set(['contributing-guide', 'ci-workflows']);
@@ -748,15 +740,8 @@ const SETTINGS_TOOLS = new Set(['code-review-bot']);
 // Known target file(s) per standards tool. An empty array means there is no
 // file to write (a repo-settings toggle or a human/legal decision).
 const STANDARD_TARGET_FILES = {
-  'code-scanning': ['.github/workflows/codeql-analysis.yml'],
-  'dependabot-actions': ['.github/dependabot.yml'],
+  ...Object.fromEntries(Object.entries(TEMPLATES).map(([tool, { path }]) => [tool, [path]])),
   'contributing-guide': ['CONTRIBUTING.md'],
-  'issue-form-templates': ['.github/ISSUE_TEMPLATE/bug_report.yml'],
-  'dependabot-auto-merge': ['.github/workflows/dependabot-auto-merge.yml'],
-  'codeowners': ['.github/CODEOWNERS'],
-  'security-md': ['.github/SECURITY.md'],
-  'release-cadence': ['.github/workflows/release.yml'],
-  'osv-scanner': ['.github/workflows/osv-scanner.yml'],
   'ci-workflows': ['.github/workflows/ci.yml'],
   'license': ['LICENSE'],
   'secret-scanning': [],
