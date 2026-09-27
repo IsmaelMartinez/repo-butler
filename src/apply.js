@@ -479,13 +479,15 @@ export const APPLY_DECLINE_COOLDOWN_DAYS = 30;
  * about here — the open-PR check has already run, so the worst case is one
  * duplicate PR attempt against an existing branch rather than a silently
  * disabled standard.
+ *
+ * `cooldownDays` lets onboard.js apply the same decline rule on its own clock.
  */
-export function isRecentlyDeclined(pr, now = Date.now()) {
+export function isRecentlyDeclined(pr, now = Date.now(), cooldownDays = APPLY_DECLINE_COOLDOWN_DAYS) {
   if (!pr || pr.state !== 'closed' || pr.merged_at) return false;
   const closedAt = new Date(pr.closed_at ?? '').getTime();
   if (Number.isNaN(closedAt)) return false;
   const age = now - closedAt;
-  return age >= 0 && age <= APPLY_DECLINE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+  return age >= 0 && age <= cooldownDays * 24 * 60 * 60 * 1000;
 }
 
 /**

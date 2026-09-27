@@ -508,7 +508,11 @@ async function main() {
       const created = results.filter(r => r.status === 'created');
       const skipped = results.filter(r => r.status === 'skipped');
       const errors = results.filter(r => r.status === 'error');
-      console.log(`Onboarding: ${created.length} new, ${skipped.length} already done, ${errors.length} errors`);
+      console.log(`Onboarding: ${created.length} new, ${skipped.length} skipped, ${errors.length} errors`);
+      // Named, not just counted: an 'error' is a repo onboarding could not
+      // judge (unreadable CLAUDE.md or PR history), and a bare count would let
+      // a token that lost read access pass for a quiet run. Public repos only.
+      for (const r of errors) console.warn(`Onboarding error: ${r.repo}: ${r.reason ?? r.error}`);
     }
   }
 
