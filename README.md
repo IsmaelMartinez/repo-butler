@@ -86,7 +86,7 @@ The portfolio page (`index.html`) is the landing page with a stacked weekly comm
 
 Per-repo pages (`{repo-name}.html`) are generated for every active, non-fork, non-test repo. Repos with 10 or more commits in the last 6 months get full charts covering PR merge velocity (12 months), issues opened vs closed (12 months), release cadence, PR author distribution, open issues by label, and weekly trend lines when history is available. Repos with less activity get a lightweight summary card.
 
-Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Scheduled and push runs always regenerate; the snapshot-hash cache lets a manual dispatch skip regeneration when nothing has changed, and per-repo enrichment is cached separately until a repo's last push or open-issue count moves.
+Reports regenerate four times a day during UK waking hours (07:00, 11:00, 16:00, 20:00 UTC) and are deployed to GitHub Pages automatically. Scheduled and push runs always regenerate; the snapshot-hash cache lets a manual dispatch skip regeneration when nothing has changed, and per-repo enrichment is cached separately until a repo's last push or open-issue count moves (currently inert: the cache file exceeds the 1 MB read limit, #449).
 
 ## Quick start
 
@@ -206,7 +206,7 @@ claude mcp add repo-butler node src/mcp.js
 }
 ```
 
-Once connected, the AI gets twelve tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier/language), `get_snapshot_diff` (what changed since last run), `get_weekly_trend` (up to 12 weeks of per-repo or portfolio-wide history), `get_governance_findings` (every finding type, with autofix-not-driven and tier-regression counts), `get_open_governance_prs` (outstanding `repo-butler/apply-*` PRs across the portfolio), `list_stale_dependabot_prs` (stale dependency PRs by minimum age), `trigger_refresh` (dispatch the workflow via `gh` CLI), `get_monitor_events` (events captured between daily runs), `get_watchlist` (council-watchlisted proposals), and `get_council_personas` (the five reviewer personas). It also exposes three resources: the latest snapshot, portfolio health summary, and campaign status.
+Once connected, the AI gets twelve tools: `get_health_tier` (tier + checklist for any repo), `get_campaign_status` (portfolio compliance), `query_portfolio` (filter by tier), `get_snapshot_diff` (what changed since last run), `get_weekly_trend` (up to 12 weeks of per-repo or portfolio-wide history), `get_governance_findings` (every finding type, with autofix-not-driven and tier-regression counts), `get_open_governance_prs` (outstanding `repo-butler/apply-*` PRs across the portfolio), `list_stale_dependabot_prs` (stale dependency PRs by minimum age), `trigger_refresh` (dispatch the workflow via `gh` CLI), `get_monitor_events` (events captured between daily runs), `get_watchlist` (council-watchlisted proposals), and `get_council_personas` (the five reviewer personas). It also exposes three resources: the latest snapshot, portfolio health summary, and campaign status.
 
 ## A2A Agent Card
 

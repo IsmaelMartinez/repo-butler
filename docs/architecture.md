@@ -150,8 +150,9 @@ cache: its key is a SHA-256 over the snapshot summary plus a daily date-bucket a
 a hash of the report source files, so a changed metric, a new day, or a CSS tweak
 each force regeneration. Only a manual dispatch honours it, though. The daily
 workflow sets `REPORT_FORCE` on scheduled and push runs so every one of them
-redeploys, and the saving that matters on those runs is the per-repo enrichment
-cache described below.
+redeploys, and the saving meant to matter on those runs is the per-repo
+enrichment cache described below — which currently never hits, because
+`repo-cache.json` has outgrown the 1 MB Contents API read (#449).
 
 ### The data branch is the database
 
@@ -386,7 +387,7 @@ orchestration around it — snapshot persistence, governance detection, council
 deliberation, storing results back on `context` for downstream phases. Adding a
 phase means writing the module, exporting its `runX`, and registering it in
 `PHASE_RUNNERS` — and in `PHASES` too if it should run under `--phase=all`
-(`apply` is deliberately kept out of `PHASES` so it stays dispatch-only).
+(`apply` is deliberately kept out of `PHASES` so it never runs under `--phase=all`).
 
 One pass sits deliberately outside all of that. `src/private-watch.js` reads each
 private repo's security alerts and delivers acute findings to a tracking issue on

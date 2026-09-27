@@ -36,7 +36,7 @@ export async function hasOnboardingMarker(gh, owner, repo) {
 
 const CONSUMER_GUIDE_SECTION = `## Repo Butler
 
-This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler), a portfolio health agent that observes repo health daily and generates dashboards, governance proposals, and tier classifications.
+This repo is monitored by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler), a portfolio health agent that observes repo health four times a day and generates dashboards, governance findings, and tier classifications.
 
 **Your report:** https://ismaelmartinez.github.io/repo-butler/{REPO_NAME}.html
 **Portfolio dashboard:** https://ismaelmartinez.github.io/repo-butler/
