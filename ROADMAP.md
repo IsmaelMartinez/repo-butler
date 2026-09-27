@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-26
+**Last Updated:** 2026-09-27
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -53,15 +53,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-06** — 8 entries (#263, #265, #266, #278, #279, #280, #282, #284, #286, #288, #291, #298, #300, #301, #302, #303, #304). Full details in git history.
 
-**2026-07** — 7 entries (#326, #328, #329, #330, #342, #343, #344, #345, #348, #349, #352, #10940). Full details in git history.
-
-G7 Gold-ratchet tier-regression detector shipped 2026-07-29 (PR #354). Detects that a repo's health tier fell since the previous weekly portfolio snapshot, diffed via the shared `detectTierChanges` core against `readLatestPortfolioWeekly({ beforeWeek })` so the finding persists for its whole week across the four-times-daily runs. Routes to `executor: 'manual'` — the route back up a tier lives in the companion tier-uplift finding.
-
-G12 stale-butler-PR audit shipped 2026-07-29 (PR #355). The mirror of the Dependabot audit aimed at the butler itself: it detects `repo-butler/*` PRs the butler opened on target repos and nobody landed. It reads a new five-state `gh.prCiState` (`green|red|pending|none|unknown`) rather than `prCiGreen`, because that helper is a merge-authorisation guard collapsing red, pending, no-CI-at-all and API errors into one `false`. It reports persistence rather than attempting blame attribution. `roadmap-update` PRs are excluded by construction, since UPDATE force-pushes a fresh head every run, so their CI is always in flight and their age never resets. It shares one open-PR sweep with the Dependabot audit.
-
-ADR-013 content-transformation trust model and the G6 trimmer shipped 2026-07-29 (PR #356). `src/trimmer.js` is the deciding core for transitive-vulnerability remediation: given a parsed npm lockfile, a manifest and an alert it returns either a parent-scoped `overrides` change or an explicit refusal with a reason. It is pure and has no caller in the write path, so it changes nothing until wired deliberately. It is the first capability that would transform file content the butler did not author, breaking the ADR-005 invariant that every cross-repo write is a fixed string. Its scope is narrower than "fix transitive vulns": `reachable-by-update` is a refusal, because Dependabot was found to be stalled rather than incapable, and only the `0.x`-capped shape genuinely needs an override. The range fence is a release-line test, not a major-line one, because inside `0.x` every minor is its own breaking line.
-
-G13 stalled-alert detector and ADR-014 shipped 2026-07-29 (PRs #357, #358). It reports an open Dependabot alert at or above `medium` severity — deliberately below the critical/high bar of the open-vulnerability finding — older than 14 days, with no open Dependabot PR addressing that package, and classifies why it is stuck. ADR-014 records that the rescan-forcing half of the original proposal is impossible: the spike closed four routes and `dependabot/dependabot-core#6098` is closed as not planned. Detection is what replaced the rescan rather than a consolation prize. It fails closed, so an unreadable manifest yields `classification: 'unknown'` and the finding is still emitted, and PR matching errs toward silence, since grouped Dependabot PRs do not name their contents. The motivating case sat open thirty-five days on a repo where every existing signal reported health.
+**2026-07** — 11 entries (#326, #328, #329, #330, #342, #343, #344, #345, #348, #349, #352, #354, #355, #356, #357, #358, #10940). Full details in git history.
 
 MCP release exemption fixed 2026-08-01 (PR #359). `src/mcp.js` never loaded `.github/roadmap.yml`, so every tier it computed dropped the `release_exempt` list and reported two deliberately-exempt repos a tier below what the rest of the pipeline read — a phantom regression in the 2026-07-30 briefing. `loadConfigSync` is the synchronous twin of `loadConfig` that `callTool`'s synchronous dispatch needs, and it is deliberately silent on a missing config because a stray log on stdout would corrupt the JSON-RPC frames. A source-level test asserts every `computeHealthTier` call in the file goes through `tierOptions()`, so a new call site cannot silently omit the exemption.
 
@@ -116,6 +108,8 @@ Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). This release con
 Automated lockfile update tool for reachable-by-update alerts shipped 2026-09-17 (PR #400). Following the ADR-015 design, this implements the `lockfile-update` apply tool specifically targeting `reachable-by-update` Dependabot alerts, allowing the butler to autonomously resolve targeted security vulnerabilities by updating lockfiles.
 
 CI workflow alignments on Node 24 and lockfile dependency updates shipped 2026-09-26 (PR #405). Aligns the CI test run execution and lockfile updates with Node 24 to support modern npm-11 lockfile formats, preventing environment-specific blockages during scheduled planning cycles.
+
+Governance configuration schema alignment and onboarding safeguards shipped 2026-09-27 (PRs #431, #432, #434, #436). Hardens the repository onboarding flow by skipping declined pull requests, refusing unreadable CLAUDE.md files, and strictly requiring boolean true values for approval gates. Additionally, prevents silent configuration drift by aligning the core configuration schema with system defaults and enforces stricter roadmap integrity by requiring merged-PR evidence for all shipped entries.
 
 ---
 
