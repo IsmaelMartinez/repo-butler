@@ -6,7 +6,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, jsStr, fmt, countBy, isBlocked,
   daysAgoISO, last12Months, computeHealthTier, isReleaseExempt,
-  colorByThreshold, nextTier, isCheckRequiredForTier, deployedLink,
+  colorByThreshold, nextTier, isCheckRequiredForTier, deployedLink, autofixActive,
 } from './report-shared.js';
 
 // Range tuples for value-to-colour mapping in per-repo dashboards.
@@ -720,8 +720,7 @@ export function generateLightRepoReport(owner, repo, details) {
   const license = details?.license || 'None';
   // details.autofix is the raw { enabled, paused } | null state (fetchPortfolioDetails);
   // derive the same tri-state buildRepoSnapshot computes for the full-dashboard path.
-  const autofix = details?.autofix;
-  const autofixActive = autofix == null ? null : (autofix.enabled === true && autofix.paused !== true);
+  const autofix = autofixActive(details?.autofix);
 
   const liveSite = deployedLink(repo.homepage, 'live site ↗');
   const body = `<h1>${escHtml(repo.name)}</h1>
@@ -733,7 +732,7 @@ export function generateLightRepoReport(owner, repo, details) {
   <div class="card"><h3>Commits (6mo)</h3><div class="stat">${commits}</div></div>
   <div class="card"><h3>CI Workflows</h3><div class="stat">${ci ?? '—'}</div></div>
   <div class="card"><h3>Last Push</h3><div class="stat stat-sm">${pushed}</div></div>
-  ${buildDependabotAutofixCard(autofixActive)}
+  ${buildDependabotAutofixCard(autofix)}
 </div>
 <div class="chart-container muted" style="text-align:center;padding:3rem">
   This repo has fewer than 10 commits in the last 6 months.<br>
