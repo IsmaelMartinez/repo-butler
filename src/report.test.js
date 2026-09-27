@@ -1599,6 +1599,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
       request: (path) => {
         requestPaths.push(path);
         if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+        if (path.includes('-scanning/alerts') || path.includes('/dependabot/alerts')) return Promise.resolve([]);
         return Promise.resolve({});
       },
       paginate: (path) => { paginatePaths.push(path); return Promise.resolve([]); },
@@ -1623,7 +1624,10 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.deepEqual(requestPaths, [
       '/repos/owner/cached-repo/automated-security-fixes',
       '/repos/owner/cached-repo/contents/.github/workflows',
-    ], 'only the volatile reads run on a cache hit: autofix + the osv-scanner contents listing');
+      '/repos/owner/cached-repo/dependabot/alerts?state=open&per_page=100',
+      '/repos/owner/cached-repo/code-scanning/alerts?state=open&per_page=100',
+      '/repos/owner/cached-repo/secret-scanning/alerts?state=open&per_page=100',
+    ], 'only the volatile reads run on a cache hit: autofix, the osv-scanner contents listing and the three alert summaries');
     assert.deepEqual(paginatePaths, ['/repos/owner/cached-repo/rulesets'], 'only the copilot ruleset list paginate runs on a cache hit');
     assert.equal(getFileContentCalled, false, 'no getFileContent on a cache hit');
     assert.equal(details['cached-repo'].commits, 42, 'should use cached commits');
@@ -1661,6 +1665,117 @@ describe('fetchPortfolioDetails incremental cache', () => {
         details: { commits: 42, hasCopilotReview: false, ...details },
       },
     },
+  });
+
+  // #449: repo-cache.json outgrew the Contents API's 1 MB inline ceiling, so
+  // the store read returned null and this function never saw a hit. End to end
+  // from the store read, a cache that arrives through the blob fallback must
+  // produce a hit exactly as an inline one does.
+  it('hits the cache when repo-cache.json arrives through the over-1 MB blob path', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { createStore } = await import('./store.js');
+    const sha = 'c1eee2546c92c6407e1107f6f88062808dc1553a';
+    const encoded = Buffer.from(JSON.stringify(cachedWorkflowsCache({ commits: 42, ci: 2 }))).toString('base64');
+    const dataGh = {
+      request: async (path) => {
+        if (path === '/repos/owner/repo-butler/contents/snapshots/repo-cache.json') return { encoding: 'none', content: '', sha };
+        if (path === `/repos/owner/repo-butler/git/blobs/${sha}`) return { sha, encoding: 'base64', content: encoded };
+        throw new Error(`unexpected request ${path}`);
+      },
+    };
+    const cache = await createStore({ owner: 'owner', repo: 'repo-butler', token: 't', gh: dataGh }).readRepoCache();
+    const gh = cachedWorkflowsGh(() => Promise.resolve([{ name: 'ci.yml' }]));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache });
+    assert.ok(details._cachedRepos.includes('cached-repo'), 'the large-file cache must produce a hit');
+    assert.equal(details['cached-repo'].commits, 42, 'push-invariant fields come from the cache');
+    assert.equal(details['cached-repo'].ci, 2, 'the ci last-known value is available again');
+  });
+
+  // Security alerts change without a push (a new advisory, a scheduled CodeQL
+  // run, a manual dismissal) and feed the Gold "zero critical/high" check and
+  // governance's open-vulnerability detector, so the cache-hit path must read
+  // them live. Serving the cached counts would hold a repo at Gold after a new
+  // high landed, for as long as the repo stayed quiet.
+  const securityGh = ({ dependabot, codeScanning, secretScanning }) => ({
+    request: (path) => {
+      if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+      if (path.includes('/contents/.github/workflows')) return Promise.resolve([{ name: 'ci.yml' }]);
+      if (path.includes('/dependabot/alerts')) return dependabot();
+      if (path.includes('/code-scanning/alerts')) return codeScanning();
+      if (path.includes('/secret-scanning/alerts')) return secretScanning();
+      return Promise.resolve({});
+    },
+    paginate: () => Promise.resolve([]),
+    getFileContent: () => Promise.resolve(null),
+  });
+  const zeroSummary = { count: 0, critical: 0, high: 0, medium: 0, low: 0, max_severity: null };
+  const cleanCachedDetails = {
+    ci: 2, license: 'MIT', communityHealth: 100, open_bugs: 0, released_at: new Date().toISOString(),
+    vulns: zeroSummary, codeScanning: zeroSummary, secretScanning: { count: 0 },
+  };
+  const reject500 = () => Promise.reject(Object.assign(new Error('500'), { status: 500 }));
+
+  it('reads security alerts live on a cache hit, so a new high drops the Gold check', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { computeHealthTier } = await import('./report-shared.js');
+    const gh = securityGh({
+      dependabot: () => Promise.resolve([{ security_vulnerability: { severity: 'high' } }]),
+      codeScanning: () => Promise.resolve([{ rule: { security_severity_level: 'critical' } }]),
+      secretScanning: () => Promise.resolve([{ number: 1 }]),
+    });
+    const cache = cachedWorkflowsCache(cleanCachedDetails);
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache });
+    const d = details['cached-repo'];
+    assert.ok(details._cachedRepos.includes('cached-repo'), 'still a cache hit');
+    assert.equal(d.vulns.max_severity, 'high', 'dependabot summary comes from the live read');
+    assert.equal(d.codeScanning.max_severity, 'critical', 'code-scanning summary comes from the live read');
+    assert.equal(d.secretScanning.count, 1, 'secret-scanning count comes from the live read');
+    const check = computeHealthTier({ ...d, pushed_at: cachedWorkflowsRepos[0].pushed_at })
+      .checks.find(c => c.name === 'Zero critical/high security findings');
+    assert.equal(check.passed, false, 'the tier must see the live high, not the cached zero');
+    assert.equal(cache.repos['cached-repo'].details.vulns, zeroSummary, 'the cache object is never mutated');
+  });
+
+  it('reports an unreadable live alert read as unknown (null), as the miss path does, never the cached counts', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = securityGh({ dependabot: reject500, codeScanning: reject500, secretScanning: reject500 });
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
+      cache: cachedWorkflowsCache({ ...cleanCachedDetails, vulns: { ...zeroSummary, count: 3, low: 3 } }),
+    });
+    const d = details['cached-repo'];
+    assert.equal(d.vulns, null, 'an unreadable dependabot read is unknown, not the cached summary');
+    assert.equal(d.codeScanning, null);
+    assert.equal(d.secretScanning, null);
+  });
+
+  // The dependabot.yml config-only fallback exists for a token without alert
+  // scope (403). It reports count 0, which passes the Gold check, so applying
+  // it to a transient 500 would turn "could not read" into "no alerts".
+  it('reads a non-array secret-scanning response as unknown, not as zero alerts', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = securityGh({
+      dependabot: () => Promise.resolve([]),
+      codeScanning: () => Promise.resolve([]),
+      secretScanning: () => Promise.resolve({ message: 'unexpected shape' }),
+    });
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache: cachedWorkflowsCache(cleanCachedDetails) });
+    assert.equal(details['cached-repo'].secretScanning, null);
+  });
+
+  it('keeps the config-only dependabot fallback to a 403; any other failure is unknown', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const withDependabotYml = (dependabot) => ({
+      ...securityGh({ dependabot, codeScanning: reject500, secretScanning: reject500 }),
+      getFileContent: () => Promise.resolve('version: 2\n'),
+    });
+    const cache = () => cachedWorkflowsCache(cleanCachedDetails);
+    const forbidden = () => Promise.reject(Object.assign(new Error('403'), { status: 403 }));
+
+    const on500 = await fetchPortfolioDetails(withDependabotYml(reject500), 'owner', cachedWorkflowsRepos, { cache: cache() });
+    assert.equal(on500['cached-repo'].vulns, null, 'a 500 is unknown, never a config-only zero');
+
+    const on403 = await fetchPortfolioDetails(withDependabotYml(forbidden), 'owner', cachedWorkflowsRepos, { cache: cache() });
+    assert.equal(on403['cached-repo'].vulns?.config_only, true, 'a 403 with dependabot.yml present is config-only');
   });
 
   it('treats an EMPTY cached details object as never-fetched, not as a cache hit', async () => {

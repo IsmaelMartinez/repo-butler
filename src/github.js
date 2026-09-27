@@ -468,6 +468,37 @@ export async function getAutomatedSecurityFixesState(gh, owner, repo) {
   }
 }
 
+// Read a file, falling back to the blob API when the Contents API declines to
+// inline it. That API caps inline content at 1 MB and returns the object with
+// `content: ""` and `encoding: "none"` above it, so for a file that can grow
+// past that line (real lockfiles, the data branch's repo-cache.json) the plain
+// getFileContent null is indistinguishable from absence. Returns null only for
+// a genuine 404. A response that is neither inline content nor a blob pointer
+// (a directory listing included), or a blob without content, is a malformed or
+// partial answer and throws — absence must not be inferred from an API that
+// did not say so. Deliberately separate from getFileContent, whose
+// null-on-anything contract several callers rely on to fail closed.
+export async function getLargeFileContent(gh, owner, repo, filePath, { ref } = {}) {
+  let data;
+  try {
+    data = await gh.request(`/repos/${owner}/${repo}/contents/${filePath}`, ref ? { params: { ref } } : undefined);
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
+  if (typeof data?.content === 'string' && data.content.length > 0) {
+    return Buffer.from(data.content, 'base64').toString('utf-8');
+  }
+  if (typeof data?.sha !== 'string' || data.sha === '') {
+    throw new Error(`contents response for ${filePath} carried neither content nor a blob sha`);
+  }
+  const blob = await gh.request(`/repos/${owner}/${repo}/git/blobs/${data.sha}`);
+  if (typeof blob?.content !== 'string') {
+    throw new Error(`blob ${data.sha.slice(0, 8)} for ${filePath} carried no content`);
+  }
+  return Buffer.from(blob.content, 'base64').toString('utf-8');
+}
+
 // Paginate /repos/{owner}/{repo}/issues and filter out PRs (which the GitHub
 // issues endpoint includes). Single source of truth for the "real issues only"
 // pattern used by observe, propose, and report fetchers.

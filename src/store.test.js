@@ -524,3 +524,86 @@ describe('readJSONChecked', () => {
     assert.equal(result.reason, 'unparseable');
   });
 });
+
+// The Contents API stops inlining content above 1 MB: it answers with
+// `encoding: "none"`, an empty `content` and the blob `sha`. repo-cache.json
+// crossed that line (#449), so a Contents-only read returned null on every run
+// and fetchPortfolioDetails never saw a cache hit.
+describe('readRepoCache', () => {
+  const CACHE = { repos: { a: { schemaVersion: 1, pushed_at: '2026-01-01T00:00:00Z', details: { ci: 2 } } } };
+  const BLOB_SHA = 'c1eee2546c92c6407e1107f6f88062808dc1553a';
+  const store = (gh) => createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+  // `contents` / `blob` are each either a response or a function that throws.
+  function largeFileGh({ contents, blob }) {
+    const asked = [];
+    const gh = makeFakeGh();
+    gh.request = async (path, opts) => {
+      asked.push({ path, ref: opts?.params?.ref });
+      if (path === '/repos/o/r/contents/snapshots/repo-cache.json') return typeof contents === 'function' ? contents() : contents;
+      if (path === `/repos/o/r/git/blobs/${BLOB_SHA}`) return typeof blob === 'function' ? blob() : blob;
+      throw new Error(`unexpected request ${path}`);
+    };
+    return { gh, asked };
+  }
+  const httpError = (status) => () => { throw Object.assign(new Error(`HTTP ${status}`), { status }); };
+  const b64 = (s) => Buffer.from(s).toString('base64');
+
+  it('reads an over-1 MB cache through the blob API', async () => {
+    const { gh, asked } = largeFileGh({
+      contents: { encoding: 'none', content: '', sha: BLOB_SHA, size: 1999870 },
+      blob: { sha: BLOB_SHA, encoding: 'base64', content: b64(JSON.stringify(CACHE)) },
+    });
+    assert.deepEqual(await store(gh).readRepoCache(), CACHE);
+    assert.equal(asked[0].ref, 'repo-butler-data', 'the contents read must target the data branch');
+  });
+
+  it('still reads an inline (under 1 MB) cache without a blob call', async () => {
+    const { gh, asked } = largeFileGh({
+      contents: { encoding: 'base64', content: b64(JSON.stringify(CACHE)), sha: BLOB_SHA },
+      blob: httpError(500),
+    });
+    assert.deepEqual(await store(gh).readRepoCache(), CACHE);
+    assert.equal(asked.length, 1);
+  });
+
+  // Every failure below is a cache miss (a full refetch), never a throw out of
+  // readRepoCache: that was the behaviour before #449 and is the safe direction.
+  it('returns null for a genuine 404', async () => {
+    const { gh } = largeFileGh({ contents: httpError(404), blob: httpError(500) });
+    assert.equal(await store(gh).readRepoCache(), null);
+  });
+
+  it('returns null when the contents read fails', async () => {
+    const { gh } = largeFileGh({ contents: httpError(500), blob: httpError(500) });
+    assert.equal(await store(gh).readRepoCache(), null);
+  });
+
+  it('returns null when the blob fetch errors', async () => {
+    const { gh } = largeFileGh({ contents: { encoding: 'none', content: '', sha: BLOB_SHA }, blob: httpError(502) });
+    assert.equal(await store(gh).readRepoCache(), null);
+  });
+
+  it('returns null when the contents response has neither content nor a sha', async () => {
+    const { gh } = largeFileGh({ contents: { encoding: 'none', content: '' }, blob: httpError(500) });
+    assert.equal(await store(gh).readRepoCache(), null);
+  });
+
+  it('returns null when the blob carries no content', async () => {
+    const { gh } = largeFileGh({ contents: { encoding: 'none', content: '', sha: BLOB_SHA }, blob: { sha: BLOB_SHA } });
+    assert.equal(await store(gh).readRepoCache(), null);
+  });
+
+  it('returns null when the blob decodes to malformed JSON', async () => {
+    const { gh } = largeFileGh({
+      contents: { encoding: 'none', content: '', sha: BLOB_SHA },
+      blob: { content: b64('{ "repos": { truncated') },
+    });
+    assert.equal(await store(gh).readRepoCache(), null);
+  });
+
+  it('returns null for a directory listing at the path', async () => {
+    const { gh } = largeFileGh({ contents: [{ name: 'x.json' }], blob: httpError(500) });
+    assert.equal(await store(gh).readRepoCache(), null);
+  });
+});
