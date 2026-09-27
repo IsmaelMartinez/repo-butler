@@ -1,0 +1,110 @@
+{
+  "_comment": "A trimmed repo-butler-data branch for src/mcp.test.js, shaped from the real snapshots (2026-09-26) with fake repo names. Keys under `files` are data-branch paths. `alpha` was named `alpha-old` before W39 (same id), W37 is the legacy flat shape with no stored tier, and the two non-week files exist to prove the weekly listings ignore them.",
+  "committed_at": "2026-09-26T06:44:54Z",
+  "files": {
+    "snapshots/latest.json": {
+      "timestamp": "2026-09-26T06:44:53.206Z",
+      "repository": "example-owner/repo-butler",
+      "summary": { "open_issues": 3, "recently_merged_prs": 10, "releases": 2, "community_health": 100, "ci_pass_rate": 1, "bus_factor": 1 }
+    },
+    "snapshots/previous.json": {
+      "timestamp": "2026-09-25T20:40:11.000Z",
+      "repository": "example-owner/repo-butler",
+      "summary": { "open_issues": 5, "recently_merged_prs": 7, "releases": 2, "community_health": 90, "ci_pass_rate": 0.9, "bus_factor": 1 }
+    },
+    "snapshots/portfolio-weekly/2026-W37.json": {
+      "alpha-old": {
+        "id": 101, "open_issues": 4, "open_bugs": 0, "license": "MIT", "communityHealth": 100, "ciPassRate": 0.8,
+        "vulns": { "count": 0, "max_severity": null }, "codeScanning": { "count": 0, "max_severity": null }, "secretScanning": { "count": 0 },
+        "ci": 3, "released_at": "2026-05-01T10:00:00Z", "pushed_at": "2026-09-10T10:00:00Z"
+      }
+    },
+    "snapshots/portfolio-weekly/2026-W38.json": {
+      "schema_version": "v1",
+      "repos": {
+        "alpha-old": {
+          "id": 101, "open_issues": 2, "open_bugs": 0, "license": "MIT", "communityHealth": 100, "ciPassRate": 0.9,
+          "vulns": { "count": 0, "max_severity": null }, "codeScanning": { "count": 0, "max_severity": null }, "secretScanning": { "count": 0 },
+          "ci": 3, "released_at": "2026-05-01T10:00:00Z", "pushed_at": "2026-09-17T10:00:00Z",
+          "computed": { "tier": "gold" }
+        },
+        "beta": {
+          "id": 102, "open_issues": 6, "open_bugs": 1, "license": "MIT", "communityHealth": 60, "ciPassRate": 0.7,
+          "vulns": { "count": 1, "max_severity": "high" }, "codeScanning": { "count": 0, "max_severity": null }, "secretScanning": { "count": 0 },
+          "ci": 2, "released_at": "2026-01-10T10:00:00Z", "pushed_at": "2026-09-15T10:00:00Z",
+          "computed": { "tier": "silver" }
+        }
+      }
+    },
+    "snapshots/portfolio-weekly/2026-W39.json": {
+      "schema_version": "v1",
+      "repos": {
+        "alpha": {
+          "id": 101, "open_issues": 1, "open_bugs": 0, "license": "MIT", "communityHealth": 100, "ciPassRate": 0.95, "hasIssueTemplate": true,
+          "vulns": { "count": 0, "max_severity": null }, "codeScanning": { "count": 0, "max_severity": null }, "secretScanning": { "count": 0 },
+          "ci": 3, "released_at": "2026-09-15T11:05:30Z", "pushed_at": "2026-09-21T03:25:59Z",
+          "computed": { "tier": "gold" }
+        },
+        "beta": {
+          "id": 102, "open_issues": 7, "open_bugs": 1, "license": "MIT", "communityHealth": 60, "ciPassRate": 0.7,
+          "vulns": { "count": 1, "max_severity": "high" }, "codeScanning": { "count": 0, "max_severity": null }, "secretScanning": { "count": 0 },
+          "ci": 2, "released_at": "2026-01-10T10:00:00Z", "pushed_at": "2026-09-20T10:00:00Z",
+          "computed": { "tier": "silver" }
+        },
+        "gamma-test-repo": {
+          "id": 103, "open_issues": 0, "license": "None", "ci": 0,
+          "pushed_at": "2026-01-05T10:00:00Z",
+          "computed": { "tier": "bronze" }
+        }
+      }
+    },
+    "snapshots/portfolio-weekly/notes.json": { "note": "not a weekly snapshot" },
+    "snapshots/governance.json": [
+      { "type": "open-vulnerability", "repo": "beta", "sources": ["dependabot"], "autofixEnabled": false, "priority": "high", "remediation": { "executor": "manual" } },
+      { "type": "open-vulnerability", "repo": "gamma-test-repo", "sources": ["dependabot"], "autofixEnabled": true, "priority": "medium", "remediation": { "executor": "manual" } },
+      { "type": "tier-regression", "repo": "beta", "previousTier": "gold", "currentTier": "silver", "priority": "high", "remediation": { "executor": "manual" } },
+      { "type": "stalled-alert", "repo": "alpha", "alerts": [{ "number": 26, "package": "left-pad", "ecosystem": "npm", "severity": "medium", "ageDays": 22, "classification": "reachable-by-update" }], "priority": "medium", "remediation": { "executor": "manual" } },
+      { "type": "standards-gap", "tool": "license", "nonCompliant": ["gamma-test-repo"], "priority": "low", "remediation": { "executor": "template" } },
+      { "type": "dependabot-stale", "repo": "alpha", "priority": "low", "remediation": { "executor": "manual" }, "stalePRs": [
+        { "number": 7, "age": 45, "title": "bump a" },
+        { "number": 8, "age": 90, "title": "bump b" },
+        { "number": 9, "age": 10, "title": "bump c" },
+        { "number": "1/../settings", "age": 100, "title": "traversal" }
+      ] },
+      { "type": "dependabot-stale", "repo": "../evil", "stalePRs": [{ "number": 1, "age": 99, "title": "bad repo name" }] }
+    ],
+    "snapshots/governance-weekly/2026-W38.json": {
+      "findings": [
+        { "type": "open-vulnerability", "repo": "beta", "autofixEnabled": false },
+        { "type": "open-vulnerability", "repo": "alpha-old", "autofixEnabled": false }
+      ]
+    },
+    "snapshots/governance-weekly/2026-W39.json": {
+      "findings": [
+        { "type": "open-vulnerability", "repo": "beta", "autofixEnabled": false },
+        { "type": "open-vulnerability", "repo": "gamma-test-repo", "autofixEnabled": true },
+        { "type": "tier-regression", "repo": "beta" }
+      ]
+    },
+    "snapshots/governance-weekly/init.json": { "findings": [] },
+    "snapshots/monitor-cursor.json": {
+      "timestamp": "2026-09-26T06:44:53.206Z",
+      "repository": "example-owner/repo-butler",
+      "known_issue_numbers": [429, 430],
+      "known_pr_numbers": [431],
+      "known_dependabot_alerts": [1],
+      "known_code_scanning_alerts": [2, 3],
+      "known_secret_scanning_alerts": [],
+      "known_release_tags": ["v1.1.2"],
+      "last_event_count": 3
+    },
+    "snapshots/watchlist.json": [
+      {
+        "title": "Resolve stale Dependabot PRs", "type": "proposal", "severity": "medium",
+        "targetRepo": "beta", "held_back_reason": "cross-repo bar not cleared",
+        "council_verdict": "watch", "council_summary": "Watch until the statistic holds for a second week.",
+        "added_at": "2026-09-07T11:47:12.269Z"
+      }
+    ]
+  }
+}
