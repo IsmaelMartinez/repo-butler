@@ -113,6 +113,8 @@ Governance configuration schema alignment and onboarding safeguards shipped 2026
 
 Model Context Protocol test fixture isolation shipped 2026-09-27 (PR #437). Decouples the MCP test suite from live, volatile GitHub branches by injecting an IO seam to run tests against predictable, local fixture data, improving CI/CD pipeline reliability and deterministic agent execution.
 
+Executed plans and one-shot verification scripts archived 2026-09-27 (PR #445). Cleans up historical execution artifacts and past agent run files to keep the repository's codebase and documentation organized and free of clutter, resolving issue #419.
+
 ---
 
 ## Next Up
