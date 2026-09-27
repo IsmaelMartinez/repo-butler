@@ -2,8 +2,9 @@
 
 Date: 2026-07-29
 
-Status: Complete. **The answer is no**, and the goal that depended on it is dead
-as specified. A replacement is proposed, drawn from what the spike found instead.
+Status: Complete (#357), archived 2026-09-27. **The answer is no**, and the goal
+that depended on it is dead as specified. The replacement it proposed shipped as
+G13 (#358), with ADR-014 recording the decision.
 
 ## Why this spike existed
 

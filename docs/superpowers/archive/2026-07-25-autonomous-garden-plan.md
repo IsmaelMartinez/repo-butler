@@ -1,7 +1,7 @@
 # The Autonomous Garden — plan of record
 
 Date: 2026-07-25
-Status: EXECUTED the same day. Portfolio went 7 Gold / 6 Silver to 12 Gold / 1 Silver. Read the Outcome section next — several premises below were disproved by executing them, and are corrected in place rather than deleted.
+Status: EXECUTED the same day, then ARCHIVED 2026-09-27. Portfolio went 7 Gold / 6 Silver to 12 Gold / 1 Silver. The follow-on goals shipped separately: G0 #343, G3 #344, G7 #354, G12 #355, G5/G6 #356, G8 #361, and the rescan half was replaced by G13 (#357, #358). G9 (notetaker) and the remainder of G11 were never built and are tracked nowhere else. Read the Outcome section next — several premises below were disproved by executing them, and are corrected in place rather than deleted.
 Portfolio: IsmaelMartinez, 13 active repos
 Baseline: origin/main @ 4c52c007 (PR #338); data branch head 50fe782d (2026-07-24)
 Review: six adversarially-crosschecked investigators, one local-model claim audit (discarded, see Review trail), one third-party final check (Fable, APPROVE WITH CHANGES — all nine changes applied), then execution, which was by some distance the most effective reviewer of the three.
@@ -44,7 +44,7 @@ Two of this plan's load-bearing claims turned out to be wrong, and both were onl
 
 This substantially reduces G6's scope. The genuine exceptions are narrow and share one shape: a caret on a `0.x` version is minor-locked, so `^0.34.5` means `>=0.34.5 <0.35.0` and cannot reach a 0.35.x patch. Two cases out of roughly twenty-three met that description — `sharp`, which arrives only as an `optionalDependencies` entry of `next` at `^0.34.5` (and `next` 16.2.11 still declares that same range, so bumping the parent does not lift it), and `adm-zip` under `onnxruntime-node@^0.5.16` where no published release relaxes the pin. Those genuinely need a parent-scoped override. Everything else was reachable by `npm update --package-lock-only`.
 
-**SUPERSEDED 2026-07-29 — the "force a rescan" half of this is impossible.** The spike this paragraph demanded was run and returned a negative: there is no supported mechanism, and `dependabot/dependabot-core#6098` asking for one is *closed as not planned*. See [ADR-014](../decisions/014-no-programmatic-dependabot-rescan.md) and the [spike](2026-07-29-dependabot-rescan-spike.md). The *detection* half survives and is now [G13](2026-07-29-stalled-alert-plan.md); the forcing half is withdrawn. Original text follows.
+**SUPERSEDED 2026-07-29 — the "force a rescan" half of this is impossible.** The spike this paragraph demanded was run and returned a negative: there is no supported mechanism, and `dependabot/dependabot-core#6098` asking for one is *closed as not planned*. See [ADR-014](../../decisions/014-no-programmatic-dependabot-rescan.md) and the [spike](2026-07-29-dependabot-rescan-spike.md). The *detection* half survives and is now [G13](2026-07-29-stalled-alert-plan.md); the forcing half is withdrawn. Original text follows.
 
 So the highest-value automation is not the lockfile-transforming trimmer this plan proposed. It is far cheaper: detect an alert that has been open for N hours with no corresponding Dependabot PR, and force a rescan. G6 should be rewritten to cover only the `0.x`-capped case, and a new goal should cover rescan-nudging. The trimmer is still worth building — it is just a much smaller thing than described below.
 
@@ -58,7 +58,7 @@ The package had also been deliberately wound down in c234fd4 (#217), with a READ
 
 The general rule, which applies to every published package in this portfolio: a lockfile-only dependency bump fixes the repository's own CI tree and its Dependabot alert state, but never changes what a consumer resolves. Only a `package.json` range change, a bundled or inlined build, or a shipped shrinkwrap reaches consumers. Any future "ship the security fix" argument must be checked against the package's `files` list, the actual tarball contents, and whether a declared range moved.
 
-**RESOLVED 2026-07-29: the uncertainty flagged here was real, and the assumption was false.** The spike was run before any commitment, exactly as this paragraph asked. There is no legitimate mechanism; the goal is withdrawn and replaced by detection ([ADR-014](../decisions/014-no-programmatic-dependabot-rescan.md)). Recording this as a win for the paragraph below rather than a loss: it correctly identified the one claim that would not survive contact with evidence.
+**RESOLVED 2026-07-29: the uncertainty flagged here was real, and the assumption was false.** The spike was run before any commitment, exactly as this paragraph asked. There is no legitimate mechanism; the goal is withdrawn and replaced by detection ([ADR-014](../../decisions/014-no-programmatic-dependabot-rescan.md)). Recording this as a win for the paragraph below rather than a loss: it correctly identified the one claim that would not survive contact with evidence.
 
 **On the replacement for G6, be honest about the uncertainty.** The correction above proposes rescan-nudging as the cheaper, higher-value automation. That recommendation rests on an assumption that has not been tested: there is no public API to force a Dependabot security scan on demand. What demonstrably worked today was pushing to the default branch, and a bot pushing commits to provoke scans would be a poor design. Before rescan-nudging becomes an implementation goal it needs a spike to find a legitimate mechanism. Given that this document has already been wrong three times in one day about dependency-management mechanics, that spike should precede any commitment.
 
@@ -317,10 +317,10 @@ Refusal conditions are part of the specification, each mapped to a verified fixt
 
 Tests use those three real cases as fixtures, because each would have broken a naive implementation.
 
-Progress (2026-07-29): G5 complete — [ADR-013](../decisions/013-content-transformation-writes.md)
+Progress (2026-07-29): G5 complete — [ADR-013](../../decisions/013-content-transformation-writes.md)
 covers the third write category, with the benign-worst-case analysis redone
 rather than inherited. G6's deciding core ships as `src/trimmer.js` (pure, no
-caller in the write path yet), verifier `scripts/verify-g5.sh`.
+caller in the write path yet), verifier `docs/superpowers/archive/verify-g5.sh`.
 
 The rescope this document already argued for at lines 43-49 is now implemented,
 not just noted: `reachable-by-update` is a **refusal**. If every parent range
@@ -399,7 +399,7 @@ cd <repo-butler> && node --test --test-name-pattern 'stale-apply-pr' src/governa
 ```
 
 Progress (2026-07-29): implemented as `src/butler-pr-audit.js`, verifier
-`scripts/verify-g12.sh`. Six deviations from the spec above, each forced by
+`docs/superpowers/archive/verify-g12.sh`. Six deviations from the spec above, each forced by
 evidence found while building, and each recorded here rather than quietly
 absorbed.
 

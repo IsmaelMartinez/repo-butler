@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, detectTierRegressions, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
 import { isoWeekKey } from './store.js';
+import { TEMPLATES } from './apply-templates.js';
 
 // --- Test helpers ---
 
@@ -883,6 +884,17 @@ describe('detectOpenVulnerabilities', () => {
 });
 
 describe('buildRemediationPlan', () => {
+  // TEMPLATABLE_TOOLS and the templated STANDARD_TARGET_FILES entries are
+  // derived from TEMPLATES; a hand-kept copy once dropped osv-scanner and routed
+  // it to 'manual', so no PR was ever opened.
+  it('routes every apply template to the template executor at its own path', () => {
+    for (const [tool, { path }] of Object.entries(TEMPLATES)) {
+      const plan = buildRemediationPlan({ type: 'standards-gap', tool, nonCompliant: ['r'] });
+      assert.equal(plan.executor, 'template', tool);
+      assert.deepEqual(plan.targetFiles, [path], tool);
+    }
+  });
+
   it('routes a templatable standards tool to the template executor', () => {
     const plan = buildRemediationPlan({
       type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a', 'repo-b'], adoptionRate: 0.6,
@@ -918,9 +930,6 @@ describe('buildRemediationPlan', () => {
     assert.deepEqual(plan.targetFiles, ['.github/workflows/release.yml']);
   });
 
-  // Regression guard: TEMPLATABLE_TOOLS is a separate list from apply.js's
-  // TEMPLATES, so a tool present in the latter but missing here falls through to
-  // executor 'manual' and no PR is ever opened.
   it('routes osv-scanner to template with the scanner workflow target file', () => {
     const plan = buildRemediationPlan({ type: 'standards-gap', tool: 'osv-scanner', nonCompliant: ['r'] });
     assert.equal(plan.executor, 'template');

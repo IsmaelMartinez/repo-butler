@@ -19,7 +19,7 @@
 // already-tested isDeterministicFailure().
 
 import { REPO_EXCLUSION_PATTERNS } from './report-shared.js';
-import { APPLY_PR_MARKER, isDeterministicFailure } from './apply.js';
+import { APPLY_PR_MARKER, isDeterministicFailure } from './apply-templates.js';
 
 const BRANCH_PREFIX = 'repo-butler/';
 

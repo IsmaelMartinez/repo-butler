@@ -1,5 +1,5 @@
 import { createClient, paginateIssues, getAutomatedSecurityFixesState } from './github.js';
-import { isBugIssue, isBlocked, isFeatureIssue, isPublishedRelease, getAlertSummary } from './report-shared.js';
+import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
 // per-repo and portfolio observation, threads results onto context, persists
@@ -568,10 +568,7 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
   return {
     repo: repoMeta ? `${repoMeta.stars} stars, ${repoMeta.forks} forks` : 'unknown',
     open_issues: openIssues.length,
-    // Exclude blocked bugs: they're not actionable by the maintainer, so
-    // counting them against the "Fewer than 10 open bugs" gold gate punishes
-    // repos that have correctly triaged upstream-dependent issues.
-    open_bugs: openIssues.filter(i => isBugIssue(i.labels) && !isBlocked(i.labels)).length,
+    open_bugs: openIssues.filter(i => isActionableBug(i.labels)).length,
     open_features: openIssues.filter(i => isFeatureIssue(i.labels)).length,
     blocked_issues: blockedCount,
     awaiting_feedback: awaitingFeedback.length,
@@ -596,10 +593,8 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
     code_scanning_alert_count: codeScanningAlerts ? codeScanningAlerts.count : null,
     code_scanning_max_severity: codeScanningAlerts?.max_severity ?? null,
     secret_scanning_alert_count: secretScanningAlerts ? secretScanningAlerts.count : null,
-    // Dependabot automated security fixes (ADR-012 Phase 3): true when GitHub is
-    // actively opening bump PRs (enabled AND not paused), false when off/paused,
-    // null when the state is unreadable (feature unavailable / missing scope).
-    automated_security_fixes_active: autofix == null ? null : (autofix.enabled === true && autofix.paused !== true),
+    // Dependabot automated security fixes (ADR-012 Phase 3), tri-state.
+    automated_security_fixes_active: autofixActive(autofix),
     ci_pass_rate: ciPassRate?.pass_rate ?? null,
     bus_factor: computeBusFactor(mergedPRs),
     time_to_close_median: computeTimeToCloseMedian(closedIssues),

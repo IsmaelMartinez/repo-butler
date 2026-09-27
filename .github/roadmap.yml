@@ -69,7 +69,7 @@ standards:
   # see the TEMPLATES entry for why that line and the security-events grant are
   # both load-bearing. Manual apply.yml dispatch only (NOT on apply-schedule /
   # apply-automerge below); promotion follows the usual per-class track-record
-  # gate (ADR-007). Plan: docs/superpowers/2026-08-12-osv-scanner-standard-plan.md
+  # gate (ADR-007). Plan: docs/superpowers/archive/2026-08-12-osv-scanner-standard-plan.md
   osv-scanner: universal
 
 # Per-standard repo exclusions (comma-separated). sound3fy is release_exempt

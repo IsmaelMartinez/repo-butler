@@ -5,9 +5,9 @@ Date: 2026-07-29
 Status: Accepted
 
 Supersedes the rescan-nudging proposal in
-[the autonomous garden plan](../superpowers/2026-07-25-autonomous-garden-plan.md)
+[the autonomous garden plan](../superpowers/archive/2026-07-25-autonomous-garden-plan.md)
 (lines 47 and 59). Evidence is in the companion spike,
-[2026-07-29-dependabot-rescan-spike.md](../superpowers/2026-07-29-dependabot-rescan-spike.md).
+[2026-07-29-dependabot-rescan-spike.md](../superpowers/archive/2026-07-29-dependabot-rescan-spike.md).
 Unlike [ADR-005](005-cross-repo-pr-gates.md), [ADR-009](009-settings-level-writes.md),
 [ADR-012](012-dependabot-security-updates-settings-write.md) and
 [ADR-013](013-content-transformation-writes.md), this ADR authorises **no new

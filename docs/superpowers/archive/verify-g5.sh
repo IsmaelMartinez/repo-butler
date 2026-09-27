@@ -15,7 +15,7 @@
 #      "pass 1" even when the target file is absent), so an exit code alone would
 #      report this goal as already met.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../../.."
 
 ADR=docs/decisions/013-content-transformation-writes.md
 MIN_TESTS=20

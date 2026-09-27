@@ -901,6 +901,32 @@ describe('observe — Dependabot autofix state (ADR-012 Phase 3)', () => {
   });
 });
 
+describe('observe — open_bugs counts actionable bugs only', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const ok = (body) => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  const err = (status) => ({ ok: false, status, headers: new Map(), json: async () => ({}), text: async () => 'error' });
+  const issue = (number, labels, extra = {}) => ({ number, title: `i${number}`, user: { login: 'u' }, labels: labels.map(name => ({ name })), comments: 0, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', ...extra });
+
+  it('excludes blocked bugs, PRs and non-bug issues', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = new URL(url);
+      if (u.pathname === '/repos/owner/repo/issues' && u.searchParams.get('state') === 'open') {
+        return ok([issue(1, ['bug']), issue(2, ['kind/bug', 'blocked']), issue(3, ['bug'], { pull_request: {} }), issue(4, ['enhancement'])]);
+      }
+      if (u.pathname === '/repos/owner/repo') return ok({ stargazers_count: 0, forks_count: 0, open_issues_count: 0 });
+      if (u.pathname.startsWith('/repos/owner/repo/contents/')) return err(404);
+      return ok([]);
+    });
+    const { observe } = await import('./observe.js');
+    const snapshot = await observe({ owner: 'owner', repo: 'repo', token: 'fake', config: {} });
+    assert.equal(snapshot.summary.open_issues, 3);
+    assert.equal(snapshot.summary.open_bugs, 1);
+  });
+});
+
 describe("assess — the butler's own roadmap PRs are not new work", () => {
   // Each roadmap-update PR was being fed back into the next roadmap prompt as
   // "PRs merged since last update", so every roadmap PR became the subject of
