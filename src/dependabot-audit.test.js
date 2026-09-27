@@ -2,6 +2,15 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { auditDependabot } from './dependabot-audit.js';
 
+// Run fn with console.log captured; returns the lines logged.
+async function captureLogs(fn) {
+  const lines = [];
+  const orig = console.log;
+  console.log = (...a) => { lines.push(a.join(' ')); };
+  try { await fn(); } finally { console.log = orig; }
+  return lines;
+}
+
 function daysAgoISO(n) {
   return new Date(Date.now() - n * 86400000).toISOString();
 }
@@ -92,7 +101,7 @@ describe('auditDependabot', () => {
     const gh = {
       paginate: async (path) => {
         if (path.includes('bad-repo')) {
-          throw new Error('GitHub API GET /repos/owner/bad-repo/pulls: 403 Resource not accessible');
+          throw Object.assign(new Error('GitHub API GET /repos/owner/bad-repo/pulls: 403 Resource not accessible'), { status: 403 });
         }
         return [
           { number: 5, title: 'Bump deps', user: { login: 'dependabot[bot]' }, created_at: daysAgoISO(40) },
@@ -103,5 +112,14 @@ describe('auditDependabot', () => {
     const findings = await auditDependabot(gh, 'owner', repos);
     assert.equal(findings.length, 1);
     assert.equal(findings[0].repo, 'good-repo');
+  });
+
+  it('logs "skipping" only for a real 403/404 status, not for a 500 whose body mentions ": 404" (#438)', async () => {
+    const repos = [{ name: 'bad-repo', archived: false, fork: false }];
+    const run = (err) => captureLogs(() => auditDependabot({ paginate: async () => { throw err; } }, 'owner', repos));
+    const forbidden = await run(Object.assign(new Error('GitHub API GET /repos/owner/bad-repo/pulls: 403'), { status: 403 }));
+    assert.ok(forbidden.some(l => l.includes('dependabot-audit: skipping bad-repo')));
+    const server = await run(Object.assign(new Error('GitHub API GET /repos/owner/bad-repo/pulls: 500 {"message":"upstream said: 404"}'), { status: 500 }));
+    assert.ok(!server.some(l => l.includes('skipping')), server.join('\n'));
   });
 });

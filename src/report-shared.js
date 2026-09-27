@@ -115,6 +115,13 @@ export function isHighSeverity(summary) {
   return summary?.max_severity === 'critical' || summary?.max_severity === 'high';
 }
 
+// Tri-state "is Dependabot actively opening bump PRs" from the raw
+// { enabled, paused } | null state (ADR-012 Phase 3): true when enabled and
+// not paused, false when off or paused, null when the state is unreadable.
+export function autofixActive(state) {
+  return state == null ? null : (state.enabled === true && state.paused !== true);
+}
+
 // True for an open-vulnerability finding whose Dependabot automated security
 // fixes are not actively driving remediation (ADR-012 Phase 3). autofixEnabled
 // is only ever attached to dependabot-sourced findings (see governance.js), so
@@ -182,6 +189,14 @@ export function isBlocked(labels) {
     const name = typeof item === 'string' ? item : item?.name;
     return name ? name.toLowerCase() === 'blocked' : false;
   });
+}
+
+// A bug the maintainer can act on. Blocked bugs are excluded: counting them
+// against the "Fewer than 10 open bugs" gold gate punishes repos that have
+// correctly triaged upstream-dependent issues. Shared by OBSERVE and the
+// portfolio details path so the two open_bugs counts never drift.
+export function isActionableBug(labels) {
+  return isBugIssue(labels) && !isBlocked(labels);
 }
 
 export function isFeatureIssue(labels) {
@@ -344,7 +359,7 @@ export function buildRepoSnapshot({
       ci_workflows: details?.ci ?? null,
       bus_factor: busFactor,
       time_to_close_median: timeToCloseMedian,
-      automated_security_fixes_active: details?.autofix == null ? null : (details.autofix.enabled === true && details.autofix.paused !== true),
+      automated_security_fixes_active: autofixActive(details?.autofix),
     },
   };
 }
@@ -448,6 +463,20 @@ export const CAMPAIGN_DEFS = [
     test: (r, details) => !!details[r.name]?.hasIssueTemplate,
   },
 ];
+
+// Score one campaign over an already-filtered repo list. Repos the campaign's
+// `applicable` predicate rejects (data unavailable) leave the pool rather than
+// counting as non-compliant. Shared by the MCP get_campaign_status tool and the
+// dashboard's buildCampaignSection so their numbers cannot diverge.
+export function evaluateCampaign(campaign, repos, details) {
+  const pool = campaign.applicable ? repos.filter(r => campaign.applicable(r, details)) : repos;
+  const compliant = [];
+  const nonCompliant = [];
+  for (const r of pool) (campaign.test(r, details) ? compliant : nonCompliant).push(r);
+  const total = pool.length;
+  const percentage = total > 0 ? Math.round((compliant.length / total) * 100) : 0;
+  return { total, compliant, nonCompliant, percentage };
+}
 
 // Generate a shields.io-style flat SVG badge showing the health tier.
 // Usage: ![health](https://ismaelmartinez.github.io/repo-butler/badges/{repo-name}.svg)

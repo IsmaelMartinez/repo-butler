@@ -3,15 +3,15 @@
 import { CSS, SITE_FOOTER, htmlPage, THEME_INIT, THEME_TOGGLE, THEME_TOGGLE_JS } from './report-styles.js';
 import { computeLibyearWithTimeout } from './libyear.js';
 import { buildActionItems } from './report-repo.js';
-import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState } from './github.js';
+import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, paginateIssues } from './github.js';
 import { detectTierChanges } from './tier-change.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, TIER_RANK, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS, REPO_CACHE_SCHEMA_VERSION, isExcludedRepo,
   escHtml, fmt, countBy, daysAgo, daysAgoISO,
-  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isBugIssue, isBlocked, isPublishedRelease,
-  CAMPAIGN_DEFS, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
+  computeHealthTier, getLibyearColor, isReleaseExempt, getAlertSummary, isActionableBug, isPublishedRelease,
+  CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
   isAutofixNotDriven, computeCountTrend,
 } from './report-shared.js';
 
@@ -255,16 +255,10 @@ export const PORTFOLIO_DETAIL_LIMIT = 40;
 // listing could not be read. A 404 is a real answer — no .github/workflows
 // directory — and yields an empty Set, so every templated workflow reads as
 // genuinely absent. Anything else is `null`, i.e. unknown.
-//
-// The 404 is detected from the message, not `err.status`: github.js throws plain
-// Errors and never sets a status property, so a `.status === 404` check silently
-// never matches and would send every directory-less repo down the unknown arm —
-// skipping precisely the repos most in need of these standards. Every other 404
-// consumer in this codebase uses this same message test.
 async function fetchDefaultBranchWorkflows(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/contents/.github/workflows`)
     .then(d => new Set(Array.isArray(d) ? d.map(f => f.name) : []))
-    .catch(err => (err?.message?.includes(': 404') ? new Set() : null));
+    .catch(err => (err?.status === 404 ? new Set() : null));
 }
 
 // Presence of a templated workflow file, as the tri-state the governance
@@ -483,11 +477,9 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
           return total > 0 ? success / total : null;
         })
         .catch(() => null),
-      gh.paginate(`/repos/${owner}/${r.name}/issues`, { params: { state: 'open' }, max: 500 })
-        .then(issues => {
-          const filtered = issues.filter(i => !i.pull_request);
-          return { total: filtered.length, bugs: filtered.filter(i => isBugIssue(i.labels) && !isBlocked(i.labels)).length };
-        })
+      // open_bugs is tri-state: a failed listing yields null (unknown), never 0.
+      paginateIssues(gh, owner, r.name, { params: { state: 'open' }, max: 500 })
+        .then(issues => ({ total: issues.length, bugs: issues.filter(i => isActionableBug(i.labels)).length }))
         .catch(() => ({ total: r.open_issues || 0, bugs: null })),
       fetchSBOM(gh, owner, r.name),
       gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
@@ -631,15 +623,8 @@ export function buildCampaignSection(repos, details) {
   if (eligible.length === 0) return '';
 
   const cards = CAMPAIGN_DEFS.map(campaign => {
-    const pool = campaign.applicable ? eligible.filter(r => campaign.applicable(r, details)) : eligible;
-    const { compliant, nonCompliant } = pool.reduce((acc, r) => {
-      if (campaign.test(r, details)) acc.compliant.push(r);
-      else acc.nonCompliant.push(r);
-      return acc;
-    }, { compliant: [], nonCompliant: [] });
-    const total = pool.length;
+    const { total, compliant, nonCompliant, percentage: pct } = evaluateCampaign(campaign, eligible, details);
     const count = compliant.length;
-    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
     const barColor = colorByThreshold(pct, PCT_HIGH_GOOD_RANGES);
     const nonCompliantList = nonCompliant.length > 0
       ? `<details><summary class="muted text-sm" style="cursor:pointer">${nonCompliant.length} repo${nonCompliant.length !== 1 ? 's' : ''} need attention</summary><div class="campaign-repos" style="margin-top:0.3rem">${nonCompliant.map(r => `<a href="${r.name}.html">${escHtml(r.name)}</a>`).join(', ')}</div></details>`
@@ -649,7 +634,7 @@ export function buildCampaignSection(repos, details) {
 <div class="campaign-header"><h3>${escHtml(campaign.name)}</h3><span class="campaign-ratio">${count}/${total}</span></div>
 <div class="campaign-desc">${escHtml(campaign.description)}</div>
 <div class="campaign-bar"><div class="campaign-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
-<div class="campaign-pct">${pct}% complete${campaign.applicable && pool.length < eligible.length ? ` <span style="color:var(--faint)">(${eligible.length - pool.length} repos excluded — data unavailable)</span>` : ''}</div>
+<div class="campaign-pct">${pct}% complete${total < eligible.length ? ` <span style="color:var(--faint)">(${eligible.length - total} repos excluded — data unavailable)</span>` : ''}</div>
 ${nonCompliantList}
 </div>`;
   }).join('\n');

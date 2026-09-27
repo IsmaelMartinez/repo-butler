@@ -179,7 +179,7 @@ export async function auditButlerPRs(gh, owner, repos, { openPRs = null } = {}) 
         priority: 'medium',
       };
     } catch (err) {
-      if (err.message?.includes(': 403') || err.message?.includes(': 404')) {
+      if (err.status === 403 || err.status === 404) {
         console.log(`butler-pr-audit: skipping ${repo.name} (${err.message.slice(0, 80)})`);
       }
       return null;

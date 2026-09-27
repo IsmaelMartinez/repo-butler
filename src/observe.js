@@ -1,5 +1,5 @@
 import { createClient, paginateIssues, getAutomatedSecurityFixesState } from './github.js';
-import { isBugIssue, isBlocked, isFeatureIssue, isPublishedRelease, getAlertSummary } from './report-shared.js';
+import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
 // per-repo and portfolio observation, threads results onto context, persists
@@ -176,7 +176,7 @@ export async function observePortfolio(context) {
         max: 200,
       });
     } catch (err) {
-      if (!err.message?.includes('404')) throw err;
+      if (err.status !== 404) throw err;
       repos = await gh.paginate(`/orgs/${owner}/repos`, {
         params: { sort: 'pushed', direction: 'desc' },
         max: 200,
@@ -293,8 +293,7 @@ async function fetchInstallationRepos(gh) {
     }
     return results.length > 0 ? results : null;
   } catch (err) {
-    const msg = err.message || '';
-    if (msg.includes('404') || msg.includes('403') || msg.includes('401')) return null;
+    if (err.status === 404 || err.status === 403 || err.status === 401) return null;
     throw err;
   }
 }
@@ -306,8 +305,7 @@ async function fetchUserRepos(gh) {
       max: 500,
     });
   } catch (err) {
-    const msg = err.message || '';
-    if (msg.includes('404') || msg.includes('403') || msg.includes('401')) return null;
+    if (err.status === 404 || err.status === 403 || err.status === 401) return null;
     throw err;
   }
 }
@@ -474,7 +472,7 @@ async function fetchCommunityProfile(gh, owner, repo) {
   }
 }
 
-async function fetchDependabotAlerts(gh, owner, repo) {
+export async function fetchDependabotAlerts(gh, owner, repo) {
   try {
     const data = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts`, {
       params: { state: 'open', per_page: 100 },
@@ -482,7 +480,7 @@ async function fetchDependabotAlerts(gh, owner, repo) {
     const alerts = Array.isArray(data) ? data : [];
     return getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity);
   } catch (err) {
-    if (err.message?.includes('403') || err.message?.includes('404')) {
+    if (err.status === 403 || err.status === 404) {
       console.log(`Note: Dependabot alerts not available for ${owner}/${repo} (${err.message})`);
     }
     return null;
@@ -497,7 +495,7 @@ export async function fetchCodeScanningAlerts(gh, owner, repo) {
     const alerts = Array.isArray(data) ? data : [];
     return getAlertSummary(alerts, a => a.rule?.security_severity_level);
   } catch (err) {
-    if (err.message?.includes('403') || err.message?.includes('404')) {
+    if (err.status === 403 || err.status === 404) {
       console.log(`Note: Code scanning alerts not available for ${owner}/${repo} (${err.message})`);
     }
     return null;
@@ -512,7 +510,7 @@ export async function fetchSecretScanningAlerts(gh, owner, repo) {
     const alerts = Array.isArray(data) ? data : [];
     return { count: alerts.length };
   } catch (err) {
-    if (err.message?.includes('403') || err.message?.includes('404')) {
+    if (err.status === 403 || err.status === 404) {
       console.log(`Note: Secret scanning alerts not available for ${owner}/${repo} (${err.message})`);
     }
     return null;
@@ -570,10 +568,7 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
   return {
     repo: repoMeta ? `${repoMeta.stars} stars, ${repoMeta.forks} forks` : 'unknown',
     open_issues: openIssues.length,
-    // Exclude blocked bugs: they're not actionable by the maintainer, so
-    // counting them against the "Fewer than 10 open bugs" gold gate punishes
-    // repos that have correctly triaged upstream-dependent issues.
-    open_bugs: openIssues.filter(i => isBugIssue(i.labels) && !isBlocked(i.labels)).length,
+    open_bugs: openIssues.filter(i => isActionableBug(i.labels)).length,
     open_features: openIssues.filter(i => isFeatureIssue(i.labels)).length,
     blocked_issues: blockedCount,
     awaiting_feedback: awaitingFeedback.length,
@@ -598,10 +593,8 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
     code_scanning_alert_count: codeScanningAlerts ? codeScanningAlerts.count : null,
     code_scanning_max_severity: codeScanningAlerts?.max_severity ?? null,
     secret_scanning_alert_count: secretScanningAlerts ? secretScanningAlerts.count : null,
-    // Dependabot automated security fixes (ADR-012 Phase 3): true when GitHub is
-    // actively opening bump PRs (enabled AND not paused), false when off/paused,
-    // null when the state is unreadable (feature unavailable / missing scope).
-    automated_security_fixes_active: autofix == null ? null : (autofix.enabled === true && autofix.paused !== true),
+    // Dependabot automated security fixes (ADR-012 Phase 3), tri-state.
+    automated_security_fixes_active: autofixActive(autofix),
     ci_pass_rate: ciPassRate?.pass_rate ?? null,
     bus_factor: computeBusFactor(mergedPRs),
     time_to_close_median: computeTimeToCloseMedian(closedIssues),

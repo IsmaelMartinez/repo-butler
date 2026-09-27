@@ -5,6 +5,15 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectStalledAlerts, classifyAlert, branchMayAddress } from './stalled-alert.js';
 
+// Run fn with console.log captured; returns the lines logged.
+async function captureLogs(fn) {
+  const lines = [];
+  const orig = console.log;
+  console.log = (...a) => { lines.push(a.join(' ')); };
+  try { await fn(); } finally { console.log = orig; }
+  return lines;
+}
+
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
 function daysAgoISO(n) {
@@ -357,7 +366,7 @@ describe('stalled-alert — resilience and eligibility', () => {
   it('stalled-alert: a per-repo API failure yields no finding and never throws', async () => {
     const gh = makeGh({
       alerts: {
-        'repo-a': () => { throw new Error('GitHub API error: 403'); },
+        'repo-a': () => { throw Object.assign(new Error('GitHub API error: 403'), { status: 403 }); },
         'repo-b': [makeAlert()],
       },
       files: { 'repo-b:package.json': REACHABLE_MANIFEST, 'repo-b:package-lock.json': REACHABLE_LOCK },
@@ -366,6 +375,15 @@ describe('stalled-alert — resilience and eligibility', () => {
     const findings = await detectStalledAlerts(gh, 'acme', [makeRepo('repo-a'), makeRepo('repo-b')]);
 
     assert.deepEqual(findings.map(f => f.repo), ['repo-b']);
+  });
+
+  it('stalled-alert: logs "skipping" only for a real 403/404 status, not a 500 whose body mentions ": 404" (#438)', async () => {
+    const run = (err) => captureLogs(() => detectStalledAlerts(
+      makeGh({ alerts: { 'repo-a': () => { throw err; } } }), 'acme', [makeRepo('repo-a')]));
+    const forbidden = await run(Object.assign(new Error('GitHub API error: 403'), { status: 403 }));
+    assert.ok(forbidden.some(l => l.includes('stalled-alert: skipping repo-a')));
+    const server = await run(Object.assign(new Error('GitHub API error: 500 {"message":"upstream said: 404"}'), { status: 500 }));
+    assert.ok(!server.some(l => l.includes('skipping')), server.join('\n'));
   });
 
   it('stalled-alert: archived, fork and excluded repos are never queried', async () => {
