@@ -117,6 +117,8 @@ Executed plans and one-shot verification scripts archived 2026-09-27 (PR #445). 
 
 Core agent logic refactored for pure module extraction and shared predicates shipped 2026-09-27 (PRs #443, #444). Simplifies the decision-making runtime by extracting a pure `apply-templates` module and consolidating shared predicates across `autofix`, `actionable-bug`, and `campaign` behaviors, improving internal code health and maintainability.
 
+Robust numeric error handling for scheduler resiliency shipped 2026-09-27 (PR #446). Replaces fragile error string parsing with robust validation of numeric error statuses (`err.status`) in the scheduler branch logic, preventing silent automation failures and hardening the agent's scheduled execution loop.
+
 ---
 
 ## Next Up
