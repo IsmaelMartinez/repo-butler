@@ -240,7 +240,7 @@ portfolio observed, governed, and remediated.
 |----------|---------|------|----------|
 | `self-test.yml` (daily) | cron 07/11/16/20 UTC + push | observe → assess → update → governance → report, then auto-onboard | snapshot, trends, roadmap PR, `governance.json`, dashboards |
 | `weekly-ideate.yml` | cron Mon 06:00 UTC | observe → ideate → propose (dry-run; council deliberates inside ideate) | council verdicts + watchlist + a `snapshots/propose-soak.json` ledger entry (no issues filed here) |
-| `monitor.yml` | cron every 6h + issue/PR opened or labelled | monitor → council triage | `monitor-cursor.json` (read by `get_monitor_events`) |
+| `monitor.yml` | cron every 6h + issue/PR opened or labelled, PR ready for review | monitor → council triage | `monitor-cursor.json` (read by `get_monitor_events`) |
 | `apply-scheduled.yml` | cron Sun 05:00 UTC (live) + manual dispatch (dry-run by default) | read `governance.json` → act only on classes in `apply-schedule`, then auto-merge its own green PRs for classes in `apply-automerge` | up to 5 PRs/run, the Copilot-ruleset settings write, stale-Dependabot nudges |
 | `apply.yml` | manual dispatch only | read `governance.json` → open remediation PRs or settings writes for the named `tools` | up to 5 PRs/run on target repos |
 | `onboard.yml` | manual dispatch only (`repos` input) | onboard the named repos | onboarding PRs adding the Repo Butler section to `CLAUDE.md` |

@@ -216,7 +216,7 @@ For A2A-protocol-aware agents, the butler publishes an AgentCard at [`ismaelmart
 
 - Zero dependencies. No `npm install` needed.
 - Generic. Any repo can use it by adding a config file and a workflow.
-- Conservative. PROPOSE files at most three issues per run, and none while `require_approval` is true; writes to other repos go only through Governance Apply, which is capped per run and, when it runs unattended, limited to allow-listed finding classes.
+- Conservative. PROPOSE files at most three issues per run, and none while `require_approval` is true. Pull requests on other repos come only from Governance Apply, which is capped per run and, when it runs unattended, limited to allow-listed finding classes, and from the onboarding pass, which backs off for thirty days after a declined PR.
 - Safe. All LLM output validated before publishing — URL allowlist, @mention blocking, secret detection, XSS prevention.
 - Free to run. GitHub Actions is unlimited for public repos, Gemini Flash free tier for LLM calls.
 - Self-dogfooding. This repo uses itself as its own planner.

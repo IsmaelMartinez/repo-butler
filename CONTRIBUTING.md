@@ -34,7 +34,7 @@ INPUT_DRY_RUN=true npm start
 
 ## Project Conventions
 
-All source code lives in `src/`. The pipeline runs seven phases (OBSERVE, ASSESS, UPDATE, GOVERNANCE, IDEATE, PROPOSE, REPORT), each as an independent module; [`docs/architecture.md`](docs/architecture.md) describes what each does. `src/github.js` is the shared API client, and `src/safety.js` validates all LLM output before it reaches GitHub.
+All source code lives in `src/`. The pipeline runs seven phases (OBSERVE, ASSESS, UPDATE, GOVERNANCE, IDEATE, PROPOSE, REPORT) plus MONITOR, which has its own schedule but is also the last entry in the `all` phase list, each as an independent module; [`docs/architecture.md`](docs/architecture.md) describes what each does. `src/github.js` is the shared API client, and `src/safety.js` validates all LLM output before it reaches GitHub.
 
 When working with the GitHub API, prefer list/paginate endpoints over the search API to stay within rate limits. New API fetchers in `observe.js` should follow the existing try/catch pattern and return `null` on failure.
 
