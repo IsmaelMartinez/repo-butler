@@ -662,6 +662,15 @@ describe('applyLockfileUpdates', () => {
     assert.equal(gh.writes.length, 0);
   });
 
+  for (const value of ['true', 1]) {
+    it(`refuses require_approval ${JSON.stringify(value)}, since only the boolean true proceeds`, async () => {
+      const gh = baseGh();
+      const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: { require_approval: value } }, { dryRun: false, runNpmUpdate: npmOk });
+      assert.deepEqual(r, { status: 'refused', reason: 'require_approval not set' });
+      assert.equal(gh.writes.length, 0);
+    });
+  }
+
   it('on the scheduled path runs only when apply-schedule allow-lists the tool', async () => {
     const gh = baseGh();
     const off = await applyLockfileUpdates(gh, 'o', baseFindings, baseConfig, { dryRun: true, scheduled: true, runNpmUpdate: npmOk });

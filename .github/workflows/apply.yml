@@ -29,7 +29,11 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
+          # 24, not 22: lockfile-update runs the ambient npm, and npm 10 (Node 22)
+          # strips the `libc` field npm 11 writes into platform-binary entries, so
+          # every refresh of an npm-11 lockfile gained out-of-family changes and
+          # the ADR-015 gate refused it (2026-09-26 dry-run: yourear, sound3fy).
+          node-version: '24'
 
       - name: Generate GitHub App token
         id: app-token
