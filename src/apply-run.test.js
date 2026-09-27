@@ -13,7 +13,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { runPhases } from './index.js';
+import { resolveDependabotSecurityDispatch, isLockfileUpdateRequested } from './apply-run.js';
 
 const ENV_KEYS = ['INPUT_TOOLS', 'INPUT_DRY_RUN', 'INPUT_SCHEDULED', 'INPUT_AUTOMERGE', 'INPUT_MAX_APPLY_PER_RUN', 'GITHUB_OUTPUT'];
 
@@ -321,5 +323,97 @@ describe('runApply: GITHUB_OUTPUT and error reporting', () => {
     });
     assert.equal(result.status, 'failed');
     assert.equal(result.error.message, 'apply: 1 per-repo error(s) [r1/security-md]; 0 PR(s) created, 0 skipped');
+  });
+});
+
+describe('isLockfileUpdateRequested (ADR-015 explicit-dispatch rule)', () => {
+  it('never rides a blank manual run: a content-transformation write must be named', () => {
+    assert.equal(isLockfileUpdateRequested([], false), false);
+    assert.equal(isLockfileUpdateRequested(['code-scanning'], false), false);
+  });
+
+  it('runs on a manual dispatch that names it', () => {
+    assert.equal(isLockfileUpdateRequested(['lockfile-update'], false), true);
+    assert.equal(isLockfileUpdateRequested(['code-scanning', 'lockfile-update'], false), true);
+  });
+
+  it('is offered to a blank scheduled run, where the apply-schedule allow-list decides', () => {
+    assert.equal(isLockfileUpdateRequested([], true), true);
+  });
+
+  it('respects tool scoping on the scheduled workflow: an explicit other tool does not drag it in', () => {
+    assert.equal(isLockfileUpdateRequested(['code-scanning'], true), false);
+    assert.equal(isLockfileUpdateRequested(['lockfile-update'], true), true);
+  });
+
+  it('tolerates a non-array tools value', () => {
+    assert.equal(isLockfileUpdateRequested(undefined, false), false);
+  });
+});
+
+describe('resolveDependabotSecurityDispatch (ADR-012 enable/disable mutual exclusion)', () => {
+  it('blank tools → enable only (all actionable), never disable', () => {
+    assert.deepEqual(resolveDependabotSecurityDispatch([], false), { conflict: false, enable: true, disable: false });
+  });
+
+  it('dependabot-security → enable only', () => {
+    const r = resolveDependabotSecurityDispatch(['dependabot-security'], false);
+    assert.equal(r.enable, true);
+    assert.equal(r.disable, false);
+    assert.equal(r.conflict, false);
+  });
+
+  it('dependabot-security-off → disable only (never on a blank run)', () => {
+    const r = resolveDependabotSecurityDispatch(['dependabot-security-off'], false);
+    assert.equal(r.disable, true);
+    assert.equal(r.enable, false, 'the off tool is not the enable tool and is not blank');
+  });
+
+  it('naming BOTH is a contradictory dispatch → conflict, run neither (fail safe)', () => {
+    const r = resolveDependabotSecurityDispatch(['dependabot-security', 'dependabot-security-off'], false);
+    assert.deepEqual(r, { conflict: true, enable: false, disable: false });
+  });
+
+  it('a scheduled run resolves to neither toggle (both off the no-human path by construction)', () => {
+    assert.deepEqual(resolveDependabotSecurityDispatch([], true), { conflict: false, enable: false, disable: false });
+    assert.deepEqual(resolveDependabotSecurityDispatch(['dependabot-security-off'], true), { conflict: false, enable: false, disable: false });
+  });
+
+  it('an unrelated tool leaves both off (no blank-run enable)', () => {
+    const r = resolveDependabotSecurityDispatch(['code-review-bot'], false);
+    assert.equal(r.enable, false);
+    assert.equal(r.disable, false);
+  });
+});
+
+// runApply used to load apply.js through `try { await import() } catch`, which
+// turned any load error into a logged skip and a green phase. A resolve hook in
+// a child process swaps apply.js for a module that throws, but only when the
+// importer is the APPLY wrapper (index.js before the move, apply-run.js after),
+// so every other importer keeps the real module and only the wrapper's own load
+// path is under test.
+describe('runApply: a broken apply.js fails loudly', () => {
+  it('the load error surfaces and the process exits non-zero', () => {
+    const hooks = `export async function resolve(specifier, context, next) {
+      if (specifier === './apply.js' && /[/]src[/](index|apply-run)[.]js$/.test(context.parentURL || '')) {
+        return { url: 'data:text/javascript,throw new Error("apply-load-boom")', shortCircuit: true };
+      }
+      return next(specifier, context);
+    }`;
+    const register = `import { register } from 'node:module'; register(${JSON.stringify(`data:text/javascript,${encodeURIComponent(hooks)}`)});`;
+    const script = `
+      const { runPhases } = await import(${JSON.stringify(new URL('./index.js', import.meta.url).href)});
+      const store = { readGovernanceFindings: async () => [{ type: 'standards-gap' }] };
+      const [r] = await runPhases(['apply'], { owner: 'o', token: 't', config: {}, store }, null, null);
+      console.log('PHASE=' + r.status);
+    `;
+    const env = { ...process.env };
+    for (const k of ENV_KEYS) delete env[k];
+    const res = spawnSync(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(register)}`, '--input-type=module', '-e', script], { encoding: 'utf8', env });
+    assert.notEqual(res.status, 0, res.stdout + res.stderr);
+    // The stub exports nothing, so a static import fails at link time (a missing
+    // named export) before the throw runs; either error is a loud load failure.
+    assert.match(res.stderr, /apply-load-boom|module '\.\/apply\.js' does not provide an export/);
+    assert.doesNotMatch(res.stdout, /PHASE=ok/);
   });
 });
