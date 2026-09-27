@@ -1748,6 +1748,25 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(d.secretScanning, null);
   });
 
+  // The dependabot.yml config-only fallback exists for a token without alert
+  // scope (403). It reports count 0, which passes the Gold check, so applying
+  // it to a transient 500 would turn "could not read" into "no alerts".
+  it('keeps the config-only dependabot fallback to a 403; any other failure is unknown', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const withDependabotYml = (dependabot) => ({
+      ...securityGh({ dependabot, codeScanning: reject500, secretScanning: reject500 }),
+      getFileContent: () => Promise.resolve('version: 2\n'),
+    });
+    const cache = () => cachedWorkflowsCache(cleanCachedDetails);
+    const forbidden = () => Promise.reject(Object.assign(new Error('403'), { status: 403 }));
+
+    const on500 = await fetchPortfolioDetails(withDependabotYml(reject500), 'owner', cachedWorkflowsRepos, { cache: cache() });
+    assert.equal(on500['cached-repo'].vulns, null, 'a 500 is unknown, never a config-only zero');
+
+    const on403 = await fetchPortfolioDetails(withDependabotYml(forbidden), 'owner', cachedWorkflowsRepos, { cache: cache() });
+    assert.equal(on403['cached-repo'].vulns?.config_only, true, 'a 403 with dependabot.yml present is config-only');
+  });
+
   it('treats an EMPTY cached details object as never-fetched, not as a cache hit', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // report.js persists `{ ...(repoDetails?.[name] || {}) }` for every active

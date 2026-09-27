@@ -274,10 +274,13 @@ function workflowPresence(names, filename) {
 function fetchDependabotSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=100`)
     .then(alerts => getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity))
-    .catch(async () => {
+    .catch(async (err) => {
       // Alerts API returned 403 (token lacks scope). Fall back to checking
       // if dependabot.yml exists — if so, Dependabot IS configured even
-      // though we can't read the alerts.
+      // though we can't read the alerts. Only a 403: the fallback reports a
+      // zero count, which passes the Gold check, so a transient 500 or a
+      // malformed response must stay unknown rather than read as "no alerts".
+      if (err?.status !== 403) return null;
       const configContent = await gh.getFileContent(owner, repo, '.github/dependabot.yml');
       if (configContent) return { count: 0, max_severity: null, config_only: true };
       return null;
