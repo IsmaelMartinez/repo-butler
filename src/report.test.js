@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHealthBadge, buildActionItems, computeHealthTier, computeContributorStats, generateSparklineSVG, buildCampaignSection, buildGovernanceSection, buildAutofixNudge, reportCacheHit } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink } from './report-shared.js';
+import { isReleaseExempt, isBugIssue, isFeatureIssue, REPO_CACHE_SCHEMA_VERSION, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
 
 describe('jsStr', () => {
   it('quotes and escapes strings for inline <script> embedding', () => {
@@ -846,14 +846,13 @@ describe('CAMPAIGN_DEFS shared definitions', () => {
       'my-shadow': { communityHealth: 95, vulns: { count: 0, max_severity: null }, ciPassRate: 1, license: 'MIT', hasIssueTemplate: true },
     };
 
-    // Mirror what mcp.js computeCampaigns does:
+    // mcp.js computeCampaigns applies the exclusion filter, then evaluateCampaign.
     const mcpRepos = Object.keys(data)
       .filter(name => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)))
       .map(name => ({ name }));
     const mcpResult = CAMPAIGN_DEFS.map(c => {
-      const pool = c.applicable ? mcpRepos.filter(r => c.applicable(r, data)) : mcpRepos;
-      const compliant = pool.filter(r => c.test(r, data));
-      return { name: c.name, total: pool.length, compliant: compliant.length };
+      const { total, compliant } = evaluateCampaign(c, mcpRepos, data);
+      return { name: c.name, total, compliant: compliant.length };
     });
 
     // Build the dashboard HTML for the same portfolio and parse the per-campaign
@@ -3282,5 +3281,68 @@ describe('reportCacheHit', () => {
     assert.equal(reportCacheHit(undefined), false);
     // Defensive: a truthy-but-not-true cached value must not read as a cache-hit.
     assert.equal(reportCacheHit({ reportResult: { cached: 'true' } }), false);
+  });
+});
+
+describe('shared report predicates', () => {
+  it('autofixActive is tri-state: null stays null, paused or disabled is false', () => {
+    assert.equal(autofixActive(null), null);
+    assert.equal(autofixActive(undefined), null);
+    assert.equal(autofixActive({ enabled: true, paused: false }), true);
+    assert.equal(autofixActive({ enabled: true, paused: true }), false);
+    assert.equal(autofixActive({ enabled: false, paused: false }), false);
+  });
+
+  it('isActionableBug excludes blocked bugs and non-bugs, for string and object labels', () => {
+    assert.equal(isActionableBug(['bug']), true);
+    assert.equal(isActionableBug([{ name: 'Defect' }]), true);
+    assert.equal(isActionableBug(['bug', 'blocked']), false);
+    assert.equal(isActionableBug(['enhancement']), false);
+  });
+
+  it('evaluateCampaign drops non-applicable repos from the pool and scores the rest', () => {
+    const c = CAMPAIGN_DEFS.find(x => x.name === 'CI Reliability');
+    const details = { a: { ciPassRate: 0.95 }, b: { ciPassRate: 0.5 }, c: { ciPassRate: null } };
+    const res = evaluateCampaign(c, [{ name: 'a' }, { name: 'b' }, { name: 'c' }], details);
+    assert.equal(res.total, 2, 'unknown pass rate leaves the pool rather than failing');
+    assert.deepEqual(res.compliant.map(r => r.name), ['a']);
+    assert.deepEqual(res.nonCompliant.map(r => r.name), ['b']);
+    assert.equal(res.percentage, 50);
+    assert.equal(evaluateCampaign(c, [], details).percentage, 0);
+  });
+
+  it('evaluateCampaign rounds the percentage to the nearest integer', () => {
+    const c = CAMPAIGN_DEFS.find(x => x.name === 'CI Reliability');
+    const details = { a: { ciPassRate: 0.95 }, b: { ciPassRate: 0.95 }, c: { ciPassRate: 0.5 } };
+    assert.equal(evaluateCampaign(c, [{ name: 'a' }, { name: 'b' }, { name: 'c' }], details).percentage, 67);
+  });
+});
+
+describe('fetchPortfolioDetails open_bugs (tri-state, cache miss)', () => {
+  const repos = [{ name: 'fresh', pushed_at: '2026-04-01T00:00:00Z', open_issues: 7, archived: false, fork: false, stars: 1 }];
+  const mkGh = (issuesResponder) => ({
+    request: () => Promise.resolve({}),
+    paginate: (path) => (path === '/repos/owner/fresh/issues' ? issuesResponder() : Promise.resolve([])),
+    getFileContent: () => Promise.resolve(null),
+  });
+
+  it('counts actionable bugs only: excludes PRs, blocked bugs and non-bugs', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const issues = [
+      { number: 1, labels: [{ name: 'bug' }] },
+      { number: 2, labels: [{ name: 'Type: Bug' }, { name: 'blocked' }] },
+      { number: 3, labels: [{ name: 'bug' }], pull_request: {} },
+      { number: 4, labels: [{ name: 'enhancement' }] },
+    ];
+    const details = await fetchPortfolioDetails(mkGh(() => Promise.resolve(issues)), 'owner', repos, {});
+    assert.equal(details.fresh.open_issues, 3, 'PRs are filtered out of the issue total');
+    assert.equal(details.fresh.open_bugs, 1, 'blocked bugs and PRs do not count as actionable bugs');
+  });
+
+  it('reports open_bugs as null (unknown, never 0) when the issue listing fails', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const details = await fetchPortfolioDetails(mkGh(() => Promise.reject(new Error('500'))), 'owner', repos, {});
+    assert.equal(details.fresh.open_bugs, null);
+    assert.equal(details.fresh.open_issues, 7, 'falls back to the repo listing count');
   });
 });
