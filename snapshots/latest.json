@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-27T13:27:35.286Z",
+  "timestamp": "2026-09-27T13:30:49.946Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 20,
+    "open_issues_count": 18,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-27T13:26:00Z",
+    "pushed_at": "2026-09-27T13:30:35Z",
     "archived": false
   },
   "issues": {
@@ -58,21 +58,6 @@
         "comments": 0,
         "created_at": "2026-09-26T22:23:53Z",
         "updated_at": "2026-09-26T22:23:53Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 438,
-        "title": "simplify W2: detect 404 by status, not by a substring of the error message",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "bug",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T07:11:42Z",
-        "updated_at": "2026-09-26T07:11:42Z",
         "assignees": [],
         "milestone": null
       },
@@ -274,6 +259,17 @@
     ],
     "recently_closed": [
       {
+        "number": 438,
+        "title": "simplify W2: detect 404 by status, not by a substring of the error message",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-27T13:30:34Z",
+        "created_at": "2026-09-26T07:11:42Z"
+      },
+      {
         "number": 415,
         "title": "simplify W2: report-side shared predicates (autofix, actionable bugs, campaigns)",
         "author": "IsmaelMartinez",
@@ -423,6 +419,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 446,
+        "title": "fix: branch on numeric err.status instead of the error message",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-27T13:30:33Z"
+      },
       {
         "number": 444,
         "title": "refactor: share autofix, actionable-bug and campaign predicates (#415)",
@@ -1381,8 +1384,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 84,
-    "passed": 84,
+    "total_runs": 85,
+    "passed": 85,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1391,23 +1394,22 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 17,
-    "open_bugs": 1,
+    "open_issues": 16,
+    "open_bugs": 0,
     "open_features": 9,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 14,
-    "recently_merged_prs": 101,
+    "recently_closed": 15,
+    "recently_merged_prs": 102,
     "bot_prs": 13,
-    "human_prs": 88,
+    "human_prs": 89,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
-      "agent-generated (15)",
+      "agent-generated (14)",
       "enhancement (9)",
       "question (6)",
-      "bug (1)",
       "documentation (1)"
     ],
     "high_reaction_issues": [],
@@ -1423,7 +1425,7 @@
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1,
-      "sample_size": 14
+      "sample_size": 15
     }
   }
 }
