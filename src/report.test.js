@@ -1663,6 +1663,30 @@ describe('fetchPortfolioDetails incremental cache', () => {
     },
   });
 
+  // #449: repo-cache.json outgrew the Contents API's 1 MB inline ceiling, so
+  // the store read returned null and this function never saw a hit. End to end
+  // from the store read, a cache that arrives through the blob fallback must
+  // produce a hit exactly as an inline one does.
+  it('hits the cache when repo-cache.json arrives through the over-1 MB blob path', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { createStore } = await import('./store.js');
+    const sha = 'c1eee2546c92c6407e1107f6f88062808dc1553a';
+    const encoded = Buffer.from(JSON.stringify(cachedWorkflowsCache({ commits: 42, ci: 2 }))).toString('base64');
+    const dataGh = {
+      request: async (path) => {
+        if (path === '/repos/owner/repo-butler/contents/snapshots/repo-cache.json') return { encoding: 'none', content: '', sha };
+        if (path === `/repos/owner/repo-butler/git/blobs/${sha}`) return { sha, encoding: 'base64', content: encoded };
+        throw new Error(`unexpected request ${path}`);
+      },
+    };
+    const cache = await createStore({ owner: 'owner', repo: 'repo-butler', token: 't', gh: dataGh }).readRepoCache();
+    const gh = cachedWorkflowsGh(() => Promise.resolve([{ name: 'ci.yml' }]));
+    const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache });
+    assert.ok(details._cachedRepos.includes('cached-repo'), 'the large-file cache must produce a hit');
+    assert.equal(details['cached-repo'].commits, 42, 'push-invariant fields come from the cache');
+    assert.equal(details['cached-repo'].ci, 2, 'the ci last-known value is available again');
+  });
+
   it('treats an EMPTY cached details object as never-fetched, not as a cache hit', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     // report.js persists `{ ...(repoDetails?.[name] || {}) }` for every active

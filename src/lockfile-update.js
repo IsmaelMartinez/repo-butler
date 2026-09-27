@@ -20,6 +20,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { getLargeFileContent } from './github.js';
 import { REPO_NAME_PATTERN, validateIssueBody, validateIssueTitle } from './safety.js';
 import { parseVersion } from './trimmer.js';
 import { alertDirectory } from './stalled-alert.js';
@@ -547,33 +548,12 @@ export async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
   }
 }
 
-// Read a file at a ref, falling back to the blob API when the Contents API
-// declines to inline it. That API caps inline content at 1 MB and returns the
-// object with `content: ""` and `encoding: "none"` above it; real lockfiles
-// exceed 1 MB, and ADR-013 names guessing on that null as the failure this
-// caller must not have. Returns null only for a genuine 404. A response that
-// is neither inline content nor a blob pointer, or a blob without content, is
-// a malformed or partial answer and throws — absence must not be inferred
-// from an API that did not say so.
-async function readFileAtRef(gh, owner, repo, path, ref) {
-  let data;
-  try {
-    data = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, { params: { ref } });
-  } catch (err) {
-    if (err.status === 404) return null;
-    throw err;
-  }
-  if (typeof data?.content === 'string' && data.content.length > 0) {
-    return Buffer.from(data.content, 'base64').toString('utf-8');
-  }
-  if (typeof data?.sha !== 'string' || data.sha === '') {
-    throw new Error(`contents response for ${path} carried neither content nor a blob sha`);
-  }
-  const blob = await gh.request(`/repos/${owner}/${repo}/git/blobs/${data.sha}`);
-  if (typeof blob?.content !== 'string') {
-    throw new Error(`blob ${data.sha.slice(0, 8)} for ${path} carried no content`);
-  }
-  return Buffer.from(blob.content, 'base64').toString('utf-8');
+// Read a file at a ref through the blob-API fallback: real lockfiles exceed the
+// Contents API's 1 MB inline ceiling, and ADR-013 names guessing on that null
+// as the failure this caller must not have. Null only for a genuine 404; any
+// other unreadable answer throws.
+function readFileAtRef(gh, owner, repo, path, ref) {
+  return getLargeFileContent(gh, owner, repo, path, { ref });
 }
 
 // Re-read each alert LIVE at apply time (the ADR-012 posture: the finding can be

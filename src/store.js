@@ -1,7 +1,7 @@
 // Snapshot persistence via GitHub Contents API on a data branch.
 // Stores snapshots as JSON files so the ASSESS phase can diff runs.
 
-import { createClient } from './github.js';
+import { createClient, getLargeFileContent } from './github.js';
 import { createHash } from 'node:crypto';
 import { computeHealthTier, isReleaseExempt, nextTier, isCheckRequiredForTier } from './report-shared.js';
 
@@ -346,11 +346,18 @@ export function createStore(context) {
     }
   }
 
+  // The one data-branch file that outgrows the Contents API's 1 MB inline
+  // ceiling (it was ~2 MB in #449), so it reads through the blob fallback;
+  // through readFile it returned null on every run and the cache never hit.
+  // Any failure is still a cache miss, never a throw: a miss costs a full
+  // refetch, which is the safe direction. It is logged because a silent miss
+  // is how #449 went unnoticed.
   async function readRepoCache() {
     try {
-      const content = await readFile(REPO_CACHE_PATH);
+      const content = await getLargeFileContent(gh, owner, repo, REPO_CACHE_PATH, { ref: DATA_BRANCH });
       return content ? JSON.parse(content) : null;
-    } catch {
+    } catch (err) {
+      console.warn(`Repo cache unreadable (${err.status ?? err.name}); every repo will be refetched.`);
       return null;
     }
   }
