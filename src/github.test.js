@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState } from './github.js';
+import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, getLargeFileContent } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -920,5 +920,76 @@ describe('createClient — redactPaths', () => {
         return true;
       },
     );
+  });
+});
+
+// The Contents API inlines content only up to 1 MB; above it the response is
+// `encoding: "none"` with empty content and the blob sha. getLargeFileContent
+// follows the sha to the blob API, returns null only for a genuine 404, and
+// throws on anything it cannot read rather than implying absence.
+describe('getLargeFileContent', () => {
+  const SHA = 'abc123def4567890';
+  const b64 = (s) => Buffer.from(s).toString('base64');
+  const fakeGh = (routes) => {
+    const calls = [];
+    return {
+      calls,
+      request: async (path, opts) => {
+        calls.push({ path, opts });
+        const route = routes[path];
+        if (route === undefined) throw new Error(`unexpected request ${path}`);
+        return typeof route === 'function' ? route() : route;
+      },
+    };
+  };
+  const contentsPath = '/repos/o/r/contents/big.json';
+  const blobPath = `/repos/o/r/git/blobs/${SHA}`;
+  const status = (s) => () => { throw Object.assign(new Error(`HTTP ${s}`), { status: s }); };
+
+  it('decodes inline content without touching the blob API, passing the ref', async () => {
+    const gh = fakeGh({ [contentsPath]: { encoding: 'base64', content: b64('small'), sha: SHA } });
+    assert.equal(await getLargeFileContent(gh, 'o', 'r', 'big.json', { ref: 'data' }), 'small');
+    assert.deepEqual(gh.calls.map(c => c.path), [contentsPath]);
+    assert.deepEqual(gh.calls[0].opts, { params: { ref: 'data' } });
+  });
+
+  it('omits params when no ref is given', async () => {
+    const gh = fakeGh({ [contentsPath]: { content: b64('x'), sha: SHA } });
+    await getLargeFileContent(gh, 'o', 'r', 'big.json');
+    assert.equal(gh.calls[0].opts, undefined);
+  });
+
+  it('follows the sha to the blob API when the contents response is encoding none', async () => {
+    const gh = fakeGh({
+      [contentsPath]: { encoding: 'none', content: '', sha: SHA, size: 2_000_000 },
+      [blobPath]: { sha: SHA, encoding: 'base64', content: b64('large body') },
+    });
+    assert.equal(await getLargeFileContent(gh, 'o', 'r', 'big.json'), 'large body');
+    assert.deepEqual(gh.calls.map(c => c.path), [contentsPath, blobPath]);
+  });
+
+  it('returns null only for a genuine 404', async () => {
+    const gh = fakeGh({ [contentsPath]: status(404) });
+    assert.equal(await getLargeFileContent(gh, 'o', 'r', 'big.json'), null);
+  });
+
+  it('rethrows a non-404 contents error rather than implying absence', async () => {
+    const gh = fakeGh({ [contentsPath]: status(500) });
+    await assert.rejects(() => getLargeFileContent(gh, 'o', 'r', 'big.json'), /HTTP 500/);
+  });
+
+  it('throws when the response carries neither content nor a sha (e.g. a directory listing)', async () => {
+    const gh = fakeGh({ [contentsPath]: [{ name: 'a.json' }] });
+    await assert.rejects(() => getLargeFileContent(gh, 'o', 'r', 'big.json'), /neither content nor a blob sha/);
+  });
+
+  it('throws when the blob fetch fails', async () => {
+    const gh = fakeGh({ [contentsPath]: { encoding: 'none', content: '', sha: SHA }, [blobPath]: status(502) });
+    await assert.rejects(() => getLargeFileContent(gh, 'o', 'r', 'big.json'), /HTTP 502/);
+  });
+
+  it('throws when the blob carries no content', async () => {
+    const gh = fakeGh({ [contentsPath]: { encoding: 'none', content: '', sha: SHA }, [blobPath]: { sha: SHA } });
+    await assert.rejects(() => getLargeFileContent(gh, 'o', 'r', 'big.json'), /carried no content/);
   });
 });

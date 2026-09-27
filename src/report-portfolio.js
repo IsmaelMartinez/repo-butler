@@ -268,6 +268,34 @@ function workflowPresence(names, filename) {
   return names == null ? null : names.has(filename);
 }
 
+// The three security-alert summaries, shared by the cache-miss fetch and the
+// cache-hit live re-read so both paths mean the same thing by each value. Each
+// returns null (unknown), never a zero count, when the alerts cannot be read.
+function fetchDependabotSummary(gh, owner, repo) {
+  return gh.request(`/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=100`)
+    .then(alerts => getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity))
+    .catch(async () => {
+      // Alerts API returned 403 (token lacks scope). Fall back to checking
+      // if dependabot.yml exists — if so, Dependabot IS configured even
+      // though we can't read the alerts.
+      const configContent = await gh.getFileContent(owner, repo, '.github/dependabot.yml');
+      if (configContent) return { count: 0, max_severity: null, config_only: true };
+      return null;
+    });
+}
+
+function fetchCodeScanningSummary(gh, owner, repo) {
+  return gh.request(`/repos/${owner}/${repo}/code-scanning/alerts?state=open&per_page=100`)
+    .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))
+    .catch(() => null);
+}
+
+function fetchSecretScanningSummary(gh, owner, repo) {
+  return gh.request(`/repos/${owner}/${repo}/secret-scanning/alerts?state=open&per_page=100`)
+    .then(alerts => ({ count: Array.isArray(alerts) ? alerts.length : 0 }))
+    .catch(() => null);
+}
+
 export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } = {}) {
   const details = {};
   const cachedRepos = new Set();
@@ -309,13 +337,28 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // The Dependabot autofix setting (ADR-012 Phase 3) and the Copilot review
       // ruleset (ADR-009) are both repo-settings toggles that can flip without a
       // push or an open-issue-count change, so the cache key does not capture
-      // either. Every other cached field is genuinely push-invariant; these two
-      // are not, and leaving them stale would let a quiet repo's "in flight /
+      // either, and leaving them stale would let a quiet repo's "in flight /
       // not driven" and code-review-bot annotations drift indefinitely. Refresh
       // both with live reads on the cache-hit path and merge into a COPY — never
-      // mutate the cache. This is the cache-refresh convention: a settings-toggle
-      // field that can't be tied to a cache key gets a live read on every cache
-      // hit rather than a schema-version bump (which would only recompute once).
+      // mutate the cache. This is the cache-refresh convention: a field that
+      // can change without a push gets a live read on every cache hit rather
+      // than a schema-version bump (which would only recompute once).
+      //
+      // The three security-alert summaries (vulns, codeScanning,
+      // secretScanning) follow the same convention: a new advisory, a
+      // scheduled CodeQL run or a manual dismissal changes them with no push,
+      // and they feed the Gold "zero critical/high" check and the
+      // open-vulnerability detector — serving them cached would keep a repo
+      // Gold after a new high landed. They take the miss path's fetchers and
+      // its failure direction: an unreadable read is null (unknown), never the
+      // cached summary, because the miss path has no last-known fallback for
+      // them and a cached zero presented as current is exactly the false Gold
+      // this re-read exists to prevent.
+      //
+      // Other cached fields can also drift without a push — ciPassRate (new
+      // runs), open_bugs (a relabel), released_at (a release cut from an
+      // existing commit) — and are accepted as cached until the next push or
+      // open-issue-count change; none of them gates a write.
       //
       // The two templated-workflow flags are re-read here too, for a different
       // reason: they are tri-state, and an UNKNOWN result must never become
@@ -333,10 +376,13 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       // next push, which on a quiet repo is indefinitely. That is the same
       // "an unknown must never become permanent" rule as the two flags above,
       // applied only where the unknown actually exists.
-      const [autofix, hasCopilotReview, workflowFiles, ci] = await Promise.all([
+      const [autofix, hasCopilotReview, workflowFiles, vulns, codeScanning, secretScanning, ci] = await Promise.all([
         getAutomatedSecurityFixesState(gh, owner, r.name),
         hasActiveCopilotReviewRuleset(gh, owner, r.name),
         fetchDefaultBranchWorkflows(gh, owner, r.name),
+        fetchDependabotSummary(gh, owner, r.name),
+        fetchCodeScanningSummary(gh, owner, r.name),
+        fetchSecretScanningSummary(gh, owner, r.name),
         cached.details?.ci == null
           ? gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
             .then(d => d.total_count ?? null)
@@ -354,6 +400,9 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
         ...cached.details,
         ci,
         autofix,
+        vulns,
+        codeScanning,
+        secretScanning,
         // Now tri-state too, so it takes the same fallback as the two below:
         // an unreadable live scan must not erase a cached verdict. It was
         // exempt only because it could never return null.
@@ -364,7 +413,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
           ?? cached.details?.hasAutoMergeWorkflow ?? null,
       };
       cachedRepos.add(r.name);
-      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + templated workflows refreshed)`);
+      console.log(`  ↩ ${r.name} — unchanged, using cache (autofix + copilot review + templated workflows + security alerts refreshed)`);
       return;
     }
     // Last-known `ci`, used ONLY as the workflow-listing catch's fallback. Gated
@@ -455,16 +504,7 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
           };
         })
         .catch(() => null),
-      gh.request(`/repos/${owner}/${r.name}/dependabot/alerts?state=open&per_page=100`)
-        .then(alerts => getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity))
-        .catch(async () => {
-          // Alerts API returned 403 (token lacks scope). Fall back to checking
-          // if dependabot.yml exists — if so, Dependabot IS configured even
-          // though we can't read the alerts.
-          const configContent = await gh.getFileContent(owner, r.name, '.github/dependabot.yml');
-          if (configContent) return { count: 0, max_severity: null, config_only: true };
-          return null;
-        }),
+      fetchDependabotSummary(gh, owner, r.name),
       gh.request(`/repos/${owner}/${r.name}/actions/runs?status=completed&per_page=100`)
         .then(d => {
           const runs = d.workflow_runs || [];
@@ -485,12 +525,8 @@ export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } =
       gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
         .then(rels => rels.find(isPublishedRelease)?.published_at ?? null)
         .catch(() => null),
-      gh.request(`/repos/${owner}/${r.name}/code-scanning/alerts?state=open&per_page=100`)
-        .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))
-        .catch(() => null),
-      gh.request(`/repos/${owner}/${r.name}/secret-scanning/alerts?state=open&per_page=100`)
-        .then(alerts => ({ count: Array.isArray(alerts) ? alerts.length : 0 }))
-        .catch(() => null),
+      fetchCodeScanningSummary(gh, owner, r.name),
+      fetchSecretScanningSummary(gh, owner, r.name),
       gh.paginate(`/repos/${owner}/${r.name}/pulls`, { params: { state: 'open' }, max: 100 })
         .then(prs => prs.length)
         .catch(() => null),
