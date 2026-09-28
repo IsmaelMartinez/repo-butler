@@ -41,7 +41,7 @@ jobs:
           # A deleted file leaves nothing to check below, and a small one sits
           # inside the test-count margin, so the file count has its own floor.
           # Set to the current count; adjust in the PR that adds or removes one.
-          MIN_TEST_FILES: 37
+          MIN_TEST_FILES: 44
         run: |
           set -eo pipefail
           npm test -- --test-reporter=tap --test-reporter-destination=stdout \
