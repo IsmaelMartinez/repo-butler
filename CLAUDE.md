@@ -17,6 +17,10 @@ The CI workflow also runs a secret-leak lint check over `src/*.js`, excluding `s
 
 `--test-concurrency=1` is deliberate: Node's test runner isolates each file in its own child process, and under the default concurrency the largest file (report.test.js, 2000+ lines) intermittently lost its trailing suites over the IPC channel — a full run would silently report ~50 fewer tests with no failure surfaced apart from a stray count mismatch. Serializing removed the flake in repeated local runs at a ~2.5s cost.
 
+## In-flight work
+
+When asked to "continue with what we were doing", read `ROADMAP.md` → Next Up and the tracking issue it names (`gh issue view <n>`). That issue's "Resume here" block is the plan of record for multi-PR work and says what comes next. Start from its step 1, and update its checklist after each merge.
+
 ## Code review before merging
 
 Never merge a PR before the AI code review bot has completed its review. GitHub Copilot code review is the portfolio standard (ADR-009) — wait for the GitHub Copilot review (any review/check whose name contains `copilot`). Legacy review bots (e.g. Gemini Code Assist, CodeRabbit) are deprecated and no longer active here; do not wait on them. Wait up to 20 minutes for the review to finish. After the review completes, address every inline comment before merging — either apply the fix, or explain why not and reply to each comment individually via the GitHub API. Use the /address-pr-comments skill for this workflow.

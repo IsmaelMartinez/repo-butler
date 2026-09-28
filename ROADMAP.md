@@ -129,6 +129,10 @@ Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450)
 
 Active work. Everything here is unfinished; shipped items move to the log above.
 
+### Simplification pass — wave 3 in progress (tracking issue #429)
+
+A 2026-09-26 audit of code, docs, tests and CI was turned into three waves of small, independently reviewed PRs. Waves 1 and 2 are merged. Wave 3 is sequential: #420 is done, and #421 (splitting `report-portfolio.js` into data and rendering) is next, then #422 (the dead-export sweep). A CLAUDE.md restructure goes last. Six owner decisions, #423–#428, are open and gate their own code, and #423 must be settled before the G10 `require_approval` flip. Issue #429 is the single source of truth: its "Resume here" block carries the next step and the working rules, and its checklist is ticked as each PR merges.
+
 ### Cross-repo PROPOSE — finishing the G10 graduation (ADR-010, ADR-011)
 
 The G1–G9 machinery is on `main` and the month-long dry-run soak is complete. G10 graduated the first class/target pair on 2026-07-21 (`standards-gap`, targeting `github-issue-triage-bot`) — chosen over the originally-slated tier-uplift because the soak evidence anchored there, a deviation recorded in ADR-010's "G10 graduation" note.
