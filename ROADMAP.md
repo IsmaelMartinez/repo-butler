@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-27
+**Last Updated:** 2026-09-28
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -122,6 +122,8 @@ Robust numeric error handling for scheduler resiliency shipped 2026-09-27 (PR #4
 GitHub Contents API 1 MB ceiling workaround shipped 2026-09-27 (PR #451). Resolves a critical scalability issue for repositories with large cache files by switching to the Blob API to read the `repo-cache.json` snapshot database, ensuring reliable state tracking across larger portfolios.
 
 Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450). Reduces technical debt and optimizes the scheduled apply path by moving the `runApply` routine out of the main index and consolidating shared `eligibleRepos` and `listOpenPRs` predicates across the active governance audits.
+
+Modular test suite architecture for report generation shipped 2026-09-28 (PR #453). Improves codebase maintainability and test readability by splitting the large, consolidated `report.test.js` file into modular, per-module test files, resolving technical debt and simplifying future test coverage expansion.
 
 ---
 
