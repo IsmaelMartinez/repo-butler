@@ -125,6 +125,8 @@ Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450)
 
 Modular test suite architecture for report generation shipped 2026-09-28 (PR #453). Improves codebase maintainability and test readability by splitting the large, consolidated `report.test.js` file into modular, per-module test files, resolving technical debt and simplifying future test coverage expansion.
 
+Roadmap and developer guidelines aligned with simplification pass tracking 2026-09-28 (PR #455). Points the project's living roadmap and developer guidelines to a central tracking issue to coordinate active architectural simplification and complexity reduction goals.
+
 ---
 
 ## Next Up
