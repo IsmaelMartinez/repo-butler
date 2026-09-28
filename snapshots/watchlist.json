@@ -24,5 +24,18 @@
     "council_summary": "This proposal targets an external repository based on a valid cross-portfolio metric (7% of repositories failing Gold tier compliance). However, because it requires manual remediation on a single external repository rather than a platform-wide automation, we should watch it while prioritizing automated governance.",
     "added_at": "2026-09-07T11:47:12.269Z",
     "review_count": 0
+  },
+  {
+    "title": "Uplift teams-for-linux to gold tier by remediating open bugs count",
+    "type": "proposal",
+    "severity": "medium",
+    "targetRepo": "teams-for-linux",
+    "held_back_reason": null,
+    "council_verdict": "watch",
+    "council_confidence": "high",
+    "council_priority": "low",
+    "council_summary": "The proposal targets an external repository ('teams-for-linux') using a per-repo bug count metric rather than a cross-portfolio statistic uniquely computed by the butler, failing our strict external targeting criteria.",
+    "added_at": "2026-09-28T13:07:33.881Z",
+    "review_count": 0
   }
 ]
