@@ -1,20 +1,16 @@
 {
-  "timestamp": "2026-09-28T06:11:59.443Z",
+  "timestamp": "2026-09-28T06:16:42.550Z",
   "repository": "IsmaelMartinez/repo-butler",
-  "known_issue_numbers": [
-    429,
-    429
-  ],
+  "known_issue_numbers": [],
   "known_pr_numbers": [
-    454,
-    454
+    455,
+    455
   ],
   "known_dependabot_alerts": [],
   "known_code_scanning_alerts": [],
   "known_secret_scanning_alerts": [],
   "known_release_tags": [
-    "v1.1.2",
-    "v1.1.1"
+    "v1.1.0"
   ],
-  "last_event_count": 4
+  "last_event_count": 2
 }
