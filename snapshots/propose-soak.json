@@ -394,5 +394,23 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-09-28T13:07:39.509Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Governance: Implement automated SHA-pinning and least-privilege permissions standard for CI/CD workflows",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 1,
+    "skipped_duplicates": 1,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
