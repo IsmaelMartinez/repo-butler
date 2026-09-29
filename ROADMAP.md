@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-09-28
+**Last Updated:** 2026-09-29
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -126,6 +126,8 @@ Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450)
 Modular test suite architecture for report generation shipped 2026-09-28 (PR #453). Improves codebase maintainability and test readability by splitting the large, consolidated `report.test.js` file into modular, per-module test files, resolving technical debt and simplifying future test coverage expansion.
 
 Roadmap and developer guidelines aligned with simplification pass tracking 2026-09-28 (PR #455). Points the project's living roadmap and developer guidelines to a central tracking issue to coordinate active architectural simplification and complexity reduction goals.
+
+Roadmap maintenance and developer guidelines aligned with simplification pass tracking shipped 2026-09-28 (PR #455). Points the project's living roadmap and developer guidelines to a central tracking issue to coordinate active architectural simplification and complexity reduction goals.
 
 ---
 
