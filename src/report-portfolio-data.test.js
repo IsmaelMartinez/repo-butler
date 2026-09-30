@@ -1021,6 +1021,22 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(details['am-tri'].hasAutoMergeWorkflow, true);
   });
 
+  // #463: detection must find exactly the file each template installs. The
+  // listing it reads is the default branch's .github/workflows directory, by
+  // filename, so a template written anywhere else could never be detected.
+  for (const [key, flag] of [['osv-scanner', 'hasOsvScanner'], ['dependabot-auto-merge', 'hasAutoMergeWorkflow']]) {
+    it(`detects the file the ${key} template writes, which lives directly in .github/workflows/`, async () => {
+      const { TEMPLATES } = await import('./apply-templates.js');
+      const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
+      const { path } = TEMPLATES[key];
+      const slash = path.lastIndexOf('/');
+      assert.equal(path.slice(0, slash), '.github/workflows', `${key} template must write into .github/workflows/`);
+      const gh = makeWorkflowsGh(() => Promise.resolve([{ name: 'ci.yml' }, { name: path.slice(slash + 1) }]));
+      const details = await fetchPortfolioDetails(gh, 'owner', amRepos);
+      assert.equal(details['am-tri'][flag], true);
+    });
+  }
+
   it('reports hasAutoMergeWorkflow false when the file is absent from the default branch', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
     // Clean absence: nothing registered, nothing on the branch. A real gap, and
