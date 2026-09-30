@@ -439,7 +439,7 @@ export async function update(context) {
   await gh.request(`/repos/${owner}/${repo}/contents/${roadmapPath}`, {
     method: 'PUT',
     body: {
-      message: isRefresh ? 'chore: refresh roadmap update (repo-butler)' : 'chore: update roadmap (repo-butler)',
+      message: isRefresh ? 'chore: refresh roadmap update (repo-butler)' : ROADMAP_PR_TITLE,
       content: Buffer.from(updatedRoadmap).toString('base64'),
       branch: branchName,
       ...(fileSha ? { sha: fileSha } : {}),

@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { reportCacheHit } from './report.js';
 
 describe('report module', () => {
-  it('exports report and runReport', async () => {
+  // report.js is the REPORT entry point, not a barrel: callers import render
+  // and fetch functions from the module that defines them (#422).
+  it('exports its own entry points and re-exports no report sub-module', async () => {
     const mod = await import('./report.js');
-    assert.equal(typeof mod.report, 'function');
-    assert.equal(typeof mod.runReport, 'function');
+    assert.deepEqual(Object.keys(mod).sort(), ['report', 'reportCacheHit', 'runReport']);
   });
 });
 
