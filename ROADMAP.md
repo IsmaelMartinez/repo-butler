@@ -129,6 +129,8 @@ Dead export cleanup and code simplification shipped 2026-09-30 (PR #458). Reduce
 
 Codeowners validation and template interpolation safety shipped 2026-09-30 (PR #467). Prevents invalid configuration generation by validating GitHub usernames before interpolating them into the CODEOWNERS template, resolving issue #462.
 
+Model Context Protocol campaign parity and templated-workflow detection refined 2026-09-30 (PRs #468, #469). Enhances test suite fidelity by executing real MCP campaign computations instead of relying on mocks, and resolves a CI/CD orchestration bug by deriving templated-workflow detection names directly from the templates themselves, closing issue #463.
+
 ---
 
 ## Next Up
