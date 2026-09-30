@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateHealthBadge, buildActionItems, computeHealthTier, buildCampaignSection } from './report.js';
-import { isReleaseExempt, isBugIssue, isFeatureIssue, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
+import { buildActionItems } from './report-repo.js';
+import { buildCampaignSection } from './report-portfolio.js';
+import { generateHealthBadge, computeHealthTier, isReleaseExempt, isBugIssue, isFeatureIssue, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
 
 describe('jsStr', () => {
   it('quotes and escapes strings for inline <script> embedding', () => {

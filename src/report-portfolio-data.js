@@ -109,8 +109,8 @@ export function analyzeDependencyInventory(details) {
 // whereas this standard is satisfied only by the file the template installs. A
 // looser match would let a repo's own variant read as compliant while the
 // template could never converge on it.
-export const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
-export const AUTOMERGE_WORKFLOW_FILE = 'dependabot-auto-merge.yml';
+const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
+const AUTOMERGE_WORKFLOW_FILE = 'dependabot-auto-merge.yml';
 
 // How many active repos get a full details fetch. Each costs ~11 API calls, so
 // this bounds one portfolio pass; the original value was 15, chosen in the first
@@ -120,7 +120,7 @@ export const AUTOMERGE_WORKFLOW_FILE = 'dependabot-auto-merge.yml';
 // unknown rather than non-compliant. Before that fix, the 16th repo would have
 // been reported non-compliant on every standard and become a remediation-PR
 // target on all of them at once.
-export const PORTFOLIO_DETAIL_LIMIT = 40;
+const PORTFOLIO_DETAIL_LIMIT = 40;
 
 // Templated-workflow presence is read from the DEFAULT BRANCH via the contents
 // API, never from the workflows registration listing. That listing returns every

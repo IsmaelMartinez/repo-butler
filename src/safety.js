@@ -440,16 +440,6 @@ export function detectEcosystem(repo) {
 // "every external string that reaches GitHub" gates.
 export const REPO_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
 
-// Sanitise contributor names for CODEOWNERS and governance proposals.
-// Strips characters unsafe for CODEOWNERS syntax. Returns cleaned string or null.
-export function sanitizeContributorName(name) {
-  if (!name || typeof name !== 'string') return null;
-  // Strip control characters and CODEOWNERS-unsafe chars: * [ ] ! \ newlines
-  const cleaned = name.replace(/[\x00-\x1f*[\]!\\/\n\r]/g, '').trim();
-  if (cleaned.length === 0 || cleaned.length > 100) return null;
-  return cleaned;
-}
-
 // Validate a string as a valid GitHub username (alphanumeric + hyphens, max 39 chars).
 export function validateGitHubUsername(username) {
   if (!username || typeof username !== 'string') return false;

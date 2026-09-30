@@ -522,7 +522,7 @@ export function npmFailureReason(stderr) {
  * files as written back, so the gate can prove the manifest did not move.
  * Injectable via options.runNpmUpdate: the tests never spawn npm.
  */
-export async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
+async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
   const dir = await mkdtemp(join(tmpdir(), 'repo-butler-lockfile-'));
   // A minimal environment (see npmChildEnv): among other things it leaves
   // NODE_ENV unset, since `production` makes npm drop devDependencies from the

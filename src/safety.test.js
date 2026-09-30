@@ -6,7 +6,7 @@ import {
   validateRoadmap, validateIdeas, validateProvider,
   sanitizeForPrompt, detectEcosystem, codeqlLanguageFor,
   ECOSYSTEM_MAP, ECOSYSTEM_TOOLS,
-  sanitizeContributorName, validateGitHubUsername,
+  validateGitHubUsername,
   resolveCrossRepoDestination, findingNamesRepo,
   sanitizeLabels, redactErrorForLog, safeDeployedUrl,
   wrapPrompt, PROMPT_DEFENCE, DATA_BOUNDARY_START, DATA_BOUNDARY_END,
@@ -579,45 +579,6 @@ describe('codeqlLanguageFor', () => {
   it('does not resolve inherited Object.prototype keys to a function', () => {
     assert.equal(codeqlLanguageFor('constructor'), 'javascript-typescript');
     assert.equal(codeqlLanguageFor('toString'), 'javascript-typescript');
-  });
-});
-
-describe('sanitizeContributorName', () => {
-  it('passes valid names through', () => {
-    assert.equal(sanitizeContributorName('Alice Smith'), 'Alice Smith');
-    assert.equal(sanitizeContributorName('bob'), 'bob');
-  });
-
-  it('rejects null/undefined/empty', () => {
-    assert.equal(sanitizeContributorName(null), null);
-    assert.equal(sanitizeContributorName(undefined), null);
-    assert.equal(sanitizeContributorName(''), null);
-  });
-
-  it('strips CODEOWNERS-unsafe characters', () => {
-    assert.equal(sanitizeContributorName('user*name'), 'username');
-    assert.equal(sanitizeContributorName('user[0]'), 'user0');
-    assert.equal(sanitizeContributorName('user!'), 'user');
-    assert.equal(sanitizeContributorName('path\\to'), 'pathto');
-  });
-
-  it('strips control characters and newlines', () => {
-    assert.equal(sanitizeContributorName('user\nname'), 'username');
-    assert.equal(sanitizeContributorName('user\x00name'), 'username');
-  });
-
-  it('rejects names that become empty after sanitisation', () => {
-    assert.equal(sanitizeContributorName('***'), null);
-    assert.equal(sanitizeContributorName('[!]'), null);
-  });
-
-  it('rejects names over 100 characters', () => {
-    assert.equal(sanitizeContributorName('A'.repeat(101)), null);
-    assert.equal(sanitizeContributorName('A'.repeat(100)), 'A'.repeat(100));
-  });
-
-  it('trims whitespace', () => {
-    assert.equal(sanitizeContributorName('  alice  '), 'alice');
   });
 });
 

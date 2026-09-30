@@ -9,7 +9,7 @@ export const TIER_DISPLAY = { gold: 'Gold', silver: 'Silver', bronze: 'Bronze', 
 // Ordinal rank for comparing tiers — shared by the dashboard's "since the last
 // run" strip and the governance tier-regression detector (down = rank fell).
 export const TIER_RANK = { none: 0, bronze: 1, silver: 2, gold: 3 };
-export const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
+const TIER_COLORS = { gold: '#ffd700', silver: '#c0c0c0', bronze: '#cd7f32', none: '#6e7681' };
 
 // Return the next tier above `tier` in the gold > silver > bronze > none ladder,
 // or null if `tier` is already 'gold' (or unrecognised).
@@ -81,7 +81,7 @@ export function isPublishedRelease(rel) {
   return !rel.draft && !!rel.published_at;
 }
 
-export const LIBYEAR_THRESHOLDS = { GREEN: 5, YELLOW: 20 };
+const LIBYEAR_THRESHOLDS = { GREEN: 5, YELLOW: 20 };
 
 // Map a numeric value to a colour based on ordered threshold ranges.
 //
