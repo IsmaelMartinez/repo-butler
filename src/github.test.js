@@ -385,7 +385,7 @@ describe('hasActiveCopilotReviewRuleset', () => {
 
   it('stays total — a malformed ruleset element degrades to null, never throws', async () => {
     // Converting this to tri-state moved the loop out of the original outer
-    // try. Both report-portfolio call sites sit bare inside a Promise.all with
+    // try. Both report-portfolio-data call sites sit bare inside a Promise.all with
     // no .catch, so a throw here aborts the entire REPORT/GOVERNANCE run for
     // every repo rather than degrading one field on one repo.
     const gh = { paginate: async () => [null, undefined], request: async () => ({}) };

@@ -5,7 +5,7 @@
 // governance.js back. Keeping these helpers here is what lets all four share one
 // copy. It must never import governance.js or any of the audits.
 //
-// Onboard, report-portfolio.js and observe filter repos differently on purpose;
+// Onboard, report-portfolio-data.js and observe filter repos differently on purpose;
 // this predicate is for the governance lane only.
 
 import { isExcludedRepo } from './report-shared.js';

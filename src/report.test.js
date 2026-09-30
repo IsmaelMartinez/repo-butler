@@ -16,7 +16,7 @@ describe('report cache invalidation includes report.js', () => {
     const src = await readFile('src/report.js', 'utf8');
     assert.ok(src.includes("'src/report.js'"), 'templateFiles should include src/report.js');
     // All five report files must be in the template hash.
-    for (const f of ['src/report.js', 'src/report-portfolio.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js']) {
+    for (const f of ['src/report.js', 'src/report-portfolio.js', 'src/report-portfolio-data.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js']) {
       assert.ok(src.includes(`'${f}'`), `templateFiles should include ${f}`);
     }
   });

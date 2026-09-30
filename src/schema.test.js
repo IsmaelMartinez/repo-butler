@@ -242,7 +242,7 @@ describe('health-tier schema enum matches computeHealthTier output', () => {
 
 describe('portfolio-details schema documents fetchPortfolioDetails shape', () => {
   it('schema properties and the keys fetchPortfolioDetails writes agree in both directions', async () => {
-    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
     const schema = await loadSchema('portfolio-details.v1.schema.json');
     const schemaKeys = new Set(Object.keys(schema.$defs.RepoDetails.properties));
 

@@ -130,7 +130,8 @@ src/
 ├── propose.js            # PROPOSE: GitHub issue creation with safety filtering + approval gate
 ├── report.js             # REPORT: entry point, orchestrates report generation
 ├── report-shared.js      # Shared constants, computeHealthTier(), helpers
-├── report-portfolio.js   # Portfolio reports, campaigns, dependency inventory
+├── report-portfolio.js   # Portfolio dashboard, digest, campaigns, dependency inventory rendering
+├── report-portfolio-data.js # Portfolio details fetch and dependency inventory analysis
 ├── report-repo.js        # Per-repo charts, health sections, data fetchers
 ├── report-styles.js      # CSS template
 ├── apply.js              # Governance Apply: remediation PRs and settings writes (manual dispatch + weekly allow-listed schedule)

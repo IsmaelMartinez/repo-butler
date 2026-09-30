@@ -1,4 +1,4 @@
-// Shared helpers and constants used by report-repo.js and report-portfolio.js.
+// Shared helpers and constants used by report-repo.js, report-portfolio.js and report-portfolio-data.js.
 
 import { safeDeployedUrl } from './safety.js';
 
@@ -57,7 +57,7 @@ export function isExcludedRepo(name) {
 // still needed its one-time v5 bump above — that backfilled cache entries that
 // predated the field entirely — but neither field needs a bump on every
 // subsequent GitHub-side change: fetchPortfolioDetails's cache-hit path in
-// report-portfolio.js re-reads both live on every hit and merges the result
+// report-portfolio-data.js re-reads both live on every hit and merges the result
 // into a copy of the cached details, so they never go stale between bumps.
 // This is the cache-refresh convention: a settings-toggle field gets a live
 // read on every cache hit instead of a fresh version bump each time the
@@ -154,7 +154,7 @@ export function computeCountTrend(current, previous, { invert = false } = {}) {
 // Tally an alert array into { count, critical, high, medium, low, max_severity }.
 // `getSeverity(alert)` returns one of 'critical' | 'high' | 'medium' | 'low' (or
 // anything else / falsy, which is ignored). Single source of truth for both the
-// observe.js fetchers and the report-portfolio.js inline aggregations.
+// observe.js fetchers and the report-portfolio-data.js inline aggregations.
 export function getAlertSummary(alerts, getSeverity) {
   const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
   let critical = 0, high = 0, medium = 0, low = 0;

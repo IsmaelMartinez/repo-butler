@@ -174,7 +174,7 @@ describe('buildPortfolioSnapshot', () => {
 
 describe('fetchTraffic', () => {
   it('returns normalised 14-day counts when both endpoints succeed', async () => {
-    const { fetchTraffic } = await import('./report-portfolio.js');
+    const { fetchTraffic } = await import('./report-portfolio-data.js');
     const calls = [];
     const fakeGh = {
       request: async (path) => {
@@ -193,7 +193,7 @@ describe('fetchTraffic', () => {
   });
 
   it('returns null when both endpoints fail (e.g. 403 from missing scope)', async () => {
-    const { fetchTraffic } = await import('./report-portfolio.js');
+    const { fetchTraffic } = await import('./report-portfolio-data.js');
     const fakeGh = {
       request: async () => { throw new Error('403 Forbidden'); },
     };
@@ -202,7 +202,7 @@ describe('fetchTraffic', () => {
   });
 
   it('returns a partial object when only one endpoint fails', async () => {
-    const { fetchTraffic } = await import('./report-portfolio.js');
+    const { fetchTraffic } = await import('./report-portfolio-data.js');
     const fakeGh = {
       request: async (path) => {
         if (path.endsWith('/traffic/views')) return { count: 5, uniques: 3 };
@@ -217,7 +217,7 @@ describe('fetchTraffic', () => {
   });
 
   it('coerces missing count/uniques to 0 rather than undefined', async () => {
-    const { fetchTraffic } = await import('./report-portfolio.js');
+    const { fetchTraffic } = await import('./report-portfolio-data.js');
     const fakeGh = {
       request: async (path) => {
         if (path.endsWith('/traffic/views')) return {};
