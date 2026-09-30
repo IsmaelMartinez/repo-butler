@@ -122,7 +122,7 @@ The report module is split into six files. `src/report.js` is the entry point th
 - The community profile API does not detect YAML form-based issue templates — always fall back to checking .github/ISSUE_TEMPLATE/ directory contents.
 - GitHub's open_issues_count includes PRs. Always filter with `!i.pull_request` when counting actual issues.
 - Dependabot alerts require `vulnerability_alerts: read` scope on the token. The default GITHUB_TOKEN lacks this — return null, not zero, when unavailable.
-- New API fetchers in observe.js should follow the existing pattern: try/catch, return null on failure, add to the Promise.all in `observe()`.
+- New API fetchers in observe.js should follow the existing pattern: try/catch, return null on failure, add a named entry to the `awaitNamed` call in `observe()`.
 
 ## Report generation
 

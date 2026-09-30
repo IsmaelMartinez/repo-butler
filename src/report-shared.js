@@ -172,6 +172,14 @@ export function getAlertSummary(alerts, getSeverity) {
   return { count: alerts.length, critical, high, medium, low, max_severity: maxSeverity };
 }
 
+// Resolves an object of promises to an object of their values, so each result
+// is read by name: adding or reordering a call cannot shift another's value.
+export async function awaitNamed(promises) {
+  const keys = Object.keys(promises);
+  const values = await Promise.all(Object.values(promises));
+  return Object.fromEntries(keys.map((key, i) => [key, values[i]]));
+}
+
 const BUG_LABELS = ['bug', 'defect', 'bugfix', 'bug-fix', 'type: bug', 'type:bug', 'kind/bug'];
 const FEATURE_LABELS = ['enhancement', 'feature', 'feature-request', 'feature request', 'type: feature', 'type:feature', 'kind/feature'];
 

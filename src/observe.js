@@ -1,5 +1,5 @@
 import { createClient, paginateIssues, getAutomatedSecurityFixesState } from './github.js';
-import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary } from './report-shared.js';
+import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary, awaitNamed } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
 // per-repo and portfolio observation, threads results onto context, persists
@@ -56,7 +56,7 @@ export async function observe(context) {
 
   console.log(`Observing ${owner}/${repo}...`);
 
-  const [
+  const {
     openIssues,
     closedIssues,
     mergedPRs,
@@ -71,26 +71,26 @@ export async function observe(context) {
     secretScanningAlerts,
     ciPassRate,
     autofix,
-  ] = await Promise.all([
-    fetchOpenIssues(gh, owner, repo),
-    fetchClosedIssues(gh, owner, repo, issuesSince),
-    fetchMergedPRs(gh, owner, repo, prsSince),
-    fetchLabels(gh, owner, repo),
-    fetchMilestones(gh, owner, repo),
-    fetchReleases(gh, owner, repo, config.observe?.releases_count || 10),
-    fetchWorkflows(gh, owner, repo),
-    fetchRepoMeta(gh, owner, repo),
-    fetchCommunityProfile(gh, owner, repo),
-    fetchDependabotAlerts(gh, owner, repo),
-    fetchCodeScanningAlerts(gh, owner, repo),
-    fetchSecretScanningAlerts(gh, owner, repo),
-    fetchCIPassRate(gh, owner, repo),
+  } = await awaitNamed({
+    openIssues: fetchOpenIssues(gh, owner, repo),
+    closedIssues: fetchClosedIssues(gh, owner, repo, issuesSince),
+    mergedPRs: fetchMergedPRs(gh, owner, repo, prsSince),
+    labels: fetchLabels(gh, owner, repo),
+    milestones: fetchMilestones(gh, owner, repo),
+    releases: fetchReleases(gh, owner, repo, config.observe?.releases_count || 10),
+    workflows: fetchWorkflows(gh, owner, repo),
+    repoMeta: fetchRepoMeta(gh, owner, repo),
+    communityProfile: fetchCommunityProfile(gh, owner, repo),
+    dependabotAlerts: fetchDependabotAlerts(gh, owner, repo),
+    codeScanningAlerts: fetchCodeScanningAlerts(gh, owner, repo),
+    secretScanningAlerts: fetchSecretScanningAlerts(gh, owner, repo),
+    ciPassRate: fetchCIPassRate(gh, owner, repo),
     // Dependabot automated security fixes state (ADR-012 Phase 3): { enabled,
     // paused } | null. Gathered here on the OBSERVE→REPORT pipeline path so the
     // per-repo snapshot carries it too (the portfolio-details path fetches it in
     // report-portfolio-data.js). Returns null on any error / missing scope.
-    getAutomatedSecurityFixesState(gh, owner, repo),
-  ]);
+    autofix: getAutomatedSecurityFixesState(gh, owner, repo),
+  });
 
   const roadmapPath = config.roadmap?.path || 'ROADMAP.md';
   const roadmapContent = await gh.getFileContent(owner, repo, roadmapPath);
