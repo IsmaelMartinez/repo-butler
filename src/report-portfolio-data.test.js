@@ -3,15 +3,16 @@ import assert from 'node:assert/strict';
 import { REPO_CACHE_SCHEMA_VERSION } from './report-shared.js';
 
 describe('fetchPortfolioDetails incremental cache', () => {
-  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile autofix + copilot-review + osv-scanner reads)', async () => {
+  it('uses cached details when pushed_at and open_issues_count match (but refreshes the volatile settings, workflow-listing and security-alert reads)', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
-    // On a cache hit, only the three volatile reads should run: the autofix GET
-    // (ADR-012 Phase 3), the copilot ruleset-list paginate (ADR-009), and the
-    // workflows-DIRECTORY listing that re-derives hasOsvScanner. The first two
-    // are settings that flip without a push; the third is re-read for a
-    // different reason — the verdict is tri-state, and an unknown cached on one
-    // failed read would otherwise be served until the repo's next push, which on
-    // a quiet repo is never. Every push-invariant field still comes from cache.
+    // On a cache hit, only the six volatile reads should run: the autofix GET
+    // (ADR-012 Phase 3), the copilot ruleset-list paginate (ADR-009), the
+    // workflows-DIRECTORY listing that re-derives hasOsvScanner, and the three
+    // security-alert summaries. The first two are settings that flip without a
+    // push; the listing is re-read because its verdict is tri-state, and an
+    // unknown cached on one failed read would otherwise be served until the
+    // repo's next push, which on a quiet repo is never; the alerts change with
+    // no push and gate Gold. Every push-invariant field still comes from cache.
     // This mock's ruleset list is empty, so hasActiveCopilotReviewRuleset never needs
     // a per-ruleset detail GET here — with active rulesets present it would also
     // issue /rulesets/{id} GETs, which is expected and not a full re-fetch. No
