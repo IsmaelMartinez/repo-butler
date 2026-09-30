@@ -144,16 +144,18 @@ export function validateFindings(findings) {
   return valid;
 }
 
-// The ADR-005 master switch: true only for the boolean `true`. The hand-rolled
+// The ADR-005 master switch for the apply lane only (#423: PROPOSE has its own
+// `propose_live`). Fails closed toward REFUSING: only the boolean `true` lets
+// apply run; absent, null, a number or any string refuses. The hand-rolled
 // YAML parser passes a quoted `"false"` (and `no`, `False`) through as a string,
 // which is truthy, so a truthiness test would read the halt switch as go. On
 // refusal the log names the received TYPE, never the value, so a quoted
 // `"true"` that now stops a scheduled run says why without echoing config.
-export function requireApprovalGate(config, label) {
-  const value = config?.limits?.require_approval;
+export function applyEnabledGate(config, label) {
+  const value = config?.limits?.apply_enabled;
   if (value === true) return true;
   const kind = value === null ? 'null' : typeof value;
-  console.error(`${label}: config.limits.require_approval is not the boolean true (received ${kind}) — refusing to run`);
+  console.error(`${label}: config.limits.apply_enabled is not the boolean true (received ${kind}) — refusing to run`);
   return false;
 }
 
@@ -199,8 +201,8 @@ export async function applyGovernanceFindings(gh, owner, findings, config, optio
   const { dryRun, maxPerRun = 5, tools, scheduled } = options;
 
   // Require approval gate
-  if (!requireApprovalGate(config, 'apply')) {
-    return { status: 'refused', reason: 'require_approval not set' };
+  if (!applyEnabledGate(config, 'apply')) {
+    return { status: 'refused', reason: 'apply_enabled not set' };
   }
 
   // Build (repo, tool) pairs from validated findings.
@@ -410,7 +412,7 @@ async function applyToRepo(gh, owner, repo, tool, ecosystem) {
 // --- Stale Dependabot PR nudge ----------------------------------------------
 // A new cross-repo write action that rides the same five ADR-005 gates as the
 // templated-PR path above (workflow_dispatch-only, dry-run fail-closed,
-// require_approval, per-run cap, repo-name validation + dedup). It is a new
+// apply_enabled, per-run cap, repo-name validation + dedup). It is a new
 // action *type* behind the existing gate stack, not a relaxation of the trust
 // model, so no ADR amendment is needed — only relaxing a gate would.
 //
@@ -511,9 +513,9 @@ async function deterministicFailure(gh, owner, repo, number) {
 export async function nudgeStaleDependabotPRs(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
-  // Gate 3: require_approval master switch.
-  if (!requireApprovalGate(config, 'nudge')) {
-    return { status: 'refused', reason: 'require_approval not set' };
+  // Gate 3: apply_enabled master switch.
+  if (!applyEnabledGate(config, 'nudge')) {
+    return { status: 'refused', reason: 'apply_enabled not set' };
   }
 
   // Stage 4 (ADR-007): the nudge is a finding-class action like a templated PR,
@@ -588,7 +590,7 @@ export async function nudgeStaleDependabotPRs(gh, owner, findings, config, optio
 // A PR-less settings write: enabling GitHub Copilot automatic code review is a
 // `copilot_code_review` rule inside a repository ruleset, not a committed file,
 // so it cannot ride the templated-PR path. This is a new action *type* behind the
-// same five ADR-005 gates (require_approval, dry-run fail-closed, per-run cap,
+// same five ADR-005 gates (apply_enabled, dry-run fail-closed, per-run cap,
 // repo-name validation, workflow_dispatch-only) plus the three ADR-009 gates:
 // additive/idempotent (one distinctively named ruleset, skip-if-already-enabled
 // checked LIVE at apply time), scope-minimised (only the Copilot rule on the
@@ -637,9 +639,9 @@ export function selectCopilotReviewTargets(findings, maxPerRun = 5) {
 export async function applyCopilotReviewRulesets(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
-  // Gate 3: require_approval master switch.
-  if (!requireApprovalGate(config, 'copilot-review')) {
-    return { status: 'refused', reason: 'require_approval not set' };
+  // Gate 3: apply_enabled master switch.
+  if (!applyEnabledGate(config, 'copilot-review')) {
+    return { status: 'refused', reason: 'apply_enabled not set' };
   }
 
   // Stage 4 (ADR-007) / ADR-009: the no-human scheduled path acts only when
@@ -766,7 +768,7 @@ export async function removeCopilotReviewRuleset(gh, owner, repo) {
 // is fenced tighter (ADR-012): manual-dispatch only and OFF the apply-schedule
 // allow-list BY CONSTRUCTION (never allow-listable — unlike the Copilot class),
 // auto-merge-ineligible by construction (no TEMPLATES entry, so isAutoMergeAllowed
-// is always false), dry-run fail-closed, require_approval, per-run cap, repo-name
+// is always false), dry-run fail-closed, apply_enabled, per-run cap, repo-name
 // validation, and a LIVE idempotency guard that skips a repo enabled OR paused.
 // Acts on the `dependabot`-sourced `open-vulnerability` findings only.
 
@@ -793,9 +795,9 @@ export function selectDependabotSecurityTargets(findings, maxPerRun = 5) {
 export async function applyDependabotSecurityUpdates(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
-  // Gate 3: require_approval master switch.
-  if (!requireApprovalGate(config, 'dependabot-security')) {
-    return { status: 'refused', reason: 'require_approval not set' };
+  // Gate 3: apply_enabled master switch.
+  if (!applyEnabledGate(config, 'dependabot-security')) {
+    return { status: 'refused', reason: 'apply_enabled not set' };
   }
 
   // ADR-012 fence: this class delegates autonomous PR generation to GitHub, so it
@@ -919,7 +921,7 @@ export async function removeDependabotSecurityUpdates(gh, owner, repo) {
 // open-vulnerability targets the enable path acts on, behind the SAME fences —
 // so `tools=dependabot-security-off` is the mirror of `tools=dependabot-security`.
 // It rides the identical gate stack (ADR-012):
-//   • require_approval master switch (Gate 3),
+//   • apply_enabled master switch (Gate 3),
 //   • dry-run fail-closed — only literal `false` performs the DELETE (Gate 2),
 //   • manual-dispatch only / OFF the apply-schedule path BY CONSTRUCTION — a
 //     scheduled run ALWAYS skips (never allow-listable, exactly like the enable
@@ -934,9 +936,9 @@ export async function removeDependabotSecurityUpdates(gh, owner, repo) {
 export async function disableDependabotSecurityUpdates(gh, owner, findings, config, options = {}) {
   const { dryRun, maxPerRun = 5, scheduled } = options;
 
-  // Gate 3: require_approval master switch.
-  if (!requireApprovalGate(config, 'dependabot-security-off')) {
-    return { status: 'refused', reason: 'require_approval not set' };
+  // Gate 3: apply_enabled master switch.
+  if (!applyEnabledGate(config, 'dependabot-security-off')) {
+    return { status: 'refused', reason: 'apply_enabled not set' };
   }
 
   // ADR-012 fence: reversal of an ADR-012 write inherits the same manual-only
@@ -988,13 +990,14 @@ export async function disableDependabotSecurityUpdates(gh, owner, findings, conf
 // squash-merges them (single clean revert commit). The merge SHA is recorded for
 // audit/rollback.
 //
-// Gate model (ADR-005 + ADR-007 stage 5): require_approval=true is the master
+// Gate model (ADR-005 + ADR-007 stage 5): apply_enabled=true is the master
 // operating switch the whole apply system needs (false makes every apply action
 // refuse, auto-merge included — so false is the system-wide kill switch). The
 // auto-merge-specific kill switches are emptying the `apply-automerge` allow-list
-// and disabling the scheduled workflow. (This corrects ADR-007's stage-5 wording,
-// which framed require_approval=true as the kill switch; that is backwards and
-// inconsistent with the open path — see the ADR-005 amendment.)
+// and disabling the scheduled workflow. (The key was `require_approval` until
+// #423 split it from PROPOSE's `propose_live`; ADR-007's stage-5 wording framed
+// that key's true as the kill switch, which is backwards — see the ADR-005
+// amendment.)
 
 // A class is auto-merge eligible only when it is BOTH a deterministic template
 // tool (a static-file generator in TEMPLATES) AND opt-in via apply-automerge.
@@ -1010,9 +1013,9 @@ export async function autoMergeGovernancePRs(gh, owner, findings, config, option
   const { dryRun, maxPerRun = 5 } = options;
 
   // Master operating gate / system-wide kill switch (see header). Refuse unless
-  // require_approval is true, exactly like every other apply action.
-  if (!requireApprovalGate(config, 'automerge')) {
-    return { status: 'refused', reason: 'require_approval not set' };
+  // apply_enabled is true, exactly like every other apply action.
+  if (!applyEnabledGate(config, 'automerge')) {
+    return { status: 'refused', reason: 'apply_enabled not set' };
   }
 
   const automergeAllow = config?.['apply-automerge'] || {};

@@ -46,7 +46,8 @@ describe('skill content coverage', () => {
   it('documents the config format', () => {
     assert.ok(skill.includes('roadmap.yml'), 'skill should mention config file');
     assert.ok(skill.includes('max_issues_per_run'), 'skill should document key config fields');
-    assert.ok(skill.includes('require_approval'), 'skill should document approval gate');
+    assert.ok(skill.includes('apply_enabled'), 'skill should document the apply master switch');
+    assert.ok(skill.includes('propose_live'), 'skill should document the PROPOSE live switch');
   });
 
   it('documents how to run locally and as GitHub Action', () => {

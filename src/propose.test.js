@@ -2,6 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { jaccardSimilarity, buildIssueBody, buildCrossRepoIssueBody, ensureTrackingIssue, findDuplicates, findDuplicatePRs, isGovernanceDeclined, propose, resolveProposalDestination, appendSoakEntry, runPropose } from './propose.js';
 import { validateIdeas, validateIssueBody } from './safety.js';
+import { applyEnabledGate } from './apply.js';
+import { loadConfigSync } from './config.js';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // A minimal in-memory GitHub client stub. propose() takes context.gh when
 // provided (falling back to createClient(token) in production), so tests can
@@ -353,7 +358,7 @@ describe('propose — dry-run targetRepo surfacing (G2)', () => {
     owner: 'octo',
     repo: 'repo-butler',
     token: 'unused',
-    config: { limits: { require_approval: false } },
+    config: { limits: { propose_live: true } },
     dryRun: true,
     ...overrides,
   });
@@ -453,7 +458,7 @@ describe('propose — cross-repo routing wired into the write path (G5)', () => 
     governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }],
     portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
     config: {
-      limits: { require_approval: false },
+      limits: { propose_live: true },
       'propose-targets': { 'teams-for-linux': true },
       'propose-classes': { 'policy-drift': true },
     },
@@ -482,7 +487,7 @@ describe('propose — cross-repo routing wired into the write path (G5)', () => 
 
   it('with empty maps, an anchored targeted idea still files on the HOST and never touches the target (byte-identical)', async () => {
     const gh = stubGh();
-    const result = await propose(ctx({ gh, dryRun: false, config: { limits: { require_approval: false } } }));
+    const result = await propose(ctx({ gh, dryRun: false, config: { limits: { propose_live: true } } }));
     assert.ok(!gh.calls.some(c => c.path.includes('/teams-for-linux/')), 'no cross-repo API call');
     assert.ok(gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/repo-butler/issues'), 'filed on host');
     assert.equal(result.created[0].crossRepo, false);
@@ -527,7 +532,7 @@ describe('propose — cross-repo routing wired into the write path (G5)', () => 
   it('with empty maps, the exact host call sequence is unchanged and no other repo is touched', async () => {
     const gh = stubGh();
     await propose(ctx({
-      gh, dryRun: false, config: { limits: { require_approval: false } },
+      gh, dryRun: false, config: { limits: { propose_live: true } },
       ideas: [{ title: 'Host idea', priority: 'medium', labels: [], body: 'A plain host idea.', targetRepo: null }],
     }));
     // Every API call is against the host repo; the issue is POSTed to the host.
@@ -559,7 +564,7 @@ describe('propose — per-target volume cap (G6)', () => {
     governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }],
     portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
     config: {
-      limits: { require_approval: false },
+      limits: { propose_live: true },
       'propose-targets': { 'teams-for-linux': true },
       'propose-classes': { 'policy-drift': true },
     },
@@ -581,7 +586,7 @@ describe('propose — per-target volume cap (G6)', () => {
   it('honours a higher max_issues_per_target', async () => {
     const gh = stubGh();
     const result = await propose(base({ gh, config: {
-      limits: { require_approval: false, max_issues_per_target: 2 },
+      limits: { propose_live: true, max_issues_per_target: 2 },
       'propose-targets': { 'teams-for-linux': true },
       'propose-classes': { 'policy-drift': true },
     } }));
@@ -613,7 +618,7 @@ describe('propose — per-target volume cap (G6)', () => {
       governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }, { type: 'policy-drift', repo: 'bonnie-wee-plot' }],
       portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }, { name: 'bonnie-wee-plot', archived: false, fork: false }] },
       config: {
-        limits: { require_approval: false },
+        limits: { propose_live: true },
         'propose-targets': { 'teams-for-linux': true, 'bonnie-wee-plot': true },
         'propose-classes': { 'policy-drift': true },
       },
@@ -631,7 +636,7 @@ describe('propose — per-target volume cap (G6)', () => {
   it('treats max_issues_per_target: 0 as a kill switch — no cross-repo issue files', async () => {
     const gh = stubGh();
     const result = await propose(base({ gh, config: {
-      limits: { require_approval: false, max_issues_per_target: 0 },
+      limits: { propose_live: true, max_issues_per_target: 0 },
       'propose-targets': { 'teams-for-linux': true },
       'propose-classes': { 'policy-drift': true },
     } }));
@@ -651,7 +656,7 @@ describe('propose — per-target volume cap (G6)', () => {
     // A YAML typo like `max_issues_per_target: two` must NOT disable the cap —
     // it falls back to the default of 1, so only one of the two ideas files.
     const result = await propose(base({ gh, config: {
-      limits: { require_approval: false, max_issues_per_target: 'two' },
+      limits: { propose_live: true, max_issues_per_target: 'two' },
       'propose-targets': { 'teams-for-linux': true },
       'propose-classes': { 'policy-drift': true },
     } }));
@@ -789,7 +794,7 @@ describe('propose — onboarding precondition (G9)', () => {
     owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true,
     governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
     portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
-    config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+    config: { limits: { propose_live: true }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
     ideas: [{ title: 'Adopt the portfolio licence', priority: 'medium', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' }],
     ...over,
   });
@@ -830,7 +835,7 @@ describe('propose — onboarding precondition (G9)', () => {
     gh.getFileContent = async () => { reads++; return '# CLAUDE.md\n\nrepo-butler'; };
     // Empty maps → the targeted idea never routes cross-repo, so the onboarding
     // precondition (a read) must not fire at all.
-    await propose(ctx({ gh, config: { limits: { require_approval: false } } }));
+    await propose(ctx({ gh, config: { limits: { propose_live: true } } }));
     assert.equal(reads, 0, 'no onboarding read when nothing routes cross-repo');
   });
 
@@ -840,7 +845,7 @@ describe('propose — onboarding precondition (G9)', () => {
     gh.getFileContent = async () => { reads++; return '# CLAUDE.md\n\nrepo-butler'; };
     await propose(ctx({
       gh,
-      config: { limits: { require_approval: false, max_issues_per_target: 5 }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+      config: { limits: { propose_live: true, max_issues_per_target: 5 }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
       ideas: [
         { title: 'Adopt the portfolio licence', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
         { title: 'Pin GitHub Actions by SHA', priority: 'medium', labels: [], body: 'b.', rationale: '12/14 repos pin actions.', targetRepo: 'teams-for-linux' },
@@ -855,7 +860,7 @@ describe('propose — portfolio-nudge label & host tracking issue (G9)', () => {
     owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: false,
     governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
     portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
-    config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+    config: { limits: { propose_live: true }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
     ideas: [{ title: 'Adopt the portfolio licence', priority: 'medium', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' }],
     ...over,
   });
@@ -872,7 +877,7 @@ describe('propose — portfolio-nudge label & host tracking issue (G9)', () => {
   it('never adds the portfolio-nudge label to a host issue', async () => {
     const gh = stubGh();
     // Empty maps → the targeted idea falls back to the host backlog.
-    const result = await propose(ctx({ gh, config: { limits: { require_approval: false } } }));
+    const result = await propose(ctx({ gh, config: { limits: { propose_live: true } } }));
     assert.equal(result.created[0].crossRepo, false);
     assert.ok(!result.created[0].labels.includes('portfolio-nudge'));
     assert.ok(!gh.calls.some(c => c.path.includes('portfolio-nudge')), 'nudge label never touched on the host');
@@ -910,7 +915,7 @@ describe('propose — portfolio-nudge label & host tracking issue (G9)', () => {
 describe('propose — cross-repo title gate & anchor coverage (G9 review hardening)', () => {
   const base = (over) => ({
     owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: false,
-    config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true } },
+    config: { limits: { propose_live: true }, 'propose-targets': { 'teams-for-linux': true } },
     ...over,
   });
 
@@ -920,7 +925,7 @@ describe('propose — cross-repo title gate & anchor coverage (G9 review hardeni
       gh,
       governanceFindings: [{ type: 'standards-gap', tool: 'dependabot-auto-merge', compliant: ['a', 'b', 'c'], nonCompliant: ['teams-for-linux'], adoptionRate: 0.75 }],
       portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
-      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'standards-gap': true } },
+      config: { limits: { propose_live: true }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'standards-gap': true } },
       ideas: [{ title: 'Adopt dependabot auto-merge', priority: 'high', labels: [], body: 'b.', rationale: '3 of 4 repos adopt this.', targetRepo: 'teams-for-linux' }],
     }));
     assert.equal(result.created[0].crossRepo, true);
@@ -935,7 +940,7 @@ describe('propose — cross-repo title gate & anchor coverage (G9 review hardeni
       gh,
       governanceFindings: [{ type: 'tier-uplift', repo: 'teams-for-linux', currentTier: 'silver', targetTier: 'gold', failingChecks: [{ name: 'Code scanning' }] }],
       portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
-      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'tier-uplift': true } },
+      config: { limits: { propose_live: true }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'tier-uplift': true } },
       ideas: [{ title: 'Reach the gold tier', priority: 'high', labels: [], body: 'b.', rationale: '12 of 14 repos are gold.', targetRepo: 'teams-for-linux' }],
     }));
     assert.equal(result.created[0].crossRepo, true);
@@ -949,7 +954,7 @@ describe('propose — cross-repo title gate & anchor coverage (G9 review hardeni
       gh,
       governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
       portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
-      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+      config: { limits: { propose_live: true }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
       // Rationale is clean (admits at the gate), but the title makes a per-repo code
       // claim AND a bare #N cross-ref — both must be caught by the cross-repo title gate.
       ideas: [{ title: 'Fix the flaky test #42', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' }],
@@ -964,7 +969,7 @@ describe('propose — cross-repo title gate & anchor coverage (G9 review hardeni
       gh,
       governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
       portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
-      config: { limits: { require_approval: false, max_issues_per_target: 5 }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
+      config: { limits: { propose_live: true, max_issues_per_target: 5 }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } },
       ideas: [
         { title: 'A plain host idea', priority: 'high', labels: [], body: 'host.', targetRepo: null },
         { title: 'Align the portfolio licence', priority: 'medium', labels: [], body: 'x.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
@@ -985,7 +990,7 @@ describe('propose — cross-repo title gate & anchor coverage (G9 review hardeni
       gh, dryRun: true,
       governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux', category: 'license', expected: 'MIT', actual: 'None' }],
       portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
-      config: { limits: { require_approval: false }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } }, // default max_issues_per_target: 1
+      config: { limits: { propose_live: true }, 'propose-targets': { 'teams-for-linux': true }, 'propose-classes': { 'policy-drift': true } }, // default max_issues_per_target: 1
       ideas: [
         { title: 'Licence one', priority: 'high', labels: [], body: 'b.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux' },
         { title: 'Pin actions by SHA', priority: 'medium', labels: [], body: 'b.', rationale: '12/14 repos pin actions.', targetRepo: 'teams-for-linux' },
@@ -1040,7 +1045,7 @@ describe('propose soak ledger persistence (G10)', () => {
     assert.equal(entry.skipped_duplicates, 1);
     assert.equal(entry.skipped_capped, 0);
     assert.equal(entry.failures, 0);
-    assert.ok(!('require_approval' in entry), 'flag absent unless the approval gate fired');
+    assert.ok(!('propose_live_held' in entry), 'flag absent unless the live gate held the run');
   });
 
   it('appends to an existing log and caps it at 26 entries', async () => {
@@ -1060,11 +1065,11 @@ describe('propose soak ledger persistence (G10)', () => {
     assert.equal(store.persisted[PATH].length, 1);
   });
 
-  it('records the require_approval flag when the live-run approval gate fired', async () => {
+  it('records the propose_live_held flag when the live gate held a non-dry run', async () => {
     const store = memStore();
-    await appendSoakEntry(store, { created: [], dropped: 3, require_approval: true }, { dryRun: false });
+    await appendSoakEntry(store, { created: [], dropped: 3, propose_live_held: true }, { dryRun: false });
     const entry = store.persisted[PATH][0];
-    assert.equal(entry.require_approval, true);
+    assert.equal(entry.propose_live_held, true);
     assert.equal(entry.dry_run, false);
     assert.deepEqual(entry.created, []);
   });
@@ -1091,7 +1096,7 @@ describe('propose soak ledger persistence (G10)', () => {
     const gh = stubGh();
     const context = {
       owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: true, gh, store,
-      config: { limits: { require_approval: false } },
+      config: { limits: { propose_live: true } },
       ideas: [{ title: 'A host idea', priority: 'low', labels: [], body: 'Body.' }],
     };
     const res = await runPropose(context);
@@ -1100,5 +1105,75 @@ describe('propose soak ledger persistence (G10)', () => {
     assert.equal(log.length, 1);
     assert.equal(log[0].created[0].routed_repo, 'repo-butler');
     assert.equal(log[0].dry_run, true);
+  });
+});
+
+// Issue #423: one `require_approval` key used to mean "apply may run" in the
+// apply lane and "hold in dry-run" in PROPOSE, so the documented G10 flip
+// (false, to file issues) would have halted every apply action. Each lane now
+// reads its own key, and each key must move only its own lane.
+describe('apply_enabled and propose_live each drive only their own lane (#423)', () => {
+  const idea = { title: 'A host idea', priority: 'low', labels: [], body: 'Body.' };
+  const liveRun = async (config) => {
+    const gh = stubGh();
+    const result = await propose({ owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: false, gh, config, ideas: [idea] });
+    return { result, filed: gh.calls.some(c => c.method === 'POST' && c.path === '/repos/octo/repo-butler/issues') };
+  };
+  const quietly = (fn) => {
+    const orig = console.error;
+    console.error = () => {};
+    try { return fn(); } finally { console.error = orig; }
+  };
+
+  for (const applyEnabled of [true, false]) {
+    for (const proposeLive of [true, false]) {
+      it(`apply_enabled ${applyEnabled} + propose_live ${proposeLive}: apply ${applyEnabled ? 'runs' : 'refuses'}, PROPOSE ${proposeLive ? 'files' : 'holds'}`, async () => {
+        const config = { limits: { apply_enabled: applyEnabled, propose_live: proposeLive } };
+        assert.equal(quietly(() => applyEnabledGate(config, 'apply')), applyEnabled);
+        const { result, filed } = await liveRun(config);
+        assert.equal(filed, proposeLive);
+        assert.equal(result.propose_live_held === true, !proposeLive);
+      });
+    }
+  }
+
+  // Fail closed toward dry-run: only the boolean true files. A quoted "true"
+  // is what the hand-rolled YAML parser hands back for `propose_live: "true"`.
+  const notTrue = [['absent', {}], ['"true"', { propose_live: 'true' }], ['yes', { propose_live: 'yes' }], ['1', { propose_live: 1 }], ['null', { propose_live: null }]];
+  for (const [label, limits] of notTrue) {
+    it(`PROPOSE holds a non-dry run when propose_live is ${label}`, async () => {
+      const { result, filed } = await liveRun({ limits });
+      assert.equal(filed, false);
+      assert.deepEqual(result, { created: [], dropped: 1, propose_live_held: true });
+    });
+  }
+
+  it('PROPOSE holds when the config has no limits section at all', async () => {
+    const { result, filed } = await liveRun({});
+    assert.equal(filed, false);
+    assert.equal(result.propose_live_held, true);
+  });
+
+  it('quoted YAML values load as strings and leave both lanes closed', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'propose-live-'));
+    try {
+      const path = join(dir, 'roadmap.yml');
+      writeFileSync(path, 'limits:\n  apply_enabled: "true"\n  propose_live: "true"\n');
+      const config = loadConfigSync(path);
+      assert.equal(config.limits.apply_enabled, 'true');
+      assert.equal(config.limits.propose_live, 'true');
+      assert.equal(quietly(() => applyEnabledGate(config, 'apply')), false);
+      assert.equal((await liveRun(config)).filed, false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("this repository's roadmap.yml keeps apply running and PROPOSE in dry-run", async () => {
+    const config = loadConfigSync(join(import.meta.dirname, '..', '.github', 'roadmap.yml'));
+    assert.equal(config.limits.apply_enabled, true);
+    assert.equal(config.limits.propose_live, false);
+    assert.equal(applyEnabledGate(config, 'apply'), true);
+    assert.equal((await liveRun(config)).filed, false);
   });
 });

@@ -65,12 +65,13 @@ context: |
 
 limits:
   max_issues_per_run: 3
-  require_approval: true
+  apply_enabled: true
+  propose_live: false
 ```
 
 The `context` field tells the LLM about your project so it can generate relevant improvement ideas. The `providers.default` field selects the model for ASSESS and UPDATE (`gemini` for Gemini Flash free tier, `claude` for Claude). IDEATE and MONITOR use `providers.deep` if set, otherwise Claude when a Claude key is supplied, otherwise the default provider; this repository's own workflows supply no Claude key, so every phase here runs on Gemini.
 
-`require_approval: true` (the default) holds PROPOSE in dry-run: it logs the issues it would file and creates none, and setting it to `false` lets it file up to `max_issues_per_run`. Governance Apply reads the same key as its master switch the other way round, acting only when it is the boolean `true`, so `false` halts every apply write.
+`propose_live: false` (the default) holds PROPOSE in dry-run: it logs the issues it would file and creates none, and setting it to the boolean `true` lets it file up to `max_issues_per_run`. `apply_enabled` is Governance Apply's own master switch: apply acts only when it is the boolean `true` (the default), so `false` halts every apply write. Each key drives only its own lane, and a quoted `"true"` turns neither on.
 
 How often each phase runs is decided by the workflows that invoke the action, not by this file; [`docs/architecture.md`](docs/architecture.md#workflow-choreography) describes this repository's own schedule.
 
@@ -217,7 +218,7 @@ For A2A-protocol-aware agents, the butler publishes an AgentCard at [`ismaelmart
 
 - Zero dependencies. No `npm install` needed.
 - Generic. Any repo can use it by adding a config file and a workflow.
-- Conservative. PROPOSE files at most three issues per run, and none while `require_approval` is true. Pull requests on other repos come only from Governance Apply, which is capped per run and, when it runs unattended, limited to allow-listed finding classes, and from the onboarding pass, which backs off for thirty days after a declined PR.
+- Conservative. PROPOSE files at most three issues per run, and none unless `propose_live` is true. Pull requests on other repos come only from Governance Apply, which is capped per run and, when it runs unattended, limited to allow-listed finding classes, and from the onboarding pass, which backs off for thirty days after a declined PR.
 - Safe. All LLM output validated before publishing — URL allowlist, @mention blocking, secret detection, XSS prevention.
 - Free to run. GitHub Actions is unlimited for public repos, Gemini Flash free tier for LLM calls.
 - Self-dogfooding. This repo uses itself as its own planner.

@@ -42,7 +42,7 @@ The dashboard is published to GitHub Pages from the `reports/` tree on the data 
 
 The butler opens PRs on other repos in three places: `onboard.js` (CLAUDE.md consumer guide), `apply.js` (governance remediation templates), and the `update.js` roadmap PR (in this repo only). All cross-repo writes are gated:
 
-The `Governance Apply` workflow is manual-dispatch only — it never runs on a cron. It defaults to dry-run (any value other than the literal string `'false'` is treated as dry-run, fail-closed). It enforces a hard cap of 5 PRs per run and processes repos in batches of 3 to stay under GitHub's 30-req/min secondary rate limit. It refuses to run if `config.limits.require_approval` is not set to true. It deduplicates by checking for an existing open PR on the target branch (`repo-butler/apply-{tool}`) before opening a new one.
+The `Governance Apply` workflow is manual-dispatch only — it never runs on a cron. It defaults to dry-run (any value other than the literal string `'false'` is treated as dry-run, fail-closed). It enforces a hard cap of 5 PRs per run and processes repos in batches of 3 to stay under GitHub's 30-req/min secondary rate limit. It refuses to run unless `config.limits.apply_enabled` is the boolean true. It deduplicates by checking for an existing open PR on the target branch (`repo-butler/apply-{tool}`) before opening a new one.
 
 Auto-onboard runs at the end of the daily pipeline and only acts on repos whose `CLAUDE.md` lacks the `repo-butler` marker — it cannot retarget existing onboarded repos.
 

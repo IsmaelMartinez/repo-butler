@@ -663,7 +663,7 @@ function openAlert(number, name, patched = '1.2.3', manifestPath = 'package-lock
 
 const BEFORE_LOCK = lock(BEFORE);
 const AFTER_LOCK = lock({ ...BEFORE, 'node_modules/libheif': { version: '1.2.5' } });
-const baseConfig = { limits: { require_approval: true } };
+const baseConfig = { limits: { apply_enabled: true } };
 const baseFindings = [finding('repo-a', [alert({ number: 1, package: 'libheif' })])];
 const npmOk = async ({ manifest }) => ({ manifest, lockfile: AFTER_LOCK });
 
@@ -676,25 +676,25 @@ function baseGh(extra = {}) {
 }
 
 describe('applyLockfileUpdates', () => {
-  it('refuses to run when require_approval is not set, without touching the API', async () => {
+  it('refuses to run when apply_enabled is not set, without touching the API', async () => {
     const gh = baseGh();
     const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: {} }, { dryRun: false, runNpmUpdate: npmOk });
     assert.equal(r.status, 'refused');
     assert.equal(gh.writes.length, 0);
   });
 
-  it('refuses a require_approval that is not the boolean true, such as the quoted string the YAML parser passes through', async () => {
+  it('refuses a apply_enabled that is not the boolean true, such as the quoted string the YAML parser passes through', async () => {
     const gh = baseGh();
-    const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: { require_approval: 'false' } }, { dryRun: false, runNpmUpdate: npmOk });
+    const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: { apply_enabled: 'false' } }, { dryRun: false, runNpmUpdate: npmOk });
     assert.equal(r.status, 'refused');
     assert.equal(gh.writes.length, 0);
   });
 
   for (const value of ['true', 1]) {
-    it(`refuses require_approval ${JSON.stringify(value)}, since only the boolean true proceeds`, async () => {
+    it(`refuses apply_enabled ${JSON.stringify(value)}, since only the boolean true proceeds`, async () => {
       const gh = baseGh();
-      const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: { require_approval: value } }, { dryRun: false, runNpmUpdate: npmOk });
-      assert.deepEqual(r, { status: 'refused', reason: 'require_approval not set' });
+      const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: { apply_enabled: value } }, { dryRun: false, runNpmUpdate: npmOk });
+      assert.deepEqual(r, { status: 'refused', reason: 'apply_enabled not set' });
       assert.equal(gh.writes.length, 0);
     });
   }

@@ -24,7 +24,7 @@ Entry point: `src/index.js`. Phase selected via `INPUT_PHASE` env var or `--phas
 
 `IDEATE` — Generates improvement proposals. Uses the deep provider: `providers.deep` if set, otherwise Claude when `CLAUDE_API_KEY` is supplied, otherwise the default provider. This repository's workflows supply no Claude key, so its IDEATE runs on Gemini. Input is snapshot + portfolio context + governance findings. Output: structured specs with `current_state`, `proposed_state`, `affected_files`, `scope`, `signal_rationale`.
 
-`PROPOSE` — Creates GitHub issues from IDEATE output. Applies Jaccard similarity duplicate detection (threshold 0.6, title word comparison normalized to lowercase). Capped at `config.limits.max_issues_per_run` (default 3). Labels: `roadmap-proposal`, `agent-generated`. While `config.limits.require_approval` is true (the default) it files nothing and only logs the ideas it would propose.
+`PROPOSE` — Creates GitHub issues from IDEATE output. Applies Jaccard similarity duplicate detection (threshold 0.6, title word comparison normalized to lowercase). Capped at `config.limits.max_issues_per_run` (default 3). Labels: `roadmap-proposal`, `agent-generated`. Unless `config.limits.propose_live` is the boolean true (the default is false) it files nothing and only logs the ideas it would propose.
 
 `REPORT` — Generates per-repo HTML dashboards and a portfolio landing page. Deploys to GitHub Pages as a workflow artifact (the HTML is not stored on the data branch). The cache key is a SHA-256 of `snapshot.summary` plus a daily date-bucket and a hash of the report source files; the daily workflow sets `REPORT_FORCE` on scheduled and push runs, so only a manual dispatch can skip regeneration. Full chart dashboard for repos with 10+ commits; lightweight card for quieter repos. Source: `src/report.js`.
 
@@ -220,7 +220,8 @@ providers:
 
 limits:
   max_issues_per_run: 3
-  require_approval: true
+  apply_enabled: true   # Governance Apply master switch (false halts every apply action)
+  propose_live: false   # true lets PROPOSE file issues; false keeps it dry-run
 
 observe:
   issues_closed_days: 90

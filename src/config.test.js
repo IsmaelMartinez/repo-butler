@@ -99,9 +99,9 @@ describe('loadConfig', () => {
     // defaults every later load sees in the same process.
     const config = await loadConfig('/nonexistent/path.yml');
     const sync = loadConfigSync('/nonexistent/path.yml');
-    assert.throws(() => { config.limits.require_approval = false; }, TypeError);
+    assert.throws(() => { config.limits.apply_enabled = false; }, TypeError);
     assert.throws(() => { sync['apply-automerge']['dependabot-actions'] = true; }, TypeError);
-    assert.equal((await loadConfig('/nonexistent/path.yml')).limits.require_approval, true);
+    assert.equal((await loadConfig('/nonexistent/path.yml')).limits.apply_enabled, true);
   });
 
   it('merging a file over DEFAULTS copies rather than mutates', async () => {
@@ -427,7 +427,8 @@ describe('loadConfigSync', () => {
   it('falls back to defaults for a missing config instead of throwing', () => {
     const config = loadConfigSync(join(tmpdir(), 'definitely-absent-roadmap.yml'));
     assert.equal(config.release_exempt, '');
-    assert.equal(config.limits.require_approval, true);
+    assert.equal(config.limits.apply_enabled, true);
+    assert.equal(config.limits.propose_live, false);
   });
 
   it('falls back to defaults when the path is a directory (unreadable)', () => {

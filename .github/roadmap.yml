@@ -28,7 +28,15 @@ context: |
 
 limits:
   max_issues_per_run: 3
-  require_approval: true
+  # Two lane-specific switches (#423; one shared `require_approval` key used to
+  # mean opposite things in each lane). Each is read strictly: only the boolean
+  # true turns it on, and a quoted "true" does not.
+  # apply_enabled — Governance Apply master switch; false halts every apply
+  # action, the scheduled auto-merge lane included. Does not touch PROPOSE.
+  apply_enabled: true
+  # propose_live — true lets PROPOSE file issues; false holds it in dry-run.
+  # Does not touch apply.
+  propose_live: false
 
 observe:
   issues_closed_days: 90
@@ -116,7 +124,7 @@ policy-drift-exempt:
 # Each key is a templatable tool name; the value is the max PRs that tool may
 # open in a single apply run. Tools not listed fall back to the global cap
 # (the workflow's max-apply-per-run input, default 5), which always remains the
-# backstop. Blast-radius sizing only — every other ADR-005 gate (require_approval,
+# backstop. Blast-radius sizing only — every other ADR-005 gate (apply_enabled,
 # dry-run, no-cron, batching, repo-name validation) is unaffected. Uncomment to use:
 # apply-cap:
 #   code-scanning: 10
@@ -125,7 +133,7 @@ policy-drift-exempt:
 # Per-finding-class promotion allow-list for the SCHEDULED apply path (ADR-007
 # stage 4). A class listed here as `tool: true` runs on the no-human scheduled
 # apply workflow; classes not listed stay workflow_dispatch-only. This is the
-# per-class, opt-in, reversible relaxation of ADR-005 gate 1 — require_approval,
+# per-class, opt-in, reversible relaxation of ADR-005 gate 1 — apply_enabled,
 # dry-run, batching, the per-run cap and repo-name validation all still apply, so
 # a scheduled run can open no more PRs than a dispatched one. Empty/absent means
 # the scheduled run opens nothing. `dependabot-rebase` promotes the stale-PR nudge.
@@ -162,7 +170,7 @@ apply-schedule:
 # the merge SHA recorded. Default empty (commented out) = default-closed, nothing
 # auto-merges. Enable a class deliberately, as its own reviewed change, once its
 # templated PRs have a clean human-reviewed-and-merged track record. Kill switches:
-# remove the key here, set require_approval false (halts all apply), or disable
+# remove the key here, set limits.apply_enabled false (halts all apply), or disable
 # apply-scheduled.yml.
 #
 # Enabled 2026-06-16: dependabot-actions is the first class promoted to auto-merge.
@@ -200,10 +208,11 @@ apply-automerge:
 # dry-run soak (ledger: snapshots/propose-soak.json on the data branch).
 #
 # Populating these maps does NOT by itself file anything anywhere: the weekly
-# ideate run stays dry-run and limits.require_approval stays true, so a live
+# ideate run stays dry-run and limits.propose_live stays false, so a live
 # cross-repo write still requires two further separately-reviewed flips
-# (require_approval: false AND INPUT_DRY_RUN: false — see the three-flips note
-# in .github/workflows/weekly-ideate.yml). With the maps populated, the weekly
+# (propose_live: true AND INPUT_DRY_RUN: false — see the three-flips note
+# in .github/workflows/weekly-ideate.yml). The propose_live flip touches PROPOSE
+# only; it no longer switches off the apply lane (#423). With the maps populated, the weekly
 # soak ledger starts recording the admitted `cross-repo` route end-to-end, still
 # without writing. Demotion is the usual one-line revert: remove the key.
 propose-classes:

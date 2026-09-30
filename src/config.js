@@ -18,7 +18,12 @@ export const DEFAULTS = deepFreeze({
     // cross-repo targets only — the host backlog stays bounded by
     // max_issues_per_run — so it never changes host behaviour. Kept low.
     max_issues_per_target: 1,
-    require_approval: true,
+    // Two lane-specific switches (#423), read strictly as the boolean true by
+    // their gates. apply_enabled: true lets Governance Apply run (apply.js
+    // applyEnabledGate); false halts every apply action. propose_live: true lets
+    // PROPOSE file issues for real; anything else holds it in dry-run.
+    apply_enabled: true,
+    propose_live: false,
     labels: {
       proposal: 'roadmap-proposal',
       agent: 'agent-generated',
@@ -53,7 +58,7 @@ export const DEFAULTS = deepFreeze({
   // governance-apply PRs for that class — opt-in, never global, bounded to the
   // deterministic template tools. Empty by default (default-closed), so nothing
   // auto-merges until a class is explicitly added in a reviewed config change.
-  // Kill switches: empty this, set require_approval false, or disable the
+  // Kill switches: empty this, set limits.apply_enabled false, or disable the
   // scheduled workflow.
   'apply-automerge': {},
   // Cross-repo PROPOSE allow-list (ADR-010 / ADR-011). Key-presence map of target
