@@ -127,6 +127,8 @@ Portfolio report data and rendering logic decoupled 2026-09-30 (PR #456). Improv
 
 Dead export cleanup and code simplification shipped 2026-09-30 (PR #458). Reduces technical debt and improves internal codebase maintainability by sweeping away dead exports and unused code references, resolving issue #422.
 
+Codeowners validation and template interpolation safety shipped 2026-09-30 (PR #467). Prevents invalid configuration generation by validating GitHub usernames before interpolating them into the CODEOWNERS template, resolving issue #462.
+
 ---
 
 ## Next Up
