@@ -45,6 +45,11 @@ export function reportCacheHit(context) {
   return context?.reportResult?.cached === true;
 }
 
+// Files whose contents feed the template version hash, so a presentation change
+// in any of them invalidates the report cache. report.test.js checks that every
+// src/report*.js module is listed.
+export const TEMPLATE_FILES = ['src/report.js', 'src/report-portfolio.js', 'src/report-portfolio-data.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js'];
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
@@ -57,8 +62,7 @@ export async function report(context) {
   }
 
   // Compute template version hash so presentation changes invalidate cache.
-  const templateFiles = ['src/report.js', 'src/report-portfolio.js', 'src/report-portfolio-data.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js'];
-  const templateContents = await Promise.all(templateFiles.map(f => fsReadFile(f, 'utf8').catch(() => '')));
+  const templateContents = await Promise.all(TEMPLATE_FILES.map(f => fsReadFile(f, 'utf8').catch(() => '')));
   const templateVersion = createHash('sha256').update(templateContents.join('')).digest('hex').slice(0, 12);
 
   // Cache check: skip regeneration if snapshot hasn't changed.

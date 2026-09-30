@@ -1,24 +1,27 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { reportCacheHit } from './report.js';
+import { reportCacheHit, TEMPLATE_FILES } from './report.js';
 
 describe('report module', () => {
   // report.js is the REPORT entry point, not a barrel: callers import render
   // and fetch functions from the module that defines them (#422).
   it('exports its own entry points and re-exports no report sub-module', async () => {
     const mod = await import('./report.js');
-    assert.deepEqual(Object.keys(mod).sort(), ['report', 'reportCacheHit', 'runReport']);
+    assert.deepEqual(Object.keys(mod).sort(), ['TEMPLATE_FILES', 'report', 'reportCacheHit', 'runReport']);
   });
 });
 
-describe('report cache invalidation includes report.js', () => {
-  it('templateFiles array includes src/report.js', async () => {
-    const { readFile } = await import('node:fs/promises');
-    const src = await readFile('src/report.js', 'utf8');
-    assert.ok(src.includes("'src/report.js'"), 'templateFiles should include src/report.js');
-    // Every report module must be in the template hash.
-    for (const f of ['src/report.js', 'src/report-portfolio.js', 'src/report-portfolio-data.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js']) {
-      assert.ok(src.includes(`'${f}'`), `templateFiles should include ${f}`);
+describe('report cache invalidation covers every report module', () => {
+  it('TEMPLATE_FILES lists every src/report*.js module on disk', async () => {
+    const { readdir } = await import('node:fs/promises');
+    // A report module missing from the template hash leaves cached HTML stale
+    // after a presentation change in that module.
+    const modules = (await readdir('src'))
+      .filter(f => f.startsWith('report') && f.endsWith('.js') && !f.endsWith('.test.js'))
+      .map(f => `src/${f}`);
+    assert.ok(modules.includes('src/report.js'));
+    for (const f of modules) {
+      assert.ok(TEMPLATE_FILES.includes(f), `TEMPLATE_FILES should include ${f}`);
     }
   });
 });
