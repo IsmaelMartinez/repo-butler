@@ -6,6 +6,7 @@ import { computeLibyearWithTimeout } from './libyear.js';
 import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, paginateIssues } from './github.js';
 import {
   REPO_CACHE_SCHEMA_VERSION, daysAgoISO, getAlertSummary, isActionableBug, isPublishedRelease,
+  isCopyleft, isHighConcernLicense,
 } from './report-shared.js';
 
 // --- SBOM / dependency inventory ---
@@ -55,63 +56,6 @@ export async function fetchTraffic(gh, owner, repoName) {
     views_14d: views ? { count: views.count ?? 0, uniques: views.uniques ?? 0 } : null,
     clones_14d: clones ? { count: clones.count ?? 0, uniques: clones.uniques ?? 0 } : null,
   };
-}
-
-const COPYLEFT_LICENSES = new Set([
-  'GPL-2.0-only', 'GPL-2.0-or-later', 'GPL-3.0-only', 'GPL-3.0-or-later',
-  'AGPL-3.0-only', 'AGPL-3.0-or-later', 'LGPL-2.1-only', 'LGPL-2.1-or-later',
-  'LGPL-3.0-only', 'LGPL-3.0-or-later', 'MPL-2.0', 'EUPL-1.2',
-  'GPL-2.0', 'GPL-3.0', 'AGPL-3.0', 'LGPL-2.1', 'LGPL-3.0',
-]);
-
-// License concern levels: 'high' for licenses that may impose obligations on
-// the whole project, 'low' for weak copyleft that only affects the library
-// itself and is fine for non-commercial use as a dependency.
-const LICENSE_CONCERNS = {
-  'AGPL-3.0': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
-  'AGPL-3.0-only': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
-  'AGPL-3.0-or-later': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
-  'GPL-2.0': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
-  'GPL-2.0-only': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
-  'GPL-2.0-or-later': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
-  'GPL-3.0': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
-  'GPL-3.0-only': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
-  'GPL-3.0-or-later': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
-  'LGPL-2.1': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
-  'LGPL-2.1-only': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
-  'LGPL-2.1-or-later': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
-  'LGPL-3.0': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
-  'LGPL-3.0-only': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
-  'LGPL-3.0-or-later': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
-  'MPL-2.0': { level: 'low', note: 'File-level copyleft: only modified files must stay MPL-2.0. Fine as a dependency.' },
-  'EUPL-1.2': { level: 'low', note: 'EU copyleft similar to LGPL. Fine as a dependency.' },
-};
-
-// Parse SPDX expression into individual license identifiers.
-// Handles AND/OR, parentheses, and WITH exceptions.
-function parseSpdxParts(license) {
-  if (!license) return [];
-  return license
-    .replace(/[()]/g, '')
-    .split(/\s+(?:AND|OR)\s+/)
-    .map(part => part.replace(/\s+WITH\s+.+$/, '').trim())
-    .filter(Boolean);
-}
-
-export function describeLicenseConcern(license) {
-  if (!license) return { level: 'low', note: 'Unknown license terms.' };
-  for (const part of parseSpdxParts(license)) {
-    if (LICENSE_CONCERNS[part]) return LICENSE_CONCERNS[part];
-  }
-  return { level: 'low', note: 'Copyleft license — low risk as a dependency in non-commercial projects.' };
-}
-
-function isHighConcernLicense(license) {
-  return parseSpdxParts(license).some(part => LICENSE_CONCERNS[part]?.level === 'high');
-}
-
-export function isCopyleft(license) {
-  return parseSpdxParts(license).some(part => COPYLEFT_LICENSES.has(part));
 }
 
 export function analyzeDependencyInventory(details) {

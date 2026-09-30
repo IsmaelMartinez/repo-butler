@@ -4,13 +4,12 @@
 import { CSS, SITE_FOOTER, htmlPage, THEME_INIT, THEME_TOGGLE, THEME_TOGGLE_JS } from './report-styles.js';
 import { buildActionItems } from './report-repo.js';
 import { detectTierChanges } from './tier-change.js';
-import { isCopyleft, describeLicenseConcern } from './report-portfolio-data.js';
 import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, TIER_RANK, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS, isExcludedRepo,
   escHtml, fmt, countBy, daysAgo,
-  computeHealthTier, getLibyearColor, isReleaseExempt,
+  computeHealthTier, getLibyearColor, isReleaseExempt, isCopyleft, describeLicenseConcern,
   CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
   isAutofixNotDriven, computeCountTrend,
 } from './report-shared.js';

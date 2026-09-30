@@ -1175,7 +1175,11 @@ describe('report-portfolio-data module boundary', () => {
       if (seen.has(file)) return;
       seen.add(file);
       const src = readFileSync(file, 'utf8');
-      for (const [, spec] of src.matchAll(/^\s*(?:import|export)\b[^'"]*?from\s+'(\.[^']+)'/gm)) {
+      // `import ... from`, `export ... from` and side-effect `import '...'`, either
+      // quote style. `[^;]` rather than a quote-free class, so a comment with an
+      // apostrophe inside a multi-line import block cannot hide the edge.
+      const specifiers = /^\s*(?:(?:import|export)\b[^;]*?\bfrom\s*|import\s*)(['"])(\.[^'"]+)\1/gm;
+      for (const [, , spec] of src.matchAll(specifiers)) {
         walk(join(dirname(file), spec));
       }
     };
