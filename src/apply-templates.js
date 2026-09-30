@@ -5,7 +5,7 @@
 // Auto-merge eligibility is "has a TEMPLATES entry" (apply.js isAutoMergeAllowed),
 // so the ADR-012/013/015 classes and code-review-bot must never be added here.
 
-import { codeqlLanguageFor } from './safety.js';
+import { codeqlLanguageFor, validateGitHubUsername } from './safety.js';
 
 // Dependabot manager candidates per detectEcosystem() ecosystem, with the root
 // manifests that prove each manager applies. Java lists two candidates because
@@ -165,12 +165,16 @@ jobs:
     // Route review of every path to the repo owner. The owner is the GitHub
     // login the apply run targets, so `* @<owner>` is valid and correct for a
     // single-maintainer estate — derived from the owner, not hardcoded, so the
-    // standard stays adoptable by other owners. Guard owner before writing: a
-    // missing owner would produce a malformed `* @undefined` rule, and this is a
-    // cross-repo write boundary (ADR-005), so fail loud rather than ship it.
+    // standard stays adoptable by other owners. Guard owner before writing: it
+    // is interpolated into a file committed on another repo (ADR-005), so it
+    // must be a valid GitHub login — a missing owner would ship `* @undefined`,
+    // and a newline would inject extra rules. Reject rather than strip, and
+    // keep the value out of the message, which apply.js logs.
     path: '.github/CODEOWNERS',
     content: (_eco, owner) => {
-      if (!owner) throw new Error('codeowners template requires an owner');
+      if (!validateGitHubUsername(owner)) {
+        throw new Error('codeowners template requires an owner that is a valid GitHub login');
+      }
       return `* @${owner}\n`;
     },
   },
