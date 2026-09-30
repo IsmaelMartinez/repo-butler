@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 import { runUpdate } from './update.js';
 import { runPropose } from './propose.js';
-import { runReport } from './report.js';
+import { runReport, TEMPLATE_FILES } from './report.js';
 import { runMonitor } from './monitor.js';
 import { runAssess } from './assess.js';
 import { runIdeate } from './ideate.js';
@@ -52,8 +52,7 @@ describe('runReport', () => {
     // rendering pipeline. We compute the hash report() will compute and
     // return it from store.readLastHash so it bails out with {cached:true}.
     const snapshot = { repository: 'o/r', summary: { open_issues: 0 } };
-    const templateFiles = ['src/report.js', 'src/report-portfolio.js', 'src/report-portfolio-data.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js'];
-    const templateContents = await Promise.all(templateFiles.map(f => fsReadFile(f, 'utf8').catch(() => '')));
+    const templateContents = await Promise.all(TEMPLATE_FILES.map(f => fsReadFile(f, 'utf8').catch(() => '')));
     const templateVersion = createHash('sha256').update(templateContents.join('')).digest('hex').slice(0, 12);
     const dateBucket = new Date().toISOString().slice(0, 10);
     const expectedHash = computeSnapshotHash({ ...snapshot, _dateBucket: dateBucket, _templateVersion: templateVersion });
