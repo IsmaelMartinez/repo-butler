@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-29T20:23:47.440Z",
+  "timestamp": "2026-09-30T13:15:05.651Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 14,
+    "open_issues_count": 15,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-29T17:09:00Z",
+    "pushed_at": "2026-09-30T11:28:58Z",
     "archived": false
   },
   "issues": {
@@ -414,14 +414,6 @@
         "labels": [],
         "closed_at": "2026-08-02T10:53:39Z",
         "created_at": "2026-07-27T08:02:56Z"
-      },
-      {
-        "number": 307,
-        "title": "Track: graduate the cross-repo PROPOSE soak (G10) — review ~2026-07-23 after a month of dry-run",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "closed_at": "2026-07-01T13:54:46Z",
-        "created_at": "2026-06-23T08:52:08Z"
       }
     ]
   },
@@ -1222,16 +1214,6 @@
         "author": "repo-butler-app[bot]",
         "labels": [],
         "merged_at": "2026-07-08T06:04:19Z"
-      },
-      {
-        "number": 310,
-        "title": "chore(deps): bump actions/checkout from 6.0.3 to 7.0.0",
-        "author": "dependabot[bot]",
-        "labels": [
-          "dependencies",
-          "github_actions"
-        ],
-        "merged_at": "2026-07-01T13:54:44Z"
       }
     ]
   },
@@ -1456,9 +1438,9 @@
     "open_features": 6,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 20,
-    "recently_merged_prs": 109,
-    "bot_prs": 13,
+    "recently_closed": 19,
+    "recently_merged_prs": 108,
+    "bot_prs": 12,
     "human_prs": 96,
     "unique_contributors": 3,
     "releases": 3,
@@ -1482,7 +1464,7 @@
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1.3,
-      "sample_size": 20
+      "sample_size": 19
     }
   }
 }
