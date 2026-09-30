@@ -41,6 +41,23 @@ describe('apply-templates TEMPLATES', () => {
   });
 });
 
+describe('apply-templates codeowners owner guard', () => {
+  const render = (owner) => TEMPLATES.codeowners.content('', owner);
+
+  it('renders a valid login, including a hyphenated one', () => {
+    assert.equal(render('IsmaelMartinez'), '* @IsmaelMartinez\n');
+    assert.equal(render('some-org-1'), '* @some-org-1\n');
+  });
+
+  it('refuses an owner that is not a valid GitHub login', () => {
+    for (const owner of [
+      'a\n* @evil', 'a b', '*', '@owner', '-owner', 'owner-', 'a'.repeat(40), '', undefined,
+    ]) {
+      assert.throws(() => render(owner), /requires an owner/, JSON.stringify(owner));
+    }
+  });
+});
+
 describe('apply-templates module boundary', () => {
   it('imports nothing but safety.js (no client, no write module)', () => {
     assert.deepEqual(importsOf('apply-templates.js'), ['./safety.js']);
