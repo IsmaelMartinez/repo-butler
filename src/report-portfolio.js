@@ -11,8 +11,12 @@ import {
   escHtml, fmt, countBy, daysAgo,
   computeHealthTier, getLibyearColor, isReleaseExempt, isCopyleft, describeLicenseConcern,
   CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
-  isAutofixNotDriven, computeCountTrend,
+  isAutofixNotDriven, computeCountTrend, isScannerUnreadable,
 } from './report-shared.js';
+
+// An unreadable Dependabot read has no count to show (#452); saying "n/a"
+// alone would read as the scanner being off, which is what null means.
+const VULNS_UNREADABLE_CELL = '<span title="Dependabot alerts could not be read this run" style="color:var(--faint);cursor:help">unavailable</span>';
 
 // Range tuples shared by the portfolio dashboard. Each describes a
 // "value-to-colour" mapping consumed by `colorByThreshold`.
@@ -801,6 +805,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
     const ciDisplay = ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span>` : '—';
     const vulnDisplay = r.vulns == null
       ? '<span style="color:var(--faint)">n/a</span>'
+      : isScannerUnreadable(r.vulns) ? VULNS_UNREADABLE_CELL
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
         : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
@@ -847,6 +852,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
         : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
     const vulnDisplay = r.vulns == null
       ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>'
+      : isScannerUnreadable(r.vulns) ? VULNS_UNREADABLE_CELL
       : r.vulns.count === 0
         ? `<span style="color:${COLOR_SUCCESS}">0</span>`
         : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;

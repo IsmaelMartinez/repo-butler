@@ -4,7 +4,7 @@
 
 import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
@@ -170,6 +170,13 @@ export function priorAutofixNotDrivenCount(priorWeekly) {
     : null;
 }
 
+// Scanner-enablement standards are tri-state too (#452): an unreadable alerts
+// read (UNREADABLE_SCANNER) is `null` and skipped, like osv-scanner's unknown.
+// Only null — the scanner's own 403/404 "not available" — is a gap; counting a
+// single 500 as one made the repo a remediation target, and code-scanning and
+// dependabot-actions are on the apply-schedule allow-list.
+const scannerEnabled = summary => (isScannerUnreadable(summary) ? null : summary != null);
+
 // Built-in detectors map standard tool names to compliance checks.
 // Each detector receives (repo, details) and returns `true` (compliant),
 // `false` (non-compliant) or — for the tri-state detectors marked below —
@@ -186,14 +193,14 @@ const STANDARD_DETECTORS = {
   'dependabot-auto-merge': (_repo, details) => details?.hasAutoMergeWorkflow ?? null,
   'contributing-guide': (_repo, details) => (details?.communityHealth ?? 0) >= 50,
   'license': (_repo, details) => !!(details?.license && details.license !== 'None'),
-  'dependabot-actions': (_repo, details) => details?.vulns != null,
+  'dependabot-actions': (_repo, details) => scannerEnabled(details?.vulns),
   // Tri-state: `ci` is null when the workflow listing has never been read
   // successfully for this repo (report-portfolio-data falls back to the cached count
   // first). `|| 0` would read that as "no CI workflows" and report a gap the
   // repo does not have.
   'ci-workflows': (_repo, details) => (details?.ci == null ? null : details.ci >= 1),
-  'code-scanning': (_repo, details) => details?.codeScanning != null,
-  'secret-scanning': (_repo, details) => details?.secretScanning != null,
+  'code-scanning': (_repo, details) => scannerEnabled(details?.codeScanning),
+  'secret-scanning': (_repo, details) => scannerEnabled(details?.secretScanning),
   'codeowners': (_repo, details) => !!details?.hasCodeowners,
   'security-md': (_repo, details) => !!details?.hasSecurityPolicy,
   // Tri-state: null when the ruleset scan could not complete. The `!!` this
@@ -571,6 +578,11 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
       // snapshot shape that predates this field, and treating that as unknown
       // would silently switch regression detection off for every archived week.
       if (s?.ci === null) continue;
+      // Same reasoning for an unreadable scanner: computeHealthTier fails
+      // "Zero critical/high" on it, which drops Gold without anything having
+      // got worse. Keyed on the explicit marker, which a missing key (an older
+      // snapshot) or a null (the scanner's "not available" answer) never is.
+      if ([s?.vulns, s?.codeScanning, s?.secretScanning].some(isScannerUnreadable)) continue;
       const t = s?.computed?.tier;
       if (t) tiers[name] = t;
     }
@@ -603,7 +615,9 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
  * uses (report-shared.js), so the finding and the tier drop stay consistent:
  * a critical/high Dependabot OR code-scanning alert, or ANY secret-scanning hit.
  * Repos whose `vulns` is null (scanning off, or the token lacks the alerts scope)
- * are skipped for that source rather than flagged — an unknown is not a finding.
+ * or unreadable are skipped for that source rather than flagged — an unknown is
+ * not a finding. (The Gold check does fail on unreadable: withholding a tier
+ * needs no evidence, asserting an open alert does.)
  *
  * `sources` records which scanner(s) fired so consumers can route remediation:
  * only `dependabot`-sourced findings are fixable by enabling Dependabot security

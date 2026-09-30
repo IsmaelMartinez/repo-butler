@@ -54,9 +54,10 @@
         "vulns": {
           "oneOf": [
             { "$ref": "#/$defs/VulnSummary" },
+            { "$ref": "#/$defs/UnreadableScanner" },
             { "type": "null" }
           ],
-          "description": "Dependabot vulnerability summary; null when the token lacks vulnerability_alerts:read"
+          "description": "Dependabot vulnerability summary; null when not available (403 without .github/dependabot.yml, or 404); UnreadableScanner when the read failed"
         },
         "ciPassRate": {
           "type": ["number", "null"],
@@ -136,9 +137,10 @@
         "codeScanning": {
           "oneOf": [
             { "$ref": "#/$defs/VulnSummary" },
+            { "$ref": "#/$defs/UnreadableScanner" },
             { "type": "null" }
           ],
-          "description": "Code scanning alert summary from /code-scanning/alerts; null when unavailable (403/404)"
+          "description": "Code scanning alert summary from /code-scanning/alerts; null when unavailable (403/404); UnreadableScanner when the read failed"
         },
         "secretScanning": {
           "oneOf": [
@@ -149,9 +151,10 @@
                 "count": { "type": "integer", "description": "Number of open secret scanning alerts" }
               }
             },
+            { "$ref": "#/$defs/UnreadableScanner" },
             { "type": "null" }
           ],
-          "description": "Secret scanning alert summary from /secret-scanning/alerts; null when unavailable (403/404)"
+          "description": "Secret scanning alert summary from /secret-scanning/alerts; null when unavailable (403/404); UnreadableScanner when the read failed"
         },
         "traffic": {
           "oneOf": [
@@ -211,6 +214,14 @@
           "description": "Distinct actors in the window"
         }
       }
+    },
+    "UnreadableScanner": {
+      "title": "UnreadableScanner",
+      "description": "An alerts read that failed without an answer (5xx, network error, exhausted rate limit, malformed body). Distinct from null, which is the scanner's own 403/404 'not available'. Fails the Gold 'Zero critical/high' check and is skipped by the scanner-enablement standards and the tier-regression detector.",
+      "type": "object",
+      "required": ["unreadable"],
+      "properties": { "unreadable": { "const": true } },
+      "additionalProperties": false
     },
     "VulnSummary": {
       "title": "VulnSummary",

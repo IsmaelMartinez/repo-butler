@@ -115,6 +115,27 @@ export function isHighSeverity(summary) {
   return summary?.max_severity === 'critical' || summary?.max_severity === 'high';
 }
 
+// A security-alert summary is tri-state (#452). A summary object is a read;
+// null is the scanner's own answer that it is not available — a 403 or 404 from
+// its alerts API; and UNREADABLE_SCANNER is a read that failed without an
+// answer — a 5xx, a network error, an exhausted rate limit, a malformed body.
+// The last two used to share null, so one 500 could hold a repo at Gold while
+// the scanner carrying its high went unread, or make it an apply target for
+// the scanner it already has. It is a marker object rather than a separate
+// field so it travels with the value through the details cache, the portfolio
+// snapshot and the per-repo snapshot without any carrier needing to know.
+export const UNREADABLE_SCANNER = Object.freeze({ unreadable: true });
+
+export function isScannerUnreadable(summary) {
+  return summary?.unreadable === true;
+}
+
+// The summary an alerts-API failure stands for: a 403/404 is an answer (not
+// available), anything else — including a thrown error with no status — is not.
+export function scannerReadFailure(err) {
+  return err?.status === 403 || err?.status === 404 ? null : UNREADABLE_SCANNER;
+}
+
 // Tri-state "is Dependabot actively opening bump PRs" from the raw
 // { enabled, paused } | null state (ADR-012 Phase 3): true when enabled and
 // not paused, false when off or paused, null when the state is unreadable.
@@ -381,10 +402,15 @@ export function computeHealthTier(r, options = {}) {
   const releasedAt = r.released_at ? new Date(r.released_at).getTime() : 0;
   const daysSinceRelease = releasedAt ? Math.floor((now - releasedAt) / 86400000) : Infinity;
 
-  const anyScannerConfigured = r.vulns != null || r.codeScanning != null || r.secretScanning != null;
+  const scanners = [r.vulns, r.codeScanning, r.secretScanning];
+  // An unreadable scanner is evidence of nothing: it neither counts as
+  // configured nor lets "Zero critical/high" pass, because the high that
+  // should fail it may be exactly the one that went unread (#452). A null
+  // (not available) keeps its meaning: skipped when another scanner read.
+  const anyScannerConfigured = scanners.some(s => s != null && !isScannerUnreadable(s));
 
   let noSecurityFindings;
-  if (!anyScannerConfigured) {
+  if (!anyScannerConfigured || scanners.some(isScannerUnreadable)) {
     noSecurityFindings = false;
   } else {
     const dependabotOk = r.vulns == null || (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high');
@@ -445,7 +471,7 @@ export const CAMPAIGN_DEFS = [
   {
     name: 'Vulnerability Free',
     description: 'Repos with zero critical/high vulnerabilities',
-    applicable: (r, details) => details[r.name]?.vulns != null,
+    applicable: (r, details) => details[r.name]?.vulns != null && !isScannerUnreadable(details[r.name].vulns),
     test: (r, details) => {
       const v = details[r.name].vulns;
       return v.max_severity !== 'critical' && v.max_severity !== 'high';

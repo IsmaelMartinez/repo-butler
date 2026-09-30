@@ -105,6 +105,48 @@ describe('computeHealthTier', () => {
     );
   });
 
+  describe('an unreadable scanner (#452)', () => {
+    // A 5xx, network error or exhausted rate limit on an alerts API. Unlike
+    // null (a definitive "not enabled" from a 403/404) it is not evidence of
+    // anything, and the high that should drop the tier may be exactly there.
+    const gold = {
+      ci: 2, license: 'MIT', open_issues: 5, pushed_at: now, released_at: now,
+      communityHealth: 85, commits: 50,
+      vulns: { count: 0, max_severity: null },
+      codeScanning: { count: 0, max_severity: null },
+      secretScanning: { count: 0 },
+    };
+    const zeroCheck = r => computeHealthTier(r).checks.find(c => c.name === 'Zero critical/high security findings');
+
+    it('fails "Zero critical/high" when any one scanner is unreadable, even with the others clean', () => {
+      for (const key of ['vulns', 'codeScanning', 'secretScanning']) {
+        const r = { ...gold, [key]: { unreadable: true } };
+        assert.equal(zeroCheck(r).passed, false, `${key} unreadable must not pass`);
+        assert.notEqual(computeHealthTier(r).tier, 'gold', `${key} unreadable must not hold Gold`);
+      }
+    });
+
+    it('keeps a not-enabled (null) scanner passing when another scanner read clean', () => {
+      // Today's meaning, unchanged: a repo without CodeQL can still be Gold.
+      assert.equal(zeroCheck({ ...gold, codeScanning: null }).passed, true);
+      assert.equal(computeHealthTier({ ...gold, codeScanning: null }).tier, 'gold');
+    });
+
+    it('does not count an unreadable scanner as configured', () => {
+      const r = { ...gold, vulns: { unreadable: true }, codeScanning: null, secretScanning: null };
+      const configured = computeHealthTier(r).checks.find(c => c.name === 'Security scanning configured');
+      assert.equal(configured.passed, false);
+    });
+
+    it('drops an unreadable Dependabot read out of the Vulnerability Free campaign rather than counting it compliant', () => {
+      const c = CAMPAIGN_DEFS.find(x => x.name === 'Vulnerability Free');
+      const details = { a: { vulns: { unreadable: true } }, b: { vulns: { count: 0, max_severity: null } } };
+      const { total, compliant } = evaluateCampaign(c, [{ name: 'a' }, { name: 'b' }], details);
+      assert.equal(total, 1);
+      assert.deepEqual(compliant.map(r => r.name), ['b']);
+    });
+  });
+
   it('assigns silver when gold criteria fail but silver pass', () => {
     const r = {
       ci: 1, license: 'MIT', open_issues: 15, pushed_at: now,

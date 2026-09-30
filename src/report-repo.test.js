@@ -274,6 +274,16 @@ describe('ci_workflows rendering is tri-state', () => {
     const html = await render(snap);
     assert.ok(html.includes('0 workflows'));
   });
+
+  it('renders an unreadable scanner as unavailable in the tier table, never "undefined" (#452)', async () => {
+    const snap = baseSnapshot();
+    snap.summary.ci_workflows = 4;
+    snap.dependabot_alerts = { unreadable: true };
+    const html = await render(snap);
+    assert.ok(!html.includes('undefined vuln'), 'no count exists to show');
+    assert.ok(html.includes('Dependabot unavailable'));
+    assert.ok(html.includes('vuln unavailable'));
+  });
 });
 
 describe('generateRepoReport restructure', () => {

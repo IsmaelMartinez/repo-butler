@@ -6,7 +6,7 @@ import { computeLibyearWithTimeout } from './libyear.js';
 import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, paginateIssues } from './github.js';
 import {
   REPO_CACHE_SCHEMA_VERSION, awaitNamed, daysAgoISO, getAlertSummary, isActionableBug, isPublishedRelease,
-  isCopyleft, isHighConcernLicense,
+  isCopyleft, isHighConcernLicense, UNREADABLE_SCANNER, scannerReadFailure,
 } from './report-shared.js';
 import { TEMPLATES } from './apply-templates.js';
 
@@ -165,7 +165,8 @@ function workflowPresence(names, filename) {
 
 // The three security-alert summaries, shared by the cache-miss fetch and the
 // cache-hit live re-read so both paths mean the same thing by each value. Each
-// returns null (unknown), never a zero count, when the alerts cannot be read.
+// is tri-state (see UNREADABLE_SCANNER): a summary, null for a 403/404 "not
+// available", or UNREADABLE_SCANNER — never a zero count — when the read failed.
 function fetchDependabotSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=100`)
     .then(alerts => getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity))
@@ -175,7 +176,7 @@ function fetchDependabotSummary(gh, owner, repo) {
       // though we can't read the alerts. Only a 403: the fallback reports a
       // zero count, which passes the Gold check, so a transient 500 or a
       // malformed response must stay unknown rather than read as "no alerts".
-      if (err?.status !== 403) return null;
+      if (err?.status !== 403) return scannerReadFailure(err);
       const configContent = await gh.getFileContent(owner, repo, '.github/dependabot.yml');
       if (configContent) return { count: 0, max_severity: null, config_only: true };
       return null;
@@ -185,14 +186,14 @@ function fetchDependabotSummary(gh, owner, repo) {
 function fetchCodeScanningSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/code-scanning/alerts?state=open&per_page=100`)
     .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))
-    .catch(() => null);
+    .catch(scannerReadFailure);
 }
 
 function fetchSecretScanningSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/secret-scanning/alerts?state=open&per_page=100`)
     // A non-array body is not a list of zero alerts; zero would pass Gold.
-    .then(alerts => (Array.isArray(alerts) ? { count: alerts.length } : null))
-    .catch(() => null);
+    .then(alerts => (Array.isArray(alerts) ? { count: alerts.length } : UNREADABLE_SCANNER))
+    .catch(scannerReadFailure);
 }
 
 // A cache entry is usable when it was written under the current schema and the
@@ -234,7 +235,7 @@ function isCacheHit(cached, r) {
 // and they feed the Gold "zero critical/high" check and the
 // open-vulnerability detector — serving them cached would keep a repo
 // Gold after a new high landed. They take the miss path's fetchers and
-// its failure direction: an unreadable read is null (unknown), never the
+// its failure direction: an unreadable read is UNREADABLE_SCANNER, never the
 // cached summary, because the miss path has no last-known fallback for
 // them and a cached zero presented as current is exactly the false Gold
 // this re-read exists to prevent.

@@ -99,9 +99,10 @@
     "dependabot_alerts": {
       "oneOf": [
         { "$ref": "#/$defs/DependabotAlerts" },
+        { "$ref": "#/$defs/UnreadableScanner" },
         { "type": "null" }
       ],
-      "description": "Open Dependabot alert counts by severity; null when vulnerability_alerts:read permission is absent"
+      "description": "Open Dependabot alert counts by severity; null when not available (403/404); UnreadableScanner when the read failed"
     },
     "ci_pass_rate": {
       "$ref": "#/$defs/CIPassRate"
@@ -423,6 +424,14 @@
           }
         }
       }
+    },
+    "UnreadableScanner": {
+      "title": "UnreadableScanner",
+      "description": "An alerts read that failed without an answer (5xx, network error, exhausted rate limit, malformed body). Distinct from null, which is the scanner's own 403/404 'not available'. Fails the Gold 'Zero critical/high' check and is skipped by the scanner-enablement standards and the tier-regression detector.",
+      "type": "object",
+      "required": ["unreadable"],
+      "properties": { "unreadable": { "const": true } },
+      "additionalProperties": false
     },
     "DependabotAlerts": {
       "title": "DependabotAlerts",

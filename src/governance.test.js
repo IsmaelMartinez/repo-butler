@@ -258,6 +258,25 @@ describe('detectStandardsGaps', () => {
     assert.equal(result.findings[0].adoptionRate, 0.5);
   });
 
+  for (const [tool, key] of [['dependabot-actions', 'vulns'], ['code-scanning', 'codeScanning'], ['secret-scanning', 'secretScanning']]) {
+    it(`skips a repo whose ${key} read was unreadable instead of reporting a ${tool} gap (#452)`, () => {
+      // One 500 on an alerts API is not "scanner off": counting it as a gap
+      // makes the repo an apply target on the next scheduled run.
+      const repos = [makeRepo('on'), makeRepo('off'), makeRepo('unread')];
+      const details = makeDetails(repos, {
+        on: { [key]: { count: 0 } },
+        off: { [key]: null },
+        unread: { [key]: { unreadable: true } },
+      });
+      const result = detectStandardsGaps([{ tool, scope: { type: 'universal' }, exclude: [] }], repos, details);
+      assert.equal(result.findings.length, 1);
+      assert.deepEqual(result.findings[0].compliant, ['on']);
+      // A definitive not-enabled is still a real gap.
+      assert.deepEqual(result.findings[0].nonCompliant, ['off']);
+      assert.equal(result.findings[0].adoptionRate, 0.5);
+    });
+  }
+
   it('emits no dependabot-auto-merge finding when every applicable repo is unknown', () => {
     // The transient-outage shape. One bad window on the contents API must not
     // produce a portfolio-wide gap finding, because this standard's findings
@@ -1305,6 +1324,28 @@ describe('detectTierRegressions', () => {
     const prior = { ...weeklySnap({ 'repo-a': 'gold' }), _week: '2026-W26' };
     const current = weeklySnap({ 'repo-a': 'silver' });
     assert.equal('ci' in current.repos['repo-a'], false);
+
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
+  });
+
+  it('does not report a regression for a repo scored with an unreadable scanner, on either side (#452)', () => {
+    // An unreadable scanner fails "Zero critical/high", which drops Gold — right
+    // for withholding the tier, but no evidence that anything got worse.
+    const prior = { ...weeklySnap({ 'repo-a': 'gold', 'repo-b': 'gold', 'repo-c': 'gold' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'silver', 'repo-b': 'silver', 'repo-c': 'silver' });
+    current.repos['repo-a'].secretScanning = { unreadable: true };   // unread this run
+    prior.repos['repo-b'].vulns = { unreadable: true };              // unread last week
+    current.repos['repo-c'].codeScanning = null;                     // a definitive "not enabled"
+
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-c']);
+  });
+
+  it('still reports regressions for snapshot shapes with no scanner keys at all', () => {
+    // Keyed on the explicit marker, never on absence: archived weeks predating
+    // the marker must keep producing regressions.
+    const prior = { ...weeklySnap({ 'repo-a': 'gold' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'silver' });
+    for (const k of ['vulns', 'codeScanning', 'secretScanning']) assert.equal(k in current.repos['repo-a'], false);
 
     assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
   });
