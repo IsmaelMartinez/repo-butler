@@ -927,6 +927,66 @@ describe('observe — open_bugs counts actionable bugs only', () => {
   });
 });
 
+describe('observe — every fetch lands on its own snapshot field', () => {
+  // Each of observe()'s parallel fetches is mocked with a value no other field
+  // could produce, so wiring a result to the wrong field — the failure a
+  // positional destructure invites — changes the snapshot and fails a deepEqual.
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const ok = (body) => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  const err = (status) => ({ ok: false, status, headers: new Map(), json: async () => ({}), text: async () => 'error' });
+
+  it('maps all fourteen results by name', async () => {
+    const recent = new Date(Date.now() - 86400000).toISOString();
+    globalThis.fetch = mock.fn(async (url) => {
+      const u = new URL(url);
+      const p = u.pathname.replace('/repos/owner/repo', '');
+      if (p === '/issues' && u.searchParams.get('state') === 'open') {
+        return ok([{ number: 101, title: 'open', user: { login: 'o' }, labels: [{ name: 'bug' }], comments: 1, created_at: recent, updated_at: recent, assignees: [] }]);
+      }
+      if (p === '/issues' && u.searchParams.get('state') === 'closed') {
+        return ok([201, 202].map(number => ({ number, title: 'closed', user: { login: 'c' }, labels: [], closed_at: recent, created_at: recent })));
+      }
+      if (p === '/pulls') {
+        return ok([301, 302, 303].map(number => ({ number, title: 'pr', user: { login: 'p' }, labels: [], merged_at: recent, updated_at: recent })));
+      }
+      if (p === '/labels') return ok([{ name: 'lbl', description: 'label', color: 'abcdef' }]);
+      if (p === '/milestones') return ok([{ title: 'M1', state: 'open', open_issues: 4, closed_issues: 5, due_on: null }]);
+      if (p === '/releases') return ok([{ tag_name: 'v9.9.9', name: 'rel', published_at: recent, prerelease: false, draft: false }]);
+      if (p === '/actions/workflows') return ok({ workflows: [{ name: 'CI', path: '.github/workflows/ci.yml', state: 'active' }] });
+      if (p === '') return ok({ stargazers_count: 11, forks_count: 22, open_issues_count: 1, default_branch: 'main' });
+      if (p === '/community/profile') return ok({ health_percentage: 73, files: { readme: {}, issue_template: {} } });
+      if (p === '/dependabot/alerts') return ok([{ security_vulnerability: { severity: 'critical' } }]);
+      if (p === '/code-scanning/alerts') return ok([{ rule: { security_severity_level: 'low' } }, { rule: { security_severity_level: 'medium' } }]);
+      if (p === '/secret-scanning/alerts') return ok([{}, {}, {}]);
+      if (p === '/actions/runs') return ok({ workflow_runs: [{ conclusion: 'success' }, { conclusion: 'success' }, { conclusion: 'success' }, { conclusion: 'failure' }] });
+      if (p === '/automated-security-fixes') return ok({ enabled: true, paused: true });
+      if (p.startsWith('/contents/')) return err(404);
+      throw new Error(`unexpected request ${u.pathname}`);
+    });
+    const { observe } = await import('./observe.js');
+    const snapshot = await observe({ owner: 'owner', repo: 'repo', token: 'fake', config: {} });
+
+    assert.deepEqual(snapshot.issues.open.map(i => i.number), [101]);
+    assert.deepEqual(snapshot.issues.recently_closed.map(i => i.number), [201, 202]);
+    assert.deepEqual(snapshot.pull_requests.recently_merged.map(pr => pr.number), [301, 302, 303]);
+    assert.deepEqual(snapshot.labels, [{ name: 'lbl', description: 'label', color: 'abcdef' }]);
+    assert.deepEqual(snapshot.milestones, [{ title: 'M1', state: 'open', open_issues: 4, closed_issues: 5, due_on: null }]);
+    assert.deepEqual(snapshot.releases, [{ tag: 'v9.9.9', name: 'rel', published_at: recent, prerelease: false }]);
+    assert.deepEqual(snapshot.workflows, [{ name: 'CI', path: '.github/workflows/ci.yml', state: 'active' }]);
+    assert.equal(snapshot.meta.stars, 11);
+    assert.equal(snapshot.meta.forks, 22);
+    assert.equal(snapshot.community_profile.health_percentage, 73);
+    assert.deepEqual(snapshot.dependabot_alerts, { count: 1, critical: 1, high: 0, medium: 0, low: 0, max_severity: 'critical' });
+    assert.deepEqual(snapshot.code_scanning_alerts, { count: 2, critical: 0, high: 0, medium: 1, low: 1, max_severity: 'medium' });
+    assert.deepEqual(snapshot.secret_scanning_alerts, { count: 3 });
+    assert.deepEqual(snapshot.ci_pass_rate, { pass_rate: 0.75, total_runs: 4, passed: 3, failed: 1 });
+    assert.deepEqual(snapshot.automated_security_fixes, { enabled: true, paused: true });
+  });
+});
+
 describe("assess — the butler's own roadmap PRs are not new work", () => {
   // Each roadmap-update PR was being fed back into the next roadmap prompt as
   // "PRs merged since last update", so every roadmap PR became the subject of

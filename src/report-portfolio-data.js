@@ -5,7 +5,7 @@
 import { computeLibyearWithTimeout } from './libyear.js';
 import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, paginateIssues } from './github.js';
 import {
-  REPO_CACHE_SCHEMA_VERSION, daysAgoISO, getAlertSummary, isActionableBug, isPublishedRelease,
+  REPO_CACHE_SCHEMA_VERSION, awaitNamed, daysAgoISO, getAlertSummary, isActionableBug, isPublishedRelease,
   isCopyleft, isHighConcernLicense,
 } from './report-shared.js';
 import { TEMPLATES } from './apply-templates.js';
@@ -193,14 +193,6 @@ function fetchSecretScanningSummary(gh, owner, repo) {
     // A non-array body is not a list of zero alerts; zero would pass Gold.
     .then(alerts => (Array.isArray(alerts) ? { count: alerts.length } : null))
     .catch(() => null);
-}
-
-// Resolves an object of promises to an object of their values, so each result
-// is read by name: adding or reordering a call cannot shift another's value.
-async function awaitNamed(promises) {
-  const keys = Object.keys(promises);
-  const values = await Promise.all(Object.values(promises));
-  return Object.fromEntries(keys.map((key, i) => [key, values[i]]));
 }
 
 // A cache entry is usable when it was written under the current schema and the
