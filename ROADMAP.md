@@ -55,7 +55,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-07** — 11 entries (#326, #328, #329, #330, #342, #343, #344, #345, #348, #349, #352, #354, #355, #356, #357, #358, #10940). Full details in git history.
 
-**2026-08** — 1 entry (#359). Full details in git history.
+MCP release exemption fixed 2026-08-01 (PR #359). `src/mcp.js` never loaded `.github/roadmap.yml`, so every tier it computed dropped the `release_exempt` list and reported two deliberately-exempt repos a tier below what the rest of the pipeline read — a phantom regression in the 2026-07-30 briefing. `loadConfigSync` is the synchronous twin of `loadConfig` that `callTool`'s synchronous dispatch needs, and it is deliberately silent on a missing config because a stray log on stdout would corrupt the JSON-RPC frames. A source-level test asserts every `computeHealthTier` call in the file goes through `tierOptions()`, so a new call site cannot silently omit the exemption.
 
 G8 MCP staleness guard shipped 2026-08-02 (PR #361). Two changes with one cause: the server *re-derived* what it could *report*. `weekTier()` now reads the `computed.tier` that `store.js` wrote into each weekly snapshot instead of recomputing it, because `computeHealthTier` measures release and push age against `Date.now()` — so re-deriving an archived week re-scored it with today's clock and historical Gold counts decayed purely as the snapshots aged, which is not a trend. And every tool answering from the data branch now carries a `staleness` envelope: the age of the data served, how far the checkout is behind `origin/main`, and a warnings array that is empty when both are healthy. It is attached in `callTool` rather than per-handler so a new tool cannot ship without one, and the opt-out set is pinned by a test to the two tools that read nothing from the branch. Reporting rather than fetching is deliberate — a read-only tool should not perform a network write on the caller's repository as a side effect of being asked a question — and an unreadable probe warns rather than staying silent, since "could not check" and "checked, it is fine" must not look alike. Three defects motivated it inside a week: the missing fetch that produced a briefing claiming 12 Gold against a true 7, the release exemption above, and the clock-drift recompute.
 
@@ -126,8 +126,6 @@ Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450)
 Modular test suite architecture for report generation shipped 2026-09-28 (PR #453). Improves codebase maintainability and test readability by splitting the large, consolidated `report.test.js` file into modular, per-module test files, resolving technical debt and simplifying future test coverage expansion.
 
 Roadmap and developer guidelines aligned with simplification pass tracking 2026-09-28 (PR #455). Points the project's living roadmap and developer guidelines to a central tracking issue to coordinate active architectural simplification and complexity reduction goals.
-
-Roadmap maintenance and developer guidelines aligned with simplification pass tracking shipped 2026-09-28 (PR #455). Points the project's living roadmap and developer guidelines to a central tracking issue to coordinate active architectural simplification and complexity reduction goals.
 
 ---
 
