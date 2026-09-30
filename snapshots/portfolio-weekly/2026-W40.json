@@ -930,9 +930,9 @@
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 12,
+      "open_issues": 11,
       "open_bugs": 1,
-      "commits_6mo": 316,
+      "commits_6mo": 317,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-09-30T19:07:29Z",
+      "pushed_at": "2026-09-30T19:17:38Z",
       "traffic": {
         "views_14d": {
           "count": 24,
@@ -1239,13 +1239,13 @@
     },
     "delegate-local": {
       "id": 1223288066,
-      "open_issues": 25,
-      "open_bugs": 4,
-      "commits_6mo": 470,
+      "open_issues": 24,
+      "open_bugs": 3,
+      "commits_6mo": 471,
       "stars": 7,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9552238805970149,
+      "ciPassRate": 0.9538461538461539,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1267,7 +1267,7 @@
       },
       "ci": 8,
       "released_at": "2026-09-28T06:15:32Z",
-      "pushed_at": "2026-09-30T16:12:52Z",
+      "pushed_at": "2026-09-30T19:08:35Z",
       "traffic": {
         "views_14d": {
           "count": 111,
