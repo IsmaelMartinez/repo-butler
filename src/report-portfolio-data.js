@@ -8,6 +8,7 @@ import {
   REPO_CACHE_SCHEMA_VERSION, daysAgoISO, getAlertSummary, isActionableBug, isPublishedRelease,
   isCopyleft, isHighConcernLicense,
 } from './report-shared.js';
+import { TEMPLATES } from './apply-templates.js';
 
 // --- SBOM / dependency inventory ---
 
@@ -103,14 +104,18 @@ export function analyzeDependencyInventory(details) {
 
 // --- Portfolio details fetcher ---
 
-// The one path the osv-scanner apply template writes. Detection is an exact
-// match on it, deliberately unlike hasReleaseWorkflow's deliberately-broad
-// regex: a hand-rolled release pipeline legitimately satisfies release-cadence,
-// whereas this standard is satisfied only by the file the template installs. A
+// The files the osv-scanner and dependabot-auto-merge apply templates write,
+// derived from each template's path so the two cannot drift: renamed on one side
+// only, detection would never see the installed file and every apply run would
+// reopen the remediation PR. Detection reads the default branch's
+// .github/workflows listing by filename, so only the basename is compared.
+// It is an exact match, deliberately unlike hasReleaseWorkflow's broad regex: a
+// hand-rolled release pipeline legitimately satisfies release-cadence, whereas
+// these standards are satisfied only by the file the template installs. A
 // looser match would let a repo's own variant read as compliant while the
 // template could never converge on it.
-const OSV_WORKFLOW_FILE = 'osv-scanner.yml';
-const AUTOMERGE_WORKFLOW_FILE = 'dependabot-auto-merge.yml';
+const OSV_WORKFLOW_FILE = TEMPLATES['osv-scanner'].path.split('/').pop();
+const AUTOMERGE_WORKFLOW_FILE = TEMPLATES['dependabot-auto-merge'].path.split('/').pop();
 
 // How many active repos get a full details fetch. Each costs ~11 API calls, so
 // this bounds one portfolio pass; the original value was 15, chosen in the first
