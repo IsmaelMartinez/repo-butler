@@ -125,6 +125,8 @@ Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450)
 
 Portfolio report data and rendering logic decoupled 2026-09-30 (PR #456). Improves codebase maintainability and simplifies future reporting feature extensions by splitting the monolithic `report-portfolio.js` into separate data extraction and rendering components.
 
+Dead export cleanup and code simplification shipped 2026-09-30 (PR #458). Reduces technical debt and improves internal codebase maintainability by sweeping away dead exports and unused code references, resolving issue #422.
+
 ---
 
 ## Next Up
