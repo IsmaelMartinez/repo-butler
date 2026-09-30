@@ -515,26 +515,40 @@ export function npmFailureReason(stderr) {
 }
 
 /**
- * Run `npm update <pkgs> --package-lock-only` in a scratch directory holding
- * only the manifest and the lockfile. `--package-lock-only` needs no
+ * The exact `npm update <pkgs> --package-lock-only` call made in the scratch
+ * directory `dir`, as execFile arguments. `--package-lock-only` needs no
  * node_modules, so the registry is the only thing npm touches. `--ignore-scripts`
- * because nothing here should execute code from the target repo. Returns both
- * files as written back, so the gate can prove the manifest did not move.
- * Injectable via options.runNpmUpdate: the tests never spawn npm.
+ * because nothing here should execute code from the target repo. Pure and
+ * exported so the flags and environment are pinned by a test: every other
+ * lockfile-update test injects options.runNpmUpdate and never reaches the spawn.
+ */
+export function npmUpdateInvocation({ packages, dir, inherited = process.env }) {
+  return {
+    command: 'npm',
+    args: [
+      'update', ...packages,
+      '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--no-progress',
+    ],
+    // A minimal environment (see npmChildEnv): among other things it leaves
+    // NODE_ENV unset, since `production` makes npm drop devDependencies from the
+    // refresh, which the gate would then refuse as out-of-family removals.
+    options: { cwd: dir, timeout: NPM_TIMEOUT_MS, env: npmChildEnv(inherited, dir), maxBuffer: 8 * 1024 * 1024 },
+  };
+}
+
+/**
+ * Run npmUpdateInvocation in a scratch directory holding only the manifest and
+ * the lockfile. Returns both files as written back, so the gate can prove the
+ * manifest did not move. Injectable via options.runNpmUpdate: the tests never
+ * spawn npm.
  */
 async function runNpmUpdateInTempDir({ manifest, lockfile, packages }) {
   const dir = await mkdtemp(join(tmpdir(), 'repo-butler-lockfile-'));
-  // A minimal environment (see npmChildEnv): among other things it leaves
-  // NODE_ENV unset, since `production` makes npm drop devDependencies from the
-  // refresh, which the gate would then refuse as out-of-family removals.
-  const env = npmChildEnv(process.env, dir);
+  const { command, args, options } = npmUpdateInvocation({ packages, dir });
   try {
     await writeFile(join(dir, MANIFEST), manifest);
     await writeFile(join(dir, LOCKFILE), lockfile);
-    await execFileAsync('npm', [
-      'update', ...packages,
-      '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--no-progress',
-    ], { cwd: dir, timeout: NPM_TIMEOUT_MS, env, maxBuffer: 8 * 1024 * 1024 });
+    await execFileAsync(command, args, options);
     return {
       manifest: await readFile(join(dir, MANIFEST), 'utf-8'),
       lockfile: await readFile(join(dir, LOCKFILE), 'utf-8'),
