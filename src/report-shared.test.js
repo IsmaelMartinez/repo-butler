@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildActionItems } from './report-repo.js';
 import { buildCampaignSection } from './report-portfolio.js';
-import { generateHealthBadge, computeHealthTier, isReleaseExempt, isBugIssue, isFeatureIssue, CAMPAIGN_DEFS, REPO_EXCLUSION_PATTERNS, buildRepoSnapshot, jsStr, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
+import { campaignsFor } from './mcp.js';
+import { generateHealthBadge, computeHealthTier, isReleaseExempt, isBugIssue, isFeatureIssue, CAMPAIGN_DEFS, buildRepoSnapshot, jsStr, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
 
 describe('jsStr', () => {
   it('quotes and escapes strings for inline <script> embedding', () => {
@@ -372,14 +373,8 @@ describe('CAMPAIGN_DEFS shared definitions', () => {
       'my-shadow': { communityHealth: 95, vulns: { count: 0, max_severity: null }, ciPassRate: 1, license: 'MIT', hasIssueTemplate: true },
     };
 
-    // mcp.js computeCampaigns applies the exclusion filter, then evaluateCampaign.
-    const mcpRepos = Object.keys(data)
-      .filter(name => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)))
-      .map(name => ({ name }));
-    const mcpResult = CAMPAIGN_DEFS.map(c => {
-      const { total, compliant } = evaluateCampaign(c, mcpRepos, data);
-      return { name: c.name, total, compliant: compliant.length };
-    });
+    // The same computation get_campaign_status serves, not a copy of it.
+    const mcpResult = campaignsFor(data).map(({ name, total, compliant }) => ({ name, total, compliant }));
 
     // Build the dashboard HTML for the same portfolio and parse the per-campaign
     // ratios (rendered as `${count}/${total}` inside campaign-ratio spans).
