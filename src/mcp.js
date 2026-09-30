@@ -897,27 +897,28 @@ function computePortfolioHealth() {
 function computeCampaigns() {
   const weekly = loadPortfolioWeekly();
   if (!weekly?.data) return { error: 'No portfolio data available' };
+  return { week: weekly.week, campaigns: campaignsFor(unwrapWeeklyRepos(weekly.data)) };
+}
 
+// Pure half of computeCampaigns (details keyed by repo name), so the dashboard
+// parity test in report-shared.test.js runs this code rather than a copy of it.
+function campaignsFor(details) {
   // Filter out exclusion patterns (shadow, test-repo) to match dashboard logic.
-  const details = unwrapWeeklyRepos(weekly.data);
   const repos = Object.keys(details)
     .filter(name => !REPO_EXCLUSION_PATTERNS.some(p => name.includes(p)))
     .map(name => ({ name }));
 
-  return {
-    week: weekly.week,
-    campaigns: CAMPAIGN_DEFS.map(c => {
-      const { total, compliant, nonCompliant, percentage } = evaluateCampaign(c, repos, details);
-      return {
-        name: c.name,
-        description: c.description,
-        total,
-        compliant: compliant.length,
-        percentage,
-        non_compliant: nonCompliant.map(r => r.name),
-      };
-    }),
-  };
+  return CAMPAIGN_DEFS.map(c => {
+    const { total, compliant, nonCompliant, percentage } = evaluateCampaign(c, repos, details);
+    return {
+      name: c.name,
+      description: c.description,
+      total,
+      compliant: compliant.length,
+      percentage,
+      non_compliant: nonCompliant.map(r => r.name),
+    };
+  });
 }
 
 // --- JSON-RPC transport ---
@@ -1008,4 +1009,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, unwrapWeeklyRepos, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, WEEKLY_FILE_PATTERN, callTool, setIo, weekTier, computeStaleness, TOOLS, RESOURCES };
+export { handleMessage, unwrapWeeklyRepos, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, WEEKLY_FILE_PATTERN, callTool, setIo, weekTier, computeStaleness, campaignsFor, TOOLS, RESOURCES };
