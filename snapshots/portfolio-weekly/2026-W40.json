@@ -930,7 +930,7 @@
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 13,
+      "open_issues": 11,
       "open_bugs": 1,
       "commits_6mo": 321,
       "stars": 3,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-09-30T21:18:03Z",
+      "pushed_at": "2026-09-30T21:18:18Z",
       "traffic": {
         "views_14d": {
           "count": 24,
