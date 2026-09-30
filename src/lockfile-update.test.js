@@ -9,6 +9,7 @@ import {
   toolNameFor,
   npmFailureReason,
   npmChildEnv,
+  npmUpdateInvocation,
   findNonRegistrySource,
   displayString,
 } from './lockfile-update.js';
@@ -545,6 +546,33 @@ describe('npmChildEnv', () => {
     assert.notEqual(env.npm_config_userconfig, env.npm_config_globalconfig);
     assert.match(env.npm_config_userconfig, /^\/scratch\//);
     assert.match(env.npm_config_globalconfig, /^\/scratch\//);
+  });
+});
+
+describe('npmUpdateInvocation', () => {
+  const inherited = {
+    PATH: '/usr/bin', HOME: '/home/runner', TMPDIR: '/tmp', NODE_ENV: 'production',
+    GITHUB_TOKEN: 'ghs_secret', NPM_TOKEN: 'npm_secret', ACTIONS_RUNTIME_TOKEN: 'runtime_secret',
+    npm_config_registry: 'https://evil.example/',
+  };
+  const invocation = npmUpdateInvocation({ packages: ['vitest', 'vite'], dir: '/scratch', inherited });
+
+  it('runs npm update on the named packages lockfile-only, with install scripts disabled', () => {
+    assert.equal(invocation.command, 'npm');
+    assert.deepEqual(invocation.args, [
+      'update', 'vitest', 'vite',
+      '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--no-progress',
+    ]);
+  });
+
+  it('spawns in the scratch directory with exactly npmChildEnv\'s environment, never the runner\'s tokens', () => {
+    assert.deepEqual(invocation.options, {
+      cwd: '/scratch', timeout: 120_000, env: npmChildEnv(inherited, '/scratch'), maxBuffer: 8 * 1024 * 1024,
+    });
+    for (const key of ['GITHUB_TOKEN', 'NPM_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'NODE_ENV']) {
+      assert.equal(key in invocation.options.env, false, key);
+    }
+    assert.doesNotMatch(JSON.stringify(invocation.options.env), /secret|evil|production/);
   });
 });
 
