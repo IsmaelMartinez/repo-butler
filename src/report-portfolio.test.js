@@ -970,6 +970,78 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.deepEqual(details._cachedRepos, [], 'no repos should be cached');
   });
 
+  // Every field of a full fetch comes from its own endpoint, and each mock
+  // below answers with a value no other field could produce, so wiring a
+  // result to the wrong field — the failure a positional destructure invites —
+  // changes this object and fails the deepEqual.
+  it('maps every full-fetch result onto its own details field', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio.js');
+    const gh = {
+      request: (path) => {
+        const p = path.replace('/repos/owner/map-repo', '');
+        if (p === '/automated-security-fixes') return Promise.resolve({ enabled: true, paused: true });
+        if (p === '/rulesets/5') return Promise.resolve({ rules: [{ type: 'copilot_code_review' }] });
+        if (p === '/contents/.github/workflows') return Promise.resolve([{ name: 'osv-scanner.yml' }]);
+        if (p === '/contents') return Promise.resolve([{ name: 'CODEOWNERS' }]);
+        if (p === '/actions/workflows') {
+          return Promise.resolve({ total_count: 2, workflows: [{ name: 'CI', path: '.github/workflows/ci.yml' }, { name: 'Lint', path: '.github/workflows/lint.yml' }] });
+        }
+        if (p === '/community/profile') return Promise.resolve({ health_percentage: 61, files: { issue_template: {} } });
+        if (p.startsWith('/dependabot/alerts')) return Promise.resolve([{ security_vulnerability: { severity: 'high' } }]);
+        if (p.startsWith('/code-scanning/alerts')) return Promise.resolve([{ rule: { security_severity_level: 'low' } }, { rule: { security_severity_level: 'medium' } }]);
+        if (p.startsWith('/secret-scanning/alerts')) return Promise.resolve([{}, {}, {}]);
+        if (p.startsWith('/actions/runs')) {
+          return Promise.resolve({ workflow_runs: [{ conclusion: 'success' }, { conclusion: 'success' }, { conclusion: 'success' }, { conclusion: 'failure' }] });
+        }
+        if (p === '/dependency-graph/sbom') return Promise.resolve({ sbom: { packages: [] } });
+        if (p === '/traffic/views') return Promise.resolve({ count: 9, uniques: 2 });
+        if (p === '/traffic/clones') return Promise.resolve({ count: 5, uniques: 1 });
+        if (p === '/stats/participation') return Promise.resolve({ owner: [3, 4] });
+        if (path === '/search/commits') return Promise.resolve({ total_count: 7 });
+        if (p === '') return Promise.resolve({ license: { spdx_id: 'Apache-2.0' }, allow_auto_merge: true });
+        return Promise.reject(new Error(`unexpected request ${path}`));
+      },
+      paginate: (path) => {
+        const p = path.replace('/repos/owner/map-repo', '');
+        if (p === '/issues') return Promise.resolve([{ labels: [{ name: 'bug' }] }, { labels: [] }, { labels: [], pull_request: {} }]);
+        if (p === '/releases') return Promise.resolve([{ draft: true, published_at: '2026-03-01T00:00:00Z' }, { draft: false, prerelease: false, published_at: '2026-02-01T00:00:00Z' }]);
+        if (p === '/pulls') return Promise.resolve([{}, {}, {}, {}]);
+        if (p === '/rulesets') return Promise.resolve([{ id: 5, enforcement: 'active' }]);
+        return Promise.reject(new Error(`unexpected paginate ${path}`));
+      },
+      getFileContent: () => Promise.resolve(null),
+    };
+    const repos = [{ name: 'map-repo', pushed_at: '2026-04-10T00:00:00Z', open_issues: 2, archived: false, fork: false, stars: 1 }];
+    const details = await fetchPortfolioDetails(gh, 'owner', repos);
+    assert.deepEqual(details['map-repo'], {
+      commits: 7,
+      weekly: [3, 4],
+      license: 'Apache-2.0',
+      ci: 2,
+      communityHealth: 61,
+      vulns: { count: 1, critical: 0, high: 1, medium: 0, low: 0, max_severity: 'high' },
+      ciPassRate: 0.75,
+      open_issues: 2,
+      open_bugs: 1,
+      open_prs: 4,
+      sbom: { count: 0, packages: [] },
+      released_at: '2026-02-01T00:00:00Z',
+      hasIssueTemplate: true,
+      hasAutoMergeWorkflow: false,
+      hasReleaseWorkflow: false,
+      hasOsvScanner: true,
+      allowAutoMerge: true,
+      hasCodeowners: true,
+      hasSecurityPolicy: false,
+      hasCopilotReview: true,
+      autofix: { enabled: true, paused: true },
+      libyear: null,
+      codeScanning: { count: 2, critical: 0, high: 0, medium: 1, low: 1, max_severity: 'medium' },
+      secretScanning: { count: 3 },
+      traffic: { views_14d: { count: 9, uniques: 2 }, clones_14d: { count: 5, uniques: 1 } },
+    });
+  });
+
   it('derives hasAutoMergeWorkflow from the default-branch contents listing, and allowAutoMerge from repo settings', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio.js');
     const gh = {
