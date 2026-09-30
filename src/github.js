@@ -399,7 +399,7 @@ export function createClient(token, options = {}) {
 // bodies, so each active ruleset's detail is fetched and scanned for the rule;
 // the list is paginated so a repo with many rulesets cannot hide the match.
 // Single source of truth shared by the code-review-bot governance detection
-// (report-portfolio.js) and the settings-apply idempotency guard (apply.js), so
+// (report-portfolio-data.js) and the settings-apply idempotency guard (apply.js), so
 // both agree on what "Copilot review already enabled" means. Detects repo-level
 // rulesets only (org-inherited rulesets are not surfaced).
 //
@@ -408,7 +408,7 @@ export function createClient(token, options = {}) {
 // strongest available claim — that the repo has NO code-review bot — to a
 // governance detector that then reported a gap, and to an apply guard that
 // reads it as permission to write. Only an actually-completed scan may say
-// false. See the `ci` tri-state in report-portfolio.js for the same rule
+// false. See the `ci` tri-state in report-portfolio-data.js for the same rule
 // applied to a count.
 export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
   let rulesets;
@@ -423,7 +423,7 @@ export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
   // The scan stays inside a try. Converting this function to tri-state moved
   // the loop out of the original outer try, which quietly made it non-total: a
   // null element in the array (a sparse page, a test double) would throw on
-  // `rs.enforcement` and propagate, and BOTH report-portfolio call sites sit
+  // `rs.enforcement` and propagate, and BOTH report-portfolio-data call sites sit
   // bare inside a Promise.all with no .catch — so one malformed page would
   // abort the entire REPORT/GOVERNANCE run for every repo instead of degrading
   // one field. It must still degrade to a value; that value is now null.

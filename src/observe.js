@@ -88,7 +88,7 @@ export async function observe(context) {
     // Dependabot automated security fixes state (ADR-012 Phase 3): { enabled,
     // paused } | null. Gathered here on the OBSERVE→REPORT pipeline path so the
     // per-repo snapshot carries it too (the portfolio-details path fetches it in
-    // report-portfolio.js). Returns null on any error / missing scope.
+    // report-portfolio-data.js). Returns null on any error / missing scope.
     getAutomatedSecurityFixesState(gh, owner, repo),
   ]);
 

@@ -6,7 +6,7 @@ import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK } from './report-shared.js';
 import { createClient } from './github.js';
-import { fetchPortfolioDetails } from './report-portfolio.js';
+import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
@@ -59,7 +59,7 @@ export async function runGovernance(context) {
   // One open-PR sweep, two consumers. Both audits read the identical
   // `/pulls?state=open` list for every eligible repo, so fetching it twice would
   // double that call across the portfolio on every one of the 4 daily runs.
-  // Deliberately NOT sourced from context.repoDetails: report-portfolio fetches
+  // Deliberately NOT sourced from context.repoDetails: report-portfolio-data fetches
   // the same list but keeps only its length, and that block sits behind the
   // pushed_at cache — a cache hit would hand a stale PR list to a staleness
   // detector.
@@ -188,7 +188,7 @@ const STANDARD_DETECTORS = {
   'license': (_repo, details) => !!(details?.license && details.license !== 'None'),
   'dependabot-actions': (_repo, details) => details?.vulns != null,
   // Tri-state: `ci` is null when the workflow listing has never been read
-  // successfully for this repo (report-portfolio falls back to the cached count
+  // successfully for this repo (report-portfolio-data falls back to the cached count
   // first). `|| 0` would read that as "no CI workflows" and report a gap the
   // repo does not have.
   'ci-workflows': (_repo, details) => (details?.ci == null ? null : details.ci >= 1),

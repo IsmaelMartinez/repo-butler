@@ -84,7 +84,7 @@ describe('skill content coverage', () => {
   });
 
   it('references the split module structure', () => {
-    for (const mod of ['report-shared.js', 'report-portfolio.js', 'report-repo.js']) {
+    for (const mod of ['report-shared.js', 'report-portfolio.js', 'report-portfolio-data.js', 'report-repo.js']) {
       assert.ok(skill.includes(mod), `skill should reference split module: ${mod}`);
     }
   });

@@ -2,10 +2,11 @@
 // Produces two reports: per-repo (target repo) and portfolio (all repos).
 //
 // This module is the entry point. The actual report generators live in:
-//   report-repo.js      — per-repo dashboard and lightweight reports
-//   report-portfolio.js — portfolio dashboard, digest, and dependency inventory
-//   report-shared.js    — shared helpers, constants, computeHealthTier, generateHealthBadge
-//   report-styles.js    — CSS template literal
+//   report-repo.js           — per-repo dashboard and lightweight reports
+//   report-portfolio.js      — portfolio dashboard, digest, and dependency inventory rendering
+//   report-portfolio-data.js — portfolio details fetch and dependency inventory analysis
+//   report-shared.js         — shared helpers, constants, computeHealthTier, generateHealthBadge
+//   report-styles.js         — CSS template literal
 
 import { createClient, paginateIssues } from './github.js';
 import { observe, observePortfolio, computeBusFactor, computeTimeToCloseMedian } from './observe.js';
@@ -25,10 +26,10 @@ import {
   buildActionItems, computeContributorStats,
 } from './report-repo.js';
 import {
-  fetchPortfolioDetails, analyzeDependencyInventory,
   generatePortfolioReport, generateDigestReport,
   generateSparklineSVG, buildCampaignSection,
 } from './report-portfolio.js';
+import { fetchPortfolioDetails, analyzeDependencyInventory } from './report-portfolio-data.js';
 
 // Re-export everything that tests and other modules need from report.js
 export { generateHealthBadge, computeHealthTier } from './report-shared.js';
@@ -65,7 +66,7 @@ export async function report(context) {
   }
 
   // Compute template version hash so presentation changes invalidate cache.
-  const templateFiles = ['src/report.js', 'src/report-portfolio.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js'];
+  const templateFiles = ['src/report.js', 'src/report-portfolio.js', 'src/report-portfolio-data.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js'];
   const templateContents = await Promise.all(templateFiles.map(f => fsReadFile(f, 'utf8').catch(() => '')));
   const templateVersion = createHash('sha256').update(templateContents.join('')).digest('hex').slice(0, 12);
 
@@ -327,7 +328,11 @@ export async function report(context) {
     // store without the method, or a fresh data branch, simply yields null and
     // the dashboard renders its first-run calm state.
     const priorPortfolio = await store?.readLatestPortfolioWeekly?.() ?? null;
-    const portfolioHtml = generatePortfolioReport(owner, portfolio, repoDetails, null, depInventory, config, context.governanceFindings, priorPortfolio, context.priorAutofixNotDrivenCount);
+    const portfolioHtml = generatePortfolioReport({
+      owner, portfolio, details: repoDetails, depInventory, config,
+      governanceFindings: context.governanceFindings, priorPortfolio,
+      priorAutofixNotDrivenCount: context.priorAutofixNotDrivenCount,
+    });
     await writeFile(join(outDir, 'index.html'), portfolioHtml);
     console.log('Portfolio report written to index.html');
 

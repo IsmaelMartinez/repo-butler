@@ -152,7 +152,7 @@ Return value: `{ tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed,
 
 ## Field Mapping: snapshot → enriched portfolio object
 
-`fetchPortfolioDetails()` in `src/report-portfolio.js` fetches additional data per repo and returns a `details` map keyed by repo name. The field names differ from the snapshot. `contributors` is added after `fetchPortfolioDetails()` returns, during the per-repo loop in `src/report.js`.
+`fetchPortfolioDetails()` in `src/report-portfolio-data.js` fetches additional data per repo and returns a `details` map keyed by repo name. The field names differ from the snapshot. `contributors` is added after `fetchPortfolioDetails()` returns, during the per-repo loop in `src/report.js`.
 
 | Field on enriched object | Type | Source |
 |---|---|---|
@@ -281,7 +281,8 @@ No HTTP integration remains between them. ADR-001 and ADR-002 still specify an `
 - `src/index.js` — phase routing, context assembly, output
 - `src/observe.js` — snapshot shape, `buildSummary()`, `classifyRepos()`, `computeBusFactor()`, `computeTimeToCloseMedian()`
 - `src/report-shared.js` — `computeHealthTier()`, constants, shared helpers
-- `src/report-portfolio.js` — `fetchPortfolioDetails()`, `buildCampaignSection()`, `generatePortfolioReport()`
+- `src/report-portfolio-data.js` — `fetchPortfolioDetails()`, `analyzeDependencyInventory()`
+- `src/report-portfolio.js` — `buildCampaignSection()`, `generatePortfolioReport()`
 - `src/report-repo.js` — `generateRepoReport()`, per-repo chart data fetchers
 - `src/report.js` — entry point, orchestrates portfolio and per-repo report generation
 - `src/assess.js` — `computeTrends()`, snapshot diffing

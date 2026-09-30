@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/portfolio-details.v1.schema.json",
   "title": "PortfolioDetails",
-  "description": "Map of repo name → per-repo enrichment data produced by fetchPortfolioDetails() in src/report-portfolio.js. This is the shape consumed by computeHealthTier() and the portfolio HTML report. All fields are camelCase (fetchPortfolioDetails internal convention), except open_issues which keeps its snake_case name.",
+  "description": "Map of repo name → per-repo enrichment data produced by fetchPortfolioDetails() in src/report-portfolio-data.js. This is the shape consumed by computeHealthTier() and the portfolio HTML report. All fields are camelCase (fetchPortfolioDetails internal convention), except open_issues which keeps its snake_case name.",
   "type": "object",
   "additionalProperties": {
     "$ref": "#/$defs/RepoDetails"

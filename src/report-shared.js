@@ -1,4 +1,4 @@
-// Shared helpers and constants used by report-repo.js and report-portfolio.js.
+// Shared helpers and constants used by report-repo.js, report-portfolio.js and report-portfolio-data.js.
 
 import { safeDeployedUrl } from './safety.js';
 
@@ -57,7 +57,7 @@ export function isExcludedRepo(name) {
 // still needed its one-time v5 bump above — that backfilled cache entries that
 // predated the field entirely — but neither field needs a bump on every
 // subsequent GitHub-side change: fetchPortfolioDetails's cache-hit path in
-// report-portfolio.js re-reads both live on every hit and merges the result
+// report-portfolio-data.js re-reads both live on every hit and merges the result
 // into a copy of the cached details, so they never go stale between bumps.
 // This is the cache-refresh convention: a settings-toggle field gets a live
 // read on every cache hit instead of a fresh version bump each time the
@@ -154,7 +154,7 @@ export function computeCountTrend(current, previous, { invert = false } = {}) {
 // Tally an alert array into { count, critical, high, medium, low, max_severity }.
 // `getSeverity(alert)` returns one of 'critical' | 'high' | 'medium' | 'low' (or
 // anything else / falsy, which is ignored). Single source of truth for both the
-// observe.js fetchers and the report-portfolio.js inline aggregations.
+// observe.js fetchers and the report-portfolio-data.js inline aggregations.
 export function getAlertSummary(alerts, getSeverity) {
   const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
   let critical = 0, high = 0, medium = 0, low = 0;
@@ -513,3 +513,64 @@ export function generateHealthBadge(repoName, tier) {
 </svg>`;
 }
 // refactored from report.js
+
+// --- SPDX license classification ---
+// Pure helpers shared by the dependency-inventory analysis (report-portfolio-data.js)
+// and its dashboard rendering (report-portfolio.js).
+
+const COPYLEFT_LICENSES = new Set([
+  'GPL-2.0-only', 'GPL-2.0-or-later', 'GPL-3.0-only', 'GPL-3.0-or-later',
+  'AGPL-3.0-only', 'AGPL-3.0-or-later', 'LGPL-2.1-only', 'LGPL-2.1-or-later',
+  'LGPL-3.0-only', 'LGPL-3.0-or-later', 'MPL-2.0', 'EUPL-1.2',
+  'GPL-2.0', 'GPL-3.0', 'AGPL-3.0', 'LGPL-2.1', 'LGPL-3.0',
+]);
+
+// License concern levels: 'high' for licenses that may impose obligations on
+// the whole project, 'low' for weak copyleft that only affects the library
+// itself and is fine for non-commercial use as a dependency.
+const LICENSE_CONCERNS = {
+  'AGPL-3.0': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
+  'AGPL-3.0-only': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
+  'AGPL-3.0-or-later': { level: 'high', note: 'Network copyleft: even SaaS use triggers source disclosure.' },
+  'GPL-2.0': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-2.0-only': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-2.0-or-later': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-3.0': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-3.0-only': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'GPL-3.0-or-later': { level: 'low', note: 'Copyleft applies to derivative works. Low risk when used as a dependency in non-commercial projects.' },
+  'LGPL-2.1': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-2.1-only': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-2.1-or-later': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-3.0': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-3.0-only': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'LGPL-3.0-or-later': { level: 'low', note: 'Weak copyleft: only modifications to the library itself must be shared. Fine as a dependency.' },
+  'MPL-2.0': { level: 'low', note: 'File-level copyleft: only modified files must stay MPL-2.0. Fine as a dependency.' },
+  'EUPL-1.2': { level: 'low', note: 'EU copyleft similar to LGPL. Fine as a dependency.' },
+};
+
+// Parse SPDX expression into individual license identifiers.
+// Handles AND/OR, parentheses, and WITH exceptions.
+function parseSpdxParts(license) {
+  if (!license) return [];
+  return license
+    .replace(/[()]/g, '')
+    .split(/\s+(?:AND|OR)\s+/)
+    .map(part => part.replace(/\s+WITH\s+.+$/, '').trim())
+    .filter(Boolean);
+}
+
+export function describeLicenseConcern(license) {
+  if (!license) return { level: 'low', note: 'Unknown license terms.' };
+  for (const part of parseSpdxParts(license)) {
+    if (LICENSE_CONCERNS[part]) return LICENSE_CONCERNS[part];
+  }
+  return { level: 'low', note: 'Copyleft license — low risk as a dependency in non-commercial projects.' };
+}
+
+export function isHighConcernLicense(license) {
+  return parseSpdxParts(license).some(part => LICENSE_CONCERNS[part]?.level === 'high');
+}
+
+export function isCopyleft(license) {
+  return parseSpdxParts(license).some(part => COPYLEFT_LICENSES.has(part));
+}
