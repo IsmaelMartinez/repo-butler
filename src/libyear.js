@@ -180,7 +180,7 @@ export function aggregateLibyear(resolved) {
  * Returns { total_libyear, dependency_count, deps, oldest } or null on complete failure.
  * Each dep in deps: { name, current, latest, years }.
  */
-export async function computeLibyear(sbomPackages, perFetchTimeoutMs, loopBreakSignal) {
+async function computeLibyear(sbomPackages, perFetchTimeoutMs, loopBreakSignal) {
   const deps = filterSupportedDeps(sbomPackages);
   if (deps.length === 0) return null;
 

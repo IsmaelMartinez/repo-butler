@@ -23,18 +23,9 @@ import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
   fetchWeeklyCommits, fetchPRAuthors, computePRCycleTime,
   generateRepoReport, generateLightRepoReport,
-  buildActionItems, computeContributorStats,
 } from './report-repo.js';
-import {
-  generatePortfolioReport, generateDigestReport,
-  generateSparklineSVG, buildCampaignSection,
-} from './report-portfolio.js';
+import { generatePortfolioReport, generateDigestReport } from './report-portfolio.js';
 import { fetchPortfolioDetails, analyzeDependencyInventory } from './report-portfolio-data.js';
-
-// Re-export everything that tests and other modules need from report.js
-export { generateHealthBadge, computeHealthTier } from './report-shared.js';
-export { buildActionItems, computeContributorStats } from './report-repo.js';
-export { generateSparklineSVG, buildCampaignSection, generateDigestReport, buildPortfolioAttentionSection, buildGovernanceSection, buildAutofixNudge } from './report-portfolio.js';
 
 // Thin orchestration wrapper used by the index dispatcher.
 export async function runReport(context) {

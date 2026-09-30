@@ -41,7 +41,7 @@ const DETERMINISTIC_ATTEMPTS = 3;
  * Which butler workflow opened this PR, from its branch name.
  * @returns {'apply'|'onboard'|'roadmap-update'|null}
  */
-export function classifyButlerBranch(ref) {
+function classifyButlerBranch(ref) {
   if (typeof ref !== 'string' || !ref.startsWith(BRANCH_PREFIX)) return null;
   const rest = ref.slice(BRANCH_PREFIX.length);
   if (rest.startsWith('apply-')) return 'apply';

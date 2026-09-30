@@ -468,7 +468,7 @@ export function buildPortfolioAttentionSection(repos, details, owner, config) {
 
 // --- Dependency inventory section ---
 
-export function buildDependencyInventorySection(inventory) {
+function buildDependencyInventorySection(inventory) {
   if (!inventory || inventory.reposWithSBOM === 0) return '';
 
   let html = `<h2>Dependency Inventory</h2>
@@ -598,7 +598,7 @@ function computePortfolioState(classified, atRisk, governanceFindings) {
 }
 
 // A single top-of-page banner for genuinely urgent security state.
-export function buildCriticalBanner(atRisk) {
+function buildCriticalBanner(atRisk) {
   if (!atRisk || atRisk.length === 0) return '';
   const shown = atRisk.slice(0, 5).map(r => `<a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a>`).join(', ');
   const more = atRisk.length > 5 ? ` and ${atRisk.length - 5} more` : '';
@@ -640,7 +640,7 @@ export function buildAutofixNudge(findings, priorCount = null) {
 // The calm headline block: a status dot, a state-aware headline in the butler's
 // voice, the tier mix, the portfolio's vulnerability posture, and a
 // week-over-week Gold trend when a prior snapshot exists.
-export function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount) {
+function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount) {
   const voice = BUTLER_STATUS[state] || BUTLER_STATUS.healthy;
   const tone = state === 'critical' ? 'crit' : state === 'attention' ? 'warn' : 'ok';
   // Severity-neutral wording: critHighCount mixes critical/high vulns and
@@ -669,7 +669,7 @@ export function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCo
 // current run against the previous portfolio-weekly snapshot: tier moves (via
 // the pure detectTierChanges core) and security posture changes. Quiet by
 // design — a calm one-liner when nothing moved, which is the common case.
-export function buildSinceLastSection(classified, priorPortfolio) {
+function buildSinceLastSection(classified, priorPortfolio) {
   const priorRepos = priorPortfolio?.repos;
   if (!priorRepos) {
     return `<section class="since-block"><h2>Since the last run</h2><p class="since-empty">${SINCE_FIRST_RUN}</p></section>`;

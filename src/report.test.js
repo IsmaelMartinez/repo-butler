@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { reportCacheHit } from './report.js';
 
 describe('report module', () => {
-  it('exports report and generateDigestReport', async () => {
+  it('exports report and runReport', async () => {
     const mod = await import('./report.js');
     assert.equal(typeof mod.report, 'function');
-    assert.equal(typeof mod.generateDigestReport, 'function');
+    assert.equal(typeof mod.runReport, 'function');
   });
 });
 

@@ -1008,4 +1008,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, loadSnapshot, loadPortfolioWeekly, unwrapWeeklyRepos, computePortfolioHealth, computeCampaigns, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, WEEKLY_FILE_PATTERN, callTool, setIo, weekTier, computeStaleness, TOOLS, RESOURCES };
+export { handleMessage, unwrapWeeklyRepos, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, WEEKLY_FILE_PATTERN, callTool, setIo, weekTier, computeStaleness, TOOLS, RESOURCES };

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildActionItems, computeContributorStats } from './report.js';
+import { buildActionItems, computeContributorStats } from './report-repo.js';
 
 describe('buildActionItems', () => {
   const baseSnapshot = {

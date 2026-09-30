@@ -1,10 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateSparklineSVG, buildCampaignSection, buildGovernanceSection, buildAutofixNudge } from './report.js';
+import { generateSparklineSVG, buildCampaignSection, buildGovernanceSection, buildAutofixNudge } from './report-portfolio.js';
 
 describe('generateDigestReport', () => {
   it('produces HTML containing digest structure', async () => {
-    const { generateDigestReport } = await import('./report.js');
+    const { generateDigestReport } = await import('./report-portfolio.js');
     const repos = [
       { name: 'alpha', description: 'Test repo', language: 'JavaScript', stars: 10, forks: 2, open_issues: 3, pushed_at: new Date().toISOString(), archived: false, fork: false },
       { name: 'beta', description: 'Another repo', language: 'Go', stars: 5, forks: 1, open_issues: 12, pushed_at: new Date().toISOString(), archived: false, fork: false },
@@ -26,7 +26,7 @@ describe('generateDigestReport', () => {
   });
 
   it('shows vulnerability card when vulns exist', async () => {
-    const { generateDigestReport } = await import('./report.js');
+    const { generateDigestReport } = await import('./report-portfolio.js');
     const repos = [
       { name: 'vuln-repo', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false },
     ];
@@ -40,7 +40,7 @@ describe('generateDigestReport', () => {
   });
 
   it('shows CI concerns card when pass rate is low', async () => {
-    const { generateDigestReport } = await import('./report.js');
+    const { generateDigestReport } = await import('./report-portfolio.js');
     const repos = [
       { name: 'ci-repo', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false },
     ];
@@ -54,7 +54,7 @@ describe('generateDigestReport', () => {
   });
 
   it('shows dormant repos card', async () => {
-    const { generateDigestReport } = await import('./report.js');
+    const { generateDigestReport } = await import('./report-portfolio.js');
     const sevenMonthsAgo = new Date(Date.now() - 210 * 86400000).toISOString();
     const repos = [
       { name: 'old-repo', stars: 1, forks: 0, open_issues: 0, pushed_at: sevenMonthsAgo, archived: false, fork: false },
@@ -67,7 +67,7 @@ describe('generateDigestReport', () => {
   });
 
   it('shows repos with most open issues card', async () => {
-    const { generateDigestReport } = await import('./report.js');
+    const { generateDigestReport } = await import('./report-portfolio.js');
     const repos = [
       { name: 'issue-heavy', stars: 1, forks: 0, open_issues: 15, pushed_at: new Date().toISOString(), archived: false, fork: false },
     ];
@@ -81,7 +81,7 @@ describe('generateDigestReport', () => {
   });
 
   it('excludes archived and fork repos', async () => {
-    const { generateDigestReport } = await import('./report.js');
+    const { generateDigestReport } = await import('./report-portfolio.js');
     const repos = [
       { name: 'archived-repo', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: true, fork: false },
       { name: 'forked-repo', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: true },

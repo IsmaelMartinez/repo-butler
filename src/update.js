@@ -38,7 +38,7 @@ const ROADMAP_BRANCH_PREFIX = 'repo-butler/roadmap-update-';
 // into the next roadmap prompt, and #382, #392, #393 and #394 all became
 // near-identical "Automated roadmap self-maintenance updated …" entries. The
 // butler recording that it recorded is not a shipped capability.
-export const ROADMAP_PR_TITLE = 'chore: update roadmap (repo-butler)';
+const ROADMAP_PR_TITLE = 'chore: update roadmap (repo-butler)';
 export function isRoadmapUpdatePr(pr) {
   return pr?.title === ROADMAP_PR_TITLE;
 }
