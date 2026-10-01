@@ -4,7 +4,7 @@ name: Governance Apply (scheduled)
 # (workflow_dispatch only, ADR-005 gate 1), this runs on a schedule. Graduated to
 # live 2026-06-15: the weekly cron run defaults to live (writes), acting only on
 # the finding classes promoted via `apply-schedule` in roadmap.yml; a manual
-# workflow_dispatch still defaults to dry-run. require_approval, the per-run cap,
+# workflow_dispatch still defaults to dry-run. apply_enabled, the per-run cap,
 # batching, and repo-name validation (ADR-005 gates 2-5) all still apply, so a
 # scheduled run opens no more PRs than a dispatched one and nothing merges itself.
 

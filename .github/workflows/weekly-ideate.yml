@@ -2,7 +2,7 @@ name: Repo Butler Weekly Ideate
 
 # Runs the expensive deep-provider IDEATE phase (council deliberation) plus a
 # DRY-RUN PROPOSE pass on a weekly cadence. PROPOSE files no issues while
-# INPUT_DRY_RUN is 'true' (the default): the `require_approval && !dryRun`
+# INPUT_DRY_RUN is 'true' (the default): the `!live && !dryRun`
 # short-circuit is bypassed when dryRun is already true, so execution reaches
 # the soak log only — "DRY RUN — would create issue …" lines recording each
 # idea's resolved destination, and (ADR-011) which cross-repo nudges would
@@ -14,7 +14,7 @@ name: Repo Butler Weekly Ideate
 # only writes PROPOSE still makes in dry-run are the idempotent host-label
 # ensure — a no-op once the proposal/agent labels exist on this repo — and the
 # soak-ledger append below, both on this host repo and never a cross-repo
-# write.) A live cross-repo write additionally requires require_approval:false
+# write.) A live cross-repo write additionally requires propose_live:true
 # AND INPUT_DRY_RUN:false — the two remaining deliberate, separately-reviewed
 # flips. Each run's routing records also persist to a rolling ledger at
 # snapshots/propose-soak.json on the repo-butler-data branch (max 26 entries),

@@ -11,6 +11,8 @@ one specific rule and does not automatically carry over.* This is the first clas
 be admitted under that clause, and — unlike Copilot review — it does **not** cleanly
 pass the benign-worst-case test, so it is fenced tighter than the ADR-009 class.
 
+Amended: 2026-09-30 — superseded by #423: the apply gate is `limits.apply_enabled`, PROPOSE's is `limits.propose_live`; the `require_approval` references below are history.
+
 ## Context
 
 Phase 1 (PR #331) added the deterministic `open-vulnerability` governance finding: a

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER, isRecentlyDeclined, APPLY_DECLINE_COOLDOWN_DAYS, requireApprovalGate, positiveCap } from './apply.js';
+import { validateFindings, generateTemplate, applyGovernanceFindings, capPerTool, selectNudgeTargets, nudgeStaleDependabotPRs, isDeterministicFailure, isScheduleAllowed, selectCopilotReviewTargets, buildCopilotReviewRuleset, applyCopilotReviewRulesets, findButlerCopilotRuleset, removeCopilotReviewRuleset, COPILOT_RULESET_NAME, selectDependabotSecurityTargets, applyDependabotSecurityUpdates, removeDependabotSecurityUpdates, disableDependabotSecurityUpdates, isAutoMergeAllowed, autoMergeGovernancePRs, APPLY_PR_MARKER, isRecentlyDeclined, APPLY_DECLINE_COOLDOWN_DAYS, applyEnabledGate, positiveCap } from './apply.js';
 
 describe('isRecentlyDeclined', () => {
   const now = Date.parse('2026-08-13T00:00:00Z');
@@ -704,7 +704,7 @@ describe('applyGovernanceFindings', () => {
   const baseFindings = [
     { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
   ];
-  const baseConfig = { limits: { require_approval: true } };
+  const baseConfig = { limits: { apply_enabled: true } };
 
   it('skips repos with invalid names', async () => {
     const findings = [
@@ -736,8 +736,8 @@ describe('applyGovernanceFindings', () => {
     assert.equal(calls.length, 0);
   });
 
-  it('refuses to run when require_approval is false', async () => {
-    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, { limits: { require_approval: false } }, { dryRun: false });
+  it('refuses to run when apply_enabled is false', async () => {
+    const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, { limits: { apply_enabled: false } }, { dryRun: false });
     assert.equal(result.status, 'refused');
     assert.equal(calls.length, 0);
   });
@@ -787,7 +787,7 @@ describe('applyGovernanceFindings', () => {
     const findings = [
       { type: 'standards-gap', tool: 'code-scanning', nonCompliant: repos, repoEcosystems: ecos },
     ];
-    const config = { limits: { require_approval: true }, 'apply-cap': { 'code-scanning': 7 } };
+    const config = { limits: { apply_enabled: true }, 'apply-cap': { 'code-scanning': 7 } };
     // global maxPerRun is 5, but the override lifts code-scanning to 7
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, maxPerRun: 5 });
     assert.equal(result.status, 'dry-run');
@@ -801,7 +801,7 @@ describe('applyGovernanceFindings', () => {
       { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: repos, repoEcosystems: ecos },
     ];
     // apply-cap only overrides code-scanning; dependabot-actions uses global 5
-    const config = { limits: { require_approval: true }, 'apply-cap': { 'code-scanning': 7 } };
+    const config = { limits: { apply_enabled: true }, 'apply-cap': { 'code-scanning': 7 } };
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, maxPerRun: 5 });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.pairs.length, 5);
@@ -815,7 +815,7 @@ describe('applyGovernanceFindings', () => {
       { type: 'standards-gap', tool: 'code-scanning', nonCompliant: csRepos, repoEcosystems: ecos },
       { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: daRepos, repoEcosystems: ecos },
     ];
-    const config = { limits: { require_approval: true }, 'apply-cap': { 'code-scanning': 3, 'dependabot-actions': 2 } };
+    const config = { limits: { apply_enabled: true }, 'apply-cap': { 'code-scanning': 3, 'dependabot-actions': 2 } };
     const result = await applyGovernanceFindings(mockGh, 'owner', findings, config, { dryRun: true, maxPerRun: 5 });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.pairs.filter(p => p.tool === 'code-scanning').length, 3);
@@ -1113,7 +1113,7 @@ describe('applyGovernanceFindings', () => {
   });
 
   it('scheduled run applies only allow-listed finding classes', async () => {
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'code-scanning': true } };
     const findings = [
       { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
       { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
@@ -1125,7 +1125,7 @@ describe('applyGovernanceFindings', () => {
   });
 
   it('manual dispatch ignores apply-schedule entirely (regression guard)', async () => {
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'code-scanning': true } };
     const findings = [
       { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
       { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-b'], repoEcosystems: { 'repo-b': 'JavaScript' } },
@@ -1136,15 +1136,15 @@ describe('applyGovernanceFindings', () => {
     assert.equal(result.pairs.length, 2);
   });
 
-  it('scheduled path still honours require_approval', async () => {
-    const config = { limits: { require_approval: false }, 'apply-schedule': { 'code-scanning': true } };
+  it('scheduled path still honours apply_enabled', async () => {
+    const config = { limits: { apply_enabled: false }, 'apply-schedule': { 'code-scanning': true } };
     const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
     assert.equal(result.status, 'refused');
     assert.equal(calls.length, 0);
   });
 
   it('scheduled path stays dry-run fail-closed even for an allow-listed class', async () => {
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'code-scanning': true } };
     // dryRun omitted → must not act
     const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { scheduled: true });
     assert.equal(result.status, 'dry-run');
@@ -1153,14 +1153,14 @@ describe('applyGovernanceFindings', () => {
   });
 
   it('scheduled live run opens PRs for an allow-listed class', async () => {
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'code-scanning': true } };
     const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
     assert.equal(result.status, 'completed');
     assert.equal(result.summary.created, 1);
   });
 
   it('tolerates a quoted "true" in apply-schedule (stringy YAML)', async () => {
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-scanning': 'true' } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'code-scanning': 'true' } };
     const result = await applyGovernanceFindings(mockGh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.pairs.length, 1, 'a quoted "true" still promotes the class');
@@ -1220,7 +1220,7 @@ describe('selectNudgeTargets', () => {
 });
 
 describe('nudgeStaleDependabotPRs', () => {
-  const baseConfig = { limits: { require_approval: true } };
+  const baseConfig = { limits: { apply_enabled: true } };
   const baseFindings = [
     { type: 'dependabot-stale', repo: 'repo-a', stalePRs: [{ number: 7, title: 'bump lodash', age: 45 }] },
   ];
@@ -1241,7 +1241,7 @@ describe('nudgeStaleDependabotPRs', () => {
     return { gh, calls };
   }
 
-  it('refuses to run when require_approval is not set', async () => {
+  it('refuses to run when apply_enabled is not set', async () => {
     const { gh, calls } = mkGh();
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
     assert.equal(result.status, 'refused');
@@ -1316,7 +1316,7 @@ describe('nudgeStaleDependabotPRs', () => {
 
   it('scheduled run nudges when dependabot-rebase is allow-listed', async () => {
     const { gh } = mkGh();
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-rebase': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'dependabot-rebase': true } };
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
     assert.equal(result.status, 'completed');
     assert.deepEqual(result.summary, { nudged: 1, skipped: 0, escalated: 0, errors: 0 });
@@ -1325,7 +1325,7 @@ describe('nudgeStaleDependabotPRs', () => {
   it('manual dispatch ignores apply-schedule for the nudge (regression guard)', async () => {
     const { gh } = mkGh();
     // scheduled omitted → manual path; apply-schedule must not gate the nudge
-    const config = { limits: { require_approval: true }, 'apply-schedule': {} };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': {} };
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.targets.length, 1);
@@ -1333,7 +1333,7 @@ describe('nudgeStaleDependabotPRs', () => {
 
   it('tolerates a quoted "true" for dependabot-rebase on the scheduled path', async () => {
     const { gh } = mkGh();
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-rebase': 'true' } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'dependabot-rebase': 'true' } };
     const result = await nudgeStaleDependabotPRs(gh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
     assert.equal(result.status, 'dry-run');
     assert.equal(result.targets.length, 1);
@@ -1546,10 +1546,10 @@ describe('buildCopilotReviewRuleset', () => {
 });
 
 describe('applyCopilotReviewRulesets', () => {
-  const baseConfig = { limits: { require_approval: true } };
+  const baseConfig = { limits: { apply_enabled: true } };
   const baseFindings = [{ type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a'] }];
 
-  it('refuses to run when require_approval is not set', async () => {
+  it('refuses to run when apply_enabled is not set', async () => {
     const calls = [];
     const gh = { request: async (p, o) => { calls.push({ p, o }); return {}; }, paginate: async () => [] };
     const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
@@ -1658,7 +1658,7 @@ describe('applyCopilotReviewRulesets', () => {
 
   it('scheduled run acts when code-review-bot is allow-listed', async () => {
     const gh = { paginate: async () => [], request: async () => ({}) };
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'code-review-bot': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'code-review-bot': true } };
     const result = await applyCopilotReviewRulesets(gh, 'owner', baseFindings, config, { dryRun: true, scheduled: true });
     assert.equal(result.status, 'dry-run');
   });
@@ -1797,10 +1797,10 @@ describe('selectDependabotSecurityTargets', () => {
 });
 
 describe('applyDependabotSecurityUpdates', () => {
-  const baseConfig = { limits: { require_approval: true } };
+  const baseConfig = { limits: { apply_enabled: true } };
   const baseFindings = [{ type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'] }];
 
-  it('refuses to run when require_approval is not set', async () => {
+  it('refuses to run when apply_enabled is not set', async () => {
     const calls = [];
     const gh = { request: async (p, o) => { calls.push({ p, o }); return {}; } };
     const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
@@ -1938,7 +1938,7 @@ describe('applyDependabotSecurityUpdates', () => {
 
   it('scheduled run skips even when someone puts it on the apply-schedule allow-list (never allow-listable)', async () => {
     const gh = { request: async () => ({}) };
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-security': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'dependabot-security': true } };
     const result = await applyDependabotSecurityUpdates(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
     assert.equal(result.status, 'skipped-unscheduled', 'the allow-list must NOT be able to promote this class');
   });
@@ -1986,13 +1986,13 @@ describe('removeDependabotSecurityUpdates', () => {
 });
 
 describe('disableDependabotSecurityUpdates (dependabot-security-off reversibility dispatch)', () => {
-  const baseConfig = { limits: { require_approval: true } };
+  const baseConfig = { limits: { apply_enabled: true } };
   const baseFindings = [
     { type: 'open-vulnerability', repo: 'repo-a', sources: ['dependabot'] },
     { type: 'open-vulnerability', repo: 'repo-b', sources: ['dependabot'] },
   ];
 
-  it('refuses to run when require_approval is not set (Gate 3)', async () => {
+  it('refuses to run when apply_enabled is not set (Gate 3)', async () => {
     const calls = [];
     const gh = { request: async (p, o) => { calls.push({ p, o }); return null; } };
     const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, { limits: {} }, { dryRun: false });
@@ -2049,7 +2049,7 @@ describe('disableDependabotSecurityUpdates (dependabot-security-off reversibilit
 
   it('scheduled run skips even when someone allow-lists it (never allow-listable — the reversal inherits the enable fence)', async () => {
     const gh = { request: async () => { throw new Error('should never be called'); } };
-    const config = { limits: { require_approval: true }, 'apply-schedule': { 'dependabot-security-off': true } };
+    const config = { limits: { apply_enabled: true }, 'apply-schedule': { 'dependabot-security-off': true } };
     const result = await disableDependabotSecurityUpdates(gh, 'owner', baseFindings, config, { dryRun: false, scheduled: true });
     assert.equal(result.status, 'skipped-unscheduled');
   });
@@ -2101,7 +2101,7 @@ describe('isAutoMergeAllowed', () => {
 });
 
 describe('autoMergeGovernancePRs', () => {
-  const cfg = (automerge = {}) => ({ limits: { require_approval: true }, 'apply-automerge': automerge });
+  const cfg = (automerge = {}) => ({ limits: { apply_enabled: true }, 'apply-automerge': automerge });
   const findings = [
     { type: 'standards-gap', tool: 'dependabot-actions', nonCompliant: ['repo-a'] },
     { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-b'] },
@@ -2208,9 +2208,9 @@ describe('autoMergeGovernancePRs', () => {
     assert.equal(merges.length, 0);
   });
 
-  it('refuses when require_approval is not true (system-wide kill switch)', async () => {
+  it('refuses when apply_enabled is not true (system-wide kill switch)', async () => {
     const gh = mkGh({ open: { 'repo-a:dependabot-actions': [{ number: 7, head: { sha: 'h7' } }] } });
-    const r = await autoMergeGovernancePRs(gh, 'owner', findings, { limits: { require_approval: false }, 'apply-automerge': { 'dependabot-actions': true } }, { dryRun: false });
+    const r = await autoMergeGovernancePRs(gh, 'owner', findings, { limits: { apply_enabled: false }, 'apply-automerge': { 'dependabot-actions': true } }, { dryRun: false });
     assert.equal(r.status, 'refused');
   });
 
@@ -2318,8 +2318,8 @@ describe('autoMergeGovernancePRs', () => {
 
 // Issue #406: the hand-rolled YAML parser passes a quoted `"false"` (and `no`,
 // `False`) through as a string, which is truthy. Every apply entry point must
-// refuse unless require_approval is the boolean true.
-describe('require_approval gate is the boolean true, never a truthy value', () => {
+// refuse unless apply_enabled is the boolean true.
+describe('apply_enabled gate is the boolean true, never a truthy value', () => {
   const findings = [
     { type: 'standards-gap', tool: 'code-scanning', nonCompliant: ['repo-a'], repoEcosystems: { 'repo-a': 'JavaScript' } },
     { type: 'standards-gap', tool: 'code-review-bot', nonCompliant: ['repo-a'] },
@@ -2346,38 +2346,42 @@ describe('require_approval gate is the boolean true, never a truthy value', () =
     };
   }
   const nonBooleans = [
-    ['"false"', { require_approval: 'false' }],
-    ['"true"', { require_approval: 'true' }],
-    ['1', { require_approval: 1 }],
+    ['"false"', { apply_enabled: 'false' }],
+    ['"true"', { apply_enabled: 'true' }],
+    ['1', { apply_enabled: 1 }],
+    ['yes', { apply_enabled: 'yes' }],
+    ['null', { apply_enabled: null }],
     ['absent', {}],
+    // #423: PROPOSE's live switch must never stand in for apply's.
+    ['absent with propose_live true', { propose_live: true }],
   ];
 
   for (const [name, fn] of Object.entries(entryPoints)) {
     for (const [label, limits] of nonBooleans) {
-      it(`${name} refuses require_approval ${label} without touching the API`, async () => {
+      it(`${name} refuses apply_enabled ${label} without touching the API`, async () => {
         const { gh, calls } = mkGh();
         const r = await fn(gh, 'owner', findings, { limits }, { dryRun: false });
-        assert.deepEqual(r, { status: 'refused', reason: 'require_approval not set' });
+        assert.deepEqual(r, { status: 'refused', reason: 'apply_enabled not set' });
         assert.equal(calls.length, 0);
       });
     }
 
     it(`${name} proceeds past the gate on the boolean true`, async () => {
       const { gh } = mkGh();
-      const r = await fn(gh, 'owner', findings, { limits: { require_approval: true } }, { dryRun: true });
+      const r = await fn(gh, 'owner', findings, { limits: { apply_enabled: true } }, { dryRun: true });
       assert.notEqual(r.status, 'refused');
     });
   }
 
-  it('requireApprovalGate logs the received type, never the value', () => {
+  it('applyEnabledGate logs the received type, never the value', () => {
     const errors = [];
     const orig = console.error;
     console.error = (m) => errors.push(m);
     try {
-      assert.equal(requireApprovalGate({ limits: { require_approval: 'false' } }, 'apply'), false);
-      assert.equal(requireApprovalGate({ limits: {} }, 'apply'), false);
-      assert.equal(requireApprovalGate(undefined, 'apply'), false);
-      assert.equal(requireApprovalGate({ limits: { require_approval: true } }, 'apply'), true);
+      assert.equal(applyEnabledGate({ limits: { apply_enabled: 'false' } }, 'apply'), false);
+      assert.equal(applyEnabledGate({ limits: {} }, 'apply'), false);
+      assert.equal(applyEnabledGate(undefined, 'apply'), false);
+      assert.equal(applyEnabledGate({ limits: { apply_enabled: true } }, 'apply'), true);
     } finally {
       console.error = orig;
     }

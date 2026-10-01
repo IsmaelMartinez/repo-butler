@@ -24,7 +24,7 @@ import { getLargeFileContent } from './github.js';
 import { REPO_NAME_PATTERN, validateIssueBody, validateIssueTitle } from './safety.js';
 import { parseVersion } from './trimmer.js';
 import { alertDirectory } from './stalled-alert.js';
-import { APPLY_PR_MARKER, isScheduleAllowed, positiveCap, requireApprovalGate, screenApplyTarget } from './apply.js';
+import { APPLY_PR_MARKER, isScheduleAllowed, positiveCap, applyEnabledGate, screenApplyTarget } from './apply.js';
 
 export const LOCKFILE_UPDATE_TOOL = 'lockfile-update';
 
@@ -714,7 +714,7 @@ async function openPullRequest(gh, owner, repo, { branchName, defaultBranch, bas
  * Governance write (ADR-015): for every `stalled-alert` finding whose alerts
  * the trimmer classified `reachable-by-update`, refresh the lockfile with npm,
  * run the gate, and open a PR. One PR per (repo, directory); one target at a
- * time. The ADR-005 gates apply unchanged: require_approval, dry-run
+ * time. The ADR-005 gates apply unchanged: apply_enabled, dry-run
  * fail-closed (only the literal `false` writes), the per-run cap, repo-name
  * validation, and — unlike a template class — the scheduled path only when
  * `apply-schedule` names the tool, since this is a content-transformation write.
@@ -726,8 +726,8 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
   const { dryRun, maxPerRun = 5, scheduled, runNpmUpdate = runNpmUpdateInTempDir } = options;
   const log = (msg) => console.log(`${LOCKFILE_UPDATE_TOOL}: ${msg}`);
 
-  if (!requireApprovalGate(config, LOCKFILE_UPDATE_TOOL)) {
-    return { status: 'refused', reason: 'require_approval not set' };
+  if (!applyEnabledGate(config, LOCKFILE_UPDATE_TOOL)) {
+    return { status: 'refused', reason: 'apply_enabled not set' };
   }
   if (scheduled && !isScheduleAllowed(config?.['apply-schedule'], LOCKFILE_UPDATE_TOOL)) {
     log('[scheduled]: not on the apply-schedule allow-list — skipping');

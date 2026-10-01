@@ -4,8 +4,10 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { loadConfigSync } from './config.js';
 
 const skillPath = join(import.meta.dirname, '..', 'docs', 'skill.md');
 const skill = readFileSync(skillPath, 'utf8');
@@ -46,7 +48,28 @@ describe('skill content coverage', () => {
   it('documents the config format', () => {
     assert.ok(skill.includes('roadmap.yml'), 'skill should mention config file');
     assert.ok(skill.includes('max_issues_per_run'), 'skill should document key config fields');
-    assert.ok(skill.includes('require_approval'), 'skill should document approval gate');
+    assert.ok(skill.includes('apply_enabled'), 'skill should document the apply master switch');
+    assert.ok(skill.includes('propose_live'), 'skill should document the PROPOSE live switch');
+  });
+
+  // The hand-rolled parser does not strip inline `# ...` comments, so a value
+  // with one trailing loads as a string — and the strict boolean gates read
+  // `apply_enabled: true   # ...` as refused. Load the documented snippet for real.
+  it('the config example loads to the values it shows', () => {
+    const snippet = /```yaml\n(providers:[\s\S]*?)```/.exec(skill)?.[1];
+    assert.ok(snippet, 'config example not found');
+    const dir = mkdtempSync(join(tmpdir(), 'skill-config-'));
+    try {
+      const path = join(dir, 'roadmap.yml');
+      writeFileSync(path, snippet);
+      const config = loadConfigSync(path);
+      assert.equal(config.providers.default, 'gemini');
+      assert.equal(config.providers.deep, 'claude');
+      assert.equal(config.limits.apply_enabled, true);
+      assert.equal(config.limits.propose_live, false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('documents how to run locally and as GitHub Action', () => {

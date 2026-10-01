@@ -18,7 +18,12 @@ export const DEFAULTS = deepFreeze({
     // cross-repo targets only — the host backlog stays bounded by
     // max_issues_per_run — so it never changes host behaviour. Kept low.
     max_issues_per_target: 1,
-    require_approval: true,
+    // Two lane-specific switches (#423), read strictly as the boolean true by
+    // their gates. apply_enabled: true lets Governance Apply run (apply.js
+    // applyEnabledGate); false halts every apply action. propose_live: true lets
+    // PROPOSE file issues for real; anything else holds it in dry-run.
+    apply_enabled: true,
+    propose_live: false,
     labels: {
       proposal: 'roadmap-proposal',
       agent: 'agent-generated',
@@ -53,7 +58,7 @@ export const DEFAULTS = deepFreeze({
   // governance-apply PRs for that class — opt-in, never global, bounded to the
   // deterministic template tools. Empty by default (default-closed), so nothing
   // auto-merges until a class is explicitly added in a reviewed config change.
-  // Kill switches: empty this, set require_approval false, or disable the
+  // Kill switches: empty this, set limits.apply_enabled false, or disable the
   // scheduled workflow.
   'apply-automerge': {},
   // Cross-repo PROPOSE allow-list (ADR-010 / ADR-011). Key-presence map of target
@@ -79,11 +84,27 @@ function deepFreeze(obj) {
   return Object.freeze(obj);
 }
 
-// Parse raw roadmap YAML over the defaults. Pure — shared by both the async
-// and sync loaders so neither can drift from the other's defaults. Internal:
-// callers pick a loader, not the parse step.
-function parseConfig(raw) {
-  return deepMerge(DEFAULTS, parseSimpleYaml(raw));
+// Parse raw roadmap YAML over the defaults. Shared by both the async and sync
+// loaders so neither can drift from the other's defaults; its only side effect
+// is the optional `warn` callback (the sync loader passes none, see below).
+// Internal: callers pick a loader, not the parse step.
+//
+// #423 renamed limits.require_approval to apply_enabled / propose_live. The
+// check reads the user's parsed file, not the merged result, because after the
+// merge DEFAULTS has filled apply_enabled: true and nothing downstream can tell
+// a deliberate value from a default — so a `require_approval: false` kill switch
+// left in an un-migrated config would silently re-enable apply. Translating the
+// old key is not safe either: its `false` also meant "PROPOSE files for real".
+// So any presence closes BOTH lanes (apply refused, PROPOSE dry-run) until the
+// file is migrated, and doing it here logs one line rather than one per gate.
+function parseConfig(raw, warn) {
+  const parsed = parseSimpleYaml(raw);
+  const merged = deepMerge(DEFAULTS, parsed);
+  if (parsed.limits && typeof parsed.limits === 'object' && Object.hasOwn(parsed.limits, 'require_approval')) {
+    warn?.('config: limits.require_approval was renamed to apply_enabled / propose_live (#423) — refusing apply and holding PROPOSE in dry-run until the config is migrated');
+    merged.limits = { ...merged.limits, apply_enabled: false, propose_live: false };
+  }
+  return merged;
 }
 
 // The INPUT_DRY_RUN action input, fail-closed: only the literal string 'false'
@@ -99,7 +120,7 @@ export async function loadConfig(path) {
   }
 
   const raw = await readFile(path, 'utf-8');
-  return parseConfig(raw);
+  return parseConfig(raw, (msg) => console.error(msg));
 }
 
 // Synchronous twin of loadConfig, for the MCP server: callTool dispatches

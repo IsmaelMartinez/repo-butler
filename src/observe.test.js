@@ -607,7 +607,8 @@ describe('config module', () => {
     const config = await loadConfig('/nonexistent/path.yml');
     assert.equal(config.roadmap.path, 'ROADMAP.md');
     assert.equal(config.limits.max_issues_per_run, 3);
-    assert.equal(config.limits.require_approval, true);
+    assert.equal(config.limits.apply_enabled, true);
+    assert.equal(config.limits.propose_live, false);
   });
 });
 

@@ -4,7 +4,7 @@
 // invokes, how INPUT_DRY_RUN / INPUT_SCHEDULED / INPUT_MAX_APPLY_PER_RUN are
 // read, what lands in GITHUB_OUTPUT, and how per-class errors fail the phase.
 //
-// Invocation probe: with `limits.require_approval` not the boolean true, every
+// Invocation probe: with `limits.apply_enabled` not the boolean true, every
 // apply class refuses on its first line and logs `<label>: config.limits...`,
 // making no API call. The set of labels logged is therefore exactly the set of
 // classes runApply dispatched.
@@ -34,8 +34,8 @@ const FINDINGS = [
   },
 ];
 
-const REFUSING = { limits: { require_approval: false } };
-const APPROVED = { limits: { require_approval: true }, 'apply-automerge': { 'security-md': true } };
+const REFUSING = { limits: { apply_enabled: false } };
+const APPROVED = { limits: { apply_enabled: true }, 'apply-automerge': { 'security-md': true } };
 
 let savedEnv;
 let savedExitCode;
@@ -98,7 +98,7 @@ async function runApplyPhase({ env = {}, findings = FINDINGS, config = REFUSING,
   mock.restoreAll();
   const invoked = new Set(
     errLines
-      .map(l => /^(\S+): config\.limits\.require_approval is not the boolean true/.exec(l)?.[1])
+      .map(l => /^(\S+): config\.limits\.apply_enabled is not the boolean true/.exec(l)?.[1])
       .filter(Boolean),
   );
   return {

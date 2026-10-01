@@ -85,8 +85,8 @@ Dependabot alerts, and stale Dependabot PRs — and persists the findings. `IDEA
 generates improvement ideas with the deep model, feeding off freshly-detected
 governance findings, then convenes the agent council to deliberate. `PROPOSE`
 runs the approved ideas through the safety layer and files them as GitHub issues,
-capped and labelled, but only when `limits.require_approval` is `false`; while it
-is `true` (the default, and this repository's setting) PROPOSE logs what it would
+capped and labelled, but only when `limits.propose_live` is `true`; while it
+is `false` (the default, and this repository's setting) PROPOSE logs what it would
 file and creates nothing. `REPORT` builds the HTML dashboards and the A2A AgentCard and hands them to the Pages deploy. `MONITOR` is separate: it
 detects events that happen between scheduled runs and feeds them to the council
 for triage.
@@ -250,7 +250,7 @@ The daily/weekly split is the cost choreography from above made concrete: cheap
 deterministic governance every few hours, the expensive LLM ideation and council
 once a week — and because that weekly run is dry-run by default, it deliberates
 without filing issues (`PROPOSE` files issues only on a non-dry-run run with
-`require_approval: false`). Governance Apply is the path that opens PRs on other
+`propose_live: true`). Governance Apply is the path that opens PRs on other
 repositories, and it runs two ways. `apply.yml` is dispatch-only and dry-run by
 default, and acts on whatever `tools` the operator names. `apply-scheduled.yml`
 runs live every Sunday without a human at dispatch, but only for the finding
@@ -258,7 +258,7 @@ classes promoted in the `apply-schedule` allow-list, and it is where the butler
 merges its own work: on the real cron it squash-merges its own green templated
 PRs for the classes listed in `apply-automerge`, while a hands-on dispatch opens
 PRs without merging unless the operator names `tools=automerge`. Both share the ADR-005 gates,
-namely `require_approval` as master switch, a per-run cap of five, and repo-name
+namely `apply_enabled` as master switch, a per-run cap of five, and repo-name
 validation, and both skip a repo whose apply PR is open or was closed unmerged
 within the cooldown. Onboarding also runs two ways: the daily workflow's live runs
 end with an auto-onboard pass over active repos that lack the marker, and
