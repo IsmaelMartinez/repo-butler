@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt, hasUnreadableScanner } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt, hasUnreadableScanner, isTierProvisional } from './report-shared.js';
 import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
 import { runGit, readCommitsBehindMain } from './staleness.js';
@@ -331,7 +331,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot), stale butler PRs (repo-butler-opened PRs that never landed — counted as staleButlerPRs, each carrying per-PR state: awaiting-human / blocked-persistent / blocked-transient / ci-none / ci-pending / unknown), stalled alerts (open Dependabot alerts past the staleness threshold with no Dependabot PR addressing them — counted as stalledAlerts, each alert carrying a classification of why it is stuck: reachable-by-update / direct-dependency / disjoint-ranges / out-of-scope / override / unknown), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven, openVulnerabilities, and tierRegressions, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend / tierRegressionsTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot), stale butler PRs (repo-butler-opened PRs that never landed — counted as staleButlerPRs, each carrying per-PR state: awaiting-human / blocked-persistent / blocked-transient / ci-none / ci-pending / unknown), stalled alerts (open Dependabot alerts past the staleness threshold with no Dependabot PR addressing them — counted as stalledAlerts, each alert carrying a classification of why it is stuck: reachable-by-update / direct-dependency / disjoint-ranges / out-of-scope / override / unknown), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); the summary counts autofixInFlight / autofixNotDriven, openVulnerabilities, and tierRegressions, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend / tierRegressionsTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot). While any repo has an unreadable security scanner, openVulnerabilitiesTrend also carries that unreadable count and reports direction unconfirmed instead of improving.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -376,7 +376,7 @@ const TOOLS = [
   },
   {
     name: 'get_weekly_trend',
-    description: 'Get a weekly time-series of health metrics (open issues, CI pass rate, community health, tier) for a single repo, or aggregate metrics across the whole portfolio when no repo is specified. A week scored with a security scanner unreadable is an unknown, not a dip: its row carries tier_provisional: true, and the aggregate counts it in tier_unknown instead of tier_distribution.',
+    description: 'Get a weekly time-series of health metrics (open issues, CI pass rate, community health, tier) for a single repo, or aggregate metrics across the whole portfolio when no repo is specified. A provisional tier (a security scanner unreadable on an otherwise-Gold repo) is an unknown, not a dip: its row carries tier_provisional: true, and the aggregate counts it in tier_unknown instead of tier_distribution.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -442,6 +442,7 @@ function toolGetHealthTier(repoName) {
   return {
     repo: repoName,
     tier,
+    ...(isTierProvisional(repoData, { checks }) && { tier_provisional: true }),
     week: weekly.week,
     checks,
     next_tier: next,
@@ -458,8 +459,8 @@ function toolQueryPortfolio(filters) {
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
   let repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
-    const { tier } = computeHealthTier(data, tierOptions(name));
-    return { name, tier, ...data };
+    const { tier, checks } = computeHealthTier(data, tierOptions(name));
+    return { name, tier, ...(isTierProvisional(data, { checks }) && { tier_provisional: true }), ...data };
   });
 
   if (filters.tier) {
@@ -504,6 +505,18 @@ function withPreviousWeek(trend, week) {
   return trend;
 }
 
+// open-vulnerability findings need an observed alert, so a repo whose scanner
+// went unread drops out of the count (#452). While any repo in the latest week
+// is unread, a falling count is not evidence of improvement: carry the unread
+// count beside the trend and report 'unconfirmed' instead of 'improving'.
+function unconfirmedWhileUnread(trend) {
+  if (!trend) return trend;
+  const repos = Object.values(unwrapWeeklyRepos(loadPortfolioWeekly()?.data));
+  const unreadable = repos.filter(hasUnreadableScanner).length;
+  if (unreadable === 0) return trend;
+  return { ...trend, unreadable, ...(trend.direction === 'improving' && { direction: 'unconfirmed' }) };
+}
+
 function toolGetGovernanceFindings() {
   const raw = loadFromDataBranch('snapshots/governance.json');
   if (!raw) return { findings: [], message: 'No governance findings available — run the full pipeline first' };
@@ -514,7 +527,8 @@ function toolGetGovernanceFindings() {
     const tierRegressions = findings.filter(f => f.type === 'tier-regression').length;
     const prior = loadPriorGovernanceWeekly();
     const autofixNotDrivenTrend = withPreviousWeek(computeAutofixNotDrivenTrend(autofixNotDriven, prior?.data), prior?.week);
-    const openVulnerabilitiesTrend = withPreviousWeek(computeOpenVulnerabilitiesTrend(openVulnerabilities, prior?.data), prior?.week);
+    const openVulnerabilitiesTrend = unconfirmedWhileUnread(
+      withPreviousWeek(computeOpenVulnerabilitiesTrend(openVulnerabilities, prior?.data), prior?.week));
     const tierRegressionsTrend = withPreviousWeek(computeTierRegressionsTrend(tierRegressions, prior?.data), prior?.week);
     return {
       findings,
@@ -710,9 +724,10 @@ function projectWeekRow(week, data, repoName) {
     ci_pass_rate: data.ciPassRate ?? null,
     community_health: data.communityHealth ?? null,
     tier,
-    // The week's run could not read a scanner (#452), so `tier` withheld Gold
-    // on no evidence: an unknown, not a dip. Absent on a definitive week.
-    ...(hasUnreadableScanner(data) && { tier_provisional: true }),
+    // The week's run could not read a scanner on an otherwise-Gold repo
+    // (#452), so `tier` withheld Gold on no evidence: an unknown, not a dip.
+    // Absent on a definitive week.
+    ...(isTierProvisional(data, tierOptions(repoName)) && { tier_provisional: true }),
   };
 }
 
@@ -764,7 +779,7 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
     let chSum = 0, chCount = 0;
     for (const [name, data] of entries) {
       const tier = weekTier(data, name);
-      if (hasUnreadableScanner(data)) tierUnknown++;
+      if (isTierProvisional(data, tierOptions(name))) tierUnknown++;
       else if (tierCounts[tier] !== undefined) tierCounts[tier]++;
       if (typeof data.open_issues === 'number') totalOpenIssues += data.open_issues;
       if (typeof data.ciPassRate === 'number') { ciSum += data.ciPassRate; ciCount++; }
@@ -892,13 +907,18 @@ function computePortfolioHealth() {
 
   const repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
     const { tier, checks } = computeHealthTier(data, tierOptions(name));
-    return { name, tier, checks };
+    return { name, tier, ...(isTierProvisional(data, { checks }) && { tier_provisional: true }), checks };
   });
 
+  // Provisional tiers (#452) are counted apart, as get_weekly_trend does.
   const tiers = { gold: 0, silver: 0, bronze: 0, none: 0 };
-  for (const r of repos) tiers[r.tier]++;
+  let tierUnknown = 0;
+  for (const r of repos) {
+    if (r.tier_provisional) tierUnknown++;
+    else tiers[r.tier]++;
+  }
 
-  return { week: weekly.week, total: repos.length, tiers, repos };
+  return { week: weekly.week, total: repos.length, tiers, tier_unknown: tierUnknown, repos };
 }
 
 function computeCampaigns() {

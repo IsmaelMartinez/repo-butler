@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, detectTierRegressions, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
 import { isoWeekKey } from './store.js';
+import { computeHealthTier } from './report-shared.js';
 import { TEMPLATES } from './apply-templates.js';
 
 // --- Test helpers ---
@@ -653,6 +654,15 @@ describe('generateUpliftProposals', () => {
     const repos = [makeRepo('unread')];
     const details = makeDetails(repos, { unread: { secretScanning: { unreadable: true } } });
     assert.deepEqual(generateUpliftProposals(repos, details), []);
+  });
+
+  it('still proposes the uplift an unread scanner did not cause (#452)', () => {
+    // Bronze for want of a licence: the unread scanner withheld nothing here.
+    const repos = [makeRepo('unlicensed')];
+    const details = makeDetails(repos, { unlicensed: { license: 'None', vulns: { unreadable: true } } });
+    const [p] = generateUpliftProposals(repos, details);
+    assert.equal(p?.targetTier, 'silver');
+    assert.deepEqual(p.failingChecks.map(c => c.name), ['Has a license']);
   });
 
   it('generates uplift proposal for silver repo close to gold', () => {
@@ -1337,16 +1347,41 @@ describe('detectTierRegressions', () => {
     assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
   });
 
-  it('does not report a regression for a repo scored with an unreadable scanner, on either side (#452)', () => {
-    // An unreadable scanner fails "Zero critical/high", which drops Gold — right
-    // for withholding the tier, but no evidence that anything got worse.
-    const prior = { ...weeklySnap({ 'repo-a': 'gold', 'repo-b': 'gold', 'repo-c': 'gold' }), _week: '2026-W26' };
-    const current = weeklySnap({ 'repo-a': 'silver', 'repo-b': 'silver', 'repo-c': 'silver' });
-    current.repos['repo-a'].secretScanning = { unreadable: true };   // unread this run
-    prior.repos['repo-b'].vulns = { unreadable: true };              // unread last week
-    current.repos['repo-c'].codeScanning = null;                     // a definitive "not enabled"
+  // A weekly record scored the way store.js writes it, stored checks included.
+  const now = new Date().toISOString();
+  const scored = (overrides = {}) => {
+    const r = {
+      ci: 2, license: 'MIT', open_bugs: 0, communityHealth: 90, released_at: now, pushed_at: now, commits_6mo: 10,
+      vulns: { count: 0, max_severity: null }, codeScanning: { count: 0, max_severity: null }, secretScanning: { count: 0 },
+      ...overrides,
+    };
+    const { tier, checks } = computeHealthTier(r);
+    return { ...r, computed: { tier, checks } };
+  };
 
+  it('does not report a regression to or from a provisional tier (#452)', () => {
+    // An unread scanner on an otherwise-Gold repo withholds Gold — right for the
+    // tier, but no evidence that anything got worse.
+    const prior = { schema_version: 'v1', _week: '2026-W26', repos: {
+      'repo-a': scored(),
+      'repo-b': scored({ vulns: { unreadable: true } }),   // provisional last week
+      'repo-c': scored(),
+    } };
+    const current = { schema_version: 'v1', repos: {
+      'repo-a': scored({ secretScanning: { unreadable: true } }),   // provisional this week
+      'repo-b': scored({ license: 'None' }),
+      'repo-c': scored({ codeScanning: null, secretScanning: null, vulns: { count: 1, high: 1, max_severity: 'high' } }),
+    } };
+    assert.equal(current.repos['repo-a'].computed.tier, 'silver');
     assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-c']);
+  });
+
+  it('still reports a drop an unread scanner did not cause (#452)', () => {
+    // Silver → Bronze for want of a licence: the unread scanner withheld nothing.
+    const prior = { schema_version: 'v1', _week: '2026-W26', repos: { 'repo-a': scored({ ci: 1 }) } };
+    const current = { schema_version: 'v1', repos: { 'repo-a': scored({ ci: 1, license: 'None', vulns: { unreadable: true } }) } };
+    assert.deepEqual([prior.repos['repo-a'].computed.tier, current.repos['repo-a'].computed.tier], ['silver', 'bronze']);
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
   });
 
   it('still reports regressions for snapshot shapes with no scanner keys at all', () => {

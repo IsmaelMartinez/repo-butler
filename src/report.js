@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 import { writeFile, mkdir, cp } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isBotAuthor, computeHealthTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot, isExcludedRepo } from './report-shared.js';
+import { isBotAuthor, generateHealthBadge, badgeTiers, daysAgoISO, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot, isExcludedRepo } from './report-shared.js';
 import { buildAgentCard } from './agent-card.js';
 import {
   fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
@@ -352,28 +352,11 @@ export async function report(context) {
     const badgeDir = join(outDir, 'badges');
     await mkdir(badgeDir, { recursive: true });
 
-    const tierOrder = { gold: 3, silver: 2, bronze: 1, none: 0 };
-    let tierSum = 0;
-    let scoredCount = 0;
-
-    for (const r of activeRepos) {
-      const d = repoDetails?.[r.name] || {};
-      const classified = { ...r, ...d };
-      const { tier } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
-      const svg = generateHealthBadge(r.name, tier);
-      await writeFile(join(badgeDir, `${r.name}.svg`), svg);
-      const pushed = new Date(r.pushed_at);
-      const isActive = pushed >= SIX_MONTHS_AGO && !r.fork && !isExcludedRepo(r.name);
-      if (isActive) {
-        tierSum += tierOrder[tier] || 0;
-        scoredCount++;
-      }
+    const badges = badgeTiers(activeRepos, repoDetails, config);
+    for (const { name, tier } of badges.repos) {
+      await writeFile(join(badgeDir, `${name}.svg`), generateHealthBadge(name, tier));
     }
-
-    // Portfolio-level badge: best representative tier across active repos.
-    const avgTierNum = scoredCount > 0 ? Math.round(tierSum / scoredCount) : 0;
-    const portfolioTier = avgTierNum >= 3 ? 'gold' : avgTierNum >= 2 ? 'silver' : avgTierNum >= 1 ? 'bronze' : 'none';
-    const portfolioSvg = generateHealthBadge('portfolio', portfolioTier);
+    const portfolioSvg = generateHealthBadge('portfolio', badges.portfolio);
     await writeFile(join(badgeDir, 'portfolio.svg'), portfolioSvg);
 
     console.log(`Generated badges for ${activeRepos.length} repos + portfolio.`);

@@ -131,10 +131,8 @@ export function isScannerUnreadable(summary) {
 }
 
 // True when a repo record (a details entry, a classified repo or a stored
-// weekly summary — all carry the three fields) was scored with any scanner
-// unreadable. Its tier is then provisional: computeHealthTier withholds Gold,
-// but nothing observed a decline, so trend and delta readers must not count it
-// as one. A missing key (an older snapshot) is never a marker.
+// weekly summary — all carry the three fields) has any scanner unreadable. A
+// missing key (an older snapshot) is never a marker.
 export function hasUnreadableScanner(r) {
   return [r?.vulns, r?.codeScanning, r?.secretScanning].some(isScannerUnreadable);
 }
@@ -402,6 +400,45 @@ export function buildRepoSnapshot({
   };
 }
 
+// The two gold checks the scanner summaries decide, named once so
+// isTierProvisional can tell them apart from the rest.
+const SCANNER_CHECKS = Object.freeze({
+  configured: 'Security scanning configured',
+  clean: 'Zero critical/high security findings',
+});
+
+// The scanner half of computeHealthTier. An unreadable scanner is evidence of
+// nothing: it neither counts as configured nor lets "Zero critical/high" pass,
+// because the high that should fail it may be exactly the one that went unread
+// (#452). A null (not available) keeps its meaning: skipped when another
+// scanner read.
+function scannerVerdict(r) {
+  const scanners = [r.vulns, r.codeScanning, r.secretScanning];
+  const configured = scanners.some(s => s != null && !isScannerUnreadable(s));
+  if (!configured || scanners.some(isScannerUnreadable)) return { configured, clean: false };
+  const dependabotOk = r.vulns == null || (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high');
+  const codeScanningOk = r.codeScanning == null || (r.codeScanning.max_severity !== 'critical' && r.codeScanning.max_severity !== 'high');
+  const secretScanningOk = r.secretScanning == null || r.secretScanning.count === 0;
+  return { configured, clean: dependabotOk && codeScanningOk && secretScanningOk };
+}
+
+// True when a repo's tier is provisional (#452): a scanner was unreadable AND
+// the repo would be Gold were that scanner clean. The scanner checks are
+// gold-only, so an unread scanner can only ever have withheld Gold; a repo
+// failing anything else holds its tier on that evidence and is not
+// provisional. The non-scanner checks come from `options.checks`, else the
+// record's stored `computed.checks` (a weekly snapshot must not be re-scored
+// with today's clock), else a recompute with the same options.
+export function isTierProvisional(r, options = {}) {
+  if (!hasUnreadableScanner(r)) return false;
+  const asClean = s => (isScannerUnreadable(s) ? { count: 0, max_severity: null } : s);
+  if (!scannerVerdict({ vulns: asClean(r.vulns), codeScanning: asClean(r.codeScanning), secretScanning: asClean(r.secretScanning) }).clean) return false;
+  const { checks: given, ...tierOptions } = options;
+  const checks = given ?? r.computed?.checks ?? computeHealthTier(r, tierOptions).checks;
+  const scannerNames = Object.values(SCANNER_CHECKS);
+  return checks.every(c => c.passed || scannerNames.includes(c.name));
+}
+
 // Compute health tier for a classified repo object.
 // Returns { tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed, required_for }] }
 export function computeHealthTier(r, options = {}) {
@@ -411,22 +448,7 @@ export function computeHealthTier(r, options = {}) {
   const releasedAt = r.released_at ? new Date(r.released_at).getTime() : 0;
   const daysSinceRelease = releasedAt ? Math.floor((now - releasedAt) / 86400000) : Infinity;
 
-  const scanners = [r.vulns, r.codeScanning, r.secretScanning];
-  // An unreadable scanner is evidence of nothing: it neither counts as
-  // configured nor lets "Zero critical/high" pass, because the high that
-  // should fail it may be exactly the one that went unread (#452). A null
-  // (not available) keeps its meaning: skipped when another scanner read.
-  const anyScannerConfigured = scanners.some(s => s != null && !isScannerUnreadable(s));
-
-  let noSecurityFindings;
-  if (!anyScannerConfigured || scanners.some(isScannerUnreadable)) {
-    noSecurityFindings = false;
-  } else {
-    const dependabotOk = r.vulns == null || (r.vulns.max_severity !== 'critical' && r.vulns.max_severity !== 'high');
-    const codeScanningOk = r.codeScanning == null || (r.codeScanning.max_severity !== 'critical' && r.codeScanning.max_severity !== 'high');
-    const secretScanningOk = r.secretScanning == null || r.secretScanning.count === 0;
-    noSecurityFindings = dependabotOk && codeScanningOk && secretScanningOk;
-  }
+  const { configured: anyScannerConfigured, clean: noSecurityFindings } = scannerVerdict(r);
 
   const checks = [
     { name: 'Has CI workflows (2+)', passed: (r.ci || 0) >= 2, required_for: 'gold' },
@@ -434,8 +456,8 @@ export function computeHealthTier(r, options = {}) {
     { name: r.open_bugs != null ? 'Fewer than 10 open bugs' : 'Fewer than 20 open issues', passed: r.open_bugs != null ? r.open_bugs < 10 : (r.open_issues ?? 0) < 20, required_for: 'gold' },
     { name: 'Release in the last 90 days', passed: options.releaseExempt || daysSinceRelease <= 90, required_for: 'gold' },
     { name: 'Community health above 80%', passed: (r.communityHealth ?? -1) >= 80, required_for: 'gold' },
-    { name: 'Security scanning configured', passed: anyScannerConfigured, required_for: 'gold' },
-    { name: 'Zero critical/high security findings', passed: noSecurityFindings, required_for: 'gold' },
+    { name: SCANNER_CHECKS.configured, passed: anyScannerConfigured, required_for: 'gold' },
+    { name: SCANNER_CHECKS.clean, passed: noSecurityFindings, required_for: 'gold' },
     { name: 'Has CI workflows', passed: (r.ci || 0) >= 1, required_for: 'silver' },
     { name: 'Community health above 50%', passed: (r.communityHealth ?? -1) >= 50, required_for: 'silver' },
     { name: 'Activity in the last 6 months', passed: daysSincePush <= 180, required_for: 'silver' },
@@ -521,11 +543,38 @@ export function evaluateCampaign(campaign, repos, details) {
   return { total, compliant, nonCompliant, percentage };
 }
 
+// The public SVG badge tier for each active repo, plus the portfolio's. A
+// provisional tier (#452) is published as 'unconfirmed', never as the
+// downgrade it was scored, and is left out of the portfolio average. Skipping
+// the file instead would 404 the badge: the reports directory is rebuilt and
+// redeployed whole each run.
+export function badgeTiers(activeRepos, repoDetails, config) {
+  const tierOrder = { gold: 3, silver: 2, bronze: 1, none: 0 };
+  let tierSum = 0;
+  let scoredCount = 0;
+  const repos = activeRepos.map(r => {
+    const classified = { ...r, ...(repoDetails?.[r.name] || {}) };
+    const { tier, checks } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
+    const provisional = isTierProvisional(classified, { checks });
+    const isActive = new Date(r.pushed_at) >= SIX_MONTHS_AGO && !r.fork && !isExcludedRepo(r.name);
+    if (isActive && !provisional) {
+      tierSum += tierOrder[tier] || 0;
+      scoredCount++;
+    }
+    return { name: r.name, tier: provisional ? 'unconfirmed' : tier };
+  });
+  // Portfolio-level badge: best representative tier across active repos.
+  const avgTierNum = scoredCount > 0 ? Math.round(tierSum / scoredCount) : 0;
+  const portfolio = avgTierNum >= 3 ? 'gold' : avgTierNum >= 2 ? 'silver' : avgTierNum >= 1 ? 'bronze' : 'none';
+  return { repos, portfolio };
+}
+
 // Generate a shields.io-style flat SVG badge showing the health tier.
 // Usage: ![health](https://ismaelmartinez.github.io/repo-butler/badges/{repo-name}.svg)
 export function generateHealthBadge(repoName, tier) {
   const label = 'health';
-  const value = TIER_DISPLAY[tier] || TIER_DISPLAY.none;
+  // 'unconfirmed' is a provisional tier (#452), shown in the neutral colour.
+  const value = tier === 'unconfirmed' ? 'unconfirmed' : TIER_DISPLAY[tier] || TIER_DISPLAY.none;
   const color = TIER_COLORS[tier] || TIER_COLORS.none;
 
   // Approximate text widths using 6.5px per character (Verdana 11px).

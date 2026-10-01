@@ -4,7 +4,7 @@
 
 import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, hasUnreadableScanner } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, isTierProvisional } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
@@ -506,13 +506,13 @@ export function generateUpliftProposals(repos, details, config = null) {
 
   for (const r of eligible) {
     const d = details?.[r.name] || {};
-    // A tier scored with a scanner unreadable is provisional: its failing
-    // security checks are an absence of evidence, not a gap to propose work on.
-    if (hasUnreadableScanner(d)) continue;
     const classified = { ...r, ...d };
     const { tier, checks } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
 
     if (tier === 'gold') continue; // Already at top
+    // A provisional tier (#452) failed only the security checks an unread
+    // scanner cannot pass: an absence of evidence, not a gap to propose work on.
+    if (isTierProvisional(classified, { checks })) continue;
 
     // Determine which tier to target and which checks fail for it.
     const targetTier = nextTier(tier);
@@ -581,11 +581,16 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
       // snapshot shape that predates this field, and treating that as unknown
       // would silently switch regression detection off for every archived week.
       if (s?.ci === null) continue;
-      // Same reasoning for an unreadable scanner: computeHealthTier fails
-      // "Zero critical/high" on it, which drops Gold without anything having
-      // got worse. Keyed on the explicit marker, which a missing key (an older
-      // snapshot) or a null (the scanner's "not available" answer) never is.
-      if (hasUnreadableScanner(s)) continue;
+      // Same reasoning for a provisional tier (#452): an unread scanner on an
+      // otherwise-Gold repo withheld Gold without anything having got worse.
+      // Only that case — a repo that fell for any other reason still reports.
+      // Keyed on the explicit marker, which a missing key (an older snapshot)
+      // or a null (the scanner's "not available" answer) never is. Residual: a
+      // prior week is read as its LAST run left it, so if that run hit an
+      // unread scanner the repo is skipped for the whole of this week even if
+      // it did regress; there is deliberately no fall-back to an earlier
+      // definitive week.
+      if (isTierProvisional(s)) continue;
       const t = s?.computed?.tier;
       if (t) tiers[name] = t;
     }

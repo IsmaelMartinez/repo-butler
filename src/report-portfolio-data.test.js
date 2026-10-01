@@ -216,6 +216,16 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.deepEqual(details['cached-repo'].secretScanning, { unreadable: true });
   });
 
+  it('reads a non-array Dependabot or code-scanning body as unreadable, never as a summary (#452)', async () => {
+    // A string is iterable, so tallying it would report one "alert" per
+    // character with no severity — a clean-looking summary from nonsense.
+    const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
+    const garbled = () => Promise.resolve('<html>bad gateway</html>');
+    const gh = securityGh({ dependabot: garbled, codeScanning: garbled, secretScanning: () => Promise.resolve([]) });
+    const d = (await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache: cachedWorkflowsCache(cleanCachedDetails) }))['cached-repo'];
+    assert.deepEqual([d.vulns, d.codeScanning], [{ unreadable: true }, { unreadable: true }]);
+  });
+
   it('keeps the config-only dependabot fallback to a 403; any other failure is unknown', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
     const withDependabotYml = (dependabot) => ({

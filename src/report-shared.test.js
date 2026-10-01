@@ -31,6 +31,12 @@ describe('generateHealthBadge', () => {
     assert.ok(svg.includes('xmlns="http://www.w3.org/2000/svg"'));
   });
 
+  it('publishes an unconfirmed tier as "unconfirmed", never as a downgrade (#452)', () => {
+    const svg = generateHealthBadge('repo', 'unconfirmed');
+    assert.ok(svg.includes('unconfirmed'));
+    assert.ok(!svg.includes('Silver') && !svg.includes('None'));
+  });
+
   it('contains the tier name for gold', () => {
     const svg = generateHealthBadge('repo', 'gold');
     assert.ok(svg.includes('Gold'));
@@ -136,6 +142,32 @@ describe('computeHealthTier', () => {
       const r = { ...gold, vulns: { unreadable: true }, codeScanning: null, secretScanning: null };
       const configured = computeHealthTier(r).checks.find(c => c.name === 'Security scanning configured');
       assert.equal(configured.passed, false);
+    });
+
+    describe('isTierProvisional — an unread scanner can only have withheld Gold', () => {
+      const unread = { ...gold, codeScanning: { unreadable: true } };
+      const old = new Date(Date.now() - 200 * 86400000).toISOString();
+
+      it('is true only when the repo would otherwise be Gold', async () => {
+        const { isTierProvisional } = await import('./report-shared.js');
+        assert.equal(isTierProvisional(unread), true);
+        assert.equal(isTierProvisional(gold), false, 'nothing unread');
+        assert.equal(isTierProvisional({ ...unread, license: 'None' }), false, 'a missing licence holds the tier on its own');
+        assert.equal(isTierProvisional({ ...unread, vulns: { count: 1, high: 1, max_severity: 'high' } }), false, 'a read high fails Gold regardless');
+      });
+
+      it('honours release_exempt, as computeHealthTier does', async () => {
+        const { isTierProvisional } = await import('./report-shared.js');
+        assert.equal(isTierProvisional({ ...unread, released_at: old }), false);
+        assert.equal(isTierProvisional({ ...unread, released_at: old }, { releaseExempt: true }), true);
+      });
+
+      it("reads a weekly record's stored checks rather than re-scoring it with today's clock", async () => {
+        const { isTierProvisional } = await import('./report-shared.js');
+        // The release was recent when the week was written; it is old now.
+        const stored = computeHealthTier({ ...unread }).checks;
+        assert.equal(isTierProvisional({ ...unread, released_at: old, computed: { tier: 'silver', checks: stored } }), true);
+      });
     });
 
     it('drops an unreadable Dependabot read out of the Vulnerability Free campaign rather than counting it compliant', () => {

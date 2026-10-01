@@ -167,9 +167,13 @@ function workflowPresence(names, filename) {
 // cache-hit live re-read so both paths mean the same thing by each value. Each
 // is tri-state (see UNREADABLE_SCANNER): a summary, null for a 403/404 "not
 // available", or UNREADABLE_SCANNER — never a zero count — when the read failed.
+// A non-array body is a failed read too: a string is iterable, and tallying it
+// would report one severity-less "alert" per character.
 function fetchDependabotSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=100`)
-    .then(alerts => getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity))
+    .then(alerts => (Array.isArray(alerts)
+      ? getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity)
+      : UNREADABLE_SCANNER))
     .catch(async (err) => {
       // Alerts API returned 403 (token lacks scope). Fall back to checking
       // if dependabot.yml exists — if so, Dependabot IS configured even
@@ -185,13 +189,12 @@ function fetchDependabotSummary(gh, owner, repo) {
 
 function fetchCodeScanningSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/code-scanning/alerts?state=open&per_page=100`)
-    .then(alerts => getAlertSummary(alerts, a => a.rule?.security_severity_level))
+    .then(alerts => (Array.isArray(alerts) ? getAlertSummary(alerts, a => a.rule?.security_severity_level) : UNREADABLE_SCANNER))
     .catch(scannerReadFailure);
 }
 
 function fetchSecretScanningSummary(gh, owner, repo) {
   return gh.request(`/repos/${owner}/${repo}/secret-scanning/alerts?state=open&per_page=100`)
-    // A non-array body is not a list of zero alerts; zero would pass Gold.
     .then(alerts => (Array.isArray(alerts) ? { count: alerts.length } : UNREADABLE_SCANNER))
     .catch(scannerReadFailure);
 }
