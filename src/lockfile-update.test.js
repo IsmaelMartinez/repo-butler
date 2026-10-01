@@ -683,7 +683,7 @@ describe('applyLockfileUpdates', () => {
     assert.equal(gh.writes.length, 0);
   });
 
-  it('refuses a apply_enabled that is not the boolean true, such as the quoted string the YAML parser passes through', async () => {
+  it('refuses an apply_enabled that is not the boolean true, such as the quoted string the YAML parser passes through', async () => {
     const gh = baseGh();
     const r = await applyLockfileUpdates(gh, 'o', baseFindings, { limits: { apply_enabled: 'false' } }, { dryRun: false, runNpmUpdate: npmOk });
     assert.equal(r.status, 'refused');
