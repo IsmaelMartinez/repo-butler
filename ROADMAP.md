@@ -127,6 +127,12 @@ Modular test suite architecture for report generation shipped 2026-09-28 (PR #45
 
 Roadmap and developer guidelines aligned with simplification pass tracking 2026-09-28 (PR #455). Points the project's living roadmap and developer guidelines to a central tracking issue to coordinate active architectural simplification and complexity reduction goals.
 
+Portfolio report split into data and rendering 2026-09-30 (PR #456). `fetchPortfolioDetails` and the dependency-inventory analysis moved to `report-portfolio-data.js`, so GOVERNANCE no longer loads the dashboard renderer; its cache-hit refresh and fresh fetch now resolve their parallel reads by name rather than by position.
+
+Dead-export sweep 2026-09-30 (PR #458). Thirteen exports nothing imported were made module-private, the unused `sanitizeContributorName` was deleted, and `report.js` stopped re-exporting other report modules.
+
+Simplification-pass review follow-ups closed 2026-09-30 (PRs #465-#470). The report template-hash list is one exported constant checked against every `src/report*.js` file (#465); the npm refresh invocation's flags and environment are pinned by a test (#466); the CODEOWNERS owner must be a valid GitHub login before it is written to another repo (#467); templated-workflow detection derives its filenames from the templates (#468); the MCP/dashboard campaign parity test runs the real MCP computation (#469); and `observe()` resolves its fourteen fetches by name (#470).
+
 ---
 
 ## Next Up
