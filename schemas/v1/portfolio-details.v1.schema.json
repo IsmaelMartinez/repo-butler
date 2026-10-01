@@ -217,7 +217,7 @@
     },
     "UnreadableScanner": {
       "title": "UnreadableScanner",
-      "description": "An alerts read that failed without an answer (5xx, network error, exhausted rate limit, malformed body). Distinct from null, which is the scanner's own 403/404 'not available'. Fails the Gold 'Zero critical/high' check and is skipped by the scanner-enablement standards and the tier-regression detector.",
+      "description": "An alerts read that failed without an answer (5xx, network error, exhausted rate limit, malformed body). Distinct from null, which is the scanner's own 403/404 'not available'. Fails the Gold 'Zero critical/high' check and is skipped by the scanner-enablement standards; tier regression and uplift ignore only the scanner checks it failed without observing anything, so a tier withheld solely by it raises no finding while a real drop beside it still does.",
       "type": "object",
       "required": ["unreadable"],
       "properties": { "unreadable": { "const": true } },
