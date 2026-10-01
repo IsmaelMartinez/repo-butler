@@ -132,8 +132,8 @@ Input object `r` uses camelCase fields assembled by `fetchPortfolioDetails()` (s
 - `open_bugs < 10` when bug counts are available, else `open_issues < 20`
 - `released_at` within 90 days, unless `options.releaseExempt`
 - `communityHealth >= 80`
-- at least one of `vulns`, `codeScanning`, `secretScanning` is non-null (a scanner is configured and readable)
-- no configured scanner reports a finding: `vulns.max_severity` and `codeScanning.max_severity` are not `'critical'` or `'high'`, and `secretScanning.count` is 0
+- at least one of `vulns`, `codeScanning`, `secretScanning` is a readable summary (a scanner is configured and was read)
+- no configured scanner reports a finding: `vulns.max_severity` and `codeScanning.max_severity` are not `'critical'` or `'high'`, and `secretScanning.count` is 0; and none of the three is `{ unreadable: true }`, because a scanner that could not be read is no evidence of a clean one. A repo scored that way has a provisional tier: governance raises neither a tier regression nor a tier uplift for it, and `get_weekly_trend` reports it as `tier_provisional: true` per repo and `tier_unknown` in the aggregate rather than counting it in `tier_distribution`
 
 **Silver** — all silver checks pass (gold may fail):
 - `license` is truthy and not `'None'`
@@ -161,12 +161,12 @@ Return value: `{ tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed,
 | `license` | string (SPDX) | repo metadata `.license.spdx_id` |
 | `ci` | number\|null | `/actions/workflows` `.total_count`; on a failed read the last known count, else `null` |
 | `communityHealth` | number\|null | `community_profile.health_percentage` (maps from snake_case) |
-| `vulns` | `{ count, max_severity }`\|null | `/dependabot/alerts` (null if inaccessible) |
+| `vulns` | `{ count, max_severity }`\|`{ unreadable: true }`\|null | `/dependabot/alerts` (null for a 403 without `dependabot.yml` or a 404; `{ unreadable: true }` when the read failed) |
 | `ciPassRate` | 0-1\|null | `/actions/runs` success ratio (maps from `ci_pass_rate.pass_rate`) |
 | `open_issues` | number | paginated issues filtered `!pull_request` |
 | `open_bugs` | number\|null | open issues with a bug label, excluding `blocked` (null if the issue list could not be read) |
-| `codeScanning` | `{ count, critical, high, medium, low, max_severity }`\|null | code scanning alerts (null if inaccessible) |
-| `secretScanning` | `{ count }`\|null | secret scanning alerts (null if inaccessible) |
+| `codeScanning` | `{ count, critical, high, medium, low, max_severity }`\|`{ unreadable: true }`\|null | code scanning alerts (null for a 403/404; `{ unreadable: true }` when the read failed) |
+| `secretScanning` | `{ count }`\|`{ unreadable: true }`\|null | secret scanning alerts (null for a 403/404; `{ unreadable: true }` when the read failed) |
 | `sbom` | `{ count, packages[] }`\|null | `/dependency-graph/sbom` |
 | `released_at` | ISO string\|null | latest release `.published_at` |
 | `hasIssueTemplate` | boolean | community profile + `.github/ISSUE_TEMPLATE/` fallback |

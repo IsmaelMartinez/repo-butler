@@ -4,7 +4,7 @@
 
 import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, hasUnreadableScanner } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
@@ -506,6 +506,9 @@ export function generateUpliftProposals(repos, details, config = null) {
 
   for (const r of eligible) {
     const d = details?.[r.name] || {};
+    // A tier scored with a scanner unreadable is provisional: its failing
+    // security checks are an absence of evidence, not a gap to propose work on.
+    if (hasUnreadableScanner(d)) continue;
     const classified = { ...r, ...d };
     const { tier, checks } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
 
@@ -582,7 +585,7 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
       // "Zero critical/high" on it, which drops Gold without anything having
       // got worse. Keyed on the explicit marker, which a missing key (an older
       // snapshot) or a null (the scanner's "not available" answer) never is.
-      if ([s?.vulns, s?.codeScanning, s?.secretScanning].some(isScannerUnreadable)) continue;
+      if (hasUnreadableScanner(s)) continue;
       const t = s?.computed?.tier;
       if (t) tiers[name] = t;
     }

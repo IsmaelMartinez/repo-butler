@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt, hasUnreadableScanner } from './report-shared.js';
 import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
 import { runGit, readCommitsBehindMain } from './staleness.js';
@@ -376,7 +376,7 @@ const TOOLS = [
   },
   {
     name: 'get_weekly_trend',
-    description: 'Get a weekly time-series of health metrics (open issues, CI pass rate, community health, tier) for a single repo, or aggregate metrics across the whole portfolio when no repo is specified.',
+    description: 'Get a weekly time-series of health metrics (open issues, CI pass rate, community health, tier) for a single repo, or aggregate metrics across the whole portfolio when no repo is specified. A week scored with a security scanner unreadable is an unknown, not a dip: its row carries tier_provisional: true, and the aggregate counts it in tier_unknown instead of tier_distribution.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -710,6 +710,9 @@ function projectWeekRow(week, data, repoName) {
     ci_pass_rate: data.ciPassRate ?? null,
     community_health: data.communityHealth ?? null,
     tier,
+    // The week's run could not read a scanner (#452), so `tier` withheld Gold
+    // on no evidence: an unknown, not a dip. Absent on a definitive week.
+    ...(hasUnreadableScanner(data) && { tier_provisional: true }),
   };
 }
 
@@ -754,12 +757,15 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
   const aggregate = parsed.map(({ week, repos }) => {
     const entries = Object.entries(repos);
     const tierCounts = { gold: 0, silver: 0, bronze: 0, none: 0 };
+    // Provisional tiers (#452) are counted apart, never in the distribution.
+    let tierUnknown = 0;
     let totalOpenIssues = 0;
     let ciSum = 0, ciCount = 0;
     let chSum = 0, chCount = 0;
     for (const [name, data] of entries) {
       const tier = weekTier(data, name);
-      if (tierCounts[tier] !== undefined) tierCounts[tier]++;
+      if (hasUnreadableScanner(data)) tierUnknown++;
+      else if (tierCounts[tier] !== undefined) tierCounts[tier]++;
       if (typeof data.open_issues === 'number') totalOpenIssues += data.open_issues;
       if (typeof data.ciPassRate === 'number') { ciSum += data.ciPassRate; ciCount++; }
       if (typeof data.communityHealth === 'number') { chSum += data.communityHealth; chCount++; }
@@ -771,6 +777,7 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
       avg_ci_pass_rate: ciCount > 0 ? ciSum / ciCount : null,
       avg_community_health: chCount > 0 ? chSum / chCount : null,
       tier_distribution: tierCounts,
+      tier_unknown: tierUnknown,
     };
   });
 

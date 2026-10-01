@@ -11,12 +11,18 @@ import {
   escHtml, fmt, countBy, daysAgo,
   computeHealthTier, getLibyearColor, isReleaseExempt, isCopyleft, describeLicenseConcern,
   CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
-  isAutofixNotDriven, computeCountTrend, isScannerUnreadable,
+  isAutofixNotDriven, computeCountTrend, isScannerUnreadable, hasUnreadableScanner,
 } from './report-shared.js';
 
-// An unreadable Dependabot read has no count to show (#452); saying "n/a"
-// alone would read as the scanner being off, which is what null means.
-const VULNS_UNREADABLE_CELL = '<span title="Dependabot alerts could not be read this run" style="color:var(--faint);cursor:help">unavailable</span>';
+// The Dependabot cell shared by both repo tables; `naCell` is each table's
+// rendering of null ("not available"). An unreadable read has no count to show
+// (#452), and "n/a" alone would read as the scanner being off.
+function vulnCell(vulns, naCell) {
+  if (vulns == null) return naCell;
+  if (isScannerUnreadable(vulns)) return '<span title="Dependabot alerts could not be read this run" style="color:var(--faint);cursor:help">unavailable</span>';
+  if (vulns.count === 0) return `<span style="color:${COLOR_SUCCESS}">0</span>`;
+  return `<span style="color:${isHighSeverity(vulns) ? COLOR_DANGER : COLOR_WARNING}">${vulns.count}</span>`;
+}
 
 // Range tuples shared by the portfolio dashboard. Each describes a
 // "value-to-colour" mapping consumed by `colorByThreshold`.
@@ -570,20 +576,37 @@ const BUTLER_STATUS = {
 const SINCE_EMPTY = `Nothing's stirred since my last round. A quiet portfolio is a contented one.`;
 const SINCE_FIRST_RUN = `Still settling in — once I've a prior round to compare, I'll report what's changed.`;
 
+// Per scanner, whether its summary shows an open critical/high (any hit, for
+// secret scanning). An unreadable summary shows nothing either way.
+const SCANNER_AT_RISK = {
+  vulns: isHighSeverity,
+  codeScanning: isHighSeverity,
+  secretScanning: s => (s?.count || 0) > 0,
+};
+
 // True when a repo (current classified object or a stored portfolio-weekly
 // summary — both carry vulns/codeScanning/secretScanning) has open critical or
 // high security findings. The portfolio's single most urgent signal.
 function repoAtRisk(r) {
-  return isHighSeverity(r.vulns) || isHighSeverity(r.codeScanning) || ((r.secretScanning?.count || 0) > 0);
+  return Object.entries(SCANNER_AT_RISK).some(([k, atRisk]) => atRisk(r[k]));
 }
 
-// Percentage of a stored portfolio snapshot's repos at Gold, or null when the
-// snapshot is absent/empty. Used for the headline's week-over-week trend.
-function goldPctOf(snapshot) {
-  const repos = snapshot?.repos ? Object.values(snapshot.repos) : [];
-  if (repos.length === 0) return null;
-  const gold = repos.filter(r => r?.computed?.tier === 'gold').length;
-  return Math.round((gold / repos.length) * 100);
+// True when a scanner that showed a critical/high last run is unreadable this
+// run (#452). Nothing observed it clear, so the last-known risk stands: the
+// banner keeps the repo (marked "last seen") and the delta never calls it
+// cleared. This carries a known RISK forward only — never a clean reading,
+// which is the false Gold a last-known fallback for the tier would create.
+function riskUnconfirmed(r, prior) {
+  return Object.entries(SCANNER_AT_RISK).some(([k, atRisk]) => isScannerUnreadable(r[k]) && atRisk(prior?.[k]));
+}
+
+// Percentage of repos at Gold among those whose tier was scored on readable
+// scanners, or null when there are none. A provisional tier (#452) is left out
+// of both sides so an unread scanner reads as unknown, not as a Gold dip.
+function goldPctOf(records, tierOf) {
+  const scored = records.filter(r => !hasUnreadableScanner(r));
+  if (scored.length === 0) return null;
+  return Math.round((scored.filter(r => tierOf(r) === 'gold').length / scored.length) * 100);
 }
 
 // The portfolio's overall state, which drives the headline, the status colour,
@@ -602,9 +625,9 @@ function computePortfolioState(classified, atRisk, governanceFindings) {
 }
 
 // A single top-of-page banner for genuinely urgent security state.
-function buildCriticalBanner(atRisk) {
+function buildCriticalBanner(atRisk, lastSeen = new Set()) {
   if (!atRisk || atRisk.length === 0) return '';
-  const shown = atRisk.slice(0, 5).map(r => `<a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a>`).join(', ');
+  const shown = atRisk.slice(0, 5).map(r => `<a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a>${lastSeen.has(r.name) ? ' (last seen; unread this run)' : ''}`).join(', ');
   const more = atRisk.length > 5 ? ` and ${atRisk.length - 5} more` : '';
   const verb = atRisk.length === 1 ? 'has' : 'have';
   return `<div class="alert-banner alert-critical"><strong>Security needs you.</strong> ${shown}${more} ${verb} open security alerts.</div>`;
@@ -644,17 +667,22 @@ export function buildAutofixNudge(findings, priorCount = null) {
 // The calm headline block: a status dot, a state-aware headline in the butler's
 // voice, the tier mix, the portfolio's vulnerability posture, and a
 // week-over-week Gold trend when a prior snapshot exists.
-function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount) {
+function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount, unreadCount = 0) {
   const voice = BUTLER_STATUS[state] || BUTLER_STATUS.healthy;
   const tone = state === 'critical' ? 'crit' : state === 'attention' ? 'warn' : 'ok';
   // Severity-neutral wording: critHighCount mixes critical/high vulns and
   // code-scanning with any-severity secret-scanning hits, so "security alerts"
   // is the honest label rather than "vulnerabilities" or "critical/high".
-  const vulnLabel = critHighCount === 0
-    ? `<span class="status-vulns-ok">no open security alerts</span>`
-    : `<span class="status-vulns-bad">${critHighCount} security alert${critHighCount !== 1 ? 's' : ''}</span>`;
+  // critHighCount only counts what was read, so with any scanner unread (#452)
+  // a zero is not "no open alerts": say what is unknown instead.
+  const unread = unreadCount > 0
+    ? `<span class="muted">alerts unread for ${unreadCount} repo${unreadCount !== 1 ? 's' : ''}</span>`
+    : '';
+  const vulnLabel = critHighCount > 0
+    ? `<span class="status-vulns-bad">${critHighCount} security alert${critHighCount !== 1 ? 's' : ''}</span>${unread ? ` <span class="status-sep">·</span> ${unread}` : ''}`
+    : unread || `<span class="status-vulns-ok">no open security alerts</span>`;
   let trendLabel = '';
-  if (priorGoldPct != null && priorGoldPct !== goldPct) {
+  if (goldPct != null && priorGoldPct != null && priorGoldPct !== goldPct) {
     const diff = goldPct - priorGoldPct;
     const dir = diff > 0 ? 'up' : 'down';
     const arrow = diff > 0 ? '▲' : '▼';
@@ -665,7 +693,7 @@ function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, ac
   <div class="status-top"><span class="status-dot"></span><div class="status-headline">${voice.headline}</div></div>
   <p class="status-line">${voice.line}</p>
   <div class="status-tiers">${tierBadges} <span class="status-sep">·</span> ${vulnLabel}</div>
-  <div class="status-meta">${goldPct}% Gold${trendLabel} <span class="status-sep">·</span> ${repoCount} repos, ${activeCount} active</div>
+  <div class="status-meta">${goldPct == null ? '—' : `${goldPct}%`} Gold${trendLabel} <span class="status-sep">·</span> ${repoCount} repos, ${activeCount} active</div>
 </section>`;
 }
 
@@ -682,12 +710,14 @@ function buildSinceLastSection(classified, priorPortfolio) {
   // Null-prototype maps: repo names are external, so a name like "__proto__"
   // would mutate a plain object's prototype rather than store a key. Matches the
   // hardening in detectTierChanges (which normalises again internally).
+  // A provisional tier (#452) on either side is left out, as
+  // detectTierRegressions does: a move to or from it is not an observed one.
   const currentTiers = Object.create(null);
-  for (const r of classified) currentTiers[r.name] = r._tier;
+  for (const r of classified) if (!hasUnreadableScanner(r)) currentTiers[r.name] = r._tier;
   const priorTiers = Object.create(null);
   for (const [name, s] of Object.entries(priorRepos)) {
     const t = s?.computed?.tier;
-    if (t) priorTiers[name] = t;
+    if (t && !hasUnreadableScanner(s)) priorTiers[name] = t;
   }
   const { changes } = detectTierChanges(currentTiers, priorTiers);
 
@@ -705,7 +735,8 @@ function buildSinceLastSection(classified, priorPortfolio) {
     if (moved.has(r.name)) continue;
     if (!Object.hasOwn(priorRepos, r.name)) continue;
     const before = repoAtRisk(priorRepos[r.name]);
-    const after = repoAtRisk(r);
+    // A risk that went unread is not a cleared one.
+    const after = repoAtRisk(r) || riskUnconfirmed(r, priorRepos[r.name]);
     if (!before && after) {
       items.push(`<li class="since-item since-down"><span class="since-repo"><a href="${escHtml(r.name)}.html">${escHtml(r.name)}</a></span> <span class="since-note">new security alerts</span></li>`);
     } else if (before && !after) {
@@ -772,8 +803,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
 
   // --- Status hero + delta (calm & adaptive layout) ---
   const tierCounts = countBy(classified.map(r => r._tier));
-  const goldCount = tierCounts.gold || 0;
-  const goldPct = classified.length > 0 ? Math.round((goldCount / classified.length) * 100) : 0;
+  const goldPct = goldPctOf(classified, r => r._tier);
   const tierBadges = ['gold', 'silver', 'bronze', 'none']
     .filter(t => tierCounts[t] > 0)
     .map(t => `<span class="tier-badge tier-${t}">${tierCounts[t]} ${TIER_DISPLAY[t]}</span>`)
@@ -781,7 +811,12 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
 
   // Portfolio state and the calm hero / delta / banner it drives. The big
   // tables open themselves only when something is below Gold (allGold === false).
-  const atRisk = classified.filter(repoAtRisk);
+  const priorRepos = priorPortfolio?.repos;
+  const priorOf = name => (priorRepos && Object.hasOwn(priorRepos, name) ? priorRepos[name] : null);
+  const lastSeen = new Set(classified
+    .filter(r => !repoAtRisk(r) && riskUnconfirmed(r, priorOf(r.name)))
+    .map(r => r.name));
+  const atRisk = classified.filter(r => repoAtRisk(r) || lastSeen.has(r.name));
   let critHighCount = 0;
   for (const r of classified) {
     critHighCount += (r.vulns?.critical || 0) + (r.vulns?.high || 0)
@@ -789,12 +824,13 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
       + (r.secretScanning?.count || 0);
   }
   const state = computePortfolioState(classified, atRisk, governanceFindings);
-  const priorGoldPct = goldPctOf(priorPortfolio);
+  const priorGoldPct = goldPctOf(Object.values(priorRepos || {}), r => r?.computed?.tier);
   const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
 
-  const criticalBanner = buildCriticalBanner(atRisk);
+  const criticalBanner = buildCriticalBanner(atRisk, lastSeen);
   const autofixNudge = buildAutofixNudge(governanceFindings, priorAutofixNotDrivenCount);
-  const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount);
+  const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount,
+    classified.filter(hasUnreadableScanner).length);
   const sinceSection = buildSinceLastSection(classified, priorPortfolio);
 
   // --- Simplified health table (6 columns) ---
@@ -803,12 +839,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
     const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
     const ciDisplay = ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span>` : '—';
-    const vulnDisplay = r.vulns == null
-      ? '<span style="color:var(--faint)">n/a</span>'
-      : isScannerUnreadable(r.vulns) ? VULNS_UNREADABLE_CELL
-      : r.vulns.count === 0
-        ? `<span style="color:${COLOR_SUCCESS}">0</span>`
-        : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
+    const vulnDisplay = vulnCell(r.vulns, '<span style="color:var(--faint)">n/a</span>');
     const openIssues = r.open_issues || 0;
     const issuesColor = colorByThreshold(openIssues, OPEN_ISSUES_RANGES);
     const openPRs = r._open_prs;
@@ -850,12 +881,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
       : ciCount === 0
         ? `<span style="color:${COLOR_DANGER}">none</span>`
         : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
-    const vulnDisplay = r.vulns == null
-      ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>'
-      : isScannerUnreadable(r.vulns) ? VULNS_UNREADABLE_CELL
-      : r.vulns.count === 0
-        ? `<span style="color:${COLOR_SUCCESS}">0</span>`
-        : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
+    const vulnDisplay = vulnCell(r.vulns, '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>');
     const libyearVal = r.libyear?.total_libyear;
     const libyearColor = getLibyearColor(libyearVal);
     const depDisplay = r.sbom

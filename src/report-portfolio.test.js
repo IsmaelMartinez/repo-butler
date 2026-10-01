@@ -488,6 +488,43 @@ describe('calm dashboard hero, delta strip, and butler voice', () => {
     assert.ok(!html.includes('cleared its security alerts'), 'does not also render a separate security row');
   });
 
+  describe('an unreadable scanner never produces a positive claim (#452)', () => {
+    const unreadVulns = () => {
+      const { portfolio, details } = goldPortfolio();
+      details.a.vulns = { unreadable: true };
+      return { portfolio, details };
+    };
+
+    it('keeps a last-known critical in the banner and the critical state when that scanner goes unreadable', async () => {
+      const { generatePortfolioReport } = await import('./report-portfolio.js');
+      const { portfolio, details } = unreadVulns();
+      const prior = { repos: { a: { computed: { tier: 'silver' }, vulns: { count: 1, critical: 1, max_severity: 'critical' } } } };
+      const html = generatePortfolioReport({ owner: 'owner', portfolio, details, config: {}, priorPortfolio: prior });
+      assert.ok(html.includes('alert-banner alert-critical'), 'the known critical must not vanish from the banner');
+      assert.ok(html.includes('last seen'), 'the banner says the alert is last-seen, not freshly read');
+      assert.ok(html.includes('This rather wants your attention'), 'state stays critical');
+      assert.ok(!html.includes('cleared its security alerts'), 'an unread scanner is not a cleared one');
+    });
+
+    it('does not claim "no open security alerts" or calm when a scanner is unreadable', async () => {
+      const { generatePortfolioReport } = await import('./report-portfolio.js');
+      const { portfolio, details } = unreadVulns();
+      const html = generatePortfolioReport({ owner: 'owner', portfolio, details, config: {} });
+      assert.ok(!html.includes('no open security alerts'));
+      assert.ok(!html.includes('All in good order'));
+      assert.ok(html.includes('alerts unread for 1 repo'), 'says what is unknown, neutrally');
+    });
+
+    it('neither shows a tier move nor a Gold-trend dip for a repo whose tier is provisional', async () => {
+      const { generatePortfolioReport } = await import('./report-portfolio.js');
+      const { portfolio, details } = unreadVulns();
+      const prior = { repos: { a: { computed: { tier: 'gold' }, vulns: { count: 0, max_severity: null } } } };
+      const html = generatePortfolioReport({ owner: 'owner', portfolio, details, config: {}, priorPortfolio: prior });
+      assert.ok(!html.includes('since-item since-down'), 'gold → silver here is an unknown, not a move');
+      assert.ok(!html.includes('status-trend down'), 'the Gold % must not dip on an unknown');
+    });
+  });
+
   it('formats a downward gold trend without a double negative', async () => {
     const { generatePortfolioReport } = await import('./report-portfolio.js');
     const portfolio = { repos: [{ name: 'b', stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' }] };

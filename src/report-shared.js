@@ -130,6 +130,15 @@ export function isScannerUnreadable(summary) {
   return summary?.unreadable === true;
 }
 
+// True when a repo record (a details entry, a classified repo or a stored
+// weekly summary — all carry the three fields) was scored with any scanner
+// unreadable. Its tier is then provisional: computeHealthTier withholds Gold,
+// but nothing observed a decline, so trend and delta readers must not count it
+// as one. A missing key (an older snapshot) is never a marker.
+export function hasUnreadableScanner(r) {
+  return [r?.vulns, r?.codeScanning, r?.secretScanning].some(isScannerUnreadable);
+}
+
 // The summary an alerts-API failure stands for: a 403/404 is an answer (not
 // available), anything else — including a thrown error with no status — is not.
 export function scannerReadFailure(err) {

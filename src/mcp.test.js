@@ -547,6 +547,24 @@ describe('MCP server', async () => {
       ]);
     });
 
+    it('get_weekly_trend flags a tier scored on an unreadable scanner instead of counting it as a dip (#452)', async () => {
+      restoreStdout();
+      const w39 = structuredClone(FIXTURE.files['snapshots/portfolio-weekly/2026-W39.json']);
+      // The run that wrote W39 could not read alpha's code scanning, so the
+      // stored tier fell to silver on no evidence.
+      w39.repos.alpha.codeScanning = { unreadable: true };
+      w39.repos.alpha.computed.tier = 'silver';
+      const files = { ...FIXTURE.files, 'snapshots/portfolio-weekly/2026-W39.json': w39 };
+      const { aggregate, series } = await withIo({ git: fixtureGit({ files }) }, () => ({
+        aggregate: callTool('get_weekly_trend', {}).series.at(-1),
+        series: callTool('get_weekly_trend', { repo: 'alpha' }).series,
+      }));
+      assert.deepEqual(aggregate.tier_distribution, { gold: 0, silver: 1, bronze: 1, none: 0 }, 'alpha is not counted as silver');
+      assert.equal(aggregate.tier_unknown, 1);
+      assert.equal(series.at(-1).tier_provisional, true);
+      assert.equal('tier_provisional' in series.at(-2), false, 'a definitive week carries no flag');
+    });
+
     it('get_weekly_trend rejects invalid repo names', () => {
       restoreStdout();
       const result = callTool('get_weekly_trend', { repo: '../etc/passwd' });

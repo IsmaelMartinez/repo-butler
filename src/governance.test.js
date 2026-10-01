@@ -646,6 +646,15 @@ describe('generateUpliftProposals', () => {
     assert.equal(proposals.length, 0);
   });
 
+  it('proposes no uplift for a repo whose tier is provisional on an unreadable scanner (#452)', () => {
+    // Otherwise Gold in every respect: the only "failures" are the security
+    // checks an unread scanner cannot pass, so the uplift would be a
+    // high-priority finding about nothing.
+    const repos = [makeRepo('unread')];
+    const details = makeDetails(repos, { unread: { secretScanning: { unreadable: true } } });
+    assert.deepEqual(generateUpliftProposals(repos, details), []);
+  });
+
   it('generates uplift proposal for silver repo close to gold', () => {
     const repos = [makeRepo('silver-repo')];
     // Silver: has license, ci>=1, communityHealth>=50, pushed recently
