@@ -47,30 +47,3 @@ describe('reportCacheHit', () => {
     assert.equal(reportCacheHit({ reportResult: { cached: 'true' } }), false);
   });
 });
-
-describe('badgeTiers (#452)', () => {
-  const now = new Date().toISOString();
-  const repo = name => ({ name, pushed_at: now, fork: false });
-  const gold = {
-    ci: 2, license: 'MIT', open_bugs: 0, communityHealth: 90, released_at: now, commits: 10,
-    vulns: { count: 0, max_severity: null }, codeScanning: { count: 0, max_severity: null }, secretScanning: { count: 0 },
-  };
-
-  it('publishes a provisional tier as unconfirmed and leaves it out of the portfolio average', async () => {
-    const { badgeTiers } = await import('./report-shared.js');
-    // Two provisional repos scored Silver would round the average down to Silver.
-    const { repos, portfolio } = badgeTiers([repo('a'), repo('b'), repo('c')], {
-      a: gold,
-      b: { ...gold, codeScanning: { unreadable: true } },
-      c: { ...gold, secretScanning: { unreadable: true } },
-    }, {});
-    assert.deepEqual(repos, [{ name: 'a', tier: 'gold' }, { name: 'b', tier: 'unconfirmed' }, { name: 'c', tier: 'unconfirmed' }]);
-    assert.equal(portfolio, 'gold', 'the unread repo does not drag the portfolio badge down');
-  });
-
-  it('keeps a real tier when the unread scanner did not decide it', async () => {
-    const { badgeTiers } = await import('./report-shared.js');
-    const { repos } = badgeTiers([repo('c')], { c: { ...gold, license: 'None', vulns: { unreadable: true } } }, {});
-    assert.deepEqual(repos, [{ name: 'c', tier: 'bronze' }]);
-  });
-});

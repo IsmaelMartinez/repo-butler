@@ -656,6 +656,24 @@ describe('generateUpliftProposals', () => {
     assert.deepEqual(generateUpliftProposals(repos, details), []);
   });
 
+  it('never lists the scanner checks an unread scanner failed, so they cannot push a proposal past the cap (#452)', () => {
+    // Three observed gold gaps; the two unobserved scanner checks would make it
+    // five and drop the proposal at the <=3 cap.
+    const old = new Date(Date.now() - 200 * 86400000).toISOString();
+    const repos = [makeRepo('gaps')];
+    const details = makeDetails(repos, { gaps: { released_at: old, communityHealth: 70, ci: 1, codeScanning: { unreadable: true } } });
+    const [p] = generateUpliftProposals(repos, details);
+    assert.deepEqual(p?.failingChecks.map(c => c.name), ['Has CI workflows (2+)', 'Release in the last 90 days', 'Community health above 80%']);
+  });
+
+  it('still lists a scanner check failed by a read high beside an unread scanner (#452)', () => {
+    const old = new Date(Date.now() - 200 * 86400000).toISOString();
+    const repos = [makeRepo('high')];
+    const details = makeDetails(repos, { high: { released_at: old, vulns: { count: 1, high: 1, max_severity: 'high' }, codeScanning: { unreadable: true } } });
+    const [p] = generateUpliftProposals(repos, details);
+    assert.deepEqual(p?.failingChecks.map(c => c.name), ['Release in the last 90 days', 'Zero critical/high security findings']);
+  });
+
   it('still proposes the uplift an unread scanner did not cause (#452)', () => {
     // Bronze for want of a licence: the unread scanner withheld nothing here.
     const repos = [makeRepo('unlicensed')];
@@ -1391,6 +1409,17 @@ describe('detectTierRegressions', () => {
     const current = weeklySnap({ 'repo-a': 'silver' });
     for (const k of ['vulns', 'codeScanning', 'secretScanning']) assert.equal(k in current.repos['repo-a'], false);
 
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
+  });
+
+  it('still reports regressions for an older shape that recorded only some scanner keys', () => {
+    // A missing scanner key beside a recorded one must not read as unread: the
+    // otherwise-Gold prior week would then look provisional and be skipped.
+    const prior = { schema_version: 'v1', _week: '2026-W26', repos: { 'repo-a': scored() } };
+    delete prior.repos['repo-a'].codeScanning;
+    delete prior.repos['repo-a'].secretScanning;
+    const current = { schema_version: 'v1', repos: { 'repo-a': scored({ license: 'None' }) } };
+    assert.equal(prior.repos['repo-a'].computed.tier, 'gold');
     assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
   });
 

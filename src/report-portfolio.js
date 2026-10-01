@@ -11,12 +11,12 @@ import {
   escHtml, fmt, countBy, daysAgo,
   computeHealthTier, getLibyearColor, isReleaseExempt, isCopyleft, describeLicenseConcern,
   CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
-  isAutofixNotDriven, computeCountTrend, isScannerUnreadable, hasUnreadableScanner, isTierProvisional,
+  isAutofixNotDriven, computeCountTrend, isScannerUnreadable,
 } from './report-shared.js';
 
 // The Dependabot cell shared by both repo tables; `naCell` is each table's
-// rendering of null ("not available"). An unreadable read has no count to show
-// (#452), and "n/a" alone would read as the scanner being off.
+// rendering of null ("not available"). An unreadable read (#452) has no count
+// to show, and "n/a" alone would read as the scanner being off.
 function vulnCell(vulns, naCell) {
   if (vulns == null) return naCell;
   if (isScannerUnreadable(vulns)) return '<span title="Dependabot alerts could not be read this run" style="color:var(--faint);cursor:help">unavailable</span>';
@@ -578,27 +578,18 @@ const SINCE_FIRST_RUN = `Still settling in — once I've a prior round to compar
 
 // True when a repo (current classified object or a stored portfolio-weekly
 // summary — both carry vulns/codeScanning/secretScanning) has open critical or
-// high security findings. The portfolio's single most urgent signal. An
-// unreadable scanner shows nothing either way: only observed risk counts.
+// high security findings. The portfolio's single most urgent signal.
 function repoAtRisk(r) {
   return isHighSeverity(r.vulns) || isHighSeverity(r.codeScanning) || ((r.secretScanning?.count || 0) > 0);
 }
 
-// Percentage at Gold of the definitive tiers in `entries` ([{ tier,
-// provisional }]), or null when there are none. A provisional tier (#452) is
-// neither Gold nor below it, so it is left out of both sides.
-function goldPctOf(entries) {
-  const definitive = entries.filter(e => !e.provisional);
-  if (definitive.length === 0) return null;
-  return Math.round((definitive.filter(e => e.tier === 'gold').length / definitive.length) * 100);
-}
-
-// A repo's tier cell. A provisional tier is shown as unconfirmed, the same
-// word the tier mix uses, never as the Silver it was scored.
-function tierCell(r) {
-  return r._provisional
-    ? '<span class="tier-badge tier-none" title="Gold unless a security scan that could not be read this run finds something">Unconfirmed</span>'
-    : `<span class="tier-badge tier-${r._tier}">${TIER_DISPLAY[r._tier]}</span>`;
+// Percentage of a stored portfolio snapshot's repos at Gold, or null when the
+// snapshot is absent/empty. Used for the headline's week-over-week trend.
+function goldPctOf(snapshot) {
+  const repos = snapshot?.repos ? Object.values(snapshot.repos) : [];
+  if (repos.length === 0) return null;
+  const gold = repos.filter(r => r?.computed?.tier === 'gold').length;
+  return Math.round((gold / repos.length) * 100);
 }
 
 // The portfolio's overall state, which drives the headline, the status colour,
@@ -659,22 +650,17 @@ export function buildAutofixNudge(findings, priorCount = null) {
 // The calm headline block: a status dot, a state-aware headline in the butler's
 // voice, the tier mix, the portfolio's vulnerability posture, and a
 // week-over-week Gold trend when a prior snapshot exists.
-function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount, unreadCount = 0) {
+function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, activeCount, critHighCount) {
   const voice = BUTLER_STATUS[state] || BUTLER_STATUS.healthy;
   const tone = state === 'critical' ? 'crit' : state === 'attention' ? 'warn' : 'ok';
   // Severity-neutral wording: critHighCount mixes critical/high vulns and
   // code-scanning with any-severity secret-scanning hits, so "security alerts"
   // is the honest label rather than "vulnerabilities" or "critical/high".
-  // critHighCount only counts what was read, so with any scanner unread (#452)
-  // a zero is not "no open alerts": say what is unknown instead.
-  const unread = unreadCount > 0
-    ? `<span class="muted">alerts unread for ${unreadCount} repo${unreadCount !== 1 ? 's' : ''}</span>`
-    : '';
-  const vulnLabel = critHighCount > 0
-    ? `<span class="status-vulns-bad">${critHighCount} security alert${critHighCount !== 1 ? 's' : ''}</span>${unread ? ` <span class="status-sep">·</span> ${unread}` : ''}`
-    : unread || `<span class="status-vulns-ok">no open security alerts</span>`;
+  const vulnLabel = critHighCount === 0
+    ? `<span class="status-vulns-ok">no open security alerts</span>`
+    : `<span class="status-vulns-bad">${critHighCount} security alert${critHighCount !== 1 ? 's' : ''}</span>`;
   let trendLabel = '';
-  if (goldPct != null && priorGoldPct != null && priorGoldPct !== goldPct) {
+  if (priorGoldPct != null && priorGoldPct !== goldPct) {
     const diff = goldPct - priorGoldPct;
     const dir = diff > 0 ? 'up' : 'down';
     const arrow = diff > 0 ? '▲' : '▼';
@@ -685,7 +671,7 @@ function buildStatusHero(state, tierBadges, goldPct, priorGoldPct, repoCount, ac
   <div class="status-top"><span class="status-dot"></span><div class="status-headline">${voice.headline}</div></div>
   <p class="status-line">${voice.line}</p>
   <div class="status-tiers">${tierBadges} <span class="status-sep">·</span> ${vulnLabel}</div>
-  <div class="status-meta">${goldPct == null ? '—' : `${goldPct}%`} Gold${trendLabel} <span class="status-sep">·</span> ${repoCount} repos, ${activeCount} active</div>
+  <div class="status-meta">${goldPct}% Gold${trendLabel} <span class="status-sep">·</span> ${repoCount} repos, ${activeCount} active</div>
 </section>`;
 }
 
@@ -702,14 +688,12 @@ function buildSinceLastSection(classified, priorPortfolio) {
   // Null-prototype maps: repo names are external, so a name like "__proto__"
   // would mutate a plain object's prototype rather than store a key. Matches the
   // hardening in detectTierChanges (which normalises again internally).
-  // A provisional tier (#452) on either side is left out, as
-  // detectTierRegressions does: a move to or from it is not an observed one.
   const currentTiers = Object.create(null);
-  for (const r of classified) if (!r._provisional) currentTiers[r.name] = r._tier;
+  for (const r of classified) currentTiers[r.name] = r._tier;
   const priorTiers = Object.create(null);
   for (const [name, s] of Object.entries(priorRepos)) {
     const t = s?.computed?.tier;
-    if (t && !isTierProvisional(s)) priorTiers[name] = t;
+    if (t) priorTiers[name] = t;
   }
   const { changes } = detectTierChanges(currentTiers, priorTiers);
 
@@ -726,9 +710,6 @@ function buildSinceLastSection(classified, priorPortfolio) {
     // security row would be redundant and could crowd out the 8-item cap.
     if (moved.has(r.name)) continue;
     if (!Object.hasOwn(priorRepos, r.name)) continue;
-    // An unread scanner on either side is no evidence of a change (#452):
-    // neither "cleared" nor "new" can be claimed.
-    if (hasUnreadableScanner(r) || hasUnreadableScanner(priorRepos[r.name])) continue;
     const before = repoAtRisk(priorRepos[r.name]);
     const after = repoAtRisk(r);
     if (!before && after) {
@@ -769,7 +750,6 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
     const { tier, checks } = computeHealthTier(merged, { releaseExempt: isReleaseExempt(r.name, config) });
     merged._tier = tier;
     merged._checks = checks;
-    merged._provisional = isTierProvisional(merged, { checks });
     return merged;
   });
 
@@ -797,15 +777,12 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
   ).join(',');
 
   // --- Status hero + delta (calm & adaptive layout) ---
-  // A provisional tier (#452) is counted apart as "unconfirmed" — neither in
-  // the tier mix nor in the Gold % — so the hero agrees with itself.
-  const tierCounts = countBy(classified.filter(r => !r._provisional).map(r => r._tier));
-  const unconfirmed = classified.filter(r => r._provisional).length;
-  const goldPct = goldPctOf(classified.map(r => ({ tier: r._tier, provisional: r._provisional })));
+  const tierCounts = countBy(classified.map(r => r._tier));
+  const goldCount = tierCounts.gold || 0;
+  const goldPct = classified.length > 0 ? Math.round((goldCount / classified.length) * 100) : 0;
   const tierBadges = ['gold', 'silver', 'bronze', 'none']
     .filter(t => tierCounts[t] > 0)
     .map(t => `<span class="tier-badge tier-${t}">${tierCounts[t]} ${TIER_DISPLAY[t]}</span>`)
-    .concat(unconfirmed > 0 ? [`<span class="muted">${unconfirmed} unconfirmed</span>`] : [])
     .join(' ');
 
   // Portfolio state and the calm hero / delta / banner it drives. The big
@@ -818,14 +795,12 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
       + (r.secretScanning?.count || 0);
   }
   const state = computePortfolioState(classified, atRisk, governanceFindings);
-  const priorGoldPct = goldPctOf(Object.values(priorPortfolio?.repos || {})
-    .map(s => ({ tier: s?.computed?.tier, provisional: isTierProvisional(s) })));
+  const priorGoldPct = goldPctOf(priorPortfolio);
   const allGold = classified.length > 0 && classified.every(r => r._tier === 'gold');
 
   const criticalBanner = buildCriticalBanner(atRisk);
   const autofixNudge = buildAutofixNudge(governanceFindings, priorAutofixNotDrivenCount);
-  const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount,
-    classified.filter(hasUnreadableScanner).length);
+  const statusHero = buildStatusHero(state, tierBadges, goldPct, priorGoldPct, classified.length, statusCounts.active || 0, critHighCount);
   const sinceSection = buildSinceLastSection(classified, priorPortfolio);
 
   // --- Simplified health table (6 columns) ---
@@ -849,7 +824,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
     const siteLink = deployedLink(r.homepage);
     return `<tr>
       <td><a href="${r.name}.html"${descTooltip}>${escHtml(r.name)}</a>${siteLink ? ' ' + siteLink : ''} ${generateSparklineSVG(details[r.name]?.weekly)}</td>
-      <td>${tierCell(r)}</td>
+      <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td>
       <td><span style="color:${issuesColor}">${openIssues}</span></td>
       <td>${openPRs == null ? '<span style="color:var(--faint)">—</span>' : `<span style="color:${prsColor}">${openPRs}</span>`}</td>
       <td>${ciDisplay}</td>
@@ -859,6 +834,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
 
   // --- Full 13-column table (inside details toggle) ---
   const fullTableRows = classified.map(r => {
+    const tier = r._tier;
     const badgeClass = { active: 'badge-active', dormant: 'badge-dormant', archive: 'badge-archive', fork: 'badge-fork', test: 'badge-test' }[r.status] || 'badge-active';
     const communityColor = colorByThreshold(r.communityHealth, PCT_HIGH_GOOD_RANGES);
     // Tri-state, and this cell had the loudest wrong answer of any render site:
@@ -894,7 +870,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
       <td>${depDisplay}</td>
       <td>${r.contributors != null ? r.contributors : '—'}</td>
       <td><span class="badge ${badgeClass}">${r.status}</span></td>
-      <td>${tierCell(r)}</td></tr>`;
+      <td><span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span></td></tr>`;
   }).join('');
 
   const depSection = depInventory
@@ -1001,9 +977,6 @@ export function generateDigestReport(owner, repos, repoDetails) {
   const totalCommits = enriched.reduce((s, r) => s + r.commits, 0);
   const totalIssues = enriched.reduce((s, r) => s + r.open_issues, 0);
   const totalVulns = vulnRepos.reduce((s, r) => s + r.vulns.count, 0);
-  // A failed Dependabot read has no count to add (#452); name it so the digest
-  // cannot read as all-clear.
-  const unreadVulns = enriched.filter(r => isScannerUnreadable(r.vulns)).length;
 
   const cards = [];
 
@@ -1013,8 +986,7 @@ export function generateDigestReport(owner, repos, repoDetails) {
     `${active.length} active repos across your portfolio with ${fmt(totalCommits)} commits in the last 6 months ` +
     `and ${totalIssues} open issues.` +
     (recentCommits.length > 0 ? ` ${recentCommits.length} repos saw commits this week.` : '') +
-    (totalVulns > 0 ? ` ${totalVulns} vulnerability alerts need attention.` : '') +
-    (unreadVulns > 0 ? ` Dependabot alerts unread for ${unreadVulns} repo${unreadVulns !== 1 ? 's' : ''}.` : ''),
+    (totalVulns > 0 ? ` ${totalVulns} vulnerability alerts need attention.` : ''),
     'summary',
   ));
 

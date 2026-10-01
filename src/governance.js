@@ -4,7 +4,7 @@
 
 import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, isTierProvisional } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, isTierProvisional, observedFailingChecks } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
@@ -510,13 +510,13 @@ export function generateUpliftProposals(repos, details, config = null) {
     const { tier, checks } = computeHealthTier(classified, { releaseExempt: isReleaseExempt(r.name, config) });
 
     if (tier === 'gold') continue; // Already at top
-    // A provisional tier (#452) failed only the security checks an unread
-    // scanner cannot pass: an absence of evidence, not a gap to propose work on.
-    if (isTierProvisional(classified, { checks })) continue;
 
-    // Determine which tier to target and which checks fail for it.
+    // Determine which tier to target and which checks fail for it. Scanner
+    // checks an unread scanner failed observed nothing (#452), so they are
+    // neither proposed as work nor counted towards the cap below — and a
+    // provisional tier, which failed nothing else, gets no proposal at all.
     const targetTier = nextTier(tier);
-    const failingChecks = checks.filter(c => c.required_for === targetTier && !c.passed);
+    const failingChecks = observedFailingChecks(classified, checks).filter(c => c.required_for === targetTier);
 
     // Only propose when the gap is small enough to be actionable.
     if (failingChecks.length > 0 && failingChecks.length <= 3) {

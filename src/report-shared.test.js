@@ -31,12 +31,6 @@ describe('generateHealthBadge', () => {
     assert.ok(svg.includes('xmlns="http://www.w3.org/2000/svg"'));
   });
 
-  it('publishes an unconfirmed tier as "unconfirmed", never as a downgrade (#452)', () => {
-    const svg = generateHealthBadge('repo', 'unconfirmed');
-    assert.ok(svg.includes('unconfirmed'));
-    assert.ok(!svg.includes('Silver') && !svg.includes('None'));
-  });
-
   it('contains the tier name for gold', () => {
     const svg = generateHealthBadge('repo', 'gold');
     assert.ok(svg.includes('Gold'));

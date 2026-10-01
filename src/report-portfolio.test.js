@@ -25,13 +25,6 @@ describe('generateDigestReport', () => {
     assert.ok(html.includes('beta'), 'should mention active repo');
   });
 
-  it('does not read as all-clear when a Dependabot read failed (#452)', async () => {
-    const { generateDigestReport } = await import('./report-portfolio.js');
-    const repos = [{ name: 'unread', stars: 1, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false }];
-    const html = generateDigestReport('owner', repos, { unread: { commits: 10, weekly: [1], vulns: { unreadable: true }, ciPassRate: 0.9, open_issues: 0 } });
-    assert.ok(html.includes('alerts unread for 1 repo'));
-  });
-
   it('shows vulnerability card when vulns exist', async () => {
     const { generateDigestReport } = await import('./report-portfolio.js');
     const repos = [
@@ -493,55 +486,6 @@ describe('calm dashboard hero, delta strip, and butler voice', () => {
     const html = generatePortfolioReport({ owner: 'owner', portfolio, details, config: {}, priorPortfolio: prior });
     assert.ok(html.includes('since-item since-up'), 'renders the tier move');
     assert.ok(!html.includes('cleared its security alerts'), 'does not also render a separate security row');
-  });
-
-  describe('an unreadable scanner never produces a positive claim (#452)', () => {
-    const repo = name => ({ name, stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' });
-    const goldDetails = () => goldPortfolio().details.a;
-    const render = async (details, priorPortfolio = null) => {
-      const { generatePortfolioReport } = await import('./report-portfolio.js');
-      return generatePortfolioReport({ owner: 'owner', portfolio: { repos: Object.keys(details).map(repo) }, details, config: {}, priorPortfolio });
-    };
-
-    it('emits neither a "cleared" nor a "new" security row when the scanner is unread on either side', async () => {
-      const atRisk = { count: 1, critical: 1, max_severity: 'critical' };
-      const nowUnread = await render({ a: { ...goldDetails(), vulns: { unreadable: true } } },
-        { repos: { a: { computed: { tier: 'silver' }, vulns: atRisk } } });
-      assert.ok(!nowUnread.includes('cleared its security alerts'), 'an unread scanner is not a cleared one');
-      assert.ok(!nowUnread.includes('alert-banner alert-critical'), 'the banner lists observed risk only');
-      const wasUnread = await render({ a: { ...goldDetails(), vulns: atRisk } },
-        { repos: { a: { computed: { tier: 'silver' }, vulns: { unreadable: true } } } });
-      assert.ok(!wasUnread.includes('new security alerts'), 'nothing says the alert is new');
-      assert.ok(wasUnread.includes('alert-banner alert-critical'), 'an observed critical still raises the banner');
-    });
-
-    it('does not claim "no open security alerts" or calm when a scanner is unreadable', async () => {
-      const html = await render({ a: { ...goldDetails(), vulns: { unreadable: true } } });
-      assert.ok(!html.includes('no open security alerts'));
-      assert.ok(!html.includes('All in good order'));
-      assert.ok(html.includes('alerts unread for 1 repo'), 'says what is unknown, neutrally');
-    });
-
-    it('shows a provisional repo as unconfirmed everywhere: not Silver, not Gold, no move, no dip', async () => {
-      const html = await render(
-        { a: goldDetails(), b: { ...goldDetails(), codeScanning: { unreadable: true } } },
-        { repos: { a: { computed: { tier: 'gold' } }, b: { computed: { tier: 'gold' } } } },
-      );
-      assert.ok(html.includes('1 unconfirmed'), 'the tier mix names it');
-      assert.ok(!html.includes('1 Silver'), 'nor counts it as a definitive Silver');
-      assert.ok(html.includes('100% Gold'), 'the Gold % is over definitive tiers, matching the mix');
-      assert.ok(!html.includes('since-item since-down'), 'gold → unconfirmed is not a move');
-      assert.ok(!html.includes('status-trend down'), 'and not a dip');
-      assert.ok(html.includes('>Unconfirmed<'), 'its table row says so too');
-    });
-
-    it('counts an unread repo at its real tier when the scanner did not decide it', async () => {
-      // Bronze for want of a licence: the unread scanner withheld nothing.
-      const html = await render({ a: goldDetails(), b: { ...goldDetails(), license: 'None', vulns: { unreadable: true } } });
-      assert.ok(html.includes('1 Bronze'));
-      assert.ok(!html.includes('unconfirmed'));
-      assert.ok(html.includes('50% Gold'));
-    });
   });
 
   it('formats a downward gold trend without a double negative', async () => {

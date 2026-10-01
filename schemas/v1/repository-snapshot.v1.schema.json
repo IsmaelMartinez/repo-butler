@@ -104,6 +104,26 @@
       ],
       "description": "Open Dependabot alert counts by severity; null when not available (403/404); UnreadableScanner when the read failed"
     },
+    "code_scanning_alerts": {
+      "oneOf": [
+        { "$ref": "#/$defs/DependabotAlerts" },
+        { "$ref": "#/$defs/UnreadableScanner" },
+        { "type": "null" }
+      ],
+      "description": "Open code scanning alert counts by severity (same shape as dependabot_alerts); null when not available (403/404); UnreadableScanner when the read failed"
+    },
+    "secret_scanning_alerts": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["count"],
+          "properties": { "count": { "type": "integer", "description": "Number of open secret scanning alerts" } }
+        },
+        { "$ref": "#/$defs/UnreadableScanner" },
+        { "type": "null" }
+      ],
+      "description": "Open secret scanning alert count; null when not available (403/404); UnreadableScanner when the read failed"
+    },
     "ci_pass_rate": {
       "$ref": "#/$defs/CIPassRate"
     },
