@@ -260,6 +260,43 @@ describe('runPrivateWatch', () => {
     assert.equal(patchCount(calls), 0, 'a partially read repo is not clean');
   });
 
+  // Alerts do not run on archived repos, so reading one only ever yields an
+  // "unreadable" count that looks like a permissions fault. Forks are skipped
+  // to match the public lane (governance-repos.js eligibleRepos).
+  it('skips archived and forked private repos without reading their alerts', async () => {
+    const calls = [];
+    globalThis.fetch = mock.fn(async (url) => {
+      calls.push(String(url));
+      return { ok: false, status: 404, headers: new Map(), text: async () => '{}', json: async () => ({}) };
+    });
+
+    const result = await runPrivateWatch(ctx([
+      { name: 'fake-private-active' },
+      { name: 'fake-private-archived', archived: true },
+      { name: 'fake-private-fork', fork: true },
+    ]));
+
+    assert.equal(calls.filter(u => u.includes('fake-private-archived') || u.includes('fake-private-fork')).length, 0,
+      'no API call may be made for an archived or forked repo');
+    assert.equal(result.repos, 1, 'only the active repo is checked');
+    assert.equal(result.unreadable, 1, 'only the active repo can be unreadable');
+    const all = logs.join('\n');
+    assert.match(all, /1 private repo\(s\) checked, 0 with acute findings, 1 unreadable, 2 archived or forked skipped\./);
+    assert.ok(!/fake-private/.test(all), `private repo name leaked into logs:\n${all}`);
+  });
+
+  it('leaves an archived repo\'s tracking issue alone in live mode', async () => {
+    // The repo is read-only once archived, so a close attempt could only fail.
+    const { fn, calls } = liveCloseFetch([]);
+    globalThis.fetch = fn;
+
+    const result = await runPrivateWatch(ctx([{ name: 'fake-private-archived', archived: true }], { dryRun: false }));
+
+    assert.equal(calls.length, 0, 'no read or write for an archived repo');
+    assert.equal(result.closed, 0);
+    assert.match(logs.join('\n'), /0 private repo\(s\) checked, 0 with acute findings, 1 archived or forked skipped\./);
+  });
+
   it('writes nothing when dryRun is true', async () => {
     const calls = [];
     globalThis.fetch = mock.fn(async (url, opts = {}) => {

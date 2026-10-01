@@ -138,10 +138,17 @@ async function fetchAlerts(gh, owner, repo, endpoint, severityOf, nameOf) {
  */
 export async function runPrivateWatch(context) {
   const { owner, token, portfolio, dryRun } = context;
-  const privateRepos = portfolio?.privateRepos || [];
+  const allPrivate = portfolio?.privateRepos || [];
+  // Archived and forked repos are skipped, matching the public governance lane
+  // (governance-repos.js eligibleRepos). Alerts do not run on an archived repo,
+  // so reading one only ever adds to "unreadable" and reads as a permissions
+  // fault. An archived repo's tracking issue is left as it is: the repo is
+  // read-only, so the issue could be neither updated nor closed.
+  const privateRepos = allPrivate.filter(r => !r.archived && !r.fork);
+  const skipped = allPrivate.length - privateRepos.length;
   const result = { repos: privateRepos.length, withFindings: 0, notified: 0, closed: 0, unreadable: 0 };
 
-  if (privateRepos.length === 0) return result;
+  if (allPrivate.length === 0) return result;
 
   // Redacting client: every retry log and thrown error from here carries
   // /repos/owner/<redacted>/… instead of the real name.
@@ -172,7 +179,7 @@ export async function runPrivateWatch(context) {
     allFindings.push(...findings);
   }
 
-  console.log(`Private watch: ${result.repos} private repo(s) checked, ${result.withFindings} with acute findings${result.unreadable ? `, ${result.unreadable} unreadable` : ''}.`);
+  console.log(`Private watch: ${result.repos} private repo(s) checked, ${result.withFindings} with acute findings${result.unreadable ? `, ${result.unreadable} unreadable` : ''}${skipped ? `, ${skipped} archived or forked skipped` : ''}.`);
 
   const notified = await notifyPrivateFindings(gh, owner, allFindings, { dryRun });
   result.notified = notified.notified;
