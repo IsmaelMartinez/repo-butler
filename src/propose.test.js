@@ -1169,6 +1169,23 @@ describe('apply_enabled and propose_live each drive only their own lane (#423)',
     }
   });
 
+  for (const legacy of ['false', 'true']) {
+    it(`a config still carrying require_approval: ${legacy} refuses apply and holds PROPOSE`, async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'propose-legacy-'));
+      try {
+        const path = join(dir, 'roadmap.yml');
+        writeFileSync(path, `limits:\n  require_approval: ${legacy}\n`);
+        const config = loadConfigSync(path);
+        assert.equal(quietly(() => applyEnabledGate(config, 'apply')), false);
+        const { result, filed } = await liveRun(config);
+        assert.equal(filed, false);
+        assert.equal(result.propose_live_held, true);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
+
   it("this repository's roadmap.yml keeps apply running and PROPOSE in dry-run", async () => {
     const config = loadConfigSync(join(import.meta.dirname, '..', '.github', 'roadmap.yml'));
     assert.equal(config.limits.apply_enabled, true);

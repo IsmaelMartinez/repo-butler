@@ -14,6 +14,8 @@ Amended: 2026-07-13 — `code-review-bot`, the settings-executor class (ADR-009)
 
 Status: Accepted
 
+Amended: 2026-09-30 — superseded by #423: the apply gate is `limits.apply_enabled`, PROPOSE's is `limits.propose_live`; the `require_approval` references below are history.
+
 ## Context
 
 The current execution path relies on a butler that detects governance findings and triggers `apply.js` to write static templated config files via the GitHub Contents API. This process is strictly manual and gated by the five gates of [ADR-005](005-cross-repo-write-trust-model.md), while the operator interface is limited to the MCP `trigger_refresh` tool and the read tools and slash commands committed to in [ADR-006](006-mcp-and-slash-commands.md).

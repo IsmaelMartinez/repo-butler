@@ -452,3 +452,58 @@ describe('loadConfigSync', () => {
     assert.equal(captured, '', 'a stray log here would corrupt the MCP protocol stream');
   });
 });
+
+// #423 renamed limits.require_approval to apply_enabled / propose_live. A config
+// that still carries the old key must not be silently ignored: DEFAULTS would
+// fill apply_enabled: true, so a documented `require_approval: false` kill
+// switch would re-enable apply after the upgrade. Both lanes close instead.
+describe('legacy limits.require_approval (#423)', () => {
+  const quietErrors = async (fn) => {
+    const errors = [];
+    const original = console.error;
+    console.error = (...a) => errors.push(a.join(' '));
+    try { return { result: await fn(), errors }; } finally { console.error = original; }
+  };
+
+  for (const legacy of ['false', 'true']) {
+    it(`require_approval: ${legacy} closes both lanes and logs the rename once`, async () => {
+      await withTempYaml(`limits:\n  require_approval: ${legacy}\n`, async (path) => {
+        const { result: config, errors } = await quietErrors(() => loadConfig(path));
+        assert.equal(config.limits.apply_enabled, false);
+        assert.equal(config.limits.propose_live, false);
+        assert.equal(errors.length, 1);
+        assert.match(errors[0], /require_approval.*renamed.*apply_enabled.*propose_live.*#423/);
+      });
+    });
+  }
+
+  it('overrides an apply_enabled / propose_live written beside the legacy key', async () => {
+    await withTempYaml('limits:\n  require_approval: false\n  apply_enabled: true\n  propose_live: true\n', async (path) => {
+      const { result: config } = await quietErrors(() => loadConfig(path));
+      assert.equal(config.limits.apply_enabled, false);
+      assert.equal(config.limits.propose_live, false);
+    });
+  });
+
+  it('closes both lanes on the sync loader too, without writing to stdout', async () => {
+    await withTempYaml('limits:\n  require_approval: false\n', async (path) => {
+      const original = process.stdout.write;
+      let captured = '';
+      process.stdout.write = (chunk) => { captured += chunk.toString(); return true; };
+      let config;
+      try { config = loadConfigSync(path); } finally { process.stdout.write = original; }
+      assert.equal(config.limits.apply_enabled, false);
+      assert.equal(config.limits.propose_live, false);
+      assert.equal(captured, '');
+    });
+  });
+
+  it('leaves a config without the legacy key untouched and silent', async () => {
+    await withTempYaml('limits:\n  max_issues_per_run: 2\n', async (path) => {
+      const { result: config, errors } = await quietErrors(() => loadConfig(path));
+      assert.equal(config.limits.apply_enabled, true);
+      assert.equal(config.limits.propose_live, false);
+      assert.equal(errors.length, 0);
+    });
+  });
+});

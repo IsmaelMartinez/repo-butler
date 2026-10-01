@@ -13,6 +13,8 @@ analysis and answers each mode again for a different file, a different engine
 and a different gate, and it discharges the caller obligations ADR-013 wrote
 down for a write path that did not yet exist.
 
+Amended: 2026-09-30 — superseded by #423: the apply gate is `limits.apply_enabled`, PROPOSE's is `limits.propose_live`; the `require_approval` references below are history.
+
 ## Context
 
 G13 (`src/stalled-alert.js`, [ADR-014](014-no-programmatic-dependabot-rescan.md))

@@ -215,13 +215,17 @@ File: `.github/roadmap.yml`. Loaded by `src/config.js:loadConfig()`. YAML parser
 
 ```yaml
 providers:
-  default: gemini       # LLM for ASSESS/UPDATE (gemini | claude)
-  deep: claude          # LLM for IDEATE (falls back to default)
+  # LLM for ASSESS/UPDATE (gemini | claude)
+  default: gemini
+  # LLM for IDEATE (falls back to default)
+  deep: claude
 
 limits:
   max_issues_per_run: 3
-  apply_enabled: true   # Governance Apply master switch (false halts every apply action)
-  propose_live: false   # true lets PROPOSE file issues; false keeps it dry-run
+  # Governance Apply master switch (false halts every apply action)
+  apply_enabled: true
+  # true lets PROPOSE file issues; false keeps it dry-run
+  propose_live: false
 
 observe:
   issues_closed_days: 90

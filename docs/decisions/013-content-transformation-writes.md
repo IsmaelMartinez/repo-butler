@@ -13,6 +13,8 @@ so its benign-worst-case reasoning does not carry over and is redone here.
 that redoing, including its candour about how its own class fails the inherited
 test.
 
+Amended: 2026-09-30 — superseded by #423: the apply gate is `limits.apply_enabled`, PROPOSE's is `limits.propose_live`; the `require_approval` references below are history.
+
 ## Context
 
 The butler's cross-repo write surface has had exactly one shape since ADR-005:
