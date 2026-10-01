@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-30T21:18:21.885Z",
+  "timestamp": "2026-09-30T21:18:34.391Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 14,
+    "open_issues_count": 12,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-09-30T21:18:17Z",
+    "pushed_at": "2026-09-30T21:18:29Z",
     "archived": false
   },
   "issues": {
@@ -30,36 +30,6 @@
         "comments": 0,
         "created_at": "2026-09-26T06:44:39Z",
         "updated_at": "2026-09-30T21:03:38Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 461,
-        "title": "campaign parity test re-implements mcp computeCampaigns instead of calling it",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "enhancement",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-30T21:03:00Z",
-        "updated_at": "2026-09-30T21:18:15Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 460,
-        "title": "observe() unpacks 14 fetches positionally; reuse awaitNamed",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "enhancement",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-30T21:02:41Z",
-        "updated_at": "2026-09-30T21:02:41Z",
         "assignees": [],
         "milestone": null
       },
@@ -212,6 +182,28 @@
       }
     ],
     "recently_closed": [
+      {
+        "number": 460,
+        "title": "observe() unpacks 14 fetches positionally; reuse awaitNamed",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-30T21:18:22Z",
+        "created_at": "2026-09-30T21:02:41Z"
+      },
+      {
+        "number": 461,
+        "title": "campaign parity test re-implements mcp computeCampaigns instead of calling it",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "closed_at": "2026-09-30T21:18:15Z",
+        "created_at": "2026-09-30T21:03:00Z"
+      },
       {
         "number": 463,
         "title": "OSV / auto-merge workflow filenames duplicated between detection and templates",
@@ -485,6 +477,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 470,
+        "title": "simplify: resolve observe() fetches by name",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-09-30T21:18:21Z"
+      },
       {
         "number": 469,
         "title": "test: campaign parity test calls the real MCP campaign computation",
@@ -1555,22 +1554,22 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 13,
+    "open_issues": 11,
     "open_bugs": 1,
-    "open_features": 6,
+    "open_features": 4,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 25,
-    "recently_merged_prs": 116,
+    "recently_closed": 27,
+    "recently_merged_prs": 117,
     "bot_prs": 12,
-    "human_prs": 104,
+    "human_prs": 105,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
-      "agent-generated (10)",
-      "enhancement (6)",
+      "agent-generated (8)",
       "question (6)",
+      "enhancement (4)",
       "bug (1)"
     ],
     "high_reaction_issues": [],
@@ -1586,7 +1585,7 @@
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1,
-      "sample_size": 25
+      "sample_size": 27
     }
   }
 }
