@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-02T08:08:37.303Z",
+  "timestamp": "2026-10-02T13:28:19.410Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,17 +7,47 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 10,
+    "open_issues_count": 11,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-02T08:08:24Z",
+    "pushed_at": "2026-10-02T11:28:58Z",
     "archived": false
   },
   "issues": {
     "open": [
+      {
+        "number": 429,
+        "title": "Simplification plan (2026-09-26): tracking",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-09-26T06:44:39Z",
+        "updated_at": "2026-10-02T08:10:10Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 427,
+        "title": "decision: delete unused discovery surfaces (AsyncAPI spec, A2A agent card)",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "question",
+          "agent-generated"
+        ],
+        "reactions": 0,
+        "comments": 1,
+        "created_at": "2026-09-26T06:43:20Z",
+        "updated_at": "2026-10-02T08:09:22Z",
+        "assignees": [],
+        "milestone": null
+      },
       {
         "number": 477,
         "title": "Present a provisional tier consistently on every surface (#452 follow-up)",
@@ -30,21 +60,6 @@
         "comments": 0,
         "created_at": "2026-10-01T08:40:42Z",
         "updated_at": "2026-10-01T08:40:42Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 429,
-        "title": "Simplification plan (2026-09-26): tracking",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "enhancement",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:44:39Z",
-        "updated_at": "2026-10-01T07:02:12Z",
         "assignees": [],
         "milestone": null
       },
@@ -88,21 +103,6 @@
         "comments": 0,
         "created_at": "2026-09-26T06:43:22Z",
         "updated_at": "2026-09-26T06:43:22Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 427,
-        "title": "decision: delete unused discovery surfaces (AsyncAPI spec, A2A agent card)",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "question",
-          "agent-generated"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-09-26T06:43:20Z",
-        "updated_at": "2026-09-26T06:43:20Z",
         "assignees": [],
         "milestone": null
       },
@@ -1602,10 +1602,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9629629629629629,
-    "total_runs": 81,
-    "passed": 78,
-    "failed": 3
+    "pass_rate": 0.9782608695652174,
+    "total_runs": 92,
+    "passed": 90,
+    "failed": 2
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1639,7 +1639,7 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 0.9629629629629629,
+    "ci_pass_rate": 0.9782608695652174,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1,
