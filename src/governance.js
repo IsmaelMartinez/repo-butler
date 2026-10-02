@@ -4,7 +4,7 @@
 
 import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, isTierProvisional, observedFailingChecks } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
@@ -170,6 +170,13 @@ export function priorAutofixNotDrivenCount(priorWeekly) {
     : null;
 }
 
+// Scanner-enablement standards are tri-state too (#452): an unreadable alerts
+// read (UNREADABLE_SCANNER) is `null` and skipped, like osv-scanner's unknown.
+// Only null — the scanner's own 403/404 "not available" — is a gap; counting a
+// single 500 as one made the repo a remediation target, and code-scanning and
+// dependabot-actions are on the apply-schedule allow-list.
+const scannerEnabled = summary => (isScannerUnreadable(summary) ? null : summary != null);
+
 // Built-in detectors map standard tool names to compliance checks.
 // Each detector receives (repo, details) and returns `true` (compliant),
 // `false` (non-compliant) or — for the tri-state detectors marked below —
@@ -186,14 +193,14 @@ const STANDARD_DETECTORS = {
   'dependabot-auto-merge': (_repo, details) => details?.hasAutoMergeWorkflow ?? null,
   'contributing-guide': (_repo, details) => (details?.communityHealth ?? 0) >= 50,
   'license': (_repo, details) => !!(details?.license && details.license !== 'None'),
-  'dependabot-actions': (_repo, details) => details?.vulns != null,
+  'dependabot-actions': (_repo, details) => scannerEnabled(details?.vulns),
   // Tri-state: `ci` is null when the workflow listing has never been read
   // successfully for this repo (report-portfolio-data falls back to the cached count
   // first). `|| 0` would read that as "no CI workflows" and report a gap the
   // repo does not have.
   'ci-workflows': (_repo, details) => (details?.ci == null ? null : details.ci >= 1),
-  'code-scanning': (_repo, details) => details?.codeScanning != null,
-  'secret-scanning': (_repo, details) => details?.secretScanning != null,
+  'code-scanning': (_repo, details) => scannerEnabled(details?.codeScanning),
+  'secret-scanning': (_repo, details) => scannerEnabled(details?.secretScanning),
   'codeowners': (_repo, details) => !!details?.hasCodeowners,
   'security-md': (_repo, details) => !!details?.hasSecurityPolicy,
   // Tri-state: null when the ruleset scan could not complete. The `!!` this
@@ -504,9 +511,12 @@ export function generateUpliftProposals(repos, details, config = null) {
 
     if (tier === 'gold') continue; // Already at top
 
-    // Determine which tier to target and which checks fail for it.
+    // Determine which tier to target and which checks fail for it. Scanner
+    // checks an unread scanner failed observed nothing (#452), so they are
+    // neither proposed as work nor counted towards the cap below — and a
+    // provisional tier, which failed nothing else, gets no proposal at all.
     const targetTier = nextTier(tier);
-    const failingChecks = checks.filter(c => c.required_for === targetTier && !c.passed);
+    const failingChecks = observedFailingChecks(classified, checks).filter(c => c.required_for === targetTier);
 
     // Only propose when the gap is small enough to be actionable.
     if (failingChecks.length > 0 && failingChecks.length <= 3) {
@@ -571,6 +581,16 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
       // snapshot shape that predates this field, and treating that as unknown
       // would silently switch regression detection off for every archived week.
       if (s?.ci === null) continue;
+      // Same reasoning for a provisional tier (#452): an unread scanner on an
+      // otherwise-Gold repo withheld Gold without anything having got worse.
+      // Only that case — a repo that fell for any other reason still reports.
+      // Keyed on the explicit marker, which a missing key (an older snapshot)
+      // or a null (the scanner's "not available" answer) never is. Residual: a
+      // prior week is read as its LAST run left it, so if that run hit an
+      // unread scanner the repo is skipped for the whole of this week even if
+      // it did regress; there is deliberately no fall-back to an earlier
+      // definitive week.
+      if (isTierProvisional(s)) continue;
       const t = s?.computed?.tier;
       if (t) tiers[name] = t;
     }
@@ -603,7 +623,9 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
  * uses (report-shared.js), so the finding and the tier drop stay consistent:
  * a critical/high Dependabot OR code-scanning alert, or ANY secret-scanning hit.
  * Repos whose `vulns` is null (scanning off, or the token lacks the alerts scope)
- * are skipped for that source rather than flagged — an unknown is not a finding.
+ * or unreadable are skipped for that source rather than flagged — an unknown is
+ * not a finding. (The Gold check does fail on unreadable: withholding a tier
+ * needs no evidence, asserting an open alert does.)
  *
  * `sources` records which scanner(s) fired so consumers can route remediation:
  * only `dependabot`-sourced findings are fixable by enabling Dependabot security

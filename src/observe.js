@@ -1,5 +1,5 @@
 import { createClient, paginateIssues, getAutomatedSecurityFixesState } from './github.js';
-import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary, awaitNamed } from './report-shared.js';
+import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary, awaitNamed, UNREADABLE_SCANNER, isScannerUnreadable, scannerReadFailure } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
 // per-repo and portfolio observation, threads results onto context, persists
@@ -472,18 +472,22 @@ async function fetchCommunityProfile(gh, owner, repo) {
   }
 }
 
+// The three alert fetchers below are tri-state like report-portfolio-data.js's
+// (see UNREADABLE_SCANNER): the snapshot's *_alerts objects score the per-repo
+// report's tier, so a failed read must not look like "not available", and a
+// non-array body must not look like zero alerts.
 export async function fetchDependabotAlerts(gh, owner, repo) {
   try {
     const data = await gh.request(`/repos/${owner}/${repo}/dependabot/alerts`, {
       params: { state: 'open', per_page: 100 },
     });
-    const alerts = Array.isArray(data) ? data : [];
-    return getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity);
+    if (!Array.isArray(data)) return UNREADABLE_SCANNER;
+    return getAlertSummary(data, a => a.security_vulnerability?.severity || a.security_advisory?.severity);
   } catch (err) {
     if (err.status === 403 || err.status === 404) {
       console.log(`Note: Dependabot alerts not available for ${owner}/${repo} (${err.message})`);
     }
-    return null;
+    return scannerReadFailure(err);
   }
 }
 
@@ -492,13 +496,13 @@ export async function fetchCodeScanningAlerts(gh, owner, repo) {
     const data = await gh.request(`/repos/${owner}/${repo}/code-scanning/alerts`, {
       params: { state: 'open', per_page: 100 },
     });
-    const alerts = Array.isArray(data) ? data : [];
-    return getAlertSummary(alerts, a => a.rule?.security_severity_level);
+    if (!Array.isArray(data)) return UNREADABLE_SCANNER;
+    return getAlertSummary(data, a => a.rule?.security_severity_level);
   } catch (err) {
     if (err.status === 403 || err.status === 404) {
       console.log(`Note: Code scanning alerts not available for ${owner}/${repo} (${err.message})`);
     }
-    return null;
+    return scannerReadFailure(err);
   }
 }
 
@@ -507,13 +511,13 @@ export async function fetchSecretScanningAlerts(gh, owner, repo) {
     const data = await gh.request(`/repos/${owner}/${repo}/secret-scanning/alerts`, {
       params: { state: 'open', per_page: 100 },
     });
-    const alerts = Array.isArray(data) ? data : [];
-    return { count: alerts.length };
+    if (!Array.isArray(data)) return UNREADABLE_SCANNER;
+    return { count: data.length };
   } catch (err) {
     if (err.status === 403 || err.status === 404) {
       console.log(`Note: Secret scanning alerts not available for ${owner}/${repo} (${err.message})`);
     }
-    return null;
+    return scannerReadFailure(err);
   }
 }
 
@@ -546,6 +550,10 @@ async function fetchCIPassRate(gh, owner, repo) {
 // --- Analysis helpers ---
 
 function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta, labels, communityProfile, dependabotAlerts, codeScanningAlerts, secretScanningAlerts, ciPassRate, autofix }) {
+  // The prompt-facing counts collapse an unreadable read to null (no count
+  // exists); the snapshot's *_alerts objects keep the marker for the tier.
+  const readable = s => (isScannerUnreadable(s) ? null : s);
+  const [dependabot, codeScanning, secretScanning] = [dependabotAlerts, codeScanningAlerts, secretScanningAlerts].map(readable);
   const labelCounts = {};
   for (const issue of openIssues) {
     for (const label of issue.labels) {
@@ -588,11 +596,11 @@ function buildSummary({ openIssues, closedIssues, mergedPRs, releases, repoMeta,
       .filter(i => daysSince(i.updated_at) > 14)
       .map(i => `#${i.number}: ${i.title} (${daysSince(i.updated_at)}d)`),
     community_health: communityProfile?.health_percentage ?? null,
-    dependabot_alert_count: dependabotAlerts ? dependabotAlerts.count : null,
-    dependabot_max_severity: dependabotAlerts?.max_severity ?? null,
-    code_scanning_alert_count: codeScanningAlerts ? codeScanningAlerts.count : null,
-    code_scanning_max_severity: codeScanningAlerts?.max_severity ?? null,
-    secret_scanning_alert_count: secretScanningAlerts ? secretScanningAlerts.count : null,
+    dependabot_alert_count: dependabot ? dependabot.count : null,
+    dependabot_max_severity: dependabot?.max_severity ?? null,
+    code_scanning_alert_count: codeScanning ? codeScanning.count : null,
+    code_scanning_max_severity: codeScanning?.max_severity ?? null,
+    secret_scanning_alert_count: secretScanning ? secretScanning.count : null,
     // Dependabot automated security fixes (ADR-012 Phase 3), tri-state.
     automated_security_fixes_active: autofixActive(autofix),
     ci_pass_rate: ciPassRate?.pass_rate ?? null,

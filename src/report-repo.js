@@ -6,7 +6,7 @@ import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, jsStr, fmt, countBy, isBlocked,
   daysAgoISO, last12Months, computeHealthTier, isReleaseExempt,
-  colorByThreshold, nextTier, isCheckRequiredForTier, deployedLink, autofixActive,
+  colorByThreshold, nextTier, isCheckRequiredForTier, deployedLink, autofixActive, isScannerUnreadable,
 } from './report-shared.js';
 
 // Range tuples for value-to-colour mapping in per-repo dashboards.
@@ -388,6 +388,11 @@ function snapshotToTierInput(snapshot) {
   };
 }
 
+// Tier-table annotations for one scanner summary: null (not available) is
+// omitted, an unreadable read is named as unavailable, a read shows its count.
+const scannerLabel = (s, name) => (s == null ? null : isScannerUnreadable(s) ? `${name} unavailable` : name);
+const scannerCount = (s, noun) => (s == null ? null : isScannerUnreadable(s) ? `${noun} unavailable` : `${s.count} ${noun}`);
+
 function buildHealthTierSection(snapshot, config, healthData = {}) {
   const input = snapshotToTierInput(snapshot);
   const repoName = snapshot.repository?.split('/')[1] || '';
@@ -667,8 +672,10 @@ new Chart(document.getElementById('trendsChart'),{type:'line',data:{labels:[${tr
     'Release in the last 90 days': s.latest_release !== 'none' ? s.latest_release : '—',
     'Community health above 80%': cp ? `${cp.health_percentage}%` : '—',
     'Community health above 50%': cp ? `${cp.health_percentage}%` : '—',
-    'Security scanning configured': [da && 'Dependabot', cs && 'Code Scanning', ss && 'Secret Scanning'].filter(Boolean).join(' + ') || 'none',
-    'Zero critical/high security findings': [da && `${da.count} vuln`, cs && `${cs.count} code`, ss && `${ss.count} secret`].filter(Boolean).join(', ') || '—',
+    // An unreadable scanner (#452) has no count; name it as unavailable rather
+    // than dropping it (that would read as "not enabled") or printing undefined.
+    'Security scanning configured': [scannerLabel(da, 'Dependabot'), scannerLabel(cs, 'Code Scanning'), scannerLabel(ss, 'Secret Scanning')].filter(Boolean).join(' + ') || 'none',
+    'Zero critical/high security findings': [scannerCount(da, 'vuln'), scannerCount(cs, 'code'), scannerCount(ss, 'secret')].filter(Boolean).join(', ') || '—',
     'Activity in the last 6 months': snapshot.pushed_at ? `pushed ${Math.floor((Date.now() - new Date(snapshot.pushed_at).getTime()) / 86400000)}d ago` : '—',
     'Some activity (within 1 year)': snapshot.pushed_at ? `pushed ${Math.floor((Date.now() - new Date(snapshot.pushed_at).getTime()) / 86400000)}d ago` : '—',
   };

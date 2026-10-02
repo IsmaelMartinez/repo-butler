@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, detectTierRegressions, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
 import { isoWeekKey } from './store.js';
+import { computeHealthTier } from './report-shared.js';
 import { TEMPLATES } from './apply-templates.js';
 
 // --- Test helpers ---
@@ -257,6 +258,25 @@ describe('detectStandardsGaps', () => {
     assert.deepEqual(result.findings[0].nonCompliant, ['no-ci']);
     assert.equal(result.findings[0].adoptionRate, 0.5);
   });
+
+  for (const [tool, key] of [['dependabot-actions', 'vulns'], ['code-scanning', 'codeScanning'], ['secret-scanning', 'secretScanning']]) {
+    it(`skips a repo whose ${key} read was unreadable instead of reporting a ${tool} gap (#452)`, () => {
+      // One 500 on an alerts API is not "scanner off": counting it as a gap
+      // makes the repo an apply target on the next scheduled run.
+      const repos = [makeRepo('on'), makeRepo('off'), makeRepo('unread')];
+      const details = makeDetails(repos, {
+        on: { [key]: { count: 0 } },
+        off: { [key]: null },
+        unread: { [key]: { unreadable: true } },
+      });
+      const result = detectStandardsGaps([{ tool, scope: { type: 'universal' }, exclude: [] }], repos, details);
+      assert.equal(result.findings.length, 1);
+      assert.deepEqual(result.findings[0].compliant, ['on']);
+      // A definitive not-enabled is still a real gap.
+      assert.deepEqual(result.findings[0].nonCompliant, ['off']);
+      assert.equal(result.findings[0].adoptionRate, 0.5);
+    });
+  }
 
   it('emits no dependabot-auto-merge finding when every applicable repo is unknown', () => {
     // The transient-outage shape. One bad window on the contents API must not
@@ -625,6 +645,42 @@ describe('generateUpliftProposals', () => {
     const details = makeDetails(repos);
     const proposals = generateUpliftProposals(repos, details);
     assert.equal(proposals.length, 0);
+  });
+
+  it('proposes no uplift for a repo whose tier is provisional on an unreadable scanner (#452)', () => {
+    // Otherwise Gold in every respect: the only "failures" are the security
+    // checks an unread scanner cannot pass, so the uplift would be a
+    // high-priority finding about nothing.
+    const repos = [makeRepo('unread')];
+    const details = makeDetails(repos, { unread: { secretScanning: { unreadable: true } } });
+    assert.deepEqual(generateUpliftProposals(repos, details), []);
+  });
+
+  it('never lists the scanner checks an unread scanner failed, so they cannot push a proposal past the cap (#452)', () => {
+    // Three observed gold gaps; the two unobserved scanner checks would make it
+    // five and drop the proposal at the <=3 cap.
+    const old = new Date(Date.now() - 200 * 86400000).toISOString();
+    const repos = [makeRepo('gaps')];
+    const details = makeDetails(repos, { gaps: { released_at: old, communityHealth: 70, ci: 1, codeScanning: { unreadable: true } } });
+    const [p] = generateUpliftProposals(repos, details);
+    assert.deepEqual(p?.failingChecks.map(c => c.name), ['Has CI workflows (2+)', 'Release in the last 90 days', 'Community health above 80%']);
+  });
+
+  it('still lists a scanner check failed by a read high beside an unread scanner (#452)', () => {
+    const old = new Date(Date.now() - 200 * 86400000).toISOString();
+    const repos = [makeRepo('high')];
+    const details = makeDetails(repos, { high: { released_at: old, vulns: { count: 1, high: 1, max_severity: 'high' }, codeScanning: { unreadable: true } } });
+    const [p] = generateUpliftProposals(repos, details);
+    assert.deepEqual(p?.failingChecks.map(c => c.name), ['Release in the last 90 days', 'Zero critical/high security findings']);
+  });
+
+  it('still proposes the uplift an unread scanner did not cause (#452)', () => {
+    // Bronze for want of a licence: the unread scanner withheld nothing here.
+    const repos = [makeRepo('unlicensed')];
+    const details = makeDetails(repos, { unlicensed: { license: 'None', vulns: { unreadable: true } } });
+    const [p] = generateUpliftProposals(repos, details);
+    assert.equal(p?.targetTier, 'silver');
+    assert.deepEqual(p.failingChecks.map(c => c.name), ['Has a license']);
   });
 
   it('generates uplift proposal for silver repo close to gold', () => {
@@ -1306,6 +1362,64 @@ describe('detectTierRegressions', () => {
     const current = weeklySnap({ 'repo-a': 'silver' });
     assert.equal('ci' in current.repos['repo-a'], false);
 
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
+  });
+
+  // A weekly record scored the way store.js writes it, stored checks included.
+  const now = new Date().toISOString();
+  const scored = (overrides = {}) => {
+    const r = {
+      ci: 2, license: 'MIT', open_bugs: 0, communityHealth: 90, released_at: now, pushed_at: now, commits_6mo: 10,
+      vulns: { count: 0, max_severity: null }, codeScanning: { count: 0, max_severity: null }, secretScanning: { count: 0 },
+      ...overrides,
+    };
+    const { tier, checks } = computeHealthTier(r);
+    return { ...r, computed: { tier, checks } };
+  };
+
+  it('does not report a regression to or from a provisional tier (#452)', () => {
+    // An unread scanner on an otherwise-Gold repo withholds Gold — right for the
+    // tier, but no evidence that anything got worse.
+    const prior = { schema_version: 'v1', _week: '2026-W26', repos: {
+      'repo-a': scored(),
+      'repo-b': scored({ vulns: { unreadable: true } }),   // provisional last week
+      'repo-c': scored(),
+    } };
+    const current = { schema_version: 'v1', repos: {
+      'repo-a': scored({ secretScanning: { unreadable: true } }),   // provisional this week
+      'repo-b': scored({ license: 'None' }),
+      'repo-c': scored({ codeScanning: null, secretScanning: null, vulns: { count: 1, high: 1, max_severity: 'high' } }),
+    } };
+    assert.equal(current.repos['repo-a'].computed.tier, 'silver');
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-c']);
+  });
+
+  it('still reports a drop an unread scanner did not cause (#452)', () => {
+    // Silver → Bronze for want of a licence: the unread scanner withheld nothing.
+    const prior = { schema_version: 'v1', _week: '2026-W26', repos: { 'repo-a': scored({ ci: 1 }) } };
+    const current = { schema_version: 'v1', repos: { 'repo-a': scored({ ci: 1, license: 'None', vulns: { unreadable: true } }) } };
+    assert.deepEqual([prior.repos['repo-a'].computed.tier, current.repos['repo-a'].computed.tier], ['silver', 'bronze']);
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
+  });
+
+  it('still reports regressions for snapshot shapes with no scanner keys at all', () => {
+    // Keyed on the explicit marker, never on absence: archived weeks predating
+    // the marker must keep producing regressions.
+    const prior = { ...weeklySnap({ 'repo-a': 'gold' }), _week: '2026-W26' };
+    const current = weeklySnap({ 'repo-a': 'silver' });
+    for (const k of ['vulns', 'codeScanning', 'secretScanning']) assert.equal(k in current.repos['repo-a'], false);
+
+    assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
+  });
+
+  it('still reports regressions for an older shape that recorded only some scanner keys', () => {
+    // A missing scanner key beside a recorded one must not read as unread: the
+    // otherwise-Gold prior week would then look provisional and be skipped.
+    const prior = { schema_version: 'v1', _week: '2026-W26', repos: { 'repo-a': scored() } };
+    delete prior.repos['repo-a'].codeScanning;
+    delete prior.repos['repo-a'].secretScanning;
+    const current = { schema_version: 'v1', repos: { 'repo-a': scored({ license: 'None' }) } };
+    assert.equal(prior.repos['repo-a'].computed.tier, 'gold');
     assert.deepEqual(detectTierRegressions(current, prior).map(f => f.repo), ['repo-a']);
   });
 

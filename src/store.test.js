@@ -440,6 +440,21 @@ describe('buildPortfolioSnapshot — ci tri-state', () => {
     // A repo nobody fetched is unknown too, not zero.
     assert.equal(snapshot.repos.uncapped.ci, null);
   });
+
+  it('persists an unreadable scanner as its marker, not as null, and never stores Gold on it (#452)', async () => {
+    // detectTierRegressions keys on this marker; a null would read as the
+    // scanner's own "not enabled" answer and substantiate a regression.
+    const { buildPortfolioSnapshot } = await import('./store.js');
+    const now = new Date().toISOString();
+    const repos = [{ name: 'a', archived: false, fork: false, stars: 1, pushed_at: now, open_issues: 0 }];
+    const details = { a: {
+      open_issues: 0, open_bugs: 0, commits: 10, license: 'MIT', ci: 2, communityHealth: 90, ciPassRate: 0.9, released_at: now,
+      vulns: { count: 0, max_severity: null }, codeScanning: { unreadable: true }, secretScanning: { count: 0 },
+    } };
+    const snapshot = JSON.parse(JSON.stringify(buildPortfolioSnapshot(repos, details, {})));
+    assert.deepEqual(snapshot.repos.a.codeScanning, { unreadable: true });
+    assert.notEqual(snapshot.repos.a.computed.tier, 'gold');
+  });
 });
 
 describe('buildPortfolioSnapshot — repo ID propagation', () => {

@@ -456,11 +456,18 @@ describe('scanner "not available" note keys on status (#438)', () => {
         const throwing = (err) => ({ request: async () => { throw err; } });
         assert.equal(await mod[name](throwing(Object.assign(new Error('GitHub API GET x: 404 Not Found'), { status: 404 })), 'o', 'r'), null);
         assert.equal(logs.filter(l => l.includes('not available')).length, 1);
-        assert.equal(await mod[name](throwing(Object.assign(new Error('GitHub API GET x: 500 upstream said: 404'), { status: 500 })), 'o', 'r'), null);
+        // #452: a 500 is not the scanner's answer, so it must not read as the
+        // "not enabled" null either — it is unreadable.
+        assert.deepEqual(await mod[name](throwing(Object.assign(new Error('GitHub API GET x: 500 upstream said: 404'), { status: 500 })), 'o', 'r'), { unreadable: true });
         assert.equal(logs.filter(l => l.includes('not available')).length, 1, 'a 500 is not "not available"');
       } finally {
         spy.mock.restore();
       }
+    });
+
+    it(`${name} reads a non-array body as unreadable, never as zero alerts (#452)`, async () => {
+      const mod = await import('./observe.js');
+      assert.deepEqual(await mod[name]({ request: async () => ({ message: 'unexpected shape' }) }, 'o', 'r'), { unreadable: true });
     });
   }
 });
@@ -985,6 +992,34 @@ describe('observe — every fetch lands on its own snapshot field', () => {
     assert.deepEqual(snapshot.secret_scanning_alerts, { count: 3 });
     assert.deepEqual(snapshot.ci_pass_rate, { pass_rate: 0.75, total_runs: 4, passed: 3, failed: 1 });
     assert.deepEqual(snapshot.automated_security_fixes, { enabled: true, paused: true });
+  });
+});
+
+describe('observe — an unreadable alerts read stays distinguishable (#452)', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const ok = (body) => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  const err = (status) => ({ ok: false, status, headers: new Map(), json: async () => ({}), text: async () => 'error' });
+
+  it('carries the marker on the snapshot and never an undefined count in the summary', async () => {
+    globalThis.fetch = mock.fn(async (url) => {
+      const p = new URL(url).pathname.replace('/repos/owner/repo', '');
+      if (p === '') return ok({ stargazers_count: 0, forks_count: 0, open_issues_count: 0 });
+      if (p === '/dependabot/alerts') return err(500);
+      if (p === '/code-scanning/alerts') return err(404);
+      if (p.startsWith('/contents/')) return err(404);
+      return ok([]);
+    });
+    const { observe } = await import('./observe.js');
+    const snapshot = await observe({ owner: 'owner', repo: 'repo', token: 'fake', config: {} });
+
+    // The per-repo report scores its tier from these objects (report-repo.js).
+    assert.deepEqual(snapshot.dependabot_alerts, { unreadable: true });
+    assert.equal(snapshot.code_scanning_alerts, null, 'a 404 is still "not enabled"');
+    assert.equal(snapshot.summary.dependabot_alert_count, null);
+    assert.equal(snapshot.summary.dependabot_max_severity, null);
   });
 });
 

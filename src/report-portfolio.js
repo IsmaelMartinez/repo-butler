@@ -11,8 +11,18 @@ import {
   escHtml, fmt, countBy, daysAgo,
   computeHealthTier, getLibyearColor, isReleaseExempt, isCopyleft, describeLicenseConcern,
   CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
-  isAutofixNotDriven, computeCountTrend,
+  isAutofixNotDriven, computeCountTrend, isScannerUnreadable,
 } from './report-shared.js';
+
+// The Dependabot cell shared by both repo tables; `naCell` is each table's
+// rendering of null ("not available"). An unreadable read (#452) has no count
+// to show, and "n/a" alone would read as the scanner being off.
+function vulnCell(vulns, naCell) {
+  if (vulns == null) return naCell;
+  if (isScannerUnreadable(vulns)) return '<span title="Dependabot alerts could not be read this run" style="color:var(--faint);cursor:help">unavailable</span>';
+  if (vulns.count === 0) return `<span style="color:${COLOR_SUCCESS}">0</span>`;
+  return `<span style="color:${isHighSeverity(vulns) ? COLOR_DANGER : COLOR_WARNING}">${vulns.count}</span>`;
+}
 
 // Range tuples shared by the portfolio dashboard. Each describes a
 // "value-to-colour" mapping consumed by `colorByThreshold`.
@@ -799,11 +809,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
     const ciPassPct = r.ciPassRate != null ? Math.round(r.ciPassRate * 100) : null;
     const ciPassColor = colorByThreshold(ciPassPct, CI_PASS_PCT_RANGES);
     const ciDisplay = ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span>` : '—';
-    const vulnDisplay = r.vulns == null
-      ? '<span style="color:var(--faint)">n/a</span>'
-      : r.vulns.count === 0
-        ? `<span style="color:${COLOR_SUCCESS}">0</span>`
-        : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
+    const vulnDisplay = vulnCell(r.vulns, '<span style="color:var(--faint)">n/a</span>');
     const openIssues = r.open_issues || 0;
     const issuesColor = colorByThreshold(openIssues, OPEN_ISSUES_RANGES);
     const openPRs = r._open_prs;
@@ -845,11 +851,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
       : ciCount === 0
         ? `<span style="color:${COLOR_DANGER}">none</span>`
         : ciPassPct != null ? `<span style="color:${ciPassColor}">${ciPassPct}%</span> <span style="color:var(--faint);font-size:0.8em">(${ciCount})</span>` : `${ciCount}`;
-    const vulnDisplay = r.vulns == null
-      ? '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>'
-      : r.vulns.count === 0
-        ? `<span style="color:${COLOR_SUCCESS}">0</span>`
-        : `<span style="color:${isHighSeverity(r.vulns) ? COLOR_DANGER : COLOR_WARNING}">${r.vulns.count}</span>`;
+    const vulnDisplay = vulnCell(r.vulns, '<span title="Token lacks vulnerability_alerts:read scope" style="color:var(--faint);cursor:help">n/a</span>');
     const libyearVal = r.libyear?.total_libyear;
     const libyearColor = getLibyearColor(libyearVal);
     const depDisplay = r.sbom

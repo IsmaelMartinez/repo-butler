@@ -161,16 +161,45 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.equal(cache.repos['cached-repo'].details.vulns, zeroSummary, 'the cache object is never mutated');
   });
 
-  it('reports an unreadable live alert read as unknown (null), as the miss path does, never the cached counts', async () => {
+  it('reports an unreadable live alert read as unreadable, as the miss path does, never the cached counts', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
     const gh = securityGh({ dependabot: reject500, codeScanning: reject500, secretScanning: reject500 });
     const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, {
       cache: cachedWorkflowsCache({ ...cleanCachedDetails, vulns: { ...zeroSummary, count: 3, low: 3 } }),
     });
     const d = details['cached-repo'];
-    assert.equal(d.vulns, null, 'an unreadable dependabot read is unknown, not the cached summary');
-    assert.equal(d.codeScanning, null);
-    assert.equal(d.secretScanning, null);
+    assert.deepEqual(d.vulns, { unreadable: true }, 'an unreadable dependabot read is unknown, not the cached summary');
+    assert.deepEqual(d.codeScanning, { unreadable: true });
+    assert.deepEqual(d.secretScanning, { unreadable: true });
+  });
+
+  // #452: null is the scanner's own answer ("not enabled"), and the tier and the
+  // standards detectors read it as such. A failure that is not an answer must
+  // stay distinguishable from it, on both the cache-hit and cache-miss paths.
+  it('keeps a definitive 403/404 "not enabled" as null, distinct from an unreadable read', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
+    const reject = status => () => Promise.reject(Object.assign(new Error(String(status)), { status }));
+    for (const status of [403, 404]) {
+      const gh = securityGh({ dependabot: reject(status), codeScanning: reject(status), secretScanning: reject(status) });
+      const d = (await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache: cachedWorkflowsCache(cleanCachedDetails) }))['cached-repo'];
+      assert.equal(d.vulns, null, `dependabot ${status} with no dependabot.yml is not enabled`);
+      assert.equal(d.codeScanning, null, `code scanning ${status} is not enabled`);
+      assert.equal(d.secretScanning, null, `secret scanning ${status} is not enabled`);
+    }
+  });
+
+  it('reads an exhausted rate limit (an error with no status) as unreadable, not as not-enabled', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
+    const rateLimited = () => Promise.reject(new Error('GitHub API GET x: rate limited after 3 retries'));
+    const gh = securityGh({ dependabot: rateLimited, codeScanning: rateLimited, secretScanning: rateLimited });
+    const d = (await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache: cachedWorkflowsCache(cleanCachedDetails) }))['cached-repo'];
+    assert.deepEqual([d.vulns, d.codeScanning, d.secretScanning], [{ unreadable: true }, { unreadable: true }, { unreadable: true }]);
+  });
+
+  it('carries an unreadable read on the cache-MISS path too', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
+    const d = (await fetchPortfolioDetails(securityGh({ dependabot: reject500, codeScanning: reject500, secretScanning: reject500 }), 'owner', cachedWorkflowsRepos))['cached-repo'];
+    assert.deepEqual([d.vulns, d.codeScanning, d.secretScanning], [{ unreadable: true }, { unreadable: true }, { unreadable: true }]);
   });
 
   // The dependabot.yml config-only fallback exists for a token without alert
@@ -184,7 +213,17 @@ describe('fetchPortfolioDetails incremental cache', () => {
       secretScanning: () => Promise.resolve({ message: 'unexpected shape' }),
     });
     const details = await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache: cachedWorkflowsCache(cleanCachedDetails) });
-    assert.equal(details['cached-repo'].secretScanning, null);
+    assert.deepEqual(details['cached-repo'].secretScanning, { unreadable: true });
+  });
+
+  it('reads a non-array Dependabot or code-scanning body as unreadable, never as a summary (#452)', async () => {
+    // A string is iterable, so tallying it would report one "alert" per
+    // character with no severity — a clean-looking summary from nonsense.
+    const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
+    const garbled = () => Promise.resolve('<html>bad gateway</html>');
+    const gh = securityGh({ dependabot: garbled, codeScanning: garbled, secretScanning: () => Promise.resolve([]) });
+    const d = (await fetchPortfolioDetails(gh, 'owner', cachedWorkflowsRepos, { cache: cachedWorkflowsCache(cleanCachedDetails) }))['cached-repo'];
+    assert.deepEqual([d.vulns, d.codeScanning], [{ unreadable: true }, { unreadable: true }]);
   });
 
   it('keeps the config-only dependabot fallback to a 403; any other failure is unknown', async () => {
@@ -197,7 +236,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const forbidden = () => Promise.reject(Object.assign(new Error('403'), { status: 403 }));
 
     const on500 = await fetchPortfolioDetails(withDependabotYml(reject500), 'owner', cachedWorkflowsRepos, { cache: cache() });
-    assert.equal(on500['cached-repo'].vulns, null, 'a 500 is unknown, never a config-only zero');
+    assert.deepEqual(on500['cached-repo'].vulns, { unreadable: true }, 'a 500 is unknown, never a config-only zero');
 
     const on403 = await fetchPortfolioDetails(withDependabotYml(forbidden), 'owner', cachedWorkflowsRepos, { cache: cache() });
     assert.equal(on403['cached-repo'].vulns?.config_only, true, 'a 403 with dependabot.yml present is config-only');

@@ -321,6 +321,15 @@ describe('portfolio table ci cell is tri-state', () => {
     const html = generatePortfolioReport({ owner: 'test', portfolio: mkPortfolio(), details: mkDetails(0), config: {} });
     assert.ok(html.includes('>none<'));
   });
+
+  it('renders an unreadable Dependabot read as unavailable, never as a count (#452)', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const details = mkDetails(2);
+    details.a.vulns = { unreadable: true };
+    const html = generatePortfolioReport({ owner: 'test', portfolio: mkPortfolio(), details, config: {} });
+    assert.ok(!html.includes('>undefined<'), 'no count exists to show');
+    assert.ok(html.includes('Dependabot alerts could not be read'), 'says why it is unknown');
+  });
 });
 
 describe('generatePortfolioReport restructure', () => {

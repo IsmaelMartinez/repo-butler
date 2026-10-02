@@ -66,7 +66,7 @@ describe('repository-snapshot schema matches observe() output keys', () => {
     const observeKeys = new Set([
       'timestamp', 'repository', 'meta', 'issues', 'pull_requests', 'labels',
       'milestones', 'releases', 'workflows', 'roadmap', 'package',
-      'community_profile', 'dependabot_alerts', 'ci_pass_rate', 'summary',
+      'community_profile', 'dependabot_alerts', 'code_scanning_alerts', 'secret_scanning_alerts', 'ci_pass_rate', 'summary',
     ]);
 
     for (const key of Object.keys(schema.properties)) {
