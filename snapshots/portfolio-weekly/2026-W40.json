@@ -209,13 +209,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 25,
-      "open_bugs": 12,
-      "commits_6mo": 379,
+      "open_issues": 26,
+      "open_bugs": 13,
+      "commits_6mo": 380,
       "stars": 5091,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9833333333333333,
       "vulns": {
         "count": 2,
         "critical": 0,
@@ -237,15 +237,15 @@
       },
       "ci": 20,
       "released_at": "2026-09-26T06:33:31Z",
-      "pushed_at": "2026-10-01T15:35:00Z",
+      "pushed_at": "2026-10-02T07:59:33Z",
       "traffic": {
         "views_14d": {
-          "count": 10716,
-          "uniques": 4544
+          "count": 10989,
+          "uniques": 4681
         },
         "clones_14d": {
-          "count": 11581,
-          "uniques": 621
+          "count": 11026,
+          "uniques": 669
         }
       },
       "computed": {
@@ -312,13 +312,13 @@
     },
     "ismaelmartinez.me.uk": {
       "id": 786898753,
-      "open_issues": 21,
+      "open_issues": 9,
       "open_bugs": 0,
-      "commits_6mo": 258,
+      "commits_6mo": 260,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.979381443298969,
+      "ciPassRate": 0.9894736842105263,
       "vulns": {
         "count": 12,
         "critical": 0,
@@ -340,15 +340,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-01T12:31:26Z",
+      "pushed_at": "2026-10-02T08:06:02Z",
       "traffic": {
         "views_14d": {
-          "count": 48,
-          "uniques": 36
+          "count": 53,
+          "uniques": 38
         },
         "clones_14d": {
-          "count": 2848,
-          "uniques": 683
+          "count": 2604,
+          "uniques": 690
         }
       },
       "computed": {
@@ -520,11 +520,11 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 312,
+      "commits_6mo": 309,
       "stars": 3,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.94,
+      "ciPassRate": 0.9545454545454546,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -546,15 +546,15 @@
       },
       "ci": 9,
       "released_at": "2026-09-15T11:10:45Z",
-      "pushed_at": "2026-09-28T08:54:32Z",
+      "pushed_at": "2026-10-02T08:07:50Z",
       "traffic": {
         "views_14d": {
-          "count": 13,
-          "uniques": 8
+          "count": 9,
+          "uniques": 5
         },
         "clones_14d": {
-          "count": 1988,
-          "uniques": 366
+          "count": 1907,
+          "uniques": 387
         }
       },
       "computed": {
@@ -930,13 +930,13 @@
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 11,
-      "open_bugs": 1,
+      "open_issues": 10,
+      "open_bugs": 0,
       "commits_6mo": 324,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9625,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,15 +958,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-01T17:50:45Z",
+      "pushed_at": "2026-10-02T08:08:24Z",
       "traffic": {
         "views_14d": {
-          "count": 20,
-          "uniques": 8
+          "count": 18,
+          "uniques": 7
         },
         "clones_14d": {
-          "count": 4602,
-          "uniques": 1003
+          "count": 4095,
+          "uniques": 1078
         }
       },
       "computed": {
@@ -1241,7 +1241,7 @@
       "id": 1223288066,
       "open_issues": 7,
       "open_bugs": 0,
-      "commits_6mo": 501,
+      "commits_6mo": 502,
       "stars": 7,
       "license": "MIT",
       "communityHealth": 100,
@@ -1267,7 +1267,7 @@
       },
       "ci": 8,
       "released_at": "2026-10-01T17:17:15Z",
-      "pushed_at": "2026-10-01T17:17:14Z",
+      "pushed_at": "2026-10-02T06:40:05Z",
       "traffic": {
         "views_14d": {
           "count": 115,
