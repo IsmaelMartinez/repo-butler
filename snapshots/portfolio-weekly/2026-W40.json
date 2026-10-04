@@ -11,12 +11,12 @@
       "communityHealth": 100,
       "ciPassRate": 0.9651162790697675,
       "vulns": {
-        "count": 0,
+        "count": 1,
         "critical": 0,
         "high": 0,
         "medium": 0,
-        "low": 0,
-        "max_severity": null
+        "low": 1,
+        "max_severity": "low"
       },
       "codeScanning": {
         "count": 0,
@@ -212,7 +212,7 @@
       "open_issues": 19,
       "open_bugs": 7,
       "commits_6mo": 384,
-      "stars": 5094,
+      "stars": 5096,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.8695652173913043,
@@ -958,7 +958,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-04T16:05:06Z",
+      "pushed_at": "2026-10-04T20:35:16Z",
       "traffic": {
         "views_14d": {
           "count": 21,
