@@ -37,5 +37,18 @@
     "council_summary": "The proposal targets an external repository ('teams-for-linux') using a per-repo bug count metric rather than a cross-portfolio statistic uniquely computed by the butler, failing our strict external targeting criteria.",
     "added_at": "2026-09-28T13:07:33.881Z",
     "review_count": 0
+  },
+  {
+    "title": "Uplift teams-for-linux to Gold: Resolve Dependabot high vulnerabilities",
+    "type": "proposal",
+    "severity": "high",
+    "targetRepo": "teams-for-linux",
+    "held_back_reason": null,
+    "council_verdict": "watch",
+    "council_confidence": "low",
+    "council_priority": "low",
+    "council_summary": "This proposal targets an external repository and is based on a per-repo vulnerability claim rather than a unique cross-portfolio statistic computed by the butler, failing our strict cross-repo justification threshold.",
+    "added_at": "2026-10-05T13:49:53.187Z",
+    "review_count": 0
   }
 ]
