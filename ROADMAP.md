@@ -131,6 +131,8 @@ Architectural roadmap for event-driven integration and agent-to-agent (A2A) surf
 
 Architectural blueprint for event-driven integration surfaces drafted 2026-10-02 (PR #476). Establishes the design foundation for event-driven cross-agent coordination and agent-to-agent (A2A) surfaces, preparing the system to transition toward active, collaborative discovery.
 
+Architectural blueprint for event-driven integration and agent-to-agent (A2A) surfaces drafted 2026-10-02 (PR #476). Establishes the design foundation for event-driven cross-agent coordination and A2A integration, preparing the system to transition from static discovery toward active, collaborative discovery.
+
 ---
 
 ## Next Up
