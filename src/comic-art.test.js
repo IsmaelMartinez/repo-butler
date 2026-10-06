@@ -67,6 +67,16 @@ describe('paintPanel', () => {
     assert.deepEqual(swapped.cells, natural.cells);
   });
 
+  it('refuses a caption too tall for the panel even with no balloons', () => {
+    const p = paintPanel(panel({ caption: 'Long caption words here. '.repeat(30), say: [] }), 'panel 3');
+    assert.match(p.problems.join('\n'), /^panel 3: the caption is \d+ row\(s\) too tall/);
+  });
+
+  it('gives each speaker one balloon per panel', () => {
+    const p = paintPanel(panel({ say: [{ who: 'reginald', text: 'A.' }, { who: 'reginald', text: 'B.' }] }), 'panel 1');
+    assert.match(p.problems.join('\n'), /panel 1: reginald already has a balloon; each speaker gets one per panel/);
+  });
+
   it('names unknown scenes, cast members and speakers', () => {
     const p = paintPanel({ scene: 'ballroom', cast: [{ who: 'footman' }], say: [{ who: 'cook', text: 'Hi.' }] }, 'panel 1');
     const all = p.problems.join('\n');
@@ -80,6 +90,19 @@ describe('paintStrip', () => {
   it('wants exactly three panels', () => {
     assert.match(paintStrip({ panels: [panel()] }).problems[0], /exactly 3 panels, got 1/);
     assert.deepEqual(paintStrip({ title: 't', date: 'd', stats: 's', panels: [panel(), panel(), panel()] }).problems, []);
+  });
+
+  it('holds the frame text to the same limits as the ASCII renderer', async () => {
+    const { renderComic } = await import('./comic.js');
+    const three = [panel(), panel(), panel()];
+    for (const over of [{ stats: 'S'.repeat(76) }, { title: 'T'.repeat(50), date: 'D'.repeat(25) }]) {
+      const script = { title: 't', date: 'd', stats: 's', panels: three, ...over };
+      assert.notDeepEqual(paintStrip(script).problems, [], JSON.stringify(over));
+      assert.notDeepEqual(renderComic(script).problems, [], JSON.stringify(over));
+    }
+    const fits = { title: 'T'.repeat(50), date: 'D'.repeat(24), stats: 'S'.repeat(75), panels: three };
+    assert.deepEqual(paintStrip(fits).problems, []);
+    assert.deepEqual(renderComic(fits).problems, []);
   });
 
   it('folds typographic marks out of the frame text', () => {

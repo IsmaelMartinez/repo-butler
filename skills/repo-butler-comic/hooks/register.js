@@ -36,7 +36,7 @@ const panelSchema = {
     say: {
       type: 'array',
       maxItems: 2,
-      description: 'Balloons in reading order; each speaker must be in this panel\'s cast.',
+      description: 'Balloons in reading order; each speaker must be in this panel\'s cast and gets one balloon.',
       items: {
         type: 'object',
         properties: { who: { type: 'string', enum: CAST_IDS }, text: { type: 'string' } },
@@ -52,7 +52,7 @@ const inputSchema = {
   properties: {
     title: { type: 'string' },
     date: { type: 'string' },
-    mourning: { type: 'boolean', description: 'Black-bordered frame, for a genuine breach only.' },
+    mourning: { type: 'boolean', description: 'Mourning frame, for a genuine breach only.' },
     panels: { type: 'array', minItems: 3, maxItems: 3, items: panelSchema },
     stats: { type: 'string', description: 'One line of portfolio figures under the strip.' },
   },
@@ -111,7 +111,7 @@ export function register(on) {
     const strip = paintStrip(script);
     const { Box, Text, Raster } = $.ui.resolve(e);
     const wide = (e.viewport?.columns ?? WIDE) >= WIDE;
-    const frame = strip.mourning ? hex(PALETTE.ink) : hex(PALETTE.stone);
+    const frame = strip.mourning ? hex(PALETTE.tartan) : hex(PALETTE.stone);
     const width = wide ? WIDE : PANEL_COLS + 2;
     return h(Box, { flexDirection: 'column', marginTop: 1 },
       h(Box, { width, justifyContent: 'space-between' },

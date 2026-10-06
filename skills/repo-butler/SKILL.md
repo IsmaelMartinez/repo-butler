@@ -120,9 +120,9 @@ The rules the renderers hold you to:
 
 - Exactly three panels. Each has a `scene`, a `cast` of one or two, an optional `caption`, and up to two balloons in `say`, in reading order. Whoever speaks first is drawn on the left, so order `say`, not `cast`.
 - Cast: `reginald`, `gardener` (Dependabot), `cook` (CI), `postmaster` (issues and PRs), `under-butler` (governance). Moods: `neutral`, `worried`, `observant`, `pleased`, `calm`.
-- Every speaker must be in that panel's cast. `count` (1–6) sets the number of pests in `garden-pests` and is ignored elsewhere.
-- Words are short. A balloon is one sentence, roughly 90 characters at most; a caption, two short sentences. The panels are small and the lettering is what makes them read as a comic rather than a page of prose.
-- `stats` is one line: `{N} repos * {gold} Gold * {top concern stat} * {ci}`.
+- Every speaker must be in that panel's cast, and each gets one balloon per panel — a panel where Reginald speaks twice is one balloon with both sentences. `count` (1–6) sets the number of pests in `garden-pests` and is ignored elsewhere.
+- Words are short. A balloon is one sentence, roughly 90 characters at most; a caption, two short sentences. A panel with two balloons takes at most a one-line caption. The panels are small and the lettering is what makes them read as a comic rather than a page of prose.
+- `title` and `date` together stay within 74 characters; `stats` is one line of at most 75: `{N} repos * {gold} Gold * {top concern stat} * {ci}`.
 
 ## Scenes — the day's headline (data-driven)
 
@@ -145,7 +145,7 @@ For the two all-clear scenes (`fireside`, `garden-clear`), pick the one that is 
 
 ## Mourning
 
-For genuine breaches only — a critical vuln or a detected secret leak (the `storm` scene) — set `"mourning": true`, which draws the strip in a black frame. Rate-limit it to once per fortnight via a stamp file:
+For genuine breaches only — a critical vuln or a detected secret leak (the `storm` scene) — set `"mourning": true`, which draws the strip in a mourning frame. Rate-limit it to once per fortnight via a stamp file:
 
 ```bash
 STAMP="$HOME/.cache/repo-butler/burns-stamp"

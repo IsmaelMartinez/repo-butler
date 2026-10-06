@@ -72,9 +72,17 @@ describe('renderComic', () => {
     assert.ok(hat.indexOf(',-===-,') < cap.indexOf('(_______)'));
   });
 
-  it('switches to the mourning frame only when asked', () => {
+  it('switches to the mourning frame only when asked with a real true', () => {
     assert.match(renderComic(spec({ mourning: true })).text, /^#{79}$/m);
     assert.doesNotMatch(renderComic(spec()).text, /^#{79}$/m);
+    assert.doesNotMatch(renderComic(spec({ mourning: 'false' })).text, /^#{79}$/m);
+  });
+
+  it('gives each speaker one balloon per panel', () => {
+    const { problems } = renderComic(spec({
+      panels: [panel({ say: [{ who: 'reginald', text: 'A.' }, { who: 'reginald', text: 'B.' }] }), panel(), panel()],
+    }));
+    assert.match(problems.join('\n'), /panel 1: reginald already has a balloon; each speaker gets one per panel/);
   });
 });
 

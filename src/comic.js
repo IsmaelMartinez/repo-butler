@@ -316,12 +316,18 @@ function renderPanel(panel, w, label, problems) {
   const caption = panel.caption ? wrap(panel.caption, w - 6) : [];
   const blocked = new Set();
   const balloons = [];
+  const spoken = new Set();
   for (const say of Array.isArray(panel.say) ? panel.say : []) {
     const who = placed.find(p => p.who === say?.who);
     if (!who) {
       problems.push(`${label}: "${say?.who}" speaks but is not in this panel's cast`);
       continue;
     }
+    if (spoken.has(who.who)) {
+      problems.push(`${label}: ${who.who} already has a balloon; each speaker gets one per panel, so join their words`);
+      continue;
+    }
+    spoken.add(who.who);
     const span = freeInterval(who.head, 1, w - 2, blocked);
     if (!span) {
       problems.push(`${label}: no room for ${say.who}'s balloon beside an earlier tail`);
@@ -406,9 +412,10 @@ export function renderComic(spec) {
 
   const W = STRIP_WIDTH;
   const inner = W - 2;
-  const edge = spec?.mourning ? '#' : '|';
-  const heavy = spec?.mourning ? '#' : '=';
-  const corner = spec?.mourning ? '#' : '+';
+  const mourning = spec?.mourning === true;
+  const edge = mourning ? '#' : '|';
+  const heavy = mourning ? '#' : '=';
+  const corner = mourning ? '#' : '+';
   const rule = (fill) => corner + fill.repeat(inner) + corner;
   const row = (line) => edge + line + edge;
 

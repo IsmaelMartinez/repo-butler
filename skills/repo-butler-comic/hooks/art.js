@@ -12,6 +12,8 @@
 
 export const PANEL_COLS = 40;
 export const PANEL_ROWS = 24;
+export const MAX_TITLE_AND_DATE = 74;
+export const MAX_STATS = 75;
 const W = PANEL_COLS;
 const H = PANEL_ROWS * 2;
 const FLOOR = H - 5;
@@ -555,8 +557,13 @@ export function paintPanel(panel, label = 'panel') {
 
   const text = [];
   let row = 1;
-  if (panel?.caption) {
-    const lines = wrap(panel.caption, W - 6);
+  const castTop = Math.min(FLOOR, ...placed.map(p => p.top));
+  const captionLines = panel?.caption ? wrap(panel.caption, W - 6) : [];
+  const captionBottom = (row + captionLines.length) * 2 + 1;
+  if (captionLines.length && captionBottom >= castTop - 1) {
+    problems.push(`${label}: the caption is ${Math.ceil((captionBottom - castTop + 2) / 2)} row(s) too tall for the panel; shorten it`);
+  } else if (captionLines.length) {
+    const lines = captionLines;
     const width = Math.max(...lines.map(l => l.length));
     const c0 = 2;
     const y1 = (row + lines.length) * 2;
@@ -571,12 +578,18 @@ export function paintPanel(panel, label = 'panel') {
   // keep clear of every earlier balloon's tail.
   const blocked = new Set();
   const balloons = [];
+  const spoken = new Set();
   for (const say of Array.isArray(panel?.say) ? panel.say : []) {
     const who = placed.find(p => p.who === say?.who);
     if (!who) {
       problems.push(`${label}: "${say?.who}" speaks but is not in the cast`);
       continue;
     }
+    if (spoken.has(who.who)) {
+      problems.push(`${label}: ${who.who} already has a balloon; each speaker gets one per panel, so join their words`);
+      continue;
+    }
+    spoken.add(who.who);
     if (blocked.has(who.head)) {
       problems.push(`${label}: no room for ${say.who}'s balloon beside an earlier tail`);
       continue;
@@ -645,10 +658,17 @@ export function paintStrip(spec) {
   if (panels.length !== 3) problems.push(`expected exactly 3 panels, got ${panels.length}`);
   const painted = panels.slice(0, 3).map((p, i) => paintPanel(p, `panel ${i + 1}`));
   for (const p of painted) problems.push(...p.problems);
+  const title = toPlain(spec?.title).toUpperCase();
+  const date = toPlain(spec?.date);
+  const stats = toPlain(spec?.stats);
+  // The same limits as the ASCII renderer's frame, so a script either
+  // renderer accepts, the other accepts too.
+  if (title.length + date.length > MAX_TITLE_AND_DATE) problems.push(`title and date are ${title.length + date.length} chars together; keep them to ${MAX_TITLE_AND_DATE}`);
+  if (stats.length > MAX_STATS) problems.push(`stats line is ${stats.length} chars; keep it to ${MAX_STATS}`);
   return {
-    title: toPlain(spec?.title).toUpperCase(),
-    date: toPlain(spec?.date),
-    stats: toPlain(spec?.stats),
+    title,
+    date,
+    stats,
     mourning: spec?.mourning === true,
     panels: painted,
     problems,
