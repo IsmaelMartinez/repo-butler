@@ -61,6 +61,22 @@ describe('register', () => {
     await ui.unmount()
   })
 
+  test('a narrow terminal stacks the panels and the frame text', async $ => {
+    const ui = await $.ui.mount({
+      plugin: 'repo-butler-comic',
+      surface: 'terminal',
+      component: 'ToolResult',
+      props: { tool_use_id: 't3', tool: TOOL, output: JSON.stringify({ drawn: true, script: SCRIPT }), isErrored: false },
+      viewport: { columns: 80, rows: 50 },
+    })
+
+    expect(await ui.findAll({ type: 'Raster' })).toHaveLength(3)
+    const rows = (await ui.findAll({ type: 'Box' })).filter(b => (b as { props?: { width?: number } }).props?.width === 42)
+    expect(rows.length).toBe(2)
+    for (const box of rows) expect((box as { props?: { flexDirection?: string } }).props?.flexDirection).toBe('column')
+    await ui.unmount()
+  })
+
   test('another tool result is left to the engine', async ($, on) => {
     on('ui.render', ($, e) => {
       const { Text } = $.ui.resolve(e)

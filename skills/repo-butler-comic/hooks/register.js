@@ -113,15 +113,18 @@ export function register(on) {
     const wide = (e.viewport?.columns ?? WIDE) >= WIDE;
     const frame = strip.mourning ? hex(PALETTE.tartan) : hex(PALETTE.stone);
     const width = wide ? WIDE : PANEL_COLS + 2;
+    // A narrow frame cannot hold title and date (or stats and signature) side
+    // by side, so those rows stack with the panels.
+    const line = wide ? { width, justifyContent: 'space-between' } : { width, flexDirection: 'column' };
     return h(Box, { flexDirection: 'column', marginTop: 1 },
-      h(Box, { width, justifyContent: 'space-between' },
+      h(Box, line,
         h(Text, { bold: true, color: hex(strip.mourning ? PALETTE.tartan : PALETTE.caption) }, strip.title),
         h(Text, { color: hex(PALETTE.caption) }, strip.date)),
       h(Box, { flexDirection: wide ? 'row' : 'column', gap: GUTTER },
         ...strip.panels.map((p, i) =>
           h(Box, { borderStyle: strip.mourning ? 'double' : 'round', borderColor: frame },
             h(Raster, { key: `panel-${i}`, columns: PANEL_COLS, rows: PANEL_ROWS, cells: toBase64(p.cells) })))),
-      h(Box, { width, justifyContent: 'space-between' },
+      h(Box, line,
         h(Text, { color: hex(PALETTE.stone) }, strip.stats),
         h(Text, { italic: true, color: hex(PALETTE.caption) }, '-- Reginald')));
   });
