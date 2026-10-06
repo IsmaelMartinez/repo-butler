@@ -1,0 +1,4 @@
+{
+  "description": "A session.start hook registers the strip tool; a tool.call hook on it validates the comic script and refuses one whose words do not fit; a ui.render hook on its ToolResult draws the accepted strip as three pixel-art Raster panels.",
+  "modules": ["./register.js"]
+}
