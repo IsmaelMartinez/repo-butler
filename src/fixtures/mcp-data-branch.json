@@ -81,9 +81,18 @@
     },
     "snapshots/governance-weekly/2026-W39.json": {
       "findings": [
-        { "type": "open-vulnerability", "repo": "beta", "autofixEnabled": false },
-        { "type": "open-vulnerability", "repo": "gamma-test-repo", "autofixEnabled": true },
-        { "type": "tier-regression", "repo": "beta" }
+        { "type": "open-vulnerability", "repo": "beta", "sources": ["dependabot"], "autofixEnabled": false, "priority": "high", "remediation": { "executor": "manual" } },
+        { "type": "open-vulnerability", "repo": "gamma-test-repo", "sources": ["dependabot"], "autofixEnabled": true, "priority": "medium", "remediation": { "executor": "manual" } },
+        { "type": "tier-regression", "repo": "beta", "previousTier": "gold", "currentTier": "silver", "priority": "high", "remediation": { "executor": "manual" } },
+        { "type": "stalled-alert", "repo": "alpha", "alerts": [{ "number": 26, "package": "left-pad", "ecosystem": "npm", "severity": "medium", "ageDays": 22, "classification": "reachable-by-update" }], "priority": "medium", "remediation": { "executor": "manual" } },
+        { "type": "standards-gap", "tool": "license", "nonCompliant": ["gamma-test-repo"], "priority": "low", "remediation": { "executor": "template" } },
+        { "type": "dependabot-stale", "repo": "alpha", "priority": "low", "remediation": { "executor": "manual" }, "stalePRs": [
+          { "number": 7, "age": 45, "title": "bump a" },
+          { "number": 8, "age": 90, "title": "bump b" },
+          { "number": 9, "age": 10, "title": "bump c" },
+          { "number": "1/../settings", "age": 100, "title": "traversal" }
+        ] },
+        { "type": "dependabot-stale", "repo": "../evil", "stalePRs": [{ "number": 1, "age": 99, "title": "bad repo name" }] }
       ]
     },
     "snapshots/governance-weekly/init.json": { "findings": [] },

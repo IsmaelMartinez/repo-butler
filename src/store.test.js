@@ -338,6 +338,28 @@ describe('pruneDir (via writePortfolioWeekly)', () => {
   });
 });
 
+// #477: a repo held below Gold only by an unread scanner is stored as
+// provisional, and its next step never names a check nobody observed.
+describe('enrichPortfolioSummary — provisional tier', () => {
+  it('marks a provisional tier and names no unobserved next step', async () => {
+    const { enrichPortfolioSummary } = await import('./store.js');
+    const summary = {
+      open_issues: 0, open_bugs: 0, commits_6mo: 100, stars: 5, license: 'MIT',
+      communityHealth: 90, ciPassRate: 0.98, vulns: { count: 0, max_severity: null },
+      codeScanning: { unreadable: true }, secretScanning: { count: 0 }, ci: 4,
+      released_at: new Date().toISOString(), pushed_at: new Date().toISOString(),
+    };
+    const { computed } = enrichPortfolioSummary(summary, 'test-repo', {});
+    assert.equal(computed.tier, 'silver');
+    assert.equal(computed.provisional, true);
+    assert.equal(computed.next_step, null);
+
+    const real = enrichPortfolioSummary({ ...summary, communityHealth: 60 }, 'test-repo', {}).computed;
+    assert.equal(real.provisional, false, 'an observed gap holds the tier');
+    assert.equal(real.next_step, 'Community health above 80%');
+  });
+});
+
 describe('writeGovernanceWeekly / readLatestGovernanceWeekly', () => {
   it('writes findings wrapped as { findings } to the current week file', async () => {
     const gh = makeFakeGh();
@@ -348,6 +370,19 @@ describe('writeGovernanceWeekly / readLatestGovernanceWeekly', () => {
 
     assert.equal(gh.calls.put.length, 1);
     assert.match(gh.calls.put[0], /^snapshots\/governance-weekly\/\d{4}-W\d{2}\.json$/);
+  });
+
+  // #477: the unread count travels with the findings, so a trend can tell a
+  // repo that dropped out because it went unread from one that was fixed.
+  it('records how many repos had a scanner unread alongside the findings', async () => {
+    const gh = makeFakeGh();
+    const written = [];
+    gh.putFile = async (_o, _r, path, content) => { written.push(JSON.parse(content)); };
+    const store = createStore({ owner: 'o', repo: 'r', token: 't', gh });
+
+    await store.writeGovernanceWeekly([], { unreadSecurity: 2 });
+
+    assert.deepEqual(written, [{ findings: [], unreadSecurity: 2 }]);
   });
 
   it('does nothing for non-array input', async () => {

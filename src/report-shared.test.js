@@ -162,6 +162,14 @@ describe('computeHealthTier', () => {
         const stored = computeHealthTier({ ...unread }).checks;
         assert.equal(isTierProvisional({ ...unread, released_at: old, computed: { tier: 'silver', checks: stored } }), true);
       });
+
+      it('tierStatus carries the provisional flag with the computed tier', async () => {
+        const { tierStatus } = await import('./report-shared.js');
+        assert.deepEqual(({ ...tierStatus(unread), checks: undefined }), { tier: 'silver', checks: undefined, provisional: true });
+        assert.equal(tierStatus(gold).provisional, false);
+        assert.equal(tierStatus(gold).tier, 'gold');
+        assert.equal(tierStatus({ ...unread, released_at: old }, { releaseExempt: true }).provisional, true, 'options reach both halves');
+      });
     });
 
     it('drops an unreadable Dependabot read out of the Vulnerability Free campaign rather than counting it compliant', () => {

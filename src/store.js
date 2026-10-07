@@ -3,7 +3,7 @@
 
 import { createClient, getLargeFileContent } from './github.js';
 import { createHash } from 'node:crypto';
-import { computeHealthTier, isReleaseExempt, nextTier, isCheckRequiredForTier } from './report-shared.js';
+import { tierStatus, isReleaseExempt, nextTier, isCheckRequiredForTier, observedFailingChecks } from './report-shared.js';
 
 const HASH_PATH = 'snapshots/hash.txt';
 const GOVERNANCE_PATH = 'snapshots/governance.json';
@@ -26,15 +26,18 @@ const GOVERNANCE_WEEKLY_DIR = 'snapshots/governance-weekly';
 const MAX_WEEKLY_SNAPSHOTS = 12;
 
 export function enrichPortfolioSummary(summary, repoName, config) {
-  const { tier, checks } = computeHealthTier(summary, { releaseExempt: isReleaseExempt(repoName, config) });
+  const { tier, checks, provisional } = tierStatus(summary, { releaseExempt: isReleaseExempt(repoName, config) });
   const next = nextTier(tier);
+  // Only an observed failure is a next step (#477): a check failed because a
+  // scanner went unread is not work anyone can do.
   const firstFail = next
-    ? checks.find(c => !c.passed && isCheckRequiredForTier(c, next))
+    ? observedFailingChecks(summary, checks).find(c => isCheckRequiredForTier(c, next))
     : null;
   return {
     ...summary,
     computed: {
       tier,
+      provisional,
       checks: checks.map(c => ({ name: c.name, passed: c.passed, required_for: c.required_for })),
       next_step: firstFail ? firstFail.name : null,
     },
@@ -316,11 +319,14 @@ export function createStore(context) {
   // autofix-not-driven trend (report-portfolio.js buildAutofixNudge) — separate
   // from GOVERNANCE_PATH, which always holds only the single latest run's
   // findings and has no history to diff against.
-  async function writeGovernanceWeekly(findings) {
+  // `unreadSecurity` (#477) is how many eligible repos had a scanner unread
+  // this run: such a repo drops out of the open-vulnerability count without
+  // anything being fixed, so a trend must know the figure to stay honest.
+  async function writeGovernanceWeekly(findings, { unreadSecurity } = {}) {
     if (!Array.isArray(findings)) return;
     await ensureDataBranch();
     const weekKey = isoWeekKey(new Date());
-    await writeFile(`${GOVERNANCE_WEEKLY_DIR}/${weekKey}.json`, JSON.stringify({ findings }, null, 2));
+    await writeFile(`${GOVERNANCE_WEEKLY_DIR}/${weekKey}.json`, JSON.stringify({ findings, unreadSecurity }, null, 2));
     console.log(`Governance weekly snapshot saved as ${weekKey} (${findings.length} findings).`);
     await pruneDir(GOVERNANCE_WEEKLY_DIR, MAX_WEEKLY_SNAPSHOTS, 'prune old governance snapshot');
   }

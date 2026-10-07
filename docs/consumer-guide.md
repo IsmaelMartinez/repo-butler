@@ -75,6 +75,10 @@ Silver requires a license file, at least one CI workflow, community health of at
 
 Bronze requires either some commit history or a push within the last year.
 
+### Provisional tiers
+
+When a security scanner's alerts could not be read and that is the only thing between a repo and Gold, the repo's tier is provisional: it is held below Gold because Gold is never awarded without evidence, but nothing observed it fall short either. The MCP tools flag this as `tier_provisional: true`, count such repos as `tier_unknown` rather than in a tier, and `query_portfolio` accepts `tier: "provisional"` to list them. The next successful read settles the tier.
+
 ### How to improve your tier
 
 The per-repo report shows exactly which checks fail. Common fixes:
