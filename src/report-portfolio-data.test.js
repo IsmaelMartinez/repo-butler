@@ -49,11 +49,12 @@ describe('fetchPortfolioDetails incremental cache', () => {
     assert.deepEqual(requestPaths, [
       '/repos/owner/cached-repo/automated-security-fixes',
       '/repos/owner/cached-repo/branches/main',
+      '/repos/owner/cached-repo',
       '/repos/owner/cached-repo/contents/.github/workflows',
       '/repos/owner/cached-repo/dependabot/alerts?state=open&per_page=100',
       '/repos/owner/cached-repo/code-scanning/alerts?state=open&per_page=100',
       '/repos/owner/cached-repo/secret-scanning/alerts?state=open&per_page=100',
-    ], 'only the volatile reads run on a cache hit: autofix, the branch-protection read, the osv-scanner contents listing and the three alert summaries');
+    ], 'only the volatile reads run on a cache hit: autofix, the branch-protection and allow_auto_merge settings reads, the osv-scanner contents listing and the three alert summaries');
     assert.deepEqual(paginatePaths, ['/repos/owner/cached-repo/rulesets', '/repos/owner/cached-repo/rules/branches/main'],
       'only the copilot ruleset list and the branch-rules paginates run on a cache hit');
     assert.equal(getFileContentCalled, false, 'no getFileContent on a cache hit');
@@ -800,6 +801,39 @@ describe('fetchPortfolioDetails incremental cache', () => {
     const oldSchema = await fetchPortfolioDetails(gh, 'owner', repos, { cache: staleSchema });
     assert.equal(oldSchema.pushed.hasCopilotReview, null);
     assert.equal(oldSchema.pushed.requiresStatusChecks, null);
+  });
+
+  it('lets live auto-merge settings reads override the cache, and keeps the last known value when they fail (#440)', async () => {
+    const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
+    const { REPO_CACHE_SCHEMA_VERSION } = await import('./report-shared.js');
+    const repo = { name: 'am', pushed_at: '2026-04-01T00:00:00Z', open_issues: 0, archived: false, fork: false, stars: 1 };
+    const cacheWith = (pushed_at) => ({
+      repos: { am: { schemaVersion: REPO_CACHE_SCHEMA_VERSION, pushed_at, open_issues_count: 0, details: { commits: 1, requiresStatusChecks: true, allowAutoMerge: true } } },
+    });
+    const ghWith = (repoRead) => ({
+      request: (path) => {
+        if (path === '/repos/owner/am') return repoRead();
+        if (path === '/repos/owner/am/branches/main') return Promise.resolve({ protected: false });
+        if (path.includes('/alerts')) return Promise.resolve([]);
+        return Promise.resolve({});
+      },
+      paginate: () => Promise.resolve([]),
+      getFileContent: () => Promise.resolve(null),
+    });
+
+    // Cache hit: both live reads answer, and the answers replace stale cached values.
+    const hit = await fetchPortfolioDetails(ghWith(() => Promise.resolve({ allow_auto_merge: false })), 'owner', [repo], { cache: cacheWith(repo.pushed_at) });
+    assert.equal(hit.am.requiresStatusChecks, false, 'a completed live read replaces the cached true');
+    assert.equal(hit.am.allowAutoMerge, false, 'a completed live read replaces the cached true');
+
+    // A failed repo read never becomes "off": the hit and the fresh fetch both keep the last known value.
+    const failing = ghWith(() => Promise.reject(new Error('500')));
+    const hitFailed = await fetchPortfolioDetails(failing, 'owner', [repo], { cache: cacheWith(repo.pushed_at) });
+    assert.equal(hitFailed.am.allowAutoMerge, true);
+    const freshFailed = await fetchPortfolioDetails(failing, 'owner', [repo], { cache: cacheWith('2026-01-01T00:00:00Z') });
+    assert.equal(freshFailed.am.allowAutoMerge, true);
+    const neverRead = await fetchPortfolioDetails(failing, 'owner', [repo]);
+    assert.equal(neverRead.am.allowAutoMerge, null);
   });
 
   it('re-reads a cached ci of null on a cache hit, so an unknown cannot become permanent', async () => {

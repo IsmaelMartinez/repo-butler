@@ -108,8 +108,8 @@
           "description": "osv-scanner.yml is present on the default branch (exact filename match). Tri-state: null when the workflows directory could not be read."
         },
         "allowAutoMerge": {
-          "type": "boolean",
-          "description": "The repository's allow_auto_merge setting; false when the repo metadata read fails"
+          "type": ["boolean", "null"],
+          "description": "The repository's allow_auto_merge setting, re-read on every cache hit. Tri-state: null when the field is absent or the read failed and no last-known value exists; gates the automerge-unguarded finding (#440)."
         },
         "hasCodeowners": {
           "type": "boolean",

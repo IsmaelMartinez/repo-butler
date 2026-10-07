@@ -163,6 +163,12 @@ function workflowPresence(names, filename) {
   return names == null ? null : names.has(filename);
 }
 
+// The repo's allow_auto_merge setting as a tri-state. An absent field or a
+// failed read is unknown, never "off": it gates detectUnguardedAutoMerge, so a
+// false cached from one failed read would hide an unguarded repo until its next
+// push (#440).
+const allowAutoMergeOf = repoBody => (typeof repoBody?.allow_auto_merge === 'boolean' ? repoBody.allow_auto_merge : null);
+
 // The three security-alert summaries, shared by the cache-miss fetch and the
 // cache-hit live re-read so both paths mean the same thing by each value. Each
 // is tri-state (see UNREADABLE_SCANNER): a summary, null for a 403/404 "not
@@ -271,10 +277,12 @@ function isCacheHit(cached, r) {
 // "an unknown must never become permanent" rule as the two flags above,
 // applied only where the unknown actually exists.
 async function refreshCachedDetails(gh, owner, r, cached) {
-  const { autofix, hasCopilotReview, checksRequired, workflowFiles, vulns, codeScanning, secretScanning, ci } = await awaitNamed({
+  const { autofix, hasCopilotReview, checksRequired, allowAutoMerge, workflowFiles, vulns, codeScanning, secretScanning, ci } = await awaitNamed({
     autofix: getAutomatedSecurityFixesState(gh, owner, r.name),
     hasCopilotReview: hasActiveCopilotReviewRuleset(gh, owner, r.name),
     checksRequired: requiresStatusChecks(gh, owner, r.name, r.default_branch || 'main'),
+    // A repo setting like the two above, so re-read rather than cached (#440).
+    allowAutoMerge: gh.request(`/repos/${owner}/${r.name}`).then(allowAutoMergeOf).catch(() => null),
     workflowFiles: fetchDefaultBranchWorkflows(gh, owner, r.name),
     vulns: fetchDependabotSummary(gh, owner, r.name),
     codeScanning: fetchCodeScanningSummary(gh, owner, r.name),
@@ -304,6 +312,7 @@ async function refreshCachedDetails(gh, owner, r, cached) {
     // exempt only because it could never return null.
     hasCopilotReview: hasCopilotReview ?? cached.details?.hasCopilotReview ?? null,
     requiresStatusChecks: checksRequired ?? cached.details?.requiresStatusChecks ?? null,
+    allowAutoMerge: allowAutoMerge ?? cached.details?.allowAutoMerge ?? null,
     hasOsvScanner: workflowPresence(workflowFiles, OSV_WORKFLOW_FILE)
       ?? cached.details?.hasOsvScanner ?? null,
     hasAutoMergeWorkflow: workflowPresence(workflowFiles, AUTOMERGE_WORKFLOW_FILE)
@@ -331,6 +340,9 @@ async function fetchFreshDetails(gh, owner, r, cached) {
   const lastKnownChecksRequired = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
     ? (cached.details?.requiresStatusChecks ?? null)
     : null;
+  const lastKnownAllowAutoMerge = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
+    ? (cached.details?.allowAutoMerge ?? null)
+    : null;
   const { commits, weekly, repoMeta, workflowsMeta, workflowFiles, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, checksRequired, autofix } = await awaitNamed({
     commits: gh.request('/search/commits', {
       params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
@@ -339,8 +351,8 @@ async function fetchFreshDetails(gh, owner, r, cached) {
       .then(d => d.owner?.slice(-26) || [])
       .catch(() => []),
     repoMeta: gh.request(`/repos/${owner}/${r.name}`)
-      .then(d => ({ license: d.license?.spdx_id || 'None', allowAutoMerge: !!d.allow_auto_merge }))
-      .catch(() => ({ license: 'None', allowAutoMerge: false })),
+      .then(d => ({ license: d.license?.spdx_id || 'None', allowAutoMerge: allowAutoMergeOf(d) ?? lastKnownAllowAutoMerge }))
+      .catch(() => ({ license: 'None', allowAutoMerge: lastKnownAllowAutoMerge })),
     workflowsMeta: gh.request(`/repos/${owner}/${r.name}/actions/workflows`, { params: { per_page: 100 } })
       .then(d => {
         const wfs = d.workflows || [];

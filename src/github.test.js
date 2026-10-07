@@ -446,6 +446,18 @@ describe('requiresStatusChecks', () => {
     assert.equal(await requiresStatusChecks(gh, 'o', 'r', 'main'), null);
   });
 
+  it('reads the branch rules and the branch protection of the named branch', async () => {
+    const paginated = [];
+    const requested = [];
+    const gh = {
+      paginate: async (path) => { paginated.push(path); return []; },
+      request: async (path) => { requested.push(path); return RULESET_ONLY_BRANCH; },
+    };
+    await requiresStatusChecks(gh, 'o', 'r', 'trunk');
+    assert.deepEqual(paginated, ['/repos/o/r/rules/branches/trunk']);
+    assert.deepEqual(requested, ['/repos/o/r/branches/trunk']);
+  });
+
   it('keeps a positive find when the other read fails', async () => {
     const boom = async () => { throw new Error('500'); };
     assert.equal(await requiresStatusChecks(makeGh({ rules: async () => [CHECKS_RULE], branch: boom }), 'o', 'r', 'main'), true);
