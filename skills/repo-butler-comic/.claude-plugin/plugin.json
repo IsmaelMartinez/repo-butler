@@ -1,6 +1,5 @@
 {
   "name": "repo-butler-comic",
-  "version": "0.1.0",
   "description": "Draws the /repo-butler briefing and debrief as a three-panel pixel-art comic in the terminal.",
   "author": {
     "name": "Ismael Martinez Ramos"

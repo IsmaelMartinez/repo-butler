@@ -175,6 +175,8 @@ Two skills ship from `skills/` for use inside Claude Code: `repo-butler` (read-s
 
 The script symlinks both skills into `$HOME/.claude/skills/`, cleans up dead symlinks from earlier `butler-briefing`/`butler-debrief`/`butler-apply` layouts, and is idempotent. Pass `--uninstall` to remove the symlinks, or `--skills-dir DIR` to target a custom location. Restart your Claude Code session afterwards so the new skills appear in the registry.
 
+The same script installs the `repo-butler-comic` mod, which draws the `/repo-butler` briefing as a colour comic, as a local-scope plugin from the marketplace at the repository root (`.claude-plugin/marketplace.json`). It therefore loads only in sessions opened in that checkout; elsewhere the skill falls back to an ASCII strip. The installed copy is cached per commit, so re-run the script after pulling a change to the mod.
+
 Because these are symlinks, the skill that runs is whatever is in **that checkout's working tree** — not whatever is on `main`. Merging a PR does not change what runs until you pull, an experiment on a feature branch becomes the live skill while you have it checked out, and editing the file through the registry path edits the repository itself.
 
 `scripts/check-skills.js` reports that state instead of leaving you to guess ([#350](https://github.com/IsmaelMartinez/repo-butler/issues/350)):
