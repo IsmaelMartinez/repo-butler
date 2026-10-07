@@ -465,6 +465,12 @@ describe('buildIdeatePrompt', () => {
     assert.ok(prompt.includes('oldest: 40d'));
   });
 
+  it('summarises automerge-unguarded findings for the LLM', () => {
+    const findings = [{ type: 'automerge-unguarded', repo: 'r3', priority: 'medium' }];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+    assert.ok(prompt.includes('Unguarded auto-merge: r3'));
+  });
+
   it('never leaks a PR title or branch name from a stale-butler-pr finding into the prompt', () => {
     // The branch prefix is forgeable, so anyone can open `repo-butler/apply-x`
     // on a portfolio repo and choose its title. That title would otherwise be

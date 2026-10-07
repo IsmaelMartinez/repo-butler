@@ -474,6 +474,7 @@ describe('MCP server', async () => {
       assert.equal(summary.tierRegressions, 1, 'summary counts tier-regression findings (G7)');
       assert.equal(summary.staleButlerPRs, 0);
       assert.equal(summary.stalledAlerts, 1, 'summary counts stalled-alert findings (G13)');
+      assert.equal(summary.automergeUnguarded, 0, 'summary carries the automerge-unguarded count (#440)');
       assert.equal(summary.openVulnerabilities, 2);
       assert.equal(summary.autofixInFlight, 1);
       assert.equal(summary.autofixNotDriven, 1);

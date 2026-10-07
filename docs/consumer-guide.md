@@ -128,7 +128,7 @@ Issue Templates — at least one issue template must exist. Fix by creating `.gi
 
 ## Governance Findings
 
-The governance engine produces eight types of finding. It runs four times a day and needs no LLM, so findings are always current.
+The governance engine produces nine types of finding. It runs four times a day and needs no LLM, so findings are always current.
 
 Standards gaps mean a tool or practice adopted in most repos is missing from yours. The finding tells you which standard and what the adoption rate is (e.g., "issue-form-templates: 14/19 repos compliant"). Adopting the standard brings your repo in line with the rest of the portfolio.
 
@@ -143,6 +143,8 @@ Open vulnerability means the repo has an open critical or high Dependabot or cod
 Stalled alert means a Dependabot alert of medium severity or above has been open for more than 14 days with no Dependabot PR addressing it, and the finding classifies why it is stuck (for example `reachable-by-update`, meaning a lockfile refresh alone would clear it).
 
 Stale Dependabot PR means a dependency update PR has been open for more than 30 days without being merged.
+
+Unguarded auto-merge means Dependabot auto-merge is on but the default branch requires no status check, through either a ruleset or classic branch protection, so a bump can merge before CI has run. The fix is a non-strict ruleset requiring checks that report on every PR.
 
 Stale butler PR means a pull request the butler itself opened on your repo has not landed, with its CI state so you can tell a PR waiting on you from one that is blocked.
 

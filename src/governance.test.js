@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, detectTierRegressions, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
+import { detectStandardsGaps, detectPolicyDrift, generateUpliftProposals, detectMetricDrift, detectOpenVulnerabilities, detectUnguardedAutoMerge, detectTierRegressions, buildRemediationPlan, attachRemediationPlans, priorAutofixNotDrivenCount, runGovernance } from './governance.js';
 import { isoWeekKey } from './store.js';
 import { computeHealthTier } from './report-shared.js';
 import { TEMPLATES } from './apply-templates.js';
@@ -1178,6 +1178,7 @@ describe('runGovernance — governance-weekly trend persistence', () => {
 //
 // The fix was to keep private repos out of governance entirely (they are handled
 // by private-watch.js). This test fails if anyone wires them back in.
+const UNGUARDED = { hasAutoMergeWorkflow: true, allowAutoMerge: true, requiresStatusChecks: false };
 describe('runGovernance — private repos must never enter the governance pipeline', () => {
   const originalFetch = globalThis.fetch;
   afterEach(() => { globalThis.fetch = originalFetch; });
@@ -1247,7 +1248,11 @@ describe('runGovernance — private repos must never enter the governance pipeli
         hasIssueTemplate: false,
         ciPassRate: 0.1,
         vulns: { count: 3, critical: 0, high: 3, max_severity: 'high' },
+        ...UNGUARDED,
       },
+      // One public repo unguarded too, so the automerge-unguarded detector
+      // provably runs in this guard (asserted below).
+      'repo-a': UNGUARDED,
     });
 
     const written = [];
@@ -1286,6 +1291,8 @@ describe('runGovernance — private repos must never enter the governance pipeli
       'the stale-butler-pr detector must have run for this guard to mean anything');
     assert.ok(context.governanceFindings.some(f => f.type === 'stalled-alert'),
       'the stalled-alert detector must have run for this guard to mean anything');
+    assert.ok(context.governanceFindings.some(f => f.type === 'automerge-unguarded'),
+      'the automerge-unguarded detector must have run for this guard to mean anything');
     assert.ok(!fetched.some(u => u.includes(CANARY)),
       `a governance request named the private repo:\n${fetched.filter(u => u.includes(CANARY)).join('\n')}`);
 
@@ -1695,5 +1702,41 @@ describe('runGovernance — unread security count', () => {
     await runGovernance(context);
 
     assert.deepEqual(weekly, [{ unreadSecurity: 1 }]);
+  });
+});
+
+// --- detectUnguardedAutoMerge (#440) ---
+
+describe('detectUnguardedAutoMerge', () => {
+  it('flags a repo whose auto-merge can land a PR before CI', () => {
+    const repos = [makeRepo('repo-a'), makeRepo('repo-b')];
+    const details = makeDetails(repos, { 'repo-a': UNGUARDED, 'repo-b': { ...UNGUARDED, requiresStatusChecks: true } });
+    assert.deepEqual(detectUnguardedAutoMerge(repos, details),
+      [{ type: 'automerge-unguarded', repo: 'repo-a', priority: 'medium' }]);
+  });
+
+  it('stays silent unless every precondition is an explicit true/false', () => {
+    // An unreadable rule set (null) is not evidence the guard is missing, and
+    // without the workflow or the repo setting nothing auto-merges at all.
+    const repos = ['n', 'w', 'a'].map(n => makeRepo(n));
+    const details = makeDetails(repos, {
+      n: { ...UNGUARDED, requiresStatusChecks: null },
+      w: { ...UNGUARDED, hasAutoMergeWorkflow: null },
+      a: { ...UNGUARDED, allowAutoMerge: false },
+    });
+    assert.deepEqual(detectUnguardedAutoMerge(repos, details), []);
+  });
+
+  it('skips repos outside the eligible set', () => {
+    const repos = [{ ...makeRepo('old'), archived: true }];
+    assert.deepEqual(detectUnguardedAutoMerge(repos, makeDetails(repos, { old: UNGUARDED })), []);
+  });
+
+  it('routes to a manual remediation plan carrying the ruleset traps', () => {
+    const plan = buildRemediationPlan({ type: 'automerge-unguarded', repo: 'repo-a', priority: 'medium' });
+    assert.equal(plan.executor, 'manual');
+    assert.deepEqual(plan.targetFiles, []);
+    assert.match(plan.rationale, /osv-scan/);
+    assert.match(plan.rationale, /strict/);
   });
 });

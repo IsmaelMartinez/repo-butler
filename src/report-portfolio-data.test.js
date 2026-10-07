@@ -41,21 +41,25 @@ describe('fetchPortfolioDetails incremental cache', () => {
           open_issues_count: 5,
           // hasCopilotReview stale-true; the ruleset list mock below returns no
           // active rulesets, so the live read should flip it to false.
-          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null, autofix: null, hasCopilotReview: true },
+          details: { commits: 42, weekly: [1, 2], license: 'MIT', ci: 1, communityHealth: 80, vulns: null, ciPassRate: 0.95, open_issues: 5, open_bugs: 0, open_prs: 0, libyear: null, codeScanning: null, secretScanning: null, traffic: null, hasIssueTemplate: true, released_at: null, autofix: null, hasCopilotReview: true, requiresStatusChecks: false },
         },
       },
     };
     const details = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
     assert.deepEqual(requestPaths, [
       '/repos/owner/cached-repo/automated-security-fixes',
+      '/repos/owner/cached-repo/branches/main',
       '/repos/owner/cached-repo/contents/.github/workflows',
       '/repos/owner/cached-repo/dependabot/alerts?state=open&per_page=100',
       '/repos/owner/cached-repo/code-scanning/alerts?state=open&per_page=100',
       '/repos/owner/cached-repo/secret-scanning/alerts?state=open&per_page=100',
-    ], 'only the volatile reads run on a cache hit: autofix, the osv-scanner contents listing and the three alert summaries');
-    assert.deepEqual(paginatePaths, ['/repos/owner/cached-repo/rulesets'], 'only the copilot ruleset list paginate runs on a cache hit');
+    ], 'only the volatile reads run on a cache hit: autofix, the branch-protection read, the osv-scanner contents listing and the three alert summaries');
+    assert.deepEqual(paginatePaths, ['/repos/owner/cached-repo/rulesets', '/repos/owner/cached-repo/rules/branches/main'],
+      'only the copilot ruleset list and the branch-rules paginates run on a cache hit');
     assert.equal(getFileContentCalled, false, 'no getFileContent on a cache hit');
     assert.equal(details['cached-repo'].commits, 42, 'should use cached commits');
+    assert.equal(details['cached-repo'].requiresStatusChecks, false,
+      'an unknown live branch read keeps the cached verdict (#440)');
     assert.deepEqual(details['cached-repo'].autofix, { enabled: true, paused: false }, 'refreshes the stale autofix state from the live GET');
     assert.equal(details['cached-repo'].hasCopilotReview, false, 'refreshes the stale copilot-review state from the live read');
     assert.ok(details._cachedRepos.includes('cached-repo'), 'should mark as cached');
@@ -462,6 +466,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
         if (p === '/traffic/views') return Promise.resolve({ count: 9, uniques: 2 });
         if (p === '/traffic/clones') return Promise.resolve({ count: 5, uniques: 1 });
         if (p === '/stats/participation') return Promise.resolve({ owner: [3, 4] });
+        if (p === '/branches/main') return Promise.resolve({ protected: false });
         if (path === '/search/commits') return Promise.resolve({ total_count: 7 });
         if (p === '') return Promise.resolve({ license: { spdx_id: 'Apache-2.0' }, allow_auto_merge: true });
         return Promise.reject(new Error(`unexpected request ${path}`));
@@ -472,6 +477,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
         if (p === '/releases') return Promise.resolve([{ draft: true, published_at: '2026-03-01T00:00:00Z' }, { draft: false, prerelease: false, published_at: '2026-02-01T00:00:00Z' }]);
         if (p === '/pulls') return Promise.resolve([{}, {}, {}, {}]);
         if (p === '/rulesets') return Promise.resolve([{ id: 5, enforcement: 'active' }]);
+        if (p === '/rules/branches/main') return Promise.resolve([{ type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'CI' }] } }]);
         return Promise.reject(new Error(`unexpected paginate ${path}`));
       },
       getFileContent: () => Promise.resolve(null),
@@ -499,6 +505,7 @@ describe('fetchPortfolioDetails incremental cache', () => {
       hasCodeowners: true,
       hasSecurityPolicy: false,
       hasCopilotReview: true,
+      requiresStatusChecks: true,
       autofix: { enabled: true, paused: true },
       libyear: null,
       codeScanning: { count: 2, critical: 0, high: 0, medium: 1, low: 1, max_severity: 'medium' },
@@ -760,16 +767,20 @@ describe('fetchPortfolioDetails incremental cache', () => {
           schemaVersion: REPO_CACHE_SCHEMA_VERSION,
           pushed_at: '2026-01-01T00:00:00Z',
           open_issues_count: 0,
-          details: { hasCopilotReview: false },
+          // The branch read in this mock returns no protection detail, so
+          // requiresStatusChecks is unknown live too (#440).
+          details: { hasCopilotReview: false, requiresStatusChecks: false },
         },
       },
     };
     const withCache = await fetchPortfolioDetails(gh, 'owner', repos, { cache });
     assert.equal(withCache.pushed.hasCopilotReview, false, 'a known false must survive an unreadable live scan');
+    assert.equal(withCache.pushed.requiresStatusChecks, false, 'a known false must survive an unreadable branch read');
 
     // Nothing ever observed → honestly unknown.
     const noCache = await fetchPortfolioDetails(gh, 'owner', repos);
     assert.equal(noCache.pushed.hasCopilotReview, null);
+    assert.equal(noCache.pushed.requiresStatusChecks, null);
 
     // A cache entry from a SUPERSEDED schema version must not be read. The old
     // code absorbed every unreadable scan into `false`, so a pre-bump `false`
@@ -782,12 +793,13 @@ describe('fetchPortfolioDetails incremental cache', () => {
           schemaVersion: REPO_CACHE_SCHEMA_VERSION - 1,
           pushed_at: '2026-01-01T00:00:00Z',
           open_issues_count: 0,
-          details: { hasCopilotReview: false },
+          details: { hasCopilotReview: false, requiresStatusChecks: false },
         },
       },
     };
     const oldSchema = await fetchPortfolioDetails(gh, 'owner', repos, { cache: staleSchema });
     assert.equal(oldSchema.pushed.hasCopilotReview, null);
+    assert.equal(oldSchema.pushed.requiresStatusChecks, null);
   });
 
   it('re-reads a cached ci of null on a cache hit, so an unknown cannot become permanent', async () => {

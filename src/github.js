@@ -451,6 +451,39 @@ export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
   }
 }
 
+// Whether merging into `branch` requires at least one status check (#440), from
+// either source GitHub enforces: an active ruleset (`/rules/branches`, which
+// already resolves every ruleset applying to the branch) or classic branch
+// protection. Both are needed — on 2026-10-07 six of the fourteen portfolio
+// repos required their checks through classic protection alone, so a
+// ruleset-only read would have reported them unguarded.
+//
+// TRI-STATE, for the reason hasActiveCopilotReviewRuleset gives: `false` is a
+// claim that auto-merge can land a PR before CI, so it needs both reads to
+// have completed and found nothing. A ruleset-only branch reports
+// `protected: true` with empty contexts, so an empty classic list is a real
+// answer; a missing `protection` object is not.
+export async function requiresStatusChecks(gh, owner, repo, branch) {
+  const nonEmpty = list => Array.isArray(list) && list.length > 0;
+  const [viaRuleset, viaClassic] = await Promise.all([
+    gh.paginate(`/repos/${owner}/${repo}/rules/branches/${branch}`, { max: 200 })
+      .then(rules => (Array.isArray(rules)
+        ? rules.some(rule => rule?.type === 'required_status_checks'
+          && nonEmpty(rule.parameters?.required_status_checks))
+        : null))
+      .catch(() => null),
+    gh.request(`/repos/${owner}/${repo}/branches/${branch}`)
+      .then(b => {
+        if (b?.protected === false) return false;
+        const rsc = b?.protection?.required_status_checks;
+        return rsc ? nonEmpty(rsc.contexts) || nonEmpty(rsc.checks) : null;
+      })
+      .catch(() => null),
+  ]);
+  if (viaRuleset === true || viaClassic === true) return true;
+  return viaRuleset === false && viaClassic === false ? false : null;
+}
+
 // Read a repo's automated-security-fixes state (ADR-012). GitHub's
 // GET /repos/{owner}/{repo}/automated-security-fixes returns `{ enabled, paused }`.
 // Returns those two booleans, or null on any error (feature unavailable, or the

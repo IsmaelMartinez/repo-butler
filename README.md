@@ -116,7 +116,7 @@ src/
 ├── observe.js            # OBSERVE: GitHub API data gathering + portfolio classification
 ├── assess.js             # ASSESS: snapshot diffing, trend computation, LLM summarisation
 ├── update.js             # UPDATE: roadmap PR generation with safety validation
-├── governance.js         # GOVERNANCE: deterministic detectors for all eight finding types
+├── governance.js         # GOVERNANCE: deterministic detectors for all nine finding types
 ├── dependabot-audit.js   # Stale Dependabot PR detector (called by governance)
 ├── butler-pr-audit.js    # Stale-butler-pr detector: the butler's own PRs nobody landed (called by governance)
 ├── stalled-alert.js      # Stalled-alert detector: open Dependabot alerts with no PR driving them (called by governance)

@@ -297,6 +297,7 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
       { type: 'open-vulnerability', repo: 'repo-e', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'] },
       { type: 'tier-regression', repo: 'repo-f', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26' },
       { type: 'stale-butler-pr', repo: 'repo-g', stalePRs: [{ number: 9, age: 40, branch: 'repo-butler/apply-codeowners', prClass: 'apply', state: 'blocked-persistent', verified: true }] },
+      { type: 'automerge-unguarded', repo: 'repo-i', priority: 'medium' },
       { type: 'stalled-alert', repo: 'repo-h', alerts: [{ number: 153, package: 'http-proxy-middleware', ecosystem: 'npm', manifestPath: 'docs-site/package-lock.json', severity: 'medium', ageDays: 35, classification: 'reachable-by-update', detail: 'refresh the lockfile instead' }] },
     ];
 
@@ -355,5 +356,11 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
     const stalled = buildRemediationPlan({ type: 'stalled-alert', repo: 'r', alerts: [{ number: 1, ageDays: 35, classification: 'reachable-by-update' }] });
     assert.equal(stalled.executor, 'manual');
     assert.deepEqual(stalled.targetFiles, []);
+
+    // automerge-unguarded is a per-repo STATE finding: the required contexts
+    // are chosen per repo (#440), so no template or settings write fits.
+    const unguarded = buildRemediationPlan({ type: 'automerge-unguarded', repo: 'r' });
+    assert.equal(unguarded.executor, 'manual');
+    assert.deepEqual(unguarded.targetFiles, []);
   });
 });

@@ -762,6 +762,17 @@ describe('buildGovernanceSection', () => {
     assert.ok(!html.includes('<script>alert(1)</script>'), 'a detail string built from lockfile contents must be escaped');
   });
 
+  it('renders an Unguarded Auto-merge block for automerge-unguarded findings', () => {
+    const findings = [
+      { type: 'automerge-unguarded', repo: 'repo-b', priority: 'medium', remediation: { executor: 'manual' } },
+      { type: 'automerge-unguarded', repo: 'repo-a', priority: 'medium', remediation: { executor: 'manual' } },
+    ];
+    const html = buildGovernanceSection(findings);
+
+    assert.ok(html.includes('Unguarded Auto-merge'), 'should have a heading');
+    assert.ok(html.indexOf('href="repo-a.html"') < html.indexOf('href="repo-b.html"'), 'repos are linked in name order');
+  });
+
   it('renders a Tier Regressions table for tier-regression findings', () => {
     const findings = [
       { type: 'tier-regression', repo: 'repo-a', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26', priority: 'high', remediation: { executor: 'manual' } },

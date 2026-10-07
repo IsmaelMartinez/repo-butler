@@ -123,6 +123,10 @@
           "type": ["boolean", "null"],
           "description": "An active repository ruleset carries a copilot_code_review rule (ADR-009). Tri-state: null when the ruleset scan could not complete and no last-known value exists; only an explicit false authorises the settings write."
         },
+        "requiresStatusChecks": {
+          "type": ["boolean", "null"],
+          "description": "The default branch requires at least one status check, through a ruleset or classic branch protection (#440). Tri-state: null when either read failed without a positive find and no last-known value exists; only an explicit false raises an automerge-unguarded finding."
+        },
         "libyear": {
           "oneOf": [
             { "$ref": "#/$defs/LibyearResult" },

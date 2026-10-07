@@ -3,7 +3,7 @@
 // which needs only fetchPortfolioDetails, does not load the rendering code.
 
 import { computeLibyearWithTimeout } from './libyear.js';
-import { hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, paginateIssues } from './github.js';
+import { hasActiveCopilotReviewRuleset, requiresStatusChecks, getAutomatedSecurityFixesState, paginateIssues } from './github.js';
 import {
   REPO_CACHE_SCHEMA_VERSION, awaitNamed, daysAgoISO, getAlertSummary, isActionableBug, isPublishedRelease,
   isCopyleft, isHighConcernLicense, UNREADABLE_SCANNER, scannerReadFailure,
@@ -271,9 +271,10 @@ function isCacheHit(cached, r) {
 // "an unknown must never become permanent" rule as the two flags above,
 // applied only where the unknown actually exists.
 async function refreshCachedDetails(gh, owner, r, cached) {
-  const { autofix, hasCopilotReview, workflowFiles, vulns, codeScanning, secretScanning, ci } = await awaitNamed({
+  const { autofix, hasCopilotReview, checksRequired, workflowFiles, vulns, codeScanning, secretScanning, ci } = await awaitNamed({
     autofix: getAutomatedSecurityFixesState(gh, owner, r.name),
     hasCopilotReview: hasActiveCopilotReviewRuleset(gh, owner, r.name),
+    checksRequired: requiresStatusChecks(gh, owner, r.name, r.default_branch || 'main'),
     workflowFiles: fetchDefaultBranchWorkflows(gh, owner, r.name),
     vulns: fetchDependabotSummary(gh, owner, r.name),
     codeScanning: fetchCodeScanningSummary(gh, owner, r.name),
@@ -302,6 +303,7 @@ async function refreshCachedDetails(gh, owner, r, cached) {
     // an unreadable live scan must not erase a cached verdict. It was
     // exempt only because it could never return null.
     hasCopilotReview: hasCopilotReview ?? cached.details?.hasCopilotReview ?? null,
+    requiresStatusChecks: checksRequired ?? cached.details?.requiresStatusChecks ?? null,
     hasOsvScanner: workflowPresence(workflowFiles, OSV_WORKFLOW_FILE)
       ?? cached.details?.hasOsvScanner ?? null,
     hasAutoMergeWorkflow: workflowPresence(workflowFiles, AUTOMERGE_WORKFLOW_FILE)
@@ -326,7 +328,10 @@ async function fetchFreshDetails(gh, owner, r, cached) {
   const lastKnownCopilotReview = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
     ? (cached.details?.hasCopilotReview ?? null)
     : null;
-  const { commits, weekly, repoMeta, workflowsMeta, workflowFiles, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, autofix } = await awaitNamed({
+  const lastKnownChecksRequired = cached?.schemaVersion === REPO_CACHE_SCHEMA_VERSION
+    ? (cached.details?.requiresStatusChecks ?? null)
+    : null;
+  const { commits, weekly, repoMeta, workflowsMeta, workflowFiles, communityProfile, vulns, ciPassRate, openIssues, sbom, releasedAt, codeScanning, secretScanning, openPRCount, traffic, governanceFiles, copilotReview, checksRequired, autofix } = await awaitNamed({
     commits: gh.request('/search/commits', {
       params: { q: `repo:${owner}/${r.name} committer-date:>${daysAgoISO(180)}`, per_page: 1 },
     }).then(d => d.total_count).catch(() => 0),
@@ -462,6 +467,11 @@ async function fetchFreshDetails(gh, owner, r, cached) {
     // the week while the dashboard looked like full adoption.
     copilotReview: hasActiveCopilotReviewRuleset(gh, owner, r.name)
       .then(hasCopilotReview => ({ hasCopilotReview: hasCopilotReview ?? lastKnownCopilotReview })),
+    // Whether the default branch requires any status check (#440) — a ruleset
+    // or classic-protection setting, so it is re-read on every cache hit too,
+    // with the same last-known fallback. Feeds detectUnguardedAutoMerge.
+    checksRequired: requiresStatusChecks(gh, owner, r.name, r.default_branch || 'main')
+      .then(v => v ?? lastKnownChecksRequired),
     // GitHub's Dependabot automated security fixes state (ADR-012 Phase 3):
     // { enabled, paused } | null. Feeds the deterministic open-vulnerability
     // detector (governance.js) so a dependabot-sourced finding can distinguish
@@ -479,7 +489,7 @@ async function fetchFreshDetails(gh, owner, r, cached) {
   const { ci, hasReleaseWorkflow } = workflowsMeta;
   const hasOsvScanner = workflowPresence(workflowFiles, OSV_WORKFLOW_FILE);
   const hasAutoMergeWorkflow = workflowPresence(workflowFiles, AUTOMERGE_WORKFLOW_FILE);
-  return { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, autofix, libyear: null, codeScanning, secretScanning, traffic };
+  return { commits, weekly, license, ci, communityHealth, vulns, ciPassRate, open_issues: openIssues.total, open_bugs: openIssues.bugs, open_prs: openPRCount, sbom, released_at: releasedAt, hasIssueTemplate, hasAutoMergeWorkflow, hasReleaseWorkflow, hasOsvScanner, allowAutoMerge, hasCodeowners: governanceFiles.hasCodeowners, hasSecurityPolicy: governanceFiles.hasSecurityPolicy, hasCopilotReview: copilotReview.hasCopilotReview, requiresStatusChecks: checksRequired, autofix, libyear: null, codeScanning, secretScanning, traffic };
 }
 
 export async function fetchPortfolioDetails(gh, owner, repos, { cache = null } = {}) {
