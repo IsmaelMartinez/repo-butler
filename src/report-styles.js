@@ -88,6 +88,7 @@ a:hover{color:var(--link-hover);text-decoration:underline}
 .tier-silver{background:var(--tier-silver-bg);color:var(--tier-silver-ink)}
 .tier-bronze{background:var(--tier-bronze-bg);color:var(--tier-bronze-ink)}
 .tier-none{background:var(--tier-none-bg);color:var(--tier-none-ink)}
+.tier-unconfirmed{background:transparent;color:var(--muted);border:1px dashed var(--stone);padding:calc(0.15rem - 1px) calc(0.55rem - 1px)}
 .heatmap{display:grid;gap:2px;grid-auto-rows:12px}
 .heatmap-cell{width:12px;height:12px;border-radius:2px}
 .heatmap-labels{display:grid;gap:2px;margin-top:4px;font-size:0.6rem;color:var(--muted)}
@@ -159,6 +160,7 @@ details[open] summary{margin-bottom:1rem}
 .status-sep{color:var(--sep)}
 .status-vulns-ok{color:var(--color-success)}
 .status-vulns-bad{color:var(--color-danger);font-weight:600}
+.status-vulns-unknown{color:var(--muted)}
 .status-trend{font-weight:600}
 .status-trend.up{color:var(--color-success)}
 .status-trend.down{color:var(--color-danger)}

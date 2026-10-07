@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, tierStatus, isTierProvisional, observedFailingChecks, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
+import { computeHealthTier, tierStatus, isRecordProvisional, observedFailingChecks, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
 import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
 import { runGit, readCommitsBehindMain } from './staleness.js';
@@ -734,9 +734,7 @@ function weekTier(data, repoName) {
 // as weekTier: the stored flag, else one derived from the stored checks (which
 // isTierProvisional prefers to a recompute, so no clock enters it).
 function weekProvisional(data, repoName) {
-  const stored = data?.computed?.provisional;
-  if (typeof stored === 'boolean') return stored;
-  return isTierProvisional(data, tierOptions(repoName));
+  return isRecordProvisional(data, tierOptions(repoName));
 }
 
 function projectWeekRow(week, data, repoName) {

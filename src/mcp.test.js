@@ -681,10 +681,10 @@ describe('MCP release-exempt handling', () => {
   // portfolio aggregate loop were consolidated into the single weekTier helper.
   // If it drops again, check the call sites really did merge rather than lose
   // their options argument.
-  // tierStatus and isTierProvisional recompute the tier too (#477), so they
-  // fall under the same rule.
+  // tierStatus, isTierProvisional and isRecordProvisional recompute the tier
+  // too (#477), so they fall under the same rule.
   it('passes tier options to every computeHealthTier call site', () => {
-    const calls = [...mcpSource.matchAll(/\b(computeHealthTier|tierStatus|isTierProvisional)\(([^)]*)/g)];
+    const calls = [...mcpSource.matchAll(/\b(computeHealthTier|tierStatus|isTierProvisional|isRecordProvisional)\(([^)]*)/g)];
     assert.ok(calls.length >= 5, `expected the known tier call sites, found ${calls.length}`);
     for (const [, fn, args] of calls) {
       assert.match(args, /,\s*tierOptions\(/,

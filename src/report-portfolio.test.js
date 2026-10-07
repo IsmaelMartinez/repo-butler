@@ -519,7 +519,8 @@ describe('provisional tier on the dashboard', () => {
   it('shows Unconfirmed, never Silver, in the tables and the tier mix', async () => {
     const html = await render();
     assert.ok(html.includes('<span class="tier-badge tier-unconfirmed"'), 'an Unconfirmed tier cell');
-    assert.ok(!html.includes('tier-silver'), 'the provisional repo is never drawn as Silver');
+    // Class attributes, not bare names: the inlined stylesheet defines them all.
+    assert.ok(!html.includes('class="tier-badge tier-silver"'), 'the provisional repo is never drawn as Silver');
     assert.ok(html.includes('1 Unconfirmed'), 'the tier mix names it apart');
   });
 
@@ -533,19 +534,20 @@ describe('provisional tier on the dashboard', () => {
   it('keeps the trend on one cohort, so a repo going unread is not a Gold dip', async () => {
     const prior = { repos: { g: { computed: { tier: 'gold' } }, p: { computed: { tier: 'gold' } } } };
     const html = await render({ priorPortfolio: prior });
-    assert.ok(!html.includes('status-trend'), 'no trend: the shared cohort was all Gold both times');
+    assert.ok(!html.includes('class="status-trend'), 'no trend: the shared cohort was all Gold both times');
   });
 
   it('emits no tier move to or from provisional and no "cleared" from an unread read', async () => {
     const prior = { repos: { g: { computed: { tier: 'gold' } }, p: { computed: { tier: 'gold' }, vulns: { count: 1, high: 1, max_severity: 'high' } } } };
     const html = await render({ priorPortfolio: prior });
-    assert.ok(!html.includes('since-arrow'), 'no Gold → Silver move for a repo that only went unread');
+    assert.ok(!html.includes('class="since-arrow"'), 'no Gold → Silver move for a repo that only went unread');
     assert.ok(!html.includes('cleared its security alerts'), 'a high that went unread was not cleared');
 
     const back = { repos: { g: { computed: { tier: 'gold' } }, p: { computed: { tier: 'silver', provisional: true } } } };
     const { generatePortfolioReport } = await import('./report-portfolio.js');
     const recovered = generatePortfolioReport({ owner: 'owner', portfolio: fixture().portfolio, details: { g: goldDetails(), p: goldDetails() }, config: {}, priorPortfolio: back });
-    assert.ok(!recovered.includes('since-arrow'), 'no Silver → Gold move when the read recovers');
+    assert.ok(!recovered.includes('class="since-arrow"'), 'no Silver → Gold move when the read recovers');
+    assert.ok(!recovered.includes('class="status-trend'), 'and no Gold % rise: the recovered repo is out of the cohort');
   });
 
   it('names the unread scanner as the next step rather than an unobserved check', async () => {
