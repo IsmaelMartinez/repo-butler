@@ -135,6 +135,12 @@ Localized pixel-art comic mod with ASCII fallbacks shipped 2026-10-07 (PRs #479,
 
 Provisional tier communication and unread scanner telemetry hardened 2026-10-07 (PRs #484, #485, #486). Improves user expectation management and dashboard accuracy by explicitly labeling provisional tiers as "Unconfirmed" across dashboards, pages, and badges, and refines integration error handling by ensuring a Dependabot 403 rate-limit or permission error is correctly flagged as an unread scanner state rather than misleadingly reporting zero alerts.
 
+Automated repository governance safeguards and update logic refined 2026-10-07 (PRs #488, #489). Introduces a proactive security flag to identify and prevent auto-merges lacking required status checks, and resolves a logic bug to ensure reference counts are accurately recorded anywhere in the "Implemented" log.
+
+Onboarding refinement and agent standardization shipped 2026-10-07 (PR #491). Consolidates agent-related consumer instructions into a single, standardized `AGENTS.md` guide and explicitly prevents the creation of redundant `CLAUDE.md` files to polish the onboarding flow and reduce repository configuration clutter.
+
+Agent instruction standardization and onboarding polish shipped 2026-10-07 (PR #492). Standardizes agentic guidelines by renaming and transitioning `CLAUDE.md` to `AGENTS.md` to align with modern agentic repository workflows and ensure seamless self-planning during scheduled runs.
+
 ---
 
 ## Next Up
