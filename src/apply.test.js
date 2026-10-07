@@ -649,7 +649,7 @@ describe('release-cadence workflow script (execution)', () => {
   it('never lets API error text reach the log as an Actions workflow command', () => {
     // $details is remote text echoed into a public Actions log on every repo
     // carrying this template. A newline followed by ::error:: is interpreted
-    // by the runner; CLAUDE.md keeps adversary-supplied substrings out of logs.
+    // by the runner; AGENTS.md keeps adversary-supplied substrings out of logs.
     const r = runScript({ STUB_FAIL: '1', STUB_ERRMSG: 'boom\\n::error::pwned\\n::add-mask::x' });
     assert.equal(r.status, 0, r.stderr);
     assert.ok(!/^::/m.test(r.stdout), 'no log line may begin with a workflow command');

@@ -96,7 +96,7 @@ export async function runGovernance(context) {
   // branch serving the previous run's findings. Detection only: ADR-014
   // authorises no write in response to a stalled alert.
   // portfolio.repos only, never privateRepos (see the private-repo section of
-  // CLAUDE.md and the guard in governance.test.js).
+  // AGENTS.md and the guard in governance.test.js).
   const stalledAlerts = await detectStalledAlerts(gh, owner, portfolio.repos, { openPRs })
     .catch(err => { console.error(`Stalled-alert detection failed: ${err.message}`); return []; });
   if (stalledAlerts.length > 0) {

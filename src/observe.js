@@ -18,7 +18,7 @@ export async function runObserve(context) {
   // against. Monday's Weekly Ideate run (observe,ideate,propose) observed
   // #394 first and wrote the snapshot, so the next daily tick's ASSESS saw
   // new_merged_prs: 0 and the PR never reached the roadmap with its real
-  // merge record — CLAUDE.md's "lost meant lost".
+  // merge record — AGENTS.md's "lost meant lost".
   //
   // When UPDATE is in the run the write is handed to it rather than done
   // here, because "UPDATE is scheduled" is intent and not outcome: it can
