@@ -44,6 +44,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -147,6 +148,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -212,10 +214,10 @@
       "open_issues": 24,
       "open_bugs": 11,
       "commits_6mo": 387,
-      "stars": 5103,
+      "stars": 5104,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.96875,
       "vulns": {
         "count": 3,
         "critical": 0,
@@ -250,6 +252,7 @@
       },
       "computed": {
         "tier": "silver",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -314,11 +317,11 @@
       "id": 786898753,
       "open_issues": 4,
       "open_bugs": 0,
-      "commits_6mo": 263,
+      "commits_6mo": 256,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.979381443298969,
+      "ciPassRate": 0.9894736842105263,
       "vulns": {
         "count": 13,
         "critical": 0,
@@ -340,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-06T13:06:39Z",
+      "pushed_at": "2026-10-06T22:25:28Z",
       "traffic": {
         "views_14d": {
           "count": 71,
@@ -353,6 +356,7 @@
       },
       "computed": {
         "tier": "silver",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -456,6 +460,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -520,11 +525,11 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 324,
+      "commits_6mo": 315,
       "stars": 3,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.86,
+      "ciPassRate": 0.9292929292929293,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -546,19 +551,20 @@
       },
       "ci": 9,
       "released_at": "2026-09-15T11:10:45Z",
-      "pushed_at": "2026-10-05T08:47:20Z",
+      "pushed_at": "2026-10-06T22:41:15Z",
       "traffic": {
         "views_14d": {
-          "count": 12,
+          "count": 15,
           "uniques": 5
         },
         "clones_14d": {
-          "count": 2858,
-          "uniques": 564
+          "count": 2913,
+          "uniques": 597
         }
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -662,6 +668,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -765,6 +772,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -868,6 +876,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -930,13 +939,13 @@
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 10,
-      "open_bugs": 0,
-      "commits_6mo": 312,
+      "open_issues": 11,
+      "open_bugs": 1,
+      "commits_6mo": 315,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9777777777777777,
+      "ciPassRate": 0.9886363636363636,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -958,19 +967,20 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-06T13:52:27Z",
+      "pushed_at": "2026-10-07T08:04:57Z",
       "traffic": {
         "views_14d": {
-          "count": 19,
+          "count": 24,
           "uniques": 5
         },
         "clones_14d": {
-          "count": 4518,
-          "uniques": 1136
+          "count": 4592,
+          "uniques": 1159
         }
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -1074,6 +1084,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -1177,6 +1188,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -1267,19 +1279,20 @@
       },
       "ci": 8,
       "released_at": "2026-10-06T18:47:14Z",
-      "pushed_at": "2026-10-06T18:47:14Z",
+      "pushed_at": "2026-10-06T21:30:10Z",
       "traffic": {
         "views_14d": {
-          "count": 131,
-          "uniques": 41
+          "count": 143,
+          "uniques": 46
         },
         "clones_14d": {
-          "count": 3496,
-          "uniques": 917
+          "count": 3624,
+          "uniques": 920
         }
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
@@ -1383,6 +1396,7 @@
       },
       "computed": {
         "tier": "gold",
+        "provisional": false,
         "checks": [
           {
             "name": "Has CI workflows (2+)",
