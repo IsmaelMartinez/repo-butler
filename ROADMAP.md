@@ -139,6 +139,8 @@ Automated repository governance safeguards and update logic refined 2026-10-07 (
 
 Onboarding refinement and agent standardization shipped 2026-10-07 (PR #491). Consolidates agent-related consumer instructions into a single, standardized `AGENTS.md` guide and explicitly prevents the creation of redundant `CLAUDE.md` files to polish the onboarding flow and reduce repository configuration clutter.
 
+Agent instruction standardization and onboarding polish shipped 2026-10-07 (PR #492). Standardizes agentic guidelines by renaming and transitioning `CLAUDE.md` to `AGENTS.md` to align with modern agentic repository workflows and ensure seamless self-planning during scheduled runs.
+
 ---
 
 ## Next Up
