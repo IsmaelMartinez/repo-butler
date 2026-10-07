@@ -453,9 +453,9 @@ describe('requiresStatusChecks', () => {
       paginate: async (path) => { paginated.push(path); return []; },
       request: async (path) => { requested.push(path); return RULESET_ONLY_BRANCH; },
     };
-    await requiresStatusChecks(gh, 'o', 'r', 'trunk');
-    assert.deepEqual(paginated, ['/repos/o/r/rules/branches/trunk']);
-    assert.deepEqual(requested, ['/repos/o/r/branches/trunk']);
+    await requiresStatusChecks(gh, 'o', 'r', 'release/1#2');
+    assert.deepEqual(paginated, ['/repos/o/r/rules/branches/release%2F1%232']);
+    assert.deepEqual(requested, ['/repos/o/r/branches/release%2F1%232']);
   });
 
   it('keeps a positive find when the other read fails', async () => {

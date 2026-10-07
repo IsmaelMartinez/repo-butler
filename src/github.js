@@ -465,14 +465,17 @@ export async function hasActiveCopilotReviewRuleset(gh, owner, repo) {
 // answer; a missing `protection` object is not.
 export async function requiresStatusChecks(gh, owner, repo, branch) {
   const nonEmpty = list => Array.isArray(list) && list.length > 0;
+  // Encoded: `release/next` resolves either way (verified 2026-10-07), but a
+  // `#`, `?` or `%` in a raw name would end or mangle the path.
+  const ref = encodeURIComponent(branch);
   const [viaRuleset, viaClassic] = await Promise.all([
-    gh.paginate(`/repos/${owner}/${repo}/rules/branches/${branch}`, { max: 200 })
+    gh.paginate(`/repos/${owner}/${repo}/rules/branches/${ref}`, { max: 200 })
       .then(rules => (Array.isArray(rules)
         ? rules.some(rule => rule?.type === 'required_status_checks'
           && nonEmpty(rule.parameters?.required_status_checks))
         : null))
       .catch(() => null),
-    gh.request(`/repos/${owner}/${repo}/branches/${branch}`)
+    gh.request(`/repos/${owner}/${repo}/branches/${ref}`)
       .then(b => {
         if (b?.protected === false) return false;
         const rsc = b?.protection?.required_status_checks;
