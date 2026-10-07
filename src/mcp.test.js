@@ -540,10 +540,10 @@ describe('MCP server', async () => {
       const result = callTool('get_weekly_trend', { repo: 'alpha', weeks: 4 });
       assert.equal(result.repo, 'alpha');
       assert.deepEqual(result.series, [
-        { week: '2026-W37', open_issues: 4, ci_pass_rate: 0.8, community_health: 100, tier: 'silver' },
+        { week: '2026-W37', open_issues: 4, ci_pass_rate: 0.8, community_health: 100, tier: 'silver', tier_provisional: false },
         // Stored gold is read, not recomputed from the same May release.
-        { week: '2026-W38', open_issues: 2, ci_pass_rate: 0.9, community_health: 100, tier: 'gold' },
-        { week: '2026-W39', open_issues: 1, ci_pass_rate: 0.95, community_health: 100, tier: 'gold' },
+        { week: '2026-W38', open_issues: 2, ci_pass_rate: 0.9, community_health: 100, tier: 'gold', tier_provisional: false },
+        { week: '2026-W39', open_issues: 1, ci_pass_rate: 0.95, community_health: 100, tier: 'gold', tier_provisional: false },
       ]);
     });
 
@@ -681,12 +681,14 @@ describe('MCP release-exempt handling', () => {
   // portfolio aggregate loop were consolidated into the single weekTier helper.
   // If it drops again, check the call sites really did merge rather than lose
   // their options argument.
+  // tierStatus and isTierProvisional recompute the tier too (#477), so they
+  // fall under the same rule.
   it('passes tier options to every computeHealthTier call site', () => {
-    const calls = [...mcpSource.matchAll(/computeHealthTier\(([^)]*)/g)].map(m => m[1]);
-    assert.ok(calls.length >= 4, `expected the known tier call sites, found ${calls.length}`);
-    for (const args of calls) {
+    const calls = [...mcpSource.matchAll(/\b(computeHealthTier|tierStatus|isTierProvisional)\(([^)]*)/g)];
+    assert.ok(calls.length >= 5, `expected the known tier call sites, found ${calls.length}`);
+    for (const [, fn, args] of calls) {
       assert.match(args, /,\s*tierOptions\(/,
-        `computeHealthTier called without tierOptions(...): "computeHealthTier(${args})"`);
+        `${fn} called without tierOptions(...): "${fn}(${args})"`);
     }
   });
 
@@ -990,3 +992,77 @@ describe('MCP behind-main probe distinguishes unfetched from up-to-date', async 
 // classifyBehindMain's own suite moved to staleness.test.js when the probe was
 // extracted for the skills half of #350. The staleness envelope this server
 // wraps around it is still tested above.
+
+// #477: a repo held below Gold only by an unread scanner is provisional. Every
+// tool that reports a tier flags it, every count keeps it out of the tiers it
+// was never confirmed in, and a vulnerability trend cannot read a repo that
+// went unread as one that was fixed.
+describe('MCP provisional tiers', async () => {
+  const { weekProvisional } = await import('./mcp.js');
+  before(() => mock.timers.enable({ apis: ['Date'], now: FIXTURE_NOW }));
+  after(() => mock.timers.reset());
+
+  const W39 = 'snapshots/portfolio-weekly/2026-W39.json';
+  // alpha is Gold in the fixture; delta is alpha with code scanning unread.
+  function withDelta() {
+    const week = structuredClone(FIXTURE.files[W39]);
+    week.repos.delta = { ...week.repos.alpha, id: 104, codeScanning: { unreadable: true }, computed: { tier: 'silver' } };
+    return { ...FIXTURE.files, [W39]: week };
+  }
+
+  it('get_health_tier flags a provisional tier and names no unobserved check as needed', async () => {
+    const result = await withIo({ git: fixtureGit({ files: withDelta() }) }, () => callTool('get_health_tier', { repo: 'delta' }));
+    assert.equal(result.tier, 'silver');
+    assert.equal(result.tier_provisional, true);
+    assert.deepEqual(result.needed_for_next, []);
+    const beta = await withIo({ git: fixtureGit({ files: withDelta() }) }, () => callTool('get_health_tier', { repo: 'beta' }));
+    assert.equal(beta.tier_provisional, false);
+  });
+
+  it('query_portfolio flags provisional repos and keeps them out of a tier filter', async () => {
+    const io = { git: fixtureGit({ files: withDelta() }) };
+    const all = await withIo(io, () => callTool('query_portfolio', {}));
+    assert.deepEqual(all.repos.filter(r => r.tier_provisional).map(r => r.name), ['delta']);
+    const silver = await withIo(io, () => callTool('query_portfolio', { tier: 'silver' }));
+    assert.deepEqual(silver.repos.map(r => r.name), ['beta'], 'a provisional repo is not confirmed Silver');
+    const provisional = await withIo(io, () => callTool('query_portfolio', { tier: 'provisional' }));
+    assert.deepEqual(provisional.repos.map(r => r.name), ['delta']);
+  });
+
+  it('the portfolio-health resource counts a provisional repo as tier_unknown', async () => {
+    const health = await withIo({ git: fixtureGit({ files: withDelta() }) }, () => mcp.computePortfolioHealth());
+    assert.deepEqual(health.tiers, { gold: 1, silver: 1, bronze: 1, none: 0 });
+    assert.equal(health.tier_unknown, 1);
+    assert.equal(health.repos.find(r => r.name === 'delta').tier_provisional, true);
+  });
+
+  it('get_weekly_trend keeps a provisional repo out of the tier distribution', async () => {
+    const io = { git: fixtureGit({ files: withDelta() }) };
+    const { series } = await withIo(io, () => callTool('get_weekly_trend', {}));
+    assert.deepEqual(series[2].tier_distribution, { gold: 1, silver: 1, bronze: 1, none: 0 });
+    assert.equal(series[2].tier_unknown, 1);
+    assert.equal(series[1].tier_unknown, 0);
+    const delta = await withIo(io, () => callTool('get_weekly_trend', { repo: 'delta' }));
+    assert.equal(delta.series.at(-1).tier_provisional, true);
+  });
+
+  it('weekProvisional reads the stored flag before deriving one', () => {
+    const goldish = { ...FIXTURE.files[W39].repos.alpha };
+    assert.equal(weekProvisional({ ...goldish, computed: { tier: 'silver', provisional: true } }, 'x'), true, 'the record wins');
+    assert.equal(weekProvisional({ ...goldish, codeScanning: { unreadable: true }, computed: { tier: 'silver' } }, 'x'), true, 'derived for older records');
+    assert.equal(weekProvisional(goldish, 'x'), false);
+  });
+
+  it('openVulnerabilitiesTrend is unknown when more repos went unread than the week before', async () => {
+    const GW39 = 'snapshots/governance-weekly/2026-W39.json';
+    const GW38 = 'snapshots/governance-weekly/2026-W38.json';
+    const rose = { ...FIXTURE.files, [GW39]: { ...FIXTURE.files[GW39], unreadSecurity: 1 } };
+    const { summary } = await withIo({ git: fixtureGit({ files: rose }) }, () => callTool('get_governance_findings', {}));
+    assert.equal(summary.unreadSecurity, 1);
+    assert.equal(summary.openVulnerabilitiesTrend.direction, 'unknown', 'an unchanged count proves nothing once a repo went unread');
+
+    const steady = { ...rose, [GW38]: { ...FIXTURE.files[GW38], unreadSecurity: 1 } };
+    const held = await withIo({ git: fixtureGit({ files: steady }) }, () => callTool('get_governance_findings', {}));
+    assert.equal(held.summary.openVulnerabilitiesTrend.direction, 'unchanged', 'the same repos unread both weeks distort nothing');
+  });
+});

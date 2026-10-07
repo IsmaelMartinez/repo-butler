@@ -4,7 +4,7 @@
 
 import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, isTierProvisional, observedFailingChecks } from './report-shared.js';
+import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, hasUnreadableScanner, isTierProvisional, observedFailingChecks } from './report-shared.js';
 import { createClient } from './github.js';
 import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
@@ -117,7 +117,12 @@ export async function runGovernance(context) {
     // buildAutofixNudge) — detection above stays pure per ADR-012.
     const priorWeekly = await store.readLatestGovernanceWeekly();
     context.priorAutofixNotDrivenCount = priorAutofixNotDrivenCount(priorWeekly);
-    await store.writeGovernanceWeekly(context.governanceFindings);
+    // Over the same repos detectOpenVulnerabilities reads (#477): a repo whose
+    // scanner went unread drops out of that count without anything being fixed,
+    // and the MCP trend reads this figure to tell the two apart.
+    const unreadSecurity = eligibleRepos(portfolio.repos)
+      .filter(r => hasUnreadableScanner(context.repoDetails[r.name])).length;
+    await store.writeGovernanceWeekly(context.governanceFindings, { unreadSecurity });
 
     // Always persist — even an empty array — so the data branch reflects
     // the current portfolio state. Otherwise stale findings linger after

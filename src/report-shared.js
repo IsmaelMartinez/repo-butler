@@ -452,6 +452,15 @@ export function isTierProvisional(r, options = {}) {
   return observedFailingChecks(r, checks).length === 0;
 }
 
+// The tier a surface shows (#477): the computed tier together with whether it
+// is provisional. Every surface that shows, counts, filters or diffs a tier
+// goes through this, so none can show the computed Silver of a repo whose only
+// Gold blocker is an unread scanner without also knowing it is unconfirmed.
+export function tierStatus(r, options = {}) {
+  const { tier, checks } = computeHealthTier(r, options);
+  return { tier, checks, provisional: isTierProvisional(r, { checks }) };
+}
+
 // Compute health tier for a classified repo object.
 // Returns { tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed, required_for }] }
 export function computeHealthTier(r, options = {}) {

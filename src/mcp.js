@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
+import { computeHealthTier, tierStatus, isTierProvisional, observedFailingChecks, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
 import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
 import { runGit, readCommitsBehindMain } from './staleness.js';
@@ -167,7 +167,7 @@ function loadPortfolioWeekly() {
 // both weekly streams — strict, not just *.json, so a stray non-week file
 // dropped into the directory (or a future naming change) can't be mistaken
 // for a weekly snapshot. loadPortfolioWeekly relies on the last file and
-// loadPriorGovernanceWeekly on file[length-2] being a real ISO-week snapshot
+// loadGovernanceWeekly on file[length-2] being a real ISO-week snapshot
 // with an extractable week label; "notes.json" sorts after every week.
 const WEEKLY_FILE_PATTERN = /^\d{4}-W\d{2}\.json$/;
 
@@ -196,14 +196,15 @@ function listWeeklyFiles(dir) {
 // makes this a week-over-week comparison rather than governance.js's
 // run-over-run one — the correct analogue for a consumer with no access to
 // the in-process context.priorAutofixNotDrivenCount.
-function loadPriorGovernanceWeekly() {
+// `fromEnd` 2 is that prior file; 1 is the newest, i.e. the current run's.
+function loadGovernanceWeekly(fromEnd = 2) {
   try {
     const files = listWeeklyFiles('governance-weekly');
-    if (files.length < 2) return null;
-    const prior = files[files.length - 2];
-    const raw = loadFromDataBranch(`snapshots/governance-weekly/${prior}`);
+    if (files.length < fromEnd) return null;
+    const file = files[files.length - fromEnd];
+    const raw = loadFromDataBranch(`snapshots/governance-weekly/${file}`);
     if (!raw) return null;
-    return { week: prior.match(/(\d{4}-W\d{2})/)?.[1], data: JSON.parse(raw) };
+    return { week: file.match(/(\d{4}-W\d{2})/)?.[1], data: JSON.parse(raw) };
   } catch {
     return null;
   }
@@ -215,7 +216,7 @@ function loadPriorGovernanceWeekly() {
 // the metric (e.g. isAutofixNotDriven, or a `type === 'open-vulnerability'`
 // check) — shared math via report-shared.js's computeCountTrend so this and
 // the dashboard's buildAutofixNudge never drift on direction semantics. Kept
-// separate from loadPriorGovernanceWeekly's git I/O so it's unit-testable
+// separate from loadGovernanceWeekly's git I/O so it's unit-testable
 // without a data branch, mirroring governance.js's priorAutofixNotDrivenCount.
 // Every governance count trend reads as a regression when it rises (more
 // repos in a bad state is worse), hence the fixed invert: true.
@@ -229,8 +230,17 @@ function computeAutofixNotDrivenTrend(currentCount, priorWeeklyData) {
   return computeGovernanceCountTrend(currentCount, priorWeeklyData, isAutofixNotDriven);
 }
 
-function computeOpenVulnerabilitiesTrend(currentCount, priorWeeklyData) {
-  return computeGovernanceCountTrend(currentCount, priorWeeklyData, f => f.type === 'open-vulnerability');
+// A repo whose scanner went unread drops out of the count without anything
+// being fixed (#477), so when more repos are unread than in the prior week a
+// fall or a flat line proves nothing and the direction is `unknown`. A rise
+// stays `worsening`: the unread repos could only add to it. A file written
+// before the field existed counts as none unread.
+function computeOpenVulnerabilitiesTrend(currentCount, priorWeeklyData, currentUnread = 0) {
+  const trend = computeGovernanceCountTrend(currentCount, priorWeeklyData, f => f.type === 'open-vulnerability');
+  if (trend && trend.direction !== 'worsening' && currentUnread > (priorWeeklyData.unreadSecurity ?? 0)) {
+    trend.direction = 'unknown';
+  }
+  return trend;
 }
 
 function computeTierRegressionsTrend(currentCount, priorWeeklyData) {
@@ -318,7 +328,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        tier: { type: 'string', enum: ['gold', 'silver', 'bronze', 'none'], description: 'Filter by health tier' },
+        tier: { type: 'string', enum: ['gold', 'silver', 'bronze', 'none', 'provisional'], description: 'Filter by confirmed health tier, or "provisional" for repos whose only Gold blocker is an unread scanner (tier_provisional)' },
       },
     },
     handler: (args) => toolQueryPortfolio(args),
@@ -434,14 +444,16 @@ function toolGetHealthTier(repoName) {
     return { error: `Repo '${repoName}' not found. Available: ${available}` };
   }
 
-  const { tier, checks } = computeHealthTier(repoData, tierOptions(repoName));
-  const failing = checks.filter(c => !c.passed);
+  const { tier, checks, provisional } = tierStatus(repoData, tierOptions(repoName));
   const next = nextTier(tier);
-  const needed = next ? failing.filter(c => isCheckRequiredForTier(c, next)) : [];
+  // Only observed failures are needed (#477): a check an unread scanner failed
+  // is not work anyone can do, and for a provisional repo nothing is.
+  const needed = next ? observedFailingChecks(repoData, checks).filter(c => isCheckRequiredForTier(c, next)) : [];
 
   return {
     repo: repoName,
     tier,
+    tier_provisional: provisional,
     week: weekly.week,
     checks,
     next_tier: next,
@@ -458,12 +470,16 @@ function toolQueryPortfolio(filters) {
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
   let repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
-    const { tier } = computeHealthTier(data, tierOptions(name));
-    return { name, tier, ...data };
+    const { tier, provisional } = tierStatus(data, tierOptions(name));
+    return { name, tier, tier_provisional: provisional, ...data };
   });
 
-  if (filters.tier) {
-    repos = repos.filter(r => r.tier === filters.tier);
+  // A provisional repo is confirmed in no tier (#477), so a tier filter leaves
+  // it out and `provisional` selects exactly those repos.
+  if (filters.tier === 'provisional') {
+    repos = repos.filter(r => r.tier_provisional);
+  } else if (filters.tier) {
+    repos = repos.filter(r => r.tier === filters.tier && !r.tier_provisional);
   }
 
   return { week: weekly.week, count: repos.length, repos };
@@ -512,9 +528,11 @@ function toolGetGovernanceFindings() {
     const openVulnerabilities = findings.filter(f => f.type === 'open-vulnerability').length;
     const autofixNotDriven = findings.filter(isAutofixNotDriven).length;
     const tierRegressions = findings.filter(f => f.type === 'tier-regression').length;
-    const prior = loadPriorGovernanceWeekly();
+    const prior = loadGovernanceWeekly(2);
+    // The newest weekly file holds the run governance.json came from.
+    const unreadSecurity = loadGovernanceWeekly(1)?.data?.unreadSecurity ?? 0;
     const autofixNotDrivenTrend = withPreviousWeek(computeAutofixNotDrivenTrend(autofixNotDriven, prior?.data), prior?.week);
-    const openVulnerabilitiesTrend = withPreviousWeek(computeOpenVulnerabilitiesTrend(openVulnerabilities, prior?.data), prior?.week);
+    const openVulnerabilitiesTrend = withPreviousWeek(computeOpenVulnerabilitiesTrend(openVulnerabilities, prior?.data, unreadSecurity), prior?.week);
     const tierRegressionsTrend = withPreviousWeek(computeTierRegressionsTrend(tierRegressions, prior?.data), prior?.week);
     return {
       findings,
@@ -538,9 +556,12 @@ function toolGetGovernanceFindings() {
         openVulnerabilities,
         // Week-over-week trend for openVulnerabilities, from the same
         // governance-weekly history stream as autofixNotDrivenTrend below (see
-        // loadPriorGovernanceWeekly for why this is week-over-week rather than
+        // loadGovernanceWeekly for why this is week-over-week rather than
         // run-over-run). null when no prior weekly snapshot exists yet.
         openVulnerabilitiesTrend,
+        // #477: repos whose alerts went unread this run. They are absent from
+        // openVulnerabilities, which is therefore a lower bound when this is > 0.
+        unreadSecurity,
         // ADR-012 Phase 3: how many dependabot-sourced open-vulnerability findings
         // have autofix ON (remediation in flight — GitHub is opening the bump PRs)
         // vs OFF (not being driven to resolution). Each finding also carries the
@@ -701,6 +722,15 @@ function weekTier(data, repoName) {
   return computeHealthTier(data, tierOptions(repoName)).tier;
 }
 
+// Whether a week's tier was provisional (#477), on the same record-first rule
+// as weekTier: the stored flag, else one derived from the stored checks (which
+// isTierProvisional prefers to a recompute, so no clock enters it).
+function weekProvisional(data, repoName) {
+  const stored = data?.computed?.provisional;
+  if (typeof stored === 'boolean') return stored;
+  return isTierProvisional(data, tierOptions(repoName));
+}
+
 function projectWeekRow(week, data, repoName) {
   if (!data) return null;
   const tier = weekTier(data, repoName);
@@ -710,6 +740,7 @@ function projectWeekRow(week, data, repoName) {
     ci_pass_rate: data.ciPassRate ?? null,
     community_health: data.communityHealth ?? null,
     tier,
+    tier_provisional: weekProvisional(data, repoName),
   };
 }
 
@@ -754,12 +785,15 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
   const aggregate = parsed.map(({ week, repos }) => {
     const entries = Object.entries(repos);
     const tierCounts = { gold: 0, silver: 0, bronze: 0, none: 0 };
+    let tierUnknown = 0;
     let totalOpenIssues = 0;
     let ciSum = 0, ciCount = 0;
     let chSum = 0, chCount = 0;
     for (const [name, data] of entries) {
       const tier = weekTier(data, name);
-      if (tierCounts[tier] !== undefined) tierCounts[tier]++;
+      // A week whose run left a scanner unread must not read as a Gold dip.
+      if (weekProvisional(data, name)) tierUnknown++;
+      else if (tierCounts[tier] !== undefined) tierCounts[tier]++;
       if (typeof data.open_issues === 'number') totalOpenIssues += data.open_issues;
       if (typeof data.ciPassRate === 'number') { ciSum += data.ciPassRate; ciCount++; }
       if (typeof data.communityHealth === 'number') { chSum += data.communityHealth; chCount++; }
@@ -771,6 +805,7 @@ function toolGetWeeklyTrend(repoName, weeksArg) {
       avg_ci_pass_rate: ciCount > 0 ? ciSum / ciCount : null,
       avg_community_health: chCount > 0 ? chSum / chCount : null,
       tier_distribution: tierCounts,
+      tier_unknown: tierUnknown,
     };
   });
 
@@ -884,14 +919,20 @@ function computePortfolioHealth() {
   if (!weekly?.data) return { error: 'No portfolio data available' };
 
   const repos = Object.entries(unwrapWeeklyRepos(weekly.data)).map(([name, data]) => {
-    const { tier, checks } = computeHealthTier(data, tierOptions(name));
-    return { name, tier, checks };
+    const { tier, checks, provisional } = tierStatus(data, tierOptions(name));
+    return { name, tier, tier_provisional: provisional, checks };
   });
 
+  // A provisional repo is counted as unknown, never in a tier it was not
+  // confirmed in (#477).
   const tiers = { gold: 0, silver: 0, bronze: 0, none: 0 };
-  for (const r of repos) tiers[r.tier]++;
+  let tierUnknown = 0;
+  for (const r of repos) {
+    if (r.tier_provisional) tierUnknown++;
+    else tiers[r.tier]++;
+  }
 
-  return { week: weekly.week, total: repos.length, tiers, repos };
+  return { week: weekly.week, total: repos.length, tiers, tier_unknown: tierUnknown, repos };
 }
 
 function computeCampaigns() {
@@ -1009,4 +1050,4 @@ if (isMain) {
 }
 
 // Export for testing.
-export { handleMessage, unwrapWeeklyRepos, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, WEEKLY_FILE_PATTERN, callTool, setIo, weekTier, computeStaleness, campaignsFor, TOOLS, RESOURCES };
+export { handleMessage, unwrapWeeklyRepos, computeAutofixNotDrivenTrend, computeOpenVulnerabilitiesTrend, computeTierRegressionsTrend, WEEKLY_FILE_PATTERN, callTool, setIo, weekTier, weekProvisional, computePortfolioHealth, computeStaleness, campaignsFor, TOOLS, RESOURCES };

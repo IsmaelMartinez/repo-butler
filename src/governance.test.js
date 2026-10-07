@@ -1662,3 +1662,38 @@ describe('buildRemediationPlan — stalled-alert', () => {
     assert.ok(plan.acceptanceCriteria.length > 0);
   });
 });
+
+// --- #477: the unread count that keeps a vulnerability trend honest ---
+//
+// An unread scanner drops a repo out of the open-vulnerability count without
+// anything being fixed, so the weekly file records how many eligible repos had
+// a scanner unread. Archived repos are not governance-eligible and must not
+// count, or the figure would disagree with the findings it qualifies.
+
+describe('runGovernance — unread security count', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('passes the number of eligible repos with an unread scanner to the weekly write', async () => {
+    globalThis.fetch = async () => ({ ok: true, status: 200, headers: new Map(), json: async () => [], text: async () => '[]' });
+    const repos = [makeRepo('unread'), makeRepo('clean'), makeRepo('gone', { archived: true })];
+    const weekly = [];
+    const store = {
+      readRepoCache: async () => null,
+      readLatestGovernanceWeekly: async () => null,
+      writeGovernanceWeekly: async (_findings, meta) => { weekly.push(meta); },
+      writeGovernanceFindings: async () => {},
+    };
+    const context = {
+      owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store,
+      repoDetails: makeDetails(repos, {
+        unread: { codeScanning: { unreadable: true } },
+        gone: { vulns: { unreadable: true } },
+      }),
+    };
+
+    await runGovernance(context);
+
+    assert.deepEqual(weekly, [{ unreadSecurity: 1 }]);
+  });
+});
