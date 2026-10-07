@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-07T14:08:50.156Z",
+  "timestamp": "2026-10-07T17:57:46.871Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,31 +7,17 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 11,
+    "open_issues_count": 10,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-07T13:40:07Z",
+    "pushed_at": "2026-10-07T17:57:32Z",
     "archived": false
   },
   "issues": {
     "open": [
-      {
-        "number": 481,
-        "title": "UPDATE re-appends entries whose wording avoids \"shipped\"",
-        "author": "IsmaelMartinez",
-        "labels": [
-          "bug"
-        ],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-10-07T07:42:18Z",
-        "updated_at": "2026-10-07T07:42:18Z",
-        "assignees": [],
-        "milestone": null
-      },
       {
         "number": 429,
         "title": "Simplification plan (2026-09-26): tracking",
@@ -182,6 +168,16 @@
       }
     ],
     "recently_closed": [
+      {
+        "number": 481,
+        "title": "UPDATE re-appends entries whose wording avoids \"shipped\"",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "bug"
+        ],
+        "closed_at": "2026-10-07T17:57:41Z",
+        "created_at": "2026-10-07T07:42:18Z"
+      },
       {
         "number": 452,
         "title": "Alert summaries conflate 'scanner not enabled' with 'read failed'",
@@ -498,6 +494,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 493,
+        "title": "fix(observe): read a Dependabot 403 with dependabot.yml as unread, like the portfolio fetch",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-10-07T17:57:31Z"
+      },
       {
         "number": 492,
         "title": "chore: move CLAUDE.md to AGENTS.md",
@@ -1693,10 +1696,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9634146341463414,
-    "total_runs": 82,
-    "passed": 79,
-    "failed": 3
+    "pass_rate": 1,
+    "total_runs": 86,
+    "passed": 86,
+    "failed": 0
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1704,23 +1707,22 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 11,
-    "open_bugs": 1,
+    "open_issues": 10,
+    "open_bugs": 0,
     "open_features": 5,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 29,
-    "recently_merged_prs": 135,
+    "recently_closed": 30,
+    "recently_merged_prs": 136,
     "bot_prs": 13,
-    "human_prs": 122,
+    "human_prs": 123,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
       "agent-generated (8)",
       "enhancement (5)",
-      "question (5)",
-      "bug (1)"
+      "question (5)"
     ],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
@@ -1731,11 +1733,11 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 0.9634146341463414,
+    "ci_pass_rate": 1,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1,
-      "sample_size": 29
+      "sample_size": 30
     }
   }
 }
