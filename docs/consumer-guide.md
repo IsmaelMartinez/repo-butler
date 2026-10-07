@@ -180,7 +180,7 @@ For GitHub Pages repos the canonical URL is the value returned by `gh api repos/
 
 ## How to reference this from your repo
 
-The onboarding PR adds a fuller version of this section for you. To add it by hand instead, put this in your repo's `AGENTS.md`:
+The onboarding PR adds a fuller version of this section for you. To add it by hand instead, put it where your agents read it: in `AGENTS.md` if the repo has one, otherwise in an existing `CLAUDE.md`, and only create `AGENTS.md` when the repo has neither — Claude Code ignores `AGENTS.md` whenever a `CLAUDE.md` exists.
 
 ```markdown
 ## Repo Butler
