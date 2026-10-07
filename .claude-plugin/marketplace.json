@@ -1,7 +1,7 @@
 {
   "name": "repo-butler",
   "owner": { "name": "Ismael Martinez Ramos" },
-  "description": "Plugins that ship with repo-butler; this repo's .claude/settings.json enables them for sessions opened here.",
+  "description": "Plugins that ship with repo-butler; scripts/install-skills.sh installs them at local scope for sessions opened in this checkout.",
   "plugins": [
     {
       "name": "repo-butler-comic",

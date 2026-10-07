@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# install-skills.sh — wire repo-butler's read-side and write-side skills, and
-# install the comic mod for sessions opened in this checkout. Idempotent:
+# install-skills.sh — wire repo-butler's read-side and write-side skills into
+# the local Claude Code skill registry, and install the comic mod for sessions
+# opened in this checkout. Idempotent:
 # re-running is safe.
 #
 # Usage:
@@ -96,11 +97,12 @@ clean_dead_predecessors() {
 # commit (plugin.json deliberately has no version, which would pin it), so a
 # re-run after a pull refreshes it; uncommitted edits do not reach it.
 install_comic() {
+  # Drop the global symlink an earlier installer made, CLI or not.
+  unlink_skill repo-butler-comic >/dev/null
   if ! command -v claude >/dev/null 2>&1; then
     echo "  repo-butler-comic: skipped (claude CLI not on PATH)"
     return 0
   fi
-  unlink_skill repo-butler-comic >/dev/null
   (
     cd "$REPO_DIR"
     claude plugin marketplace update repo-butler >/dev/null 2>&1 ||
@@ -112,11 +114,11 @@ install_comic() {
 }
 
 uninstall_comic() {
+  unlink_skill repo-butler-comic >/dev/null
   if ! command -v claude >/dev/null 2>&1; then
     echo "  repo-butler-comic: skipped (claude CLI not on PATH)"
     return 0
   fi
-  unlink_skill repo-butler-comic >/dev/null
   (
     cd "$REPO_DIR"
     claude plugin uninstall repo-butler-comic@repo-butler --scope local >/dev/null 2>&1 || true
