@@ -137,6 +137,8 @@ Provisional tier communication and unread scanner telemetry hardened 2026-10-07 
 
 Automated repository governance safeguards and update logic refined 2026-10-07 (PRs #488, #489). Introduces a proactive security flag to identify and prevent auto-merges lacking required status checks, and resolves a logic bug to ensure reference counts are accurately recorded anywhere in the "Implemented" log.
 
+Onboarding refinement and agent standardization shipped 2026-10-07 (PR #491). Consolidates agent-related consumer instructions into a single, standardized `AGENTS.md` guide and explicitly prevents the creation of redundant `CLAUDE.md` files to polish the onboarding flow and reduce repository configuration clutter.
+
 ---
 
 ## Next Up
