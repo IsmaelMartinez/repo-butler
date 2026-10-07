@@ -417,6 +417,25 @@ describe('applyEditOps', () => {
     assert.ok(applied.some(a => a.includes('Next Up')));
   });
 
+  it('skips an Implemented re-append whose refs the log records under another verb', () => {
+    // #481: the logged entry said "drafted", so its line never matched the
+    // shipped convention and roadmap PR #478 carried #476 three times.
+    const documented = roadmap.replace('Feature A shipped.', 'Event emission plan drafted 2026-10-01 (PR #476).');
+    const { result, applied, skipped } = applyEditOps(
+      documented, [{ action: 'append', section: 'Implemented', text: 'Event emission and A2A plan merged 2026-10-01 (PR #476). Reworded.' }], '2026-10-02');
+    assert.equal(result, documented);
+    assert.equal(applied.length, 0);
+    assert.ok(skipped.some(s => s.includes('already documented')));
+  });
+
+  it('does not count an upstream ref in the Implemented log as recorded', () => {
+    const documented = roadmap.replace('Feature A shipped.', 'TS 7 migration parked, blocked on upstream #10940.');
+    const { result, applied } = applyEditOps(
+      documented, [{ action: 'append', section: 'Implemented', text: 'typescript-eslint gained TS 7 support (upstream #10940).' }], '2026-10-02');
+    assert.ok(result.includes('typescript-eslint gained TS 7 support'));
+    assert.ok(applied.some(a => a.includes('Implemented')));
+  });
+
   it('applies an append that cites a new ref alongside existing ones', () => {
     const documented = roadmap + '\n\nStage 1 shipped (PR #239).';
     const ops = [{ action: 'append', section: 'Implemented', text: 'Stage 4 graduated (PRs #239, #300).' }];

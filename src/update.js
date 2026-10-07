@@ -600,14 +600,25 @@ export function applyEditOps(roadmap, ops, today, {
   // reach the prompt as bare issue numbers with no PR number to cite, so a
   // legitimate shipped entry may carry no new ref at all.
   //
-  // Deliberately NOT widened to "every ref in the Implemented section". That
-  // reading suppressed a Next Up follow-up citing already-shipped PRs, and
-  // imported foreign numbering — ROADMAP.md cites `upstream #10940`, which
-  // would have silently blocked any entry mentioning that upstream issue.
-  // Exact duplicates are caught by identity below instead, where the
-  // comparison is scoped to the section actually being written to.
+  // Deliberately NOT widened to "every ref in the Implemented section" for
+  // every append. That reading suppressed a Next Up follow-up citing
+  // already-shipped PRs, and imported foreign numbering — ROADMAP.md cites
+  // `upstream #10940`, which would have silently blocked any entry mentioning
+  // that upstream issue. Exact duplicates are caught by identity below
+  // instead, where the comparison is scoped to the section actually being
+  // written to.
   const shippedRefs = extractIssueRefs(
     roadmap.split('\n').filter(l => /~~|\bshipped\b/i.test(l)).join('\n'),
+  );
+  // Refs the Implemented log carries under any verb, consulted only for
+  // appends to Implemented itself. An entry worded "drafted" or "merged"
+  // never matched the convention above, so a reworded re-summary of it got
+  // past both checks and roadmap PR #478 carried #476 three times (#481).
+  // The `upstream #N` form is stripped first so foreign numbering never
+  // counts as recorded here.
+  const logBounds = sectionBounds(roadmap, SHIPPED_SECTION);
+  const loggedRefs = extractIssueRefs(
+    logBounds ? roadmap.slice(logBounds.start, logBounds.end).replace(/\bupstream\s+#\d+/gi, '') : '',
   );
 
   for (const rawOp of ops) {
@@ -696,7 +707,8 @@ export function applyEditOps(roadmap, ops, today, {
           }
         }
       }
-      if (refs.length > 0 && refs.every(r => shippedRefs.has(r))) {
+      const recorded = r => shippedRefs.has(r) || (section === SHIPPED_SECTION && loggedRefs.has(r));
+      if (refs.length > 0 && refs.every(recorded)) {
         const head = refs.slice(0, 10).join(', ');
         const overflow = refs.length > 10 ? ` (and ${refs.length - 10} more)` : '';
         skipped.push(`append: every ref (${head}${overflow}) is already documented as shipped — duplicate entry`);
