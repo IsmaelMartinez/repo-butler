@@ -17,7 +17,7 @@ import { isExcludedRepo } from './report-shared.js';
  *
  * `!r.private` is defence in depth: private repos arrive separately as
  * `portfolio.privateRepos` and never enter the governance pipeline (see the
- * private-repo section of CLAUDE.md and the guard in governance.test.js), so a
+ * private-repo section of AGENTS.md and the guard in governance.test.js), so a
  * private repo reaching this filter is already a bug upstream.
  */
 export function eligibleRepos(repos) {

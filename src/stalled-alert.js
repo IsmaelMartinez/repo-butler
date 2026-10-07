@@ -187,7 +187,7 @@ function parseJson(text) {
  * @param {string} owner
  * @param {Array} repos — portfolio repos from observePortfolio(). PUBLIC repos
  *   only: private repos never enter the governance pipeline (see the
- *   private-repo section of CLAUDE.md and the guard in governance.test.js).
+ *   private-repo section of AGENTS.md and the guard in governance.test.js).
  * @param {{ openPRs?: Object, severityFloor?: string, thresholdDays?: number }} [options]
  *   openPRs is the pre-fetched `{ repoName: prs[] }` map from
  *   governance.fetchOpenPRs, so this detector shares the one open-PR sweep the

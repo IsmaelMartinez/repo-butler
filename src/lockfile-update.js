@@ -838,7 +838,7 @@ export async function applyLockfileUpdates(gh, owner, findings, config, options 
 
       // The title and body are composed from validated inputs only, and are
       // still put through the same validators every published string passes
-      // (CLAUDE.md: composed strings, not just their parts). A failure here is
+      // (AGENTS.md: composed strings, not just their parts). A failure here is
       // a bug or hostile input, so it is an error, not a quiet skip.
       const title = buildPrTitle(alerts);
       const body = buildPrBody(owner, repo, directory, alerts, gate.changes);
