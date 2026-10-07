@@ -461,6 +461,52 @@ export function tierStatus(r, options = {}) {
   return { tier, checks, provisional: isTierProvisional(r, { checks }) };
 }
 
+// Whether a stored record (a weekly snapshot entry) was provisional: the flag
+// the snapshot recorded, else one derived from its stored checks, so an older
+// record is never re-scored with today's clock.
+export function isRecordProvisional(r, options = {}) {
+  const stored = r?.computed?.provisional;
+  if (typeof stored === 'boolean') return stored;
+  return isTierProvisional(r ?? {}, options);
+}
+
+// A repo's security posture as a reader may state it (#477): 'at-risk' when a
+// scanner that was read shows a critical/high or any secret, which no unread
+// scanner can undo; otherwise 'unknown' while any scanner went unread, since
+// the alert that would change the answer may be the one nobody read; else
+// 'clean'. Nothing may call a repo clean, or say it cleared its alerts, from
+// an unread scanner.
+export function securityState(r) {
+  if (isHighSeverity(r?.vulns) || isHighSeverity(r?.codeScanning) || (r?.secretScanning?.count || 0) > 0) return 'at-risk';
+  return hasUnreadableScanner(r) ? 'unknown' : 'clean';
+}
+
+const SCANNER_NAMES = [['vulns', 'Dependabot'], ['codeScanning', 'code scanning'], ['secretScanning', 'secret scanning']];
+
+// The unread scanners by name, for lines such as "code scanning unread".
+export function unreadScannerNames(r) {
+  return SCANNER_NAMES.filter(([key]) => isScannerUnreadable(r?.[key])).map(([, name]) => name);
+}
+
+// The tier pill every table and list draws. A provisional tier is Unconfirmed
+// (#477): a dashed neutral pill that claims neither its computed tier nor Gold.
+export function tierBadge(tier, provisional = false) {
+  if (provisional) {
+    return '<span class="tier-badge tier-unconfirmed" title="Gold on every check that could be read; a security scanner\'s alerts could not be read">Unconfirmed</span>';
+  }
+  return `<span class="tier-badge tier-${tier}">${TIER_DISPLAY[tier]}</span>`;
+}
+
+// The portfolio badge's tier: the rounded mean of the confirmed tiers. A
+// provisional repo is left out (#477) rather than pulling the mean down with a
+// tier nobody observed.
+export function portfolioBadgeTier(statuses) {
+  const confirmed = statuses.filter(s => !s.provisional);
+  if (confirmed.length === 0) return 'none';
+  const mean = Math.round(confirmed.reduce((sum, s) => sum + (TIER_RANK[s.tier] ?? 0), 0) / confirmed.length);
+  return mean >= 3 ? 'gold' : mean >= 2 ? 'silver' : mean >= 1 ? 'bronze' : 'none';
+}
+
 // Compute health tier for a classified repo object.
 // Returns { tier: 'gold'|'silver'|'bronze'|'none', checks: [{ name, passed, required_for }] }
 export function computeHealthTier(r, options = {}) {
@@ -567,10 +613,13 @@ export function evaluateCampaign(campaign, repos, details) {
 
 // Generate a shields.io-style flat SVG badge showing the health tier.
 // Usage: ![health](https://ismaelmartinez.github.io/repo-butler/badges/{repo-name}.svg)
-export function generateHealthBadge(repoName, tier) {
+// A provisional tier (#477) reads `unconfirmed` in the neutral grey: the badge
+// is public and is rebuilt each run, so it can neither keep an old value nor
+// claim one nobody observed.
+export function generateHealthBadge(repoName, tier, { provisional = false } = {}) {
   const label = 'health';
-  const value = TIER_DISPLAY[tier] || TIER_DISPLAY.none;
-  const color = TIER_COLORS[tier] || TIER_COLORS.none;
+  const value = provisional ? 'unconfirmed' : (TIER_DISPLAY[tier] || TIER_DISPLAY.none);
+  const color = provisional ? TIER_COLORS.none : (TIER_COLORS[tier] || TIER_COLORS.none);
 
   // Approximate text widths using 6.5px per character (Verdana 11px).
   const labelWidth = Math.round(label.length * 6.5) + 10;

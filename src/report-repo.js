@@ -5,8 +5,9 @@ import { htmlPage } from './report-styles.js';
 import {
   TIER_DISPLAY, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   isBotAuthor, escHtml, jsStr, fmt, countBy, isBlocked,
-  daysAgoISO, last12Months, computeHealthTier, isReleaseExempt,
+  daysAgoISO, last12Months, isReleaseExempt,
   colorByThreshold, nextTier, isCheckRequiredForTier, deployedLink, autofixActive, isScannerUnreadable,
+  tierStatus, observedFailingChecks, unreadScannerNames,
 } from './report-shared.js';
 
 // Range tuples for value-to-colour mapping in per-repo dashboards.
@@ -396,18 +397,27 @@ const scannerCount = (s, noun) => (s == null ? null : isScannerUnreadable(s) ? `
 function buildHealthTierSection(snapshot, config, healthData = {}) {
   const input = snapshotToTierInput(snapshot);
   const repoName = snapshot.repository?.split('/')[1] || '';
-  const { tier, checks } = computeHealthTier(input, { releaseExempt: isReleaseExempt(repoName, config) });
-  const color = `var(--tier-${tier}-text)`;
-  const display = TIER_DISPLAY[tier] || 'Unranked';
+  const { tier, checks, provisional } = tierStatus(input, { releaseExempt: isReleaseExempt(repoName, config) });
+  // Matches the dashboard (#477): a provisional tier is Unconfirmed, and a
+  // check that failed only because a scanner went unread is shown as unknown
+  // (?) rather than failed, and is never listed as work to reach the next tier.
+  const color = provisional ? 'var(--muted)' : `var(--tier-${tier}-text)`;
+  const display = provisional ? 'Unconfirmed' : (TIER_DISPLAY[tier] || 'Unranked');
+  const observed = observedFailingChecks(input, checks);
+  const unobserved = new Set(checks.filter(c => !c.passed && !observed.includes(c)).map(c => c.name));
+  const unreadLine = provisional
+    ? `<div class="muted" style="font-size:0.85rem">Gold on every check that could be read \u00b7 ${escHtml(unreadScannerNames(input).join(', '))} unread</div>`
+    : '';
 
   const next = nextTier(tier);
   const failedForNext = next
-    ? checks.filter(c => !c.passed && isCheckRequiredForTier(c, next))
+    ? observed.filter(c => isCheckRequiredForTier(c, next))
     : [];
 
   const checkRows = checks.map(c => {
-    const icon = c.passed ? '\u2713' : '\u2717';
-    const iconColor = c.passed ? 'var(--color-success)' : 'var(--color-danger)';
+    const unknown = unobserved.has(c.name);
+    const icon = c.passed ? '\u2713' : unknown ? '?' : '\u2717';
+    const iconColor = c.passed ? 'var(--color-success)' : unknown ? 'var(--muted)' : 'var(--color-danger)';
     const tierLabel = c.required_for === 'gold' ? 'Gold' : c.required_for === 'silver' ? 'Silver' : 'Bronze';
     const detail = healthData[c.name] || '';
     const detailHtml = detail ? `<span class="muted">${escHtml(detail)}</span>` : '';
@@ -434,6 +444,7 @@ ${failedForNext.map(c => `<div class="text-danger" style="font-size:0.85rem;marg
   return `<h2>Health Tier</h2>
 <div class="chart-container" style="text-align:center;padding-bottom:0.5rem">
 <div style="font-size:3rem;font-weight:700;color:${color}">${display}</div>
+${unreadLine}
 ${autofixLine}
 <table style="margin-top:1rem;text-align:left"><thead><tr><th></th><th>Criteria</th><th>Required</th><th>Detail</th></tr></thead>
 <tbody>${checkRows}</tbody></table>

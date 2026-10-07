@@ -77,7 +77,7 @@ Bronze requires either some commit history or a push within the last year.
 
 ### Provisional tiers
 
-When a security scanner's alerts could not be read and that is the only thing between a repo and Gold, the repo's tier is provisional: it is held below Gold because Gold is never awarded without evidence, but nothing observed it fall short either. The MCP tools flag this as `tier_provisional: true`, count such repos as `tier_unknown` rather than in a tier, and `query_portfolio` accepts `tier: "provisional"` to list them. The next successful read settles the tier.
+When a security scanner's alerts could not be read and that is the only thing between a repo and Gold, the repo's tier is provisional: it is held below Gold because Gold is never awarded without evidence, but nothing observed it fall short either. The dashboard, the per-repo page and the README badge show it as Unconfirmed, keep it out of the tier mix, Gold % and the portfolio badge, and never call its security posture clean while the scanner is unread. The MCP tools flag this as `tier_provisional: true`, count such repos as `tier_unknown` rather than in a tier, and `query_portfolio` accepts `tier: "provisional"` to list them. The next successful read settles the tier.
 
 ### How to improve your tier
 
