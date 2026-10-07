@@ -595,21 +595,22 @@ function repoAtRisk(r) {
 // "N repos" with the plural the count needs.
 const repoCount = n => `${n} repo${n === 1 ? '' : 's'}`;
 
-// The week-over-week Gold % on one cohort (#477): a repo provisional on either
-// side is left out of both, or a repo that merely went unread reads as a Gold
-// dip and its recovery as a rise. Null without a prior snapshot.
+// The week-over-week Gold % on one cohort (#477): the repos present in both
+// weeks and confirmed in both. A repo provisional on either side is left out,
+// or one that merely went unread reads as a Gold dip and its recovery as a
+// rise; a repo in only one week is left out, or joining or leaving the
+// portfolio moves the trend on its own. Null when no shared repo remains.
 function goldTrendOf(classified, priorPortfolio) {
-  const prior = priorPortfolio?.repos ? Object.entries(priorPortfolio.repos) : [];
-  if (prior.length === 0) return null;
-  const skip = new Set(classified.filter(r => r._provisional).map(r => r.name));
-  for (const [name, s] of prior) if (isRecordProvisional(s)) skip.add(name);
-  const pct = (tiers) => {
-    const kept = tiers.filter(([name]) => !skip.has(name));
-    return kept.length === 0 ? null : Math.round((kept.filter(([, t]) => t === 'gold').length / kept.length) * 100);
+  const priorRepos = priorPortfolio?.repos;
+  if (!priorRepos) return null;
+  const cohort = classified.filter(r => !r._provisional && Object.hasOwn(priorRepos, r.name)
+    && priorRepos[r.name]?.computed?.tier && !isRecordProvisional(priorRepos[r.name]));
+  if (cohort.length === 0) return null;
+  const pct = gold => Math.round((gold / cohort.length) * 100);
+  return {
+    current: pct(cohort.filter(r => r._tier === 'gold').length),
+    previous: pct(cohort.filter(r => priorRepos[r.name].computed.tier === 'gold').length),
   };
-  const current = pct(classified.map(r => [r.name, r._tier]));
-  const previous = pct(prior.map(([name, s]) => [name, s?.computed?.tier]));
-  return current == null || previous == null ? null : { current, previous };
 }
 
 // The portfolio's overall state, which drives the headline, the status colour,

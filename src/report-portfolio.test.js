@@ -537,6 +537,17 @@ describe('provisional tier on the dashboard', () => {
     assert.ok(!html.includes('class="status-trend'), 'no trend: the shared cohort was all Gold both times');
   });
 
+  it('compares only repos present in both weeks, so a new repo is not a Gold move', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const prior = { repos: { g: { computed: { tier: 'gold' } } } };
+    const html = generatePortfolioReport({
+      owner: 'owner', config: {}, priorPortfolio: prior,
+      portfolio: { repos: [repo('g'), repo('n')] },
+      details: { g: goldDetails(), n: { ...goldDetails(), communityHealth: 60 } },
+    });
+    assert.ok(!html.includes('class="status-trend'), 'the shared cohort {g} was Gold both weeks');
+  });
+
   it('emits no tier move to or from provisional and no "cleared" from an unread read', async () => {
     const prior = { repos: { g: { computed: { tier: 'gold' } }, p: { computed: { tier: 'gold' }, vulns: { count: 1, high: 1, max_severity: 'high' } } } };
     const html = await render({ priorPortfolio: prior });
