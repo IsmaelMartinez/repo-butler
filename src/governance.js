@@ -40,6 +40,7 @@ export async function runGovernance(context) {
   const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
   const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
   const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails);
+  const unguarded = detectUnguardedAutoMerge(portfolio.repos, context.repoDetails);
 
   // G7 Gold ratchet: diff this run's computed tiers (in the same weekly-snapshot
   // shape REPORT later persists) against the PREVIOUS week's portfolio snapshot.
@@ -53,8 +54,8 @@ export async function runGovernance(context) {
     regressions = detectTierRegressions(currentWeekly, priorPortfolioWeekly);
   }
 
-  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...regressions];
-  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${regressions.length} tier-regression)`);
+  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...regressions, ...unguarded];
+  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${regressions.length} tier-regression, ${unguarded.length} automerge-unguarded)`);
 
   // One open-PR sweep, two consumers. Both audits read the identical
   // `/pulls?state=open` list for every eligible repo, so fetching it twice would
@@ -719,6 +720,33 @@ export function detectOpenVulnerabilities(repos, details) {
   return findings;
 }
 
+/**
+ * Detect eligible repos where Dependabot auto-merge can land a PR before CI has
+ * run (#440): the auto-merge workflow is installed, the repo allows auto-merge,
+ * and the default branch requires no status check. With nothing required,
+ * `gh pr merge --auto` merges at once — repo-butler #404 merged 11 s before its
+ * OSV scan and 66 s before CodeQL finished (2026-09-26).
+ *
+ * A per-repo STATE finding, executor 'manual': the fix is a ruleset whose
+ * contexts must be chosen per repo (see the remediation plan), so it stays off
+ * the templated-PR path and out of cross-repo PROPOSE. Fires only on an
+ * explicit `false` from requiresStatusChecks — an unreadable rule set is not
+ * evidence that the guard is missing. Priority is never 'high': it is a
+ * hygiene gap, not an incident, and must not flip the dashboard to attention.
+ *
+ * @param {Array} repos — portfolio repos from observePortfolio()
+ * @param {Object} details — enriched details from fetchPortfolioDetails()
+ * @returns {Array} automerge-unguarded findings
+ */
+export function detectUnguardedAutoMerge(repos, details) {
+  return eligibleRepos(repos)
+    .filter(r => {
+      const d = details?.[r.name];
+      return d?.hasAutoMergeWorkflow === true && d.allowAutoMerge === true && d.requiresStatusChecks === false;
+    })
+    .map(r => ({ type: 'automerge-unguarded', repo: r.name, priority: 'medium' }));
+}
+
 // --- Remediation plan contract (ADR-007, Track B stage 1) ---
 //
 // Every finding carries a portable remediation plan: an `executor` routing hint
@@ -881,6 +909,17 @@ export function buildRemediationPlan(finding) {
         intent: `Unblock ${alerts.length} stalled Dependabot alert(s) in ${finding.repo}`,
         rationale: `${alerts.length} open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest ${oldest} days; classified: ${classes.join(', ') || 'unknown'}). ${remedy}`,
         acceptanceCriteria: ['Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it'],
+      };
+    }
+    case 'automerge-unguarded': {
+      // executor 'manual': the required contexts must be picked per repo, and
+      // each trap below has bitten a hand-made ruleset (#440).
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Require status checks on ${finding.repo}'s default branch`,
+        rationale: 'Dependabot auto-merge is on but the default branch requires no status check, so a bump PR can merge before CI runs. Add a non-strict ruleset requiring checks that report on every PR (never `scan-pr / osv-scan`, which skips fork PRs, nor a matrix context an open PR removes), keep admin PR-bypass for release PRs, and do not make it strict — strict plus auto-merge stalls Dependabot PRs at BEHIND.',
+        acceptanceCriteria: [`${finding.repo}'s default branch requires at least one status check`],
       };
     }
     case 'open-vulnerability': {

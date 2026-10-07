@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, getAutomatedSecurityFixesState, getLargeFileContent } from './github.js';
+import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, requiresStatusChecks, getAutomatedSecurityFixesState, getLargeFileContent } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -405,6 +405,63 @@ describe('hasActiveCopilotReviewRuleset', () => {
       request: async () => ({ rules: [{ type: 'pull_request' }] }),
     };
     assert.equal(await hasActiveCopilotReviewRuleset(gh, 'o', 'r'), false);
+  });
+});
+
+describe('requiresStatusChecks', () => {
+  // Shapes as GitHub returned them on 2026-10-07: a ruleset-only branch still
+  // reports `protected: true`, with protection disabled and empty contexts.
+  const RULESET_ONLY_BRANCH = { protected: true, protection: { enabled: false, required_status_checks: { checks: [], contexts: [], enforcement_level: 'off' } } };
+  const CLASSIC_BRANCH = { protected: true, protection: { enabled: true, required_status_checks: { checks: [{ context: 'test' }], contexts: ['test'], enforcement_level: 'non_admins' } } };
+  const CHECKS_RULE = { type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'test' }] } };
+  function makeGh({ rules = async () => [], branch = async () => RULESET_ONLY_BRANCH } = {}) {
+    return { paginate: async () => rules(), request: async () => branch() };
+  }
+
+  it('is true when a ruleset requires a check', async () => {
+    const gh = makeGh({ rules: async () => [{ type: 'deletion' }, CHECKS_RULE] });
+    assert.equal(await requiresStatusChecks(gh, 'o', 'r', 'main'), true);
+  });
+
+  it('is true when only classic branch protection requires a check', async () => {
+    const gh = makeGh({ rules: async () => [{ type: 'deletion' }], branch: async () => CLASSIC_BRANCH });
+    assert.equal(await requiresStatusChecks(gh, 'o', 'r', 'main'), true);
+  });
+
+  it('is false only when both reads completed and neither requires a check', async () => {
+    const empty = { type: 'required_status_checks', parameters: { required_status_checks: [] } };
+    assert.equal(await requiresStatusChecks(makeGh({ rules: async () => [empty] }), 'o', 'r', 'main'), false);
+    assert.equal(await requiresStatusChecks(makeGh({ branch: async () => ({ protected: false }) }), 'o', 'r', 'main'), false);
+  });
+
+  it('is null when either read fails and the other finds nothing', async () => {
+    const boom = async () => { throw new Error('500'); };
+    assert.equal(await requiresStatusChecks(makeGh({ rules: boom }), 'o', 'r', 'main'), null);
+    assert.equal(await requiresStatusChecks(makeGh({ branch: boom }), 'o', 'r', 'main'), null);
+    assert.equal(await requiresStatusChecks(makeGh({ rules: async () => ({}) }), 'o', 'r', 'main'), null);
+  });
+
+  it('is null when a protected branch carries no protection detail', async () => {
+    const gh = makeGh({ branch: async () => ({ protected: true }) });
+    assert.equal(await requiresStatusChecks(gh, 'o', 'r', 'main'), null);
+  });
+
+  it('reads the branch rules and the branch protection of the named branch', async () => {
+    const paginated = [];
+    const requested = [];
+    const gh = {
+      paginate: async (path) => { paginated.push(path); return []; },
+      request: async (path) => { requested.push(path); return RULESET_ONLY_BRANCH; },
+    };
+    await requiresStatusChecks(gh, 'o', 'r', 'release/1#2');
+    assert.deepEqual(paginated, ['/repos/o/r/rules/branches/release%2F1%232']);
+    assert.deepEqual(requested, ['/repos/o/r/branches/release%2F1%232']);
+  });
+
+  it('keeps a positive find when the other read fails', async () => {
+    const boom = async () => { throw new Error('500'); };
+    assert.equal(await requiresStatusChecks(makeGh({ rules: async () => [CHECKS_RULE], branch: boom }), 'o', 'r', 'main'), true);
+    assert.equal(await requiresStatusChecks(makeGh({ rules: boom, branch: async () => CLASSIC_BRANCH }), 'o', 'r', 'main'), true);
   });
 });
 

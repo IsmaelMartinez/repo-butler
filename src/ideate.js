@@ -250,6 +250,8 @@ function appendGovernanceContext(parts, findings) {
       const oldest = alerts.reduce((max, a) => Math.max(max, a.ageDays || 0), 0);
       const classes = [...new Set(alerts.map(a => a.classification).filter(Boolean))].sort().join(', ');
       parts.push(`Stalled alerts: ${f.repo} has ${alerts.length} open Dependabot alert(s) with no PR addressing them (oldest: ${oldest}d; classified: ${classes})`);
+    } else if (f.type === 'automerge-unguarded') {
+      parts.push(`Unguarded auto-merge: ${f.repo} auto-merges Dependabot PRs but requires no status check on its default branch`);
     }
   }
 

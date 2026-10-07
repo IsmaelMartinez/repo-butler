@@ -198,6 +198,7 @@ export function buildGovernanceSection(findings) {
   const regressions = findings.filter(f => f.type === 'tier-regression');
   const staleButlerPRs = findings.filter(f => f.type === 'stale-butler-pr');
   const stalledAlerts = findings.filter(f => f.type === 'stalled-alert');
+  const unguarded = findings.filter(f => f.type === 'automerge-unguarded');
 
   const parts = [];
 
@@ -320,6 +321,19 @@ export function buildGovernanceSection(findings) {
 <table><thead><tr><th>Repo</th><th>Alerts</th><th>Oldest</th><th>Detail</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`);
+  }
+
+  // Auto-merge with no required check (#440): a Dependabot bump can merge
+  // before CI reports. One line per repo — the remedy is the same for each.
+  if (unguarded.length > 0) {
+    const links = unguarded
+      .map(f => f.repo)
+      .sort()
+      .map(n => `<a href="${escHtml(n)}.html">${escHtml(n)}</a>`)
+      .join(', ');
+    parts.push(`<h3>Unguarded Auto-merge</h3>
+<p>${links}</p>
+<p class="muted">Dependabot auto-merge is on but the default branch requires no status check, so a bump can merge before CI runs. Add a non-strict ruleset requiring checks that report on every PR.</p>`);
   }
 
   // The butler's own PRs that never landed. Rendered explicitly because a

@@ -108,8 +108,8 @@
           "description": "osv-scanner.yml is present on the default branch (exact filename match). Tri-state: null when the workflows directory could not be read."
         },
         "allowAutoMerge": {
-          "type": "boolean",
-          "description": "The repository's allow_auto_merge setting; false when the repo metadata read fails"
+          "type": ["boolean", "null"],
+          "description": "The repository's allow_auto_merge setting, re-read on every cache hit. Tri-state: null when the field is absent or the read failed and no last-known value exists; gates the automerge-unguarded finding (#440)."
         },
         "hasCodeowners": {
           "type": "boolean",
@@ -122,6 +122,10 @@
         "hasCopilotReview": {
           "type": ["boolean", "null"],
           "description": "An active repository ruleset carries a copilot_code_review rule (ADR-009). Tri-state: null when the ruleset scan could not complete and no last-known value exists; only an explicit false authorises the settings write."
+        },
+        "requiresStatusChecks": {
+          "type": ["boolean", "null"],
+          "description": "The default branch requires at least one status check, through a ruleset or classic branch protection (#440). Tri-state: null when either read failed without a positive find and no last-known value exists; only an explicit false raises an automerge-unguarded finding."
         },
         "libyear": {
           "oneOf": [
