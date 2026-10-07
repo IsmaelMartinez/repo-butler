@@ -127,11 +127,7 @@ Private repository watcher archived-status safety check shipped 2026-10-01 (PR #
 
 Core scanning logic refined to differentiate unreadable scanners from disabled ones shipped 2026-10-02 (PR #472). This ensures more accurate state representation and error handling during repository observation by preventing transient read failures from being misclassified as disabled features, resolving issue #452.
 
-Architectural roadmap for event-driven integration and agent-to-agent (A2A) surfaces drafted 2026-10-02 (PR #476). This lays the planning groundwork for expanding the butler's collaborative capabilities, preparing the system to transition from static discovery toward active, event-driven cross-agent coordination.
-
-Architectural blueprint for event-driven integration surfaces drafted 2026-10-02 (PR #476). Establishes the design foundation for event-driven cross-agent coordination and agent-to-agent (A2A) surfaces, preparing the system to transition toward active, collaborative discovery.
-
-Architectural blueprint for event-driven integration and agent-to-agent (A2A) surfaces drafted 2026-10-02 (PR #476). Establishes the design foundation for event-driven cross-agent coordination and A2A integration, preparing the system to transition from static discovery toward active, collaborative discovery.
+Plan for making the event and A2A surfaces real drafted 2026-10-02 (PR #476). Keeps the AsyncAPI spec and A2A agent card and sets out a default-closed implementation gated on a named consumer.
 
 ---
 
