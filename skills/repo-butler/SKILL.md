@@ -70,9 +70,10 @@ PRIOR=$(cat "$STATE" 2>/dev/null || echo '{}')
 echo "$PRIOR"
 ```
 
-`PRIOR` has the shape `{"lastDate":"YYYY-MM-DD","lastScene":"<id>","repoTiers":{"<repo>":"gold|silver|bronze|none"}}`. Compare `PRIOR.repoTiers` against the current per-repo tiers from `query_portfolio`:
+`PRIOR` has the shape `{"lastDate":"YYYY-MM-DD","lastScene":"<id>","repoTiers":{"<repo>":"gold|silver|bronze|none|unconfirmed"}}`. A repo with `tier_provisional: true` is stored as `"unconfirmed"`, never as its computed tier. Compare `PRIOR.repoTiers` against the current per-repo tiers from `query_portfolio`:
 
 - A repo whose tier improved → "returned to Gold" / "reached Silver, sir". A repo that slipped → "slipped to Bronze, sir". Name at most two; prefer improvements. This becomes the "since your last briefing" opener in panel 1.
+- A repo that is `unconfirmed` on either side has not moved: it neither "slipped" when its alerts went unread nor "returned to Gold" when the next read succeeded, so it is left out of the delta.
 - If `PRIOR` is empty (first run) or `lastDate` is today already, omit the delta.
 
 After the strip is drawn, write the new state. `$SCENE` is the day's headline scene (panel 2's). Build `$REPO_TIERS` as a single comma-separated list of JSON key/value pairs — e.g. `"repo-a":"gold","repo-b":"silver"` — with no trailing comma and no newlines, so the file stays valid JSON:
@@ -135,8 +136,8 @@ Choose the headline scene for panel 2 by ranking the day's signals top-down and 
 | 3        | `kitchen`     | the kitchen, something's catching | a red CI failure streak (per the weekly definition below) or portfolio CI pass < 70% | cook           | worried   |
 | 4        | `belowstairs` | below stairs, by candlelight    | governance standards gaps or policy drift present    | under-butler   | observant |
 | 5        | `post-room`   | the post room, parcels stacked  | a repo with `open_issues ≥ 10` (worse on Mon)        | postmaster     | observant |
-| 6        | `morning-room`| the morning room                | a sub-Gold repo exists but none of the above         | none           | neutral   |
-| 7        | `fireside`    | by the fire                     | all clear (all Gold, zero acute concerns)            | none           | pleased   |
+| 6        | `morning-room`| the morning room                | a confirmed sub-Gold repo exists, or a scanner went unread, but none of the above | none           | neutral (observant when only unread scanners keep the day off all-clear) |
+| 7        | `fireside`    | by the fire                     | all clear (all Gold, zero acute concerns, every scanner read) | none           | pleased   |
 | 7        | `garden-clear`| the garden, after rain          | all clear — alternate calm scene                     | none           | pleased   |
 
 The `study` (the evening study, a lamp and a decanter) belongs to the debrief.
@@ -182,7 +183,7 @@ Title: `The Daily Butler Briefing`. Run when `MODE=briefing`.
 
 Fetch the data:
 
-1. Call MCP tool `query_portfolio` (no arguments) for all portfolio repos with current tier and health data. Each repo carries `computed.tier` ∈ `gold|silver|bronze|none` plus `vulns`/`codeScanning` (each with `critical`/`high`/`count`), `secretScanning.count`, `ciPassRate` (0–1), `open_issues`, and `license`. This drives the stat line, the headline scene, and the continuity delta.
+1. Call MCP tool `query_portfolio` (no arguments) for all portfolio repos with current tier and health data. Each repo carries `tier` ∈ `gold|silver|bronze|none` and `tier_provisional`, plus `vulns`/`codeScanning` (each with `critical`/`high`/`count`), `secretScanning.count`, `ciPassRate` (0–1), `open_issues`, and `license`. Any of the three scanner summaries may instead be `{ "unreadable": true }`: its alerts could not be read this run. This drives the stat line, the headline scene, and the continuity delta.
 2. Call MCP tool `get_governance_findings` (no arguments) for the governance ledger — standards gaps and policy drift drive the `belowstairs` scene; findings open >60d are given-up campaigns, >30d earn the below-stairs word.
 3. Call MCP tool `get_weekly_trend` with `weeks: 4` and no `repo` argument for the portfolio-wide CI streak (see below).
 4. Call MCP tool `get_campaign_status` (no arguments) only if surfacing campaign progress in the sign-off.
@@ -214,6 +215,7 @@ The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series �
 Write the script:
 
 - Pick the headline scene from the table. Concerns come from `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `secretScanning.count > 0`, `ciPassRate < 0.7`, `open_issues ≥ 10`, missing `license`, plus governance standards gaps and policy drift.
+- An unread scanner (`{ "unreadable": true }`) is never clean and never a pest: it neither triggers `garden-pests` nor lets the day be all-clear, and Reginald does not say the garden is clear of pests while one went unread. Name it plainly instead ("the gardener could not get into the code-scanning shed at bonnie-wee-plot, sir"). A repo with `tier_provisional: true` is unconfirmed, not demoted: it is not "sub-Gold" for the scene table, it counts as neither Gold nor below in the stat line (add `* {n} unconfirmed` when there are any), and no balloon calls it Silver.
 - Every balloon about a concern names the real signal — repo names and counts — e.g. the gardener "has found three pests in teams-for-linux, sir." The Doric word goes only in `garden-pests`/`storm` (dreich) or a calm scene (braw).
 - Panel 1's caption opens with the continuity delta if present ("Since your last briefing, sir, …"), then the streak or saga line. On Mondays with open issues > 0, the postmaster's tardiness belongs in whichever panel he appears in, or in panel 3's last word. On 25 January Reginald opens with "A guid Burns Night to ye, sir."; on 31 December "Hogmanay greetings, sir."
 - On a calm day, fold one working-state observation into panel 3 if the local block returned anything ("a forgotten parcel in the hallway, sir" for a stash older than the last commit; otherwise "the study is in impeccable order, sir").
