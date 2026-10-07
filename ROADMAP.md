@@ -133,6 +133,8 @@ Model Context Protocol capabilities enhanced with provisional tier flagging ship
 
 Localized pixel-art comic mod with ASCII fallbacks shipped 2026-10-07 (PRs #479, #480). Introduces a localized, expressive visual branding experience tailored to active checkout sessions, complete with a robust ASCII fallback system.
 
+Provisional tier communication and unread scanner telemetry hardened 2026-10-07 (PRs #484, #485, #486). Improves user expectation management and dashboard accuracy by explicitly labeling provisional tiers as "Unconfirmed" across dashboards, pages, and badges, and refines integration error handling by ensuring a Dependabot 403 rate-limit or permission error is correctly flagged as an unread scanner state rather than misleadingly reporting zero alerts.
+
 ---
 
 ## Next Up
