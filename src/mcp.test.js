@@ -1065,4 +1065,20 @@ describe('MCP provisional tiers', async () => {
     const held = await withIo({ git: fixtureGit({ files: steady }) }, () => callTool('get_governance_findings', {}));
     assert.equal(held.summary.openVulnerabilitiesTrend.direction, 'unchanged', 'the same repos unread both weeks distort nothing');
   });
+
+  // governance.json and the weekly file are separate writes. When they hold
+  // different runs (one write failed), the unread count cannot be paired with
+  // these findings, so it is unknown and the fall cannot read as improving.
+  it('does not pair the findings with an unread count from a different run', async () => {
+    const GW39 = 'snapshots/governance-weekly/2026-W39.json';
+    const mismatched = {
+      ...FIXTURE.files,
+      [GW39]: { ...FIXTURE.files[GW39], unreadSecurity: 0 },
+      'snapshots/governance.json': FIXTURE.files['snapshots/governance.json'].slice(1),
+    };
+    const { summary } = await withIo({ git: fixtureGit({ files: mismatched }) }, () => callTool('get_governance_findings', {}));
+    assert.equal(summary.openVulnerabilities, 1);
+    assert.equal(summary.unreadSecurity, null);
+    assert.equal(summary.openVulnerabilitiesTrend.direction, 'unknown');
+  });
 });

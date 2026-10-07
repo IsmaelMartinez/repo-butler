@@ -234,10 +234,11 @@ function computeAutofixNotDrivenTrend(currentCount, priorWeeklyData) {
 // being fixed (#477), so when more repos are unread than in the prior week a
 // fall or a flat line proves nothing and the direction is `unknown`. A rise
 // stays `worsening`: the unread repos could only add to it. A file written
-// before the field existed counts as none unread.
+// before the field existed counts as none unread; a null current count (not
+// known to belong to this run) is treated as a rise.
 function computeOpenVulnerabilitiesTrend(currentCount, priorWeeklyData, currentUnread = 0) {
   const trend = computeGovernanceCountTrend(currentCount, priorWeeklyData, f => f.type === 'open-vulnerability');
-  if (trend && trend.direction !== 'worsening' && currentUnread > (priorWeeklyData.unreadSecurity ?? 0)) {
+  if (trend && trend.direction !== 'worsening' && (currentUnread === null || currentUnread > (priorWeeklyData.unreadSecurity ?? 0))) {
     trend.direction = 'unknown';
   }
   return trend;
@@ -529,8 +530,14 @@ function toolGetGovernanceFindings() {
     const autofixNotDriven = findings.filter(isAutofixNotDriven).length;
     const tierRegressions = findings.filter(f => f.type === 'tier-regression').length;
     const prior = loadGovernanceWeekly(2);
-    // The newest weekly file holds the run governance.json came from.
-    const unreadSecurity = loadGovernanceWeekly(1)?.data?.unreadSecurity ?? 0;
+    // The unread count lives in the newest weekly file, a separate write from
+    // governance.json. It is paired with these findings only when that file
+    // carries the same findings, i.e. it is the same run; otherwise one failed
+    // write would pair one run's findings with another's count, so it is
+    // unknown (null).
+    const latest = loadGovernanceWeekly(1)?.data;
+    const sameRun = Array.isArray(latest?.findings) && JSON.stringify(latest.findings) === JSON.stringify(findings);
+    const unreadSecurity = sameRun ? (latest.unreadSecurity ?? 0) : null;
     const autofixNotDrivenTrend = withPreviousWeek(computeAutofixNotDrivenTrend(autofixNotDriven, prior?.data), prior?.week);
     const openVulnerabilitiesTrend = withPreviousWeek(computeOpenVulnerabilitiesTrend(openVulnerabilities, prior?.data, unreadSecurity), prior?.week);
     const tierRegressionsTrend = withPreviousWeek(computeTierRegressionsTrend(tierRegressions, prior?.data), prior?.week);
@@ -561,6 +568,7 @@ function toolGetGovernanceFindings() {
         openVulnerabilitiesTrend,
         // #477: repos whose alerts went unread this run. They are absent from
         // openVulnerabilities, which is therefore a lower bound when this is > 0.
+        // null when the weekly file is from a different run than these findings.
         unreadSecurity,
         // ADR-012 Phase 3: how many dependabot-sourced open-vulnerability findings
         // have autofix ON (remediation in flight — GitHub is opening the bump PRs)
