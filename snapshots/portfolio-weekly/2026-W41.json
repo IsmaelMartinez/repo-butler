@@ -239,7 +239,7 @@
       },
       "ci": 20,
       "released_at": "2026-10-03T08:26:58Z",
-      "pushed_at": "2026-10-07T08:31:56Z",
+      "pushed_at": "2026-10-07T08:32:59Z",
       "traffic": {
         "views_14d": {
           "count": 11077,
@@ -945,7 +945,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9882352941176471,
+      "ciPassRate": 0.9634146341463414,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-07T08:30:21Z",
+      "pushed_at": "2026-10-07T08:33:20Z",
       "traffic": {
         "views_14d": {
           "count": 24,
