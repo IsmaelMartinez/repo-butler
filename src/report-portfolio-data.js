@@ -175,15 +175,21 @@ function fetchDependabotSummary(gh, owner, repo) {
       ? getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity)
       : UNREADABLE_SCANNER))
     .catch(async (err) => {
-      // Alerts API returned 403 (token lacks scope). Fall back to checking
-      // if dependabot.yml exists — if so, Dependabot IS configured even
-      // though we can't read the alerts. Only a 403: the fallback reports a
-      // zero count, which passes the Gold check, so a transient 500 or a
-      // malformed response must stay unknown rather than read as "no alerts".
       if (err?.status !== 403) return scannerReadFailure(err);
-      const configContent = await gh.getFileContent(owner, repo, '.github/dependabot.yml');
-      if (configContent) return { count: 0, max_severity: null, config_only: true };
-      return null;
+      // A 403 is "not enabled" unless dependabot.yml shows Dependabot is
+      // configured, in which case the alerts exist and could not be read (the
+      // token lacks alert scope, or alerts are off while updates run). That is
+      // unread (#477): it used to report a zero count, which passed Gold
+      // without a single alert having been read. Only a 404 proves the file
+      // absent, so this is a status-preserving read: getFileContent returns
+      // null alike for absent, a 5xx, a rate limit and a file over 1 MB, and a
+      // failed read of a present file must not become "not enabled".
+      try {
+        await gh.request(`/repos/${owner}/${repo}/contents/.github/dependabot.yml`);
+        return UNREADABLE_SCANNER;
+      } catch (configErr) {
+        return configErr?.status === 404 ? null : UNREADABLE_SCANNER;
+      }
     });
 }
 
