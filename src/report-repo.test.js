@@ -349,6 +349,28 @@ describe('generateRepoReport restructure', () => {
     assert.ok(html.includes('Second paragraph on the roadmap.'), 'renders second paragraph');
   });
 
+  // #477: the per-repo page matches the dashboard — Unconfirmed, not Silver
+  // with a failing security check.
+  it('shows a provisional tier as Unconfirmed with no unobserved check failed', async () => {
+    const { generateRepoReport } = await import('./report-repo.js');
+    const snapshot = {
+      repository: 'owner/test', meta: { stars: 5, forks: 1, watchers: 2 },
+      issues: { open: [] }, releases: [{ tag: 'v1', published_at: new Date().toISOString() }],
+      community_profile: { health_percentage: 90, files: { readme: true, license: true, contributing: true, code_of_conduct: true, issue_template: true, pull_request_template: true } },
+      dependabot_alerts: { count: 0, critical: 0, high: 0, medium: 0, low: 0, max_severity: null },
+      code_scanning_alerts: { unreadable: true }, secret_scanning_alerts: { count: 0 },
+      ci_pass_rate: { pass_rate: 0.98, total_runs: 100, passed: 98, failed: 2 },
+      pushed_at: new Date().toISOString(), license: 'MIT', sbom: null,
+      summary: { open_issues: 0, open_bugs: 0, blocked_issues: 0, awaiting_feedback: 0, recently_merged_prs: 10, human_prs: 8, bot_prs: 2, releases: 1, latest_release: 'v1', ci_workflows: 4, bus_factor: 2, time_to_close_median: { median_days: 3, sample_size: 10 } },
+    };
+    const html = generateRepoReport(snapshot, [], [], [], null, [], null, [], null, null, {});
+    assert.ok(html.includes('>Unconfirmed</div>'), 'the hero names the tier Unconfirmed');
+    assert.ok(html.includes('code scanning unread'));
+    assert.ok(!html.includes('font-weight:700;color:var(--tier-silver-text)">Silver'), 'not drawn as Silver');
+    assert.ok(!html.includes('To reach'), 'nothing observed stands between it and Gold');
+    assert.ok(!html.includes('✗</td>\n      <td>Zero critical/high security findings'), 'an unobserved check is not marked failed');
+  });
+
   it('omits Assessment section when no narrative is provided', async () => {
     const { generateRepoReport } = await import('./report-repo.js');
     const snapshot = {

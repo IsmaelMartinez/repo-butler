@@ -500,6 +500,81 @@ describe('calm dashboard hero, delta strip, and butler voice', () => {
   });
 });
 
+// #477: a repo whose only Gold blocker is an unread scanner is Unconfirmed on
+// every dashboard surface, and nothing on the page reads an unread scanner as
+// clean, cleared or a demotion.
+describe('provisional tier on the dashboard', () => {
+  const now = new Date().toISOString();
+  const repo = name => ({ name, stars: 0, forks: 0, open_issues: 0, pushed_at: now, archived: false, fork: false, language: 'JS' });
+  const goldDetails = () => ({ commits: 20, weekly: [1, 2], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: now, codeScanning: null, secretScanning: { count: 0 } });
+  const fixture = () => ({
+    portfolio: { repos: [repo('g'), repo('p')] },
+    details: { g: goldDetails(), p: { ...goldDetails(), codeScanning: { unreadable: true } } },
+  });
+  const render = async (extra = {}) => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    return generatePortfolioReport({ owner: 'owner', ...fixture(), config: {}, ...extra });
+  };
+
+  it('shows Unconfirmed, never Silver, in the tables and the tier mix', async () => {
+    const html = await render();
+    assert.ok(html.includes('<span class="tier-badge tier-unconfirmed"'), 'an Unconfirmed tier cell');
+    assert.ok(!html.includes('tier-silver'), 'the provisional repo is never drawn as Silver');
+    assert.ok(html.includes('1 Unconfirmed'), 'the tier mix names it apart');
+  });
+
+  it('computes Gold % over confirmed repos and never names an unread scanner as clean', async () => {
+    const html = await render();
+    assert.ok(html.includes('100% Gold'), 'the provisional repo is out of the Gold % cohort');
+    assert.ok(!html.includes('no open security alerts'), 'an unread scanner is not a clean posture');
+    assert.ok(html.includes('alerts unread for 1 repo'));
+  });
+
+  it('keeps the trend on one cohort, so a repo going unread is not a Gold dip', async () => {
+    const prior = { repos: { g: { computed: { tier: 'gold' } }, p: { computed: { tier: 'gold' } } } };
+    const html = await render({ priorPortfolio: prior });
+    assert.ok(!html.includes('status-trend'), 'no trend: the shared cohort was all Gold both times');
+  });
+
+  it('emits no tier move to or from provisional and no "cleared" from an unread read', async () => {
+    const prior = { repos: { g: { computed: { tier: 'gold' } }, p: { computed: { tier: 'gold' }, vulns: { count: 1, high: 1, max_severity: 'high' } } } };
+    const html = await render({ priorPortfolio: prior });
+    assert.ok(!html.includes('since-arrow'), 'no Gold → Silver move for a repo that only went unread');
+    assert.ok(!html.includes('cleared its security alerts'), 'a high that went unread was not cleared');
+
+    const back = { repos: { g: { computed: { tier: 'gold' } }, p: { computed: { tier: 'silver', provisional: true } } } };
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const recovered = generatePortfolioReport({ owner: 'owner', portfolio: fixture().portfolio, details: { g: goldDetails(), p: goldDetails() }, config: {}, priorPortfolio: back });
+    assert.ok(!recovered.includes('since-arrow'), 'no Silver → Gold move when the read recovers');
+  });
+
+  it('names the unread scanner as the next step rather than an unobserved check', async () => {
+    const html = await render();
+    assert.ok(html.includes('code scanning unread'));
+    assert.ok(!html.includes('Zero critical/high security findings'));
+  });
+
+  it('does not force the repo tables open for a provisional repo', async () => {
+    const html = await render();
+    assert.ok(html.includes('<details><summary>All repos'));
+  });
+
+  it('never says all clear while a scanner is unread', async () => {
+    const { buildPortfolioAttentionSection } = await import('./report-portfolio.js');
+    const { portfolio, details } = fixture();
+    const html = buildPortfolioAttentionSection(portfolio.repos, details, 'owner', {});
+    assert.ok(!html.includes('All clear'));
+    assert.ok(html.includes('could not read the security alerts for 1 repo'));
+  });
+
+  it('the digest says alerts were unread rather than reading as an all-clear', async () => {
+    const { generateDigestReport } = await import('./report-portfolio.js');
+    const { portfolio, details } = fixture();
+    const html = generateDigestReport('owner', portfolio.repos, details);
+    assert.ok(html.includes('Security alerts were unread for 1 repo'));
+  });
+});
+
 describe('dashboard inspiration polish', () => {
   // Canonical doc URLs that should appear in every page footer so visitors
   // can navigate to the architecture, security model, ADRs, and source.

@@ -23,6 +23,25 @@ describe('jsStr', () => {
   });
 });
 
+// #477: the public badge says unconfirmed for a provisional tier, and the
+// portfolio badge averages confirmed tiers only.
+describe('provisional badges', () => {
+  it('renders a provisional tier as unconfirmed in the neutral grey', async () => {
+    const { generateHealthBadge } = await import('./report-shared.js');
+    const svg = generateHealthBadge('repo', 'silver', { provisional: true });
+    assert.ok(svg.includes('>unconfirmed<'));
+    assert.ok(svg.includes('#6e7681'));
+    assert.ok(!svg.includes('Silver'));
+  });
+
+  it('averages the portfolio badge over confirmed tiers', async () => {
+    const { portfolioBadgeTier } = await import('./report-shared.js');
+    assert.equal(portfolioBadgeTier([{ tier: 'gold' }, { tier: 'silver', provisional: true }]), 'gold');
+    assert.equal(portfolioBadgeTier([{ tier: 'gold' }, { tier: 'bronze' }]), 'silver');
+    assert.equal(portfolioBadgeTier([{ tier: 'silver', provisional: true }]), 'none', 'nothing confirmed');
+  });
+});
+
 describe('generateHealthBadge', () => {
   it('returns a valid SVG string', () => {
     const svg = generateHealthBadge('my-repo', 'gold');
