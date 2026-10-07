@@ -121,9 +121,11 @@ describe('fetchPortfolioDetails incremental cache', () => {
   // governance's open-vulnerability detector, so the cache-hit path must read
   // them live. Serving the cached counts would hold a repo at Gold after a new
   // high landed, for as long as the repo stayed quiet.
-  const securityGh = ({ dependabot, codeScanning, secretScanning }) => ({
+  const absent = () => Promise.reject(Object.assign(new Error('404'), { status: 404 }));
+  const securityGh = ({ dependabot, codeScanning, secretScanning, dependabotYml = absent }) => ({
     request: (path) => {
       if (path.endsWith('/automated-security-fixes')) return Promise.resolve({ enabled: true, paused: false });
+      if (path.endsWith('/contents/.github/dependabot.yml')) return dependabotYml();
       if (path.includes('/contents/.github/workflows')) return Promise.resolve([{ name: 'ci.yml' }]);
       if (path.includes('/dependabot/alerts')) return dependabot();
       if (path.includes('/code-scanning/alerts')) return codeScanning();
@@ -229,10 +231,8 @@ describe('fetchPortfolioDetails incremental cache', () => {
   // With no dependabot.yml a 403 stays the "not enabled" answer (null).
   it('reads a 403 with dependabot.yml present as unread, never as zero alerts', async () => {
     const { fetchPortfolioDetails } = await import('./report-portfolio-data.js');
-    const withDependabotYml = (dependabot) => ({
-      ...securityGh({ dependabot, codeScanning: reject500, secretScanning: reject500 }),
-      getFileContent: () => Promise.resolve('version: 2\n'),
-    });
+    const withDependabotYml = (dependabot, dependabotYml = () => Promise.resolve({ type: 'file' })) =>
+      securityGh({ dependabot, codeScanning: reject500, secretScanning: reject500, dependabotYml });
     const cache = () => cachedWorkflowsCache(cleanCachedDetails);
     const forbidden = () => Promise.reject(Object.assign(new Error('403'), { status: 403 }));
 
@@ -244,6 +244,11 @@ describe('fetchPortfolioDetails incremental cache', () => {
 
     const missed = await fetchPortfolioDetails(withDependabotYml(forbidden), 'owner', cachedWorkflowsRepos);
     assert.deepEqual(missed['cached-repo'].vulns, { unreadable: true }, 'the cache-miss path agrees');
+
+    // Only a 404 proves dependabot.yml absent. A failed read of it is not that
+    // answer, so the 403 stays unread rather than "not enabled".
+    const configUnread = await fetchPortfolioDetails(withDependabotYml(forbidden, reject500), 'owner', cachedWorkflowsRepos, { cache: cache() });
+    assert.deepEqual(configUnread['cached-repo'].vulns, { unreadable: true }, 'an unreadable dependabot.yml is not an absent one');
   });
 
   it('treats an EMPTY cached details object as never-fetched, not as a cache hit', async () => {

@@ -180,9 +180,16 @@ function fetchDependabotSummary(gh, owner, repo) {
       // configured, in which case the alerts exist and could not be read (the
       // token lacks alert scope, or alerts are off while updates run). That is
       // unread (#477): it used to report a zero count, which passed Gold
-      // without a single alert having been read.
-      const configContent = await gh.getFileContent(owner, repo, '.github/dependabot.yml');
-      return configContent ? UNREADABLE_SCANNER : null;
+      // without a single alert having been read. Only a 404 proves the file
+      // absent, so this is a status-preserving read: getFileContent returns
+      // null alike for absent, a 5xx, a rate limit and a file over 1 MB, and a
+      // failed read of a present file must not become "not enabled".
+      try {
+        await gh.request(`/repos/${owner}/${repo}/contents/.github/dependabot.yml`);
+        return UNREADABLE_SCANNER;
+      } catch (configErr) {
+        return configErr?.status === 404 ? null : UNREADABLE_SCANNER;
+      }
     });
 }
 
