@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# install-skills.sh — wire repo-butler's read-side and write-side skills into
-# the local Claude Code skill registry. Idempotent: re-running is safe.
+# install-skills.sh — wire repo-butler's read-side and write-side skills, and
+# the comic mod, into the local Claude Code skill registry. Idempotent:
+# re-running is safe.
 #
 # Usage:
-#   ./scripts/install-skills.sh                  # symlink both skills
+#   ./scripts/install-skills.sh                  # symlink the skills and the mod
 #   ./scripts/install-skills.sh --uninstall      # remove the symlinks
 #   ./scripts/install-skills.sh --skills-dir DIR # override the target dir
 #
@@ -93,9 +94,14 @@ case "$ACTION" in
     clean_dead_predecessors
     link_skill repo-butler
     link_skill repo-butler-apply
+    link_skill repo-butler-comic
     echo
     echo "Done. Restart your Claude Code session to pick up the new skills,"
     echo "then try /repo-butler for the morning briefing."
+    echo
+    echo "repo-butler-comic is a mod (a plugin with a hooks module) that draws the"
+    echo "briefing as a colour comic; it loads as repo-butler-comic@skills-dir"
+    echo "where mods are enabled, and the skill falls back to ASCII elsewhere."
     echo
     echo "These are symlinks, so the skill that runs is whatever is in THIS"
     echo "checkout's working tree — not whatever is on main. Check with:"
@@ -105,5 +111,6 @@ case "$ACTION" in
     echo "Removing repo-butler skills from $SKILLS_DIR"
     unlink_skill repo-butler
     unlink_skill repo-butler-apply
+    unlink_skill repo-butler-comic
     ;;
 esac

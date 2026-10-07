@@ -5,7 +5,9 @@ description: Use when the user asks for a portfolio briefing, debrief, status up
 
 # Repo Butler
 
-Generate a compact ASCII comic in which Reginald — a dignified, Scottish-trained butler — delivers either a morning briefing or an evening debrief on the user's repo-butler-managed portfolio. Each run renders ONE scene chosen by the morning's actual data: the backdrop, which member of the household appears alongside Reginald, his mood, and the tone of his lines all follow from the day's dominant concern. The picture genuinely differs day to day, so the strip never goes stale.
+Deliver a three-panel comic strip in which Reginald — a dignified, Scottish-trained butler — gives either a morning briefing or an evening debrief on the user's repo-butler-managed portfolio. The day's actual data chooses the story: the scene, which member of the household joins Reginald, everyone's mood, and the tone of the lines all follow from the day's dominant concern, so the strip never goes stale.
+
+You write the strip; you never draw it. Your job is the script — which scene each panel is set in, who stands in it, their moods, and the words in their balloons. The drawing is done by the `repo-butler-comic` mod, which paints the strip as pixel art in the terminal, or, where the mod is not loaded, by an ASCII renderer that reads the same script. Both own every column, so the art is aligned by construction; freehand ASCII is never the output.
 
 ## Persona (≤30 lines)
 
@@ -18,17 +20,7 @@ MODE="${1:-briefing}"
 case "$MODE" in
   briefing|debrief) ;;
   *)
-    cat <<'EOF'
-+----------------------------------------------------+
-|   ,-===-,                                          |
-|   | > < |  "I do not recognise that office, sir."  |
-|   |_~m~_|                                          |
-|   |\>=</|  "May I suggest 'briefing' or            |
-|   |/   \|   'debrief'?"                            |
-|   '--|--'                                          |
-|     /|\                                            |
-+----------------------------------------------------+
-EOF
+    echo "\"I do not recognise that office, sir. May I suggest 'briefing' or 'debrief'?\" -- Reginald"
     exit 1
     ;;
 esac
@@ -59,11 +51,11 @@ ALMANAC=$(node "$SKILL_DIR/../../scripts/check-skills.js" --headline 2>/dev/null
 echo "$ALMANAC"
 ```
 
-The final `echo` is how *you* read the value, exactly as `echo "$PRIOR"` is in the continuity block below — it is not comic output, so it prints unconditionally and the decision about whether to show anything is made when you compose the frame.
+The final `echo` is how *you* read the value, exactly as `echo "$PRIOR"` is in the continuity block below — it is not comic output, so it prints unconditionally and the decision about whether to show anything is made when you write the script.
 
 Three further details are load-bearing. The `|| true` is not decoration: `check-skills.js` exits 1 when it has something to report, so under `set -e` the bare assignment aborts the whole block — and it aborts on exactly the stale reading this exists to surface, silently, before the fallback line can run. `cd -P` first, because Node collapses `..` lexically — handing the registry path straight to `node` never traverses the symlink and looks for the script beside the registry instead. And empty output is a *positive* signal, not a failure to check: a checkout old enough to lack `scripts/check-skills.js` predates this very check, which is exactly the stale case.
 
-If `$ALMANAC` says the skill is current with `origin/main`, say nothing — a calm morning should stay calm. Otherwise Reginald mentions the almanac once, in the frame, quoting the reading verbatim so the counts survive the metaphor: `the almanac: {$ALMANAC}`. Never suppress it to keep the comic tidy, and never soften it into "possibly out of date" — the reading is precise and the whole point is that a stale skill used to look identical to a current one.
+If `$ALMANAC` says the skill is current with `origin/main`, say nothing — a calm morning should stay calm. Otherwise Reginald mentions the almanac once, as a caption in the first panel, quoting the reading verbatim so the counts survive the metaphor: `the almanac: {$ALMANAC}`. Never suppress it to keep the comic tidy, and never soften it into "possibly out of date" — the reading is precise and the whole point is that a stale skill used to look identical to a current one.
 
 ## Continuity — the state file
 
@@ -80,10 +72,10 @@ echo "$PRIOR"
 
 `PRIOR` has the shape `{"lastDate":"YYYY-MM-DD","lastScene":"<id>","repoTiers":{"<repo>":"gold|silver|bronze|none"}}`. Compare `PRIOR.repoTiers` against the current per-repo tiers from `query_portfolio`:
 
-- A repo whose tier improved → "returned to Gold" / "reached Silver, sir". A repo that slipped → "slipped to Bronze, sir". Name at most two; prefer improvements. This becomes the "since your last briefing" opener line in the scene.
-- If `PRIOR` is empty (first run) or `lastDate` is today already, omit the delta line.
+- A repo whose tier improved → "returned to Gold" / "reached Silver, sir". A repo that slipped → "slipped to Bronze, sir". Name at most two; prefer improvements. This becomes the "since your last briefing" opener in panel 1.
+- If `PRIOR` is empty (first run) or `lastDate` is today already, omit the delta.
 
-After choosing the scene and rendering, write the new state. Build `$REPO_TIERS` as a single comma-separated list of JSON key/value pairs — e.g. `"repo-a":"gold","repo-b":"silver"` — with no trailing comma and no newlines, so the file stays valid JSON:
+After the strip is drawn, write the new state. `$SCENE` is the day's headline scene (panel 2's). Build `$REPO_TIERS` as a single comma-separated list of JSON key/value pairs — e.g. `"repo-a":"gold","repo-b":"silver"` — with no trailing comma and no newlines, so the file stays valid JSON:
 
 ```bash
 TODAY=$(date +%Y-%m-%d)
@@ -92,92 +84,68 @@ cat > "$STATE" <<JSON
 JSON
 ```
 
-## The cast — silhouettes and moods
+## The script
 
-Reginald (Option A: bowler + moustache + bow tie) is always present. His eyes carry the mood — swap the `{EYE}` glyph: `B B` neutral, `> <` worried, `o o` observant, `^ ^` pleased, `- -` calm.
+A strip is three panels, read left to right, and it tells one small story: an opening, the day's matter, and Reginald's last word.
 
-```
- ,-===-,
- | {EYE} |
- |_~m~_|
- |\>=</|
- |/   \|
- '--|--'
-   /|\
-```
+1. **The opening.** Reginald alone, usually in the `morning-room` (the `study` for a debrief). Its caption carries the narration: the continuity delta, the streak or saga line, the almanac line when the skill is not current, the dumbwaiter line when the data is stale. His balloon greets and sets up the day.
+2. **The matter.** The headline scene from the table below, with its co-star. The co-star reports the real signal — repo names and counts — and Reginald reacts. This is where the Doric word goes.
+3. **The last word.** Reginald closes, alone or with the co-star, delivering the sign-off. On a calm day it is the other calm scene; on a troubled one it may stay in the trouble's scene or retire to the `fireside`.
 
-A co-star joins only when their domain is the day's story. Place them to the right of Reginald, with a one-line caption beneath.
+The script is JSON:
 
-```
- the gardener (Dependabot)      the cook (CI)
-    .-"-.                          .===.
-   ( o o )                        ( o o )
-    \_-_/   __                     \_v_/  (~~)
-    /| |\  |  |                    /| |\  \__/
-     | |   |__|  <- spade           | |
-    _/ \_                          _/ \_
-
- the postmaster (PR queue)      the under-butler (governance)
-    _.==                          ,-=-,
-   ( o o )                       ( o o )
-    \_-_/  [##]                   |_~_|  |=|
-    /| |\  [##] <- parcels        |\=/|  |_| <- ledger
-     | |                          / | \
-    _/ \_
+```json
+{
+  "title": "The Daily Butler Briefing",
+  "date": "Wednesday 7 October 2026",
+  "mourning": false,
+  "panels": [
+    { "scene": "morning-room", "caption": "Since your last briefing, two repos slipped to Silver.",
+      "cast": [{ "who": "reginald", "mood": "worried" }],
+      "say":  [{ "who": "reginald", "text": "teams-for-linux and ismaelmartinez.me.uk have lost their Gold, sir." }] },
+    { "scene": "garden-pests", "count": 3,
+      "cast": [{ "who": "reginald", "mood": "observant" }, { "who": "gardener", "mood": "worried" }],
+      "say":  [{ "who": "gardener", "text": "Three high pests in the website bed. My fixes are in flight." },
+               { "who": "reginald", "text": "A fair dreich morning, then." }] },
+    { "scene": "post-room",
+      "cast": [{ "who": "postmaster", "mood": "observant" }, { "who": "reginald", "mood": "calm" }],
+      "say":  [{ "who": "postmaster", "text": "Twelve bug reports for teams-for-linux. Gold wants nine." },
+               { "who": "reginald", "text": "Lapsang for the lookouts, sir." }] }
+  ],
+  "stats": "14 repos * 12 Gold * 3 high vulns * CI 96%"
+}
 ```
 
-## Scenes — the day's backdrop (data-driven)
+The rules the renderers hold you to:
 
-Choose exactly ONE scene per run by ranking the day's signals top-down and taking the first that matches. Each scene fixes the backdrop label, the co-star (if any), and Reginald's eye mood.
+- Exactly three panels. Each has a `scene`, a `cast` of one or two, an optional `caption`, and up to two balloons in `say`, in reading order. Whoever speaks first is drawn on the left, so order `say`, not `cast`.
+- Cast: `reginald`, `gardener` (Dependabot), `cook` (CI), `postmaster` (issues and PRs), `under-butler` (governance). Moods: `neutral`, `worried`, `observant`, `pleased`, `calm`.
+- Every speaker must be in that panel's cast, and each gets one balloon per panel — a panel where Reginald speaks twice is one balloon with both sentences. `count` (1–6) sets the number of pests in `garden-pests` and is ignored elsewhere.
+- Words are short. A balloon is one sentence, roughly 90 characters at most; a caption, two short sentences. A panel with two balloons takes at most a one-line caption. The panels are small and the lettering is what makes them read as a comic rather than a page of prose.
+- `title` and `date` together stay within 74 characters; `stats` is one line of at most 75: `{N} repos * {gold} Gold * {top concern stat} * {ci}`.
 
-| Priority | Scene id      | Backdrop label                  | Trigger                                              | Co-star        | Eyes |
-|----------|---------------|---------------------------------|-----------------------------------------------------|----------------|------|
-| 1        | `storm`       | the garden, in a storm          | a critical vuln or secret leak (`vulns.critical`/`codeScanning.critical` > 0, or `secretScanning.count` > 0) with `MOURNING_OK=1`; else → `garden-pests` | gardener       | > <  |
-| 2        | `garden-pests`| the garden, beset by pests      | `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, or `secretScanning.count > 0` | gardener       | > <  |
-| 3        | `kitchen`     | the kitchen, something's catching | a red CI failure streak (per the weekly definition below) or portfolio CI pass < 70% | cook           | > <  |
-| 4        | `belowstairs` | below stairs                    | governance standards gaps or policy drift present    | under-butler   | o o  |
-| 5        | `post-room`   | the post room, parcels stacked  | a repo with `open_issues ≥ 10` (worse on Mon)        | postmaster     | o o  |
-| 6        | `morning-room`| the morning room                | a sub-Gold repo exists but none of the above         | none           | B B  |
-| 7        | `fireside`    | by the fire, the study          | all clear (all Gold, zero acute concerns)            | none           | ^ ^  |
-| 7        | `garden-clear`| the garden, after rain          | all clear — alternate calm scene                     | none           | ^ ^  |
+## Scenes — the day's headline (data-driven)
 
-For the two all-clear scenes (`fireside`, `garden-clear`), pick the one that is NOT `PRIOR.lastScene`, so two calm mornings in a row don't show the same backdrop. The chosen scene id is what you write back as `$SCENE`.
+Choose the headline scene for panel 2 by ranking the day's signals top-down and taking the first that matches. Each row fixes the co-star and Reginald's mood in that panel.
 
-The `storm` scene uses the mourning frame (below) and is the only scene allowed a Burns half-line. All others use the standard frame.
+| Priority | Scene id      | Shows                           | Trigger                                              | Co-star        | Reginald  |
+|----------|---------------|---------------------------------|-----------------------------------------------------|----------------|-----------|
+| 1        | `storm`       | the garden, in a storm          | a critical vuln or secret leak (`vulns.critical`/`codeScanning.critical` > 0, or `secretScanning.count` > 0) with `MOURNING_OK=1`; else → `garden-pests` | gardener       | worried   |
+| 2        | `garden-pests`| the garden, beset by pests      | `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, or `secretScanning.count > 0` | gardener       | worried   |
+| 3        | `kitchen`     | the kitchen, something's catching | a red CI failure streak (per the weekly definition below) or portfolio CI pass < 70% | cook           | worried   |
+| 4        | `belowstairs` | below stairs, by candlelight    | governance standards gaps or policy drift present    | under-butler   | observant |
+| 5        | `post-room`   | the post room, parcels stacked  | a repo with `open_issues ≥ 10` (worse on Mon)        | postmaster     | observant |
+| 6        | `morning-room`| the morning room                | a sub-Gold repo exists but none of the above         | none           | neutral   |
+| 7        | `fireside`    | by the fire                     | all clear (all Gold, zero acute concerns)            | none           | pleased   |
+| 7        | `garden-clear`| the garden, after rain          | all clear — alternate calm scene                     | none           | pleased   |
 
-## The frame
+The `study` (the evening study, a lamp and a decanter) belongs to the debrief.
 
-One fenced ASCII block, ~18–22 lines: a title bar, the backdrop label, Reginald and any co-star, his lines, the continuity opener, a one-line portfolio stat strip, and a single sign-off. Compose it; do not pad to a rigid panel grid.
+For the two all-clear scenes (`fireside`, `garden-clear`), pick the one that is NOT `PRIOR.lastScene`, so two calm mornings in a row don't show the same backdrop. When a lower-priority concern is also present (say a pest-ridden garden and a heaving post room), panel 3 may visit it with its co-star before Reginald's last word.
 
-```
-+====================================================+
-|  {TITLE}                                {date}     |
-+====================================================+
-|  {backdrop label}                                  |
-|    {reginald art}      {co-star art (if any)}      |
-|    "{line_1}"          {co-star caption}           |
-|    "{line_2}"                                      |
-|                                                    |
-|  {continuity opener — "since your last briefing…"} |
-|  {streak / saga line if any}                       |
-|  {almanac line — only when not current}            |
-|                                                    |
-|  {N} repos · {gold} Gold · {concern stat} · {ci}   |
-+----------------------------------------------------+
-|  {sign-off}                                        |
-+----------------------------------------------------+
-                                        -- Reginald
-```
+## Mourning
 
-For genuine breaches only — a critical vuln or a detected secret leak (the `storm` scene) — replace the outer `+===+` border with the mourning frame:
-
-```
-######################################################
-#  {TITLE}                                {date}     #
-######################################################
-```
-
-Rate-limit the mourning frame to once per fortnight via a stamp file:
+For genuine breaches only — a critical vuln or a detected secret leak (the `storm` scene) — set `"mourning": true`, which draws the strip in a mourning frame. Rate-limit it to once per fortnight via a stamp file:
 
 ```bash
 STAMP="$HOME/.cache/repo-butler/burns-stamp"
@@ -190,21 +158,37 @@ else
 fi
 ```
 
-When `MOURNING_OK=1` and a true breach is present, render the `storm` scene in the mourning frame, then write the current timestamp to the stamp (`date +%s > "$STAMP"`) so the fortnight clock starts only when the frame is actually used, and you may include a single Burns half-line ("the best laid schemes, sir…"). When `MOURNING_OK=0`, or no breach is present, leave the stamp untouched and let the breach fall back to the `garden-pests` scene in the standard frame.
+When `MOURNING_OK=1` and a true breach is present, use the `storm` scene with `"mourning": true`, then write the current timestamp to the stamp (`date +%s > "$STAMP"`) so the fortnight clock starts only when the frame is actually used, and you may give Reginald a single Burns half-line ("the best laid schemes, sir…"). When `MOURNING_OK=0`, or no breach is present, leave the stamp untouched and let the breach fall back to `garden-pests` without the mourning frame.
+
+## Drawing the strip
+
+If the tool `mcp__repo-butler-comic__strip` is available, call it with the script. It draws the strip in colour in the transcript. If it refuses, its message names the panel whose words do not fit: shorten that panel and call again, at most three times. Once it is drawn, add nothing after it — the strip is the whole answer.
+
+Otherwise (the mod is not loaded: another profile, a remote session, or mods turned off) render it as ASCII from the same script:
+
+```bash
+COMIC="$HOME/.cache/repo-butler/comic.json"
+cat > "$COMIC" <<'JSON'
+<the script>
+JSON
+node "$SKILL_DIR/../../scripts/render-comic.js" "$COMIC"
+```
+
+It exits 1 naming any panel with an unknown scene, cast member or speaker; fix the script and run it again. On success, output its stdout verbatim inside one fenced code block and nothing else. If neither the tool nor the script exists (a checkout from before the renderer), give Reginald's lines as plain prose, signed "-- Reginald", and let the almanac line explain why.
 
 ## Briefing mode — data and composition
 
-Title: `THE DAILY BUTLER BRIEFING`. Run when `MODE=briefing`.
+Title: `The Daily Butler Briefing`. Run when `MODE=briefing`.
 
 Fetch the data:
 
-1. Call MCP tool `query_portfolio` (no arguments) for all portfolio repos with current tier and health data. Each repo carries `computed.tier` ∈ `gold|silver|bronze|none` plus `vulns`/`codeScanning` (each with `critical`/`high`/`count`), `secretScanning.count`, `ciPassRate` (0–1), `open_issues`, and `license`. This drives the stat strip, the scene trigger, and the continuity delta.
+1. Call MCP tool `query_portfolio` (no arguments) for all portfolio repos with current tier and health data. Each repo carries `computed.tier` ∈ `gold|silver|bronze|none` plus `vulns`/`codeScanning` (each with `critical`/`high`/`count`), `secretScanning.count`, `ciPassRate` (0–1), `open_issues`, and `license`. This drives the stat line, the headline scene, and the continuity delta.
 2. Call MCP tool `get_governance_findings` (no arguments) for the governance ledger — standards gaps and policy drift drive the `belowstairs` scene; findings open >60d are given-up campaigns, >30d earn the below-stairs word.
 3. Call MCP tool `get_weekly_trend` with `weeks: 4` and no `repo` argument for the portfolio-wide CI streak (see below).
 4. Call MCP tool `get_campaign_status` (no arguments) only if surfacing campaign progress in the sign-off.
-5. Run the local-state bash block below to capture working-tree state across `REPO_BUTLER_PROJECTS_DIRS`, used for a single working-state observation when the scene is calm.
+5. Run the local-state bash block below to capture working-tree state across `REPO_BUTLER_PROJECTS_DIRS`, used for a single working-state observation when the day is calm.
 
-If any MCP call fails or returns empty, render a single frame with the no-data line and stop. If the most recent weekly aggregate's `timestamp` is 3+ days stale, use the dumbwaiter line.
+If any MCP call fails or returns empty, give the no-data line and stop. If the most recent weekly aggregate's `timestamp` (or the MCP `staleness.data_age_hours`) is 3+ days stale, put the dumbwaiter line in panel 1's caption.
 
 ```bash
 while IFS= read -r parent; do
@@ -227,14 +211,13 @@ EOF
 
 The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series — count consecutive recent weeks where every repo was clean (success streak) or ≥1 was red (failure streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 2-week red run satisfies "third morning of red CI"; if only one weekly point is available, omit the streak line.
 
-Compose the scene:
+Write the script:
 
-- Pick the scene from the table above using the data: top concern by severity wins. Concerns come from `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `secretScanning.count > 0`, `ciPassRate < 0.7`, `open_issues ≥ 10`, missing `license`, plus governance standards gaps and policy drift.
-- Render Reginald with the scene's eye mood and the co-star (if any). Reginald speaks one or two in-character lines that name the real signal (repo names, counts) — e.g. the gardener "has found three pests in teams-for-linux, sir." Add the Doric weather word only on `garden-pests`/`storm` (dreich) or the calm scenes (braw).
-- Open with the continuity delta if present ("since your last briefing, sir, …"), then the relevant streak or saga line. On Mondays with open issues > 0, append "the postmaster is tardy again, sir." On 25 January prepend "A guid Burns Night to ye, sir."; on 31 December "Hogmanay greetings, sir."
-- On a calm scene, fold in one working-state observation if the local block returned anything ("a forgotten parcel in the hallway, sir" for a stash older than the last commit; otherwise "the study is in impeccable order, sir").
-- Stat strip: `{N} repos · {gold} Gold · {top concern stat} · {ci}`.
-- Sign-off: pick exactly ONE from this pool of eight (do not invent more):
+- Pick the headline scene from the table. Concerns come from `vulns.critical+high > 0`, `codeScanning.critical+high > 0`, `secretScanning.count > 0`, `ciPassRate < 0.7`, `open_issues ≥ 10`, missing `license`, plus governance standards gaps and policy drift.
+- Every balloon about a concern names the real signal — repo names and counts — e.g. the gardener "has found three pests in teams-for-linux, sir." The Doric word goes only in `garden-pests`/`storm` (dreich) or a calm scene (braw).
+- Panel 1's caption opens with the continuity delta if present ("Since your last briefing, sir, …"), then the streak or saga line. On Mondays with open issues > 0, the postmaster's tardiness belongs in whichever panel he appears in, or in panel 3's last word. On 25 January Reginald opens with "A guid Burns Night to ye, sir."; on 31 December "Hogmanay greetings, sir."
+- On a calm day, fold one working-state observation into panel 3 if the local block returned anything ("a forgotten parcel in the hallway, sir" for a stash older than the last commit; otherwise "the study is in impeccable order, sir").
+- Panel 3's last balloon is the sign-off: pick exactly ONE from this pool of eight (do not invent more):
 
 1. "Will that be all, sir?"
 2. "Shall I draw a bath while you triage?"
@@ -247,11 +230,11 @@ Compose the scene:
 
 Whisky entries (5–6) win ties when ≥1 Gold-tier change today; tea entries (4, 7) for routine mornings.
 
-Finally write the state file (`$SCENE` = chosen scene id; `$REPO_TIERS` = current per-repo tiers).
+Draw the strip, then write the state file (`$SCENE` = panel 2's scene; `$REPO_TIERS` = current per-repo tiers).
 
 ## Debrief mode — data and composition
 
-Title: `THE EVENING DEBRIEF`. Run when `MODE=debrief`. The debrief reuses the same fenced frame and cast silhouettes but reports the day's session work rather than running the full scene engine; it renders in the evening study, and may feature the cast member whose work dominated the day (many Dependabot merges → the gardener; lots of CI churn → the cook).
+Title: `The Evening Debrief`. Run when `MODE=debrief`. The debrief tells the day's session work rather than running the scene table: it opens in the `study`, and the matter panel features the cast member whose work dominated the day (many Dependabot merges → the gardener in `garden-clear`; lots of CI churn → the cook in the `kitchen`; a day of issues and PRs → the postmaster in the `post-room`), or stays in the study with Reginald alone.
 
 Fetch the data:
 
@@ -309,14 +292,13 @@ for repo in $PORTFOLIO; do
 done
 ```
 
-If no sessions, no commits, and no PR/MR activity: "A most tranquil day, sir. Not a single commit disturbed the silence."
+If no sessions, no commits, and no PR/MR activity, the whole strip is a quiet one: three panels in the study and by the fire, Reginald `calm`, and the line "A most tranquil day, sir. Not a single commit disturbed the silence."
 
-Compose the debrief in the evening-study frame:
+Write the script:
 
-- Reginald (eyes `^ ^` for a productive day, `- -` for a quiet one) reports: "You had {n} session(s) today across {r} repo(s), spanning roughly {m} minutes." Long days (>4h) impress him; quiet ones (<30m) get gentle understatement.
-- The accomplishments line carries totals: "{c} commits, {pm} PRs merged, {po} opened, {pc} closed." If any PRs merged today had zero reviews, prepend a single `*ahem*`.
-- Name the top one-to-three repos by today's commit count. If the day was dominated by one kind of work, bring on the matching cast member (Dependabot merges → the gardener; CI churn → the cook).
-- Sign-off: pick exactly ONE from this pool of eight:
+- Panel 1 (the `study`, Reginald `pleased` for a productive day, `calm` for a quiet one) reports: "You had {n} session(s) today across {r} repo(s), spanning roughly {m} minutes." Long days (>4h) impress him; quiet ones (<30m) get gentle understatement.
+- Panel 2 carries the totals — "{c} commits, {pm} PRs merged, {po} opened, {pc} closed" — and names the top one-to-three repos by today's commit count. If any PRs merged today had zero reviews, Reginald's balloon opens with a single `*ahem*`. Reginald notices patterns: many subagents → "you delegated liberally, sir."
+- Panel 3 is the sign-off: pick exactly ONE from this pool of eight:
 
 1. "A most productive day, sir. I shall press your commits."
 2. "The repositories are well-tended, sir. Shall I draw a bath?"
@@ -327,15 +309,20 @@ Compose the debrief in the evening-study frame:
 7. "Builder's brew, sir — earned and unfussy."
 8. "The automated staff have been busy, sir."
 
-Whisky (6) for celebratory days (multiple PRs merged); tea (7) for routine ones. Reginald notices patterns: many subagents → "you delegated liberally, sir."
+Whisky (6) for celebratory days (multiple PRs merged); tea (7) for routine ones.
 
 ## Failure-mode lines
 
+These are said, not drawn — give the line alone, signed "-- Reginald":
+
 - No data on disk: "The household is not yet in residence, sir; I shall lay the fires and await your instruction."
-- Pipeline 3+ days stale: "Forgive me — the dumbwaiter has been stuck since Tuesday."
 - Owner unresolved: "We have not been introduced, sir. Shall I draw up the portfolio?"
-- Skill not current: "I am working from last week's almanac, sir — {$ALMANAC}." Render it as the almanac line in the frame, never in place of the briefing; a stale skill still reports the portfolio it can see.
+
+These two are drawn, as panel 1's caption, and the briefing carries on:
+
+- Pipeline 3+ days stale: "Forgive me — the dumbwaiter has been stuck since Tuesday."
+- Skill not current: "I am working from last week's almanac, sir — {$ALMANAC}." Never in place of the briefing; a stale skill still reports the portfolio it can see.
 
 ## Output
 
-Output ONLY the comic, wrapped in a single fenced code block so the art aligns, with no preamble, no explanation, and nothing after it. Sign off as "-- Reginald" on the final line, right-aligned just beneath the frame's lower border, exactly as shown in the frame template above.
+With the mod, the drawn strip is the answer: no preamble, no explanation, nothing after it. With the ASCII renderer, output its stdout verbatim in a single fenced code block and nothing else; it ends with Reginald's signature.
