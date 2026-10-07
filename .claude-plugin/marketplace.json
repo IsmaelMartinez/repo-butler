@@ -1,0 +1,12 @@
+{
+  "name": "repo-butler",
+  "owner": { "name": "Ismael Martinez Ramos" },
+  "description": "Plugins that ship with repo-butler; scripts/install-skills.sh installs them at local scope for sessions opened in this checkout.",
+  "plugins": [
+    {
+      "name": "repo-butler-comic",
+      "source": "./skills/repo-butler-comic",
+      "description": "Draws the /repo-butler briefing and debrief as a three-panel pixel-art comic in the terminal."
+    }
+  ]
+}

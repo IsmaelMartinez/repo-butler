@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# install-skills.sh — wire repo-butler's read-side and write-side skills, and
-# the comic mod, into the local Claude Code skill registry. Idempotent:
+# install-skills.sh — wire repo-butler's read-side and write-side skills into
+# the local Claude Code skill registry, and install the comic mod for sessions
+# opened in this checkout. Idempotent:
 # re-running is safe.
 #
 # Usage:
-#   ./scripts/install-skills.sh                  # symlink the skills and the mod
-#   ./scripts/install-skills.sh --uninstall      # remove the symlinks
+#   ./scripts/install-skills.sh                  # symlink the skills, install the mod
+#   ./scripts/install-skills.sh --uninstall      # remove both
 #   ./scripts/install-skills.sh --skills-dir DIR # override the target dir
 #
 # Default target: $HOME/.claude/skills (which is symlinked to $HOME/.claude-home/skills
@@ -88,20 +89,60 @@ clean_dead_predecessors() {
   done
 }
 
+# The comic mod loads only in this checkout: the repo root is a plugin
+# marketplace (.claude-plugin/marketplace.json) and the plugin is installed at
+# local scope, which Claude Code keys to this directory. A project-scoped
+# marketplace cannot be committed instead, because its path is recorded
+# absolute. Local scope installs a cached copy keyed to the checkout's HEAD
+# commit (plugin.json deliberately has no version, which would pin it), so a
+# re-run after a pull refreshes it; uncommitted edits do not reach it.
+install_comic() {
+  # Drop the global symlink an earlier installer made, CLI or not.
+  unlink_skill repo-butler-comic >/dev/null
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "  repo-butler-comic: skipped (claude CLI not on PATH)"
+    return 0
+  fi
+  (
+    cd "$REPO_DIR"
+    claude plugin marketplace update repo-butler >/dev/null 2>&1 ||
+      claude plugin marketplace add ./ --scope local >/dev/null
+    claude plugin update repo-butler-comic@repo-butler --scope local >/dev/null 2>&1 ||
+      claude plugin install repo-butler-comic@repo-butler --scope local >/dev/null
+  )
+  echo "  repo-butler-comic: installed for sessions in $REPO_DIR"
+}
+
+uninstall_comic() {
+  unlink_skill repo-butler-comic >/dev/null
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "  repo-butler-comic: skipped (claude CLI not on PATH)"
+    return 0
+  fi
+  (
+    cd "$REPO_DIR"
+    claude plugin uninstall repo-butler-comic@repo-butler --scope local >/dev/null 2>&1 || true
+    claude plugin marketplace remove repo-butler >/dev/null 2>&1 || true
+  )
+  echo "  repo-butler-comic: removed"
+}
+
 case "$ACTION" in
   install)
     echo "Installing repo-butler skills into $SKILLS_DIR"
     clean_dead_predecessors
     link_skill repo-butler
     link_skill repo-butler-apply
-    link_skill repo-butler-comic
+    install_comic
     echo
     echo "Done. Restart your Claude Code session to pick up the new skills,"
     echo "then try /repo-butler for the morning briefing."
     echo
     echo "repo-butler-comic is a mod (a plugin with a hooks module) that draws the"
-    echo "briefing as a colour comic; it loads as repo-butler-comic@skills-dir"
-    echo "where mods are enabled, and the skill falls back to ASCII elsewhere."
+    echo "briefing as a colour comic. It loads as repo-butler-comic@repo-butler in"
+    echo "sessions opened in this checkout; elsewhere the skill falls back to ASCII."
+    echo "It is a cached copy of the current commit, so re-run this script after"
+    echo "pulling a change to the mod."
     echo
     echo "These are symlinks, so the skill that runs is whatever is in THIS"
     echo "checkout's working tree — not whatever is on main. Check with:"
@@ -111,6 +152,6 @@ case "$ACTION" in
     echo "Removing repo-butler skills from $SKILLS_DIR"
     unlink_skill repo-butler
     unlink_skill repo-butler-apply
-    unlink_skill repo-butler-comic
+    uninstall_comic
     ;;
 esac
