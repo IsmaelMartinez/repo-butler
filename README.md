@@ -139,7 +139,7 @@ src/
 ├── apply-templates.js    # Pure TEMPLATES map of remediation-PR file templates used by apply.js
 ├── council.js            # Agent-council deliberation on proposals and events
 ├── monitor.js            # Continuous event monitoring between daily runs
-├── onboard.js            # Onboarding PRs adding the Repo Butler section to a repo's CLAUDE.md
+├── onboard.js            # Onboarding PRs adding the Repo Butler section to a repo's AGENTS.md (or its CLAUDE.md, if it has not moved)
 ├── mcp.js                # MCP server: JSON-RPC 2.0 over stdio for AI agents
 ├── agent-card.js         # A2A AgentCard generator (served at .well-known/agent-card.json)
 ├── safety.js             # Output validators: URLs, @mentions, secrets, XSS, lengths

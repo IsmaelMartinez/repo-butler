@@ -73,7 +73,7 @@ The watchlist is persisted by `runIdeate` (`ideate.js persistWatchlist`) to `sna
 
 `src/monitor.js` detects new events (PRs opened, issues filed, CI failures) between daily runs and hands them to the council for triage. Scheduled separately via `.github/workflows/monitor.yml`.
 
-`src/onboard.js` opens onboarding PRs (adds `CLAUDE.md`) on any active portfolio repo missing the marker. Runs at the end of the main pipeline when not in dry-run mode.
+`src/onboard.js` opens onboarding PRs on any active portfolio repo whose `AGENTS.md` and `CLAUDE.md` both lack the marker, appending to `AGENTS.md` when present, else to an existing `CLAUDE.md`, else creating `AGENTS.md` — never creating `CLAUDE.md`, because Claude Code ignores `AGENTS.md` whenever a `CLAUDE.md` exists. Runs at the end of the main pipeline when not in dry-run mode.
 
 `src/github.js` is the custom API client used by every module. It provides `request()`, `paginate()`, `getFileContent()`, and `listDir()`. Rate limiting is handled internally with exponential backoff on 429/403. All other modules import `createClient(token)` from here.
 

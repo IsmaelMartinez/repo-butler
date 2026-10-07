@@ -63,6 +63,19 @@ describe('hasOnboardingMarker (G9 cross-repo precondition)', () => {
   it('fails closed (false) when the read throws', async () => {
     assert.equal(await hasOnboardingMarker(gh(async () => { throw new Error('403'); }), 'o', 'r'), false);
   });
+
+  it('accepts the marker in AGENTS.md alone', async () => {
+    const byPath = async (_o, _r, path) => (path === 'AGENTS.md' ? `# AGENTS.md\n\n${MARKER}` : null);
+    assert.equal(await hasOnboardingMarker(gh(byPath), 'o', 'r'), true);
+  });
+
+  it('still finds the marker in CLAUDE.md when the AGENTS.md read fails', async () => {
+    const byPath = async (_o, _r, path) => {
+      if (path === 'AGENTS.md') throw new Error('500');
+      return `# CLAUDE.md\n\n${MARKER}`;
+    };
+    assert.equal(await hasOnboardingMarker(gh(byPath), 'o', 'r'), true);
+  });
 });
 
 describe('onboardRepo decline and unreadable-file guards', () => {
@@ -72,26 +85,28 @@ describe('onboardRepo decline and unreadable-file guards', () => {
   const b64 = (s) => Buffer.from(s).toString('base64');
 
   // A client double that records every write. `file` is the contents-API
-  // response for CLAUDE.md and `prs` the branch's PR history — both functions
-  // so a test can make the read throw.
-  function fakeGh({ file = notFound, prs = () => [], refPost = () => ({}) } = {}) {
+  // response for CLAUDE.md, `agents` the one for AGENTS.md, and `prs` the
+  // branch's PR history — all functions so a test can make a read throw.
+  function fakeGh({ file = notFound, agents = notFound, prs = () => [], refPost = () => ({}) } = {}) {
     const writes = [];
     const puts = [];
-    let historyParams, contentsRef, branchSha;
+    let historyParams, contentsRef, branchSha, prBody;
     return {
       writes, puts,
       get historyParams() { return historyParams; },
       get contentsRef() { return contentsRef; },
       get branchSha() { return branchSha; },
+      get prBody() { return prBody; },
       async paginate(path, opts) { historyParams = opts?.params; return prs(); },
       async request(path, opts = {}) {
         const method = opts.method ?? 'GET';
         if (method !== 'GET') writes.push(`${method} ${path}`);
         if (method === 'GET' && path.endsWith('/contents/CLAUDE.md')) { contentsRef = opts.params?.ref; return file(); }
+        if (method === 'GET' && path.endsWith('/contents/AGENTS.md')) return agents();
         if (method === 'GET' && path === '/repos/o/r') return { default_branch: 'main' };
         if (method === 'GET' && path.includes('/git/ref/heads/')) return { object: { sha: 'head-sha' } };
         if (method === 'POST' && path.endsWith('/git/refs')) { branchSha = opts.body.sha; return refPost(); }
-        if (method === 'POST' && path.endsWith('/pulls')) return { html_url: 'https://github.com/o/r/pull/9' };
+        if (method === 'POST' && path.endsWith('/pulls')) { prBody = opts.body.body; return { html_url: 'https://github.com/o/r/pull/9' }; }
         return {};
       },
       async putFile(owner, repo, filePath, content, opts) { puts.push({ filePath, content, ...opts }); },
@@ -201,11 +216,47 @@ describe('onboardRepo decline and unreadable-file guards', () => {
     assert.equal(gh.branchSha, 'head-sha');
   });
 
-  it('creates a fresh CLAUDE.md when none exists', async () => {
+  it('creates AGENTS.md, never CLAUDE.md, when neither file exists', async () => {
+    // A new CLAUDE.md would hide any AGENTS.md from Claude Code, which reads
+    // only CLAUDE.md when both exist.
     const gh = fakeGh();
     await onboardRepo(gh, 'o', 'r');
+    assert.equal(gh.puts[0].filePath, 'AGENTS.md');
     assert.equal(gh.puts[0].sha, undefined);
-    assert.ok(gh.puts[0].content.startsWith('# CLAUDE.md\n\n'));
+    assert.ok(gh.puts[0].content.startsWith('# AGENTS.md\n\n'));
+    assert.match(gh.prBody, /to your AGENTS\.md/);
+  });
+
+  it('appends to an existing AGENTS.md, even when a CLAUDE.md exists too', async () => {
+    const gh = fakeGh({
+      agents: () => ({ sha: 'agents-sha', encoding: 'base64', content: b64('# Agents\n') }),
+      file: () => ({ sha: 'claude-sha', encoding: 'base64', content: b64('# Claude\n') }),
+    });
+    await onboardRepo(gh, 'o', 'r');
+    assert.equal(gh.puts.length, 1);
+    assert.equal(gh.puts[0].filePath, 'AGENTS.md');
+    assert.equal(gh.puts[0].sha, 'agents-sha');
+    assert.ok(gh.puts[0].content.startsWith('# Agents\n'));
+  });
+
+  it('appends to CLAUDE.md on a repo that has not moved to AGENTS.md', async () => {
+    const gh = fakeGh({ file: () => ({ sha: 'claude-sha', encoding: 'base64', content: b64('# Claude\n') }) });
+    await onboardRepo(gh, 'o', 'r');
+    assert.equal(gh.puts[0].filePath, 'CLAUDE.md');
+    assert.match(gh.prBody, /to your CLAUDE\.md/);
+  });
+
+  it('skips a repo whose AGENTS.md already carries the marker', async () => {
+    const gh = fakeGh({ agents: () => ({ sha: 's', encoding: 'base64', content: b64(`# AGENTS.md\n\n${MARKER}\n`) }) });
+    assert.deepEqual(await onboardRepo(gh, 'o', 'r'), { status: 'skipped', reason: 'already onboarded' });
+    assert.deepEqual(gh.writes, []);
+  });
+
+  it('refuses, with no write, when AGENTS.md is unreadable', async () => {
+    const gh = fakeGh({ agents: () => { throw Object.assign(new Error('GitHub API GET /repos/o/r/contents/AGENTS.md: 500'), { status: 500 }); } });
+    assert.deepEqual(await onboardRepo(gh, 'o', 'r'), { status: 'error', reason: 'AGENTS.md unreadable' });
+    assert.deepEqual(gh.writes, []);
+    assert.equal(gh.puts.length, 0);
   });
 
   it('resets an existing branch only when the create answers 422', async () => {
