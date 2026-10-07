@@ -40,11 +40,11 @@ The dashboard is published to GitHub Pages from the `reports/` tree on the data 
 
 ## Cross-repo writes
 
-The butler opens PRs on other repos in three places: `onboard.js` (CLAUDE.md consumer guide), `apply.js` (governance remediation templates), and the `update.js` roadmap PR (in this repo only). All cross-repo writes are gated:
+The butler opens PRs on other repos in three places: `onboard.js` (AGENTS.md or CLAUDE.md consumer guide), `apply.js` (governance remediation templates), and the `update.js` roadmap PR (in this repo only). All cross-repo writes are gated:
 
 Governance Apply runs two ways. `apply.yml` is manual-dispatch only and defaults to dry-run (any value other than the literal string `'false'` is treated as dry-run, fail-closed). `apply-scheduled.yml` runs on a weekly cron that writes live, but only for the finding classes allow-listed in `apply-schedule` in `.github/roadmap.yml` (and, on that cron, squash-merges the butler's own green PRs for the classes listed in `apply-automerge`); a manual dispatch of it still defaults to dry-run. Each tool is capped per run at the `max-apply-per-run` input (default 5), which a templated tool's `apply-cap` entry in `.github/roadmap.yml` can override for that tool, and repos are processed in batches of 3 to stay under GitHub's 30-req/min secondary rate limit. Both paths refuse to run unless `config.limits.apply_enabled` is the boolean true. Before opening a PR, apply reads the target branch's PR history (`repo-butler/apply-{tool}`) and skips a repo whose apply PR is still open or was closed unmerged within the cooldown.
 
-Auto-onboard runs at the end of the daily pipeline and only acts on repos whose `CLAUDE.md` lacks the `repo-butler` marker — it cannot retarget existing onboarded repos.
+Auto-onboard runs at the end of the daily pipeline and only acts on repos where neither `AGENTS.md` nor `CLAUDE.md` carries the `repo-butler` marker — it cannot retarget existing onboarded repos.
 
 ## Permissions required
 

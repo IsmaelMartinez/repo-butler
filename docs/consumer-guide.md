@@ -4,7 +4,7 @@
 
 Repo Butler is a portfolio health agent that monitors all repos under the `IsmaelMartinez` GitHub account. It runs four times a day as a GitHub Action, observes each repo's health signals via the GitHub API, and produces HTML dashboards, health tier classifications, and governance findings.
 
-Most of what it does is report, but it can change your repo. File changes always arrive as a pull request, never a direct push, and come in three kinds: an onboarding PR that adds the Repo Butler section to your `CLAUDE.md`, remediation PRs from its Governance Apply path for gaps such as a missing `SECURITY.md`, `CODEOWNERS`, Dependabot config or CodeQL workflow, and a stale-lockfile refresh for security alerts. A weekly scheduled run opens those remediation PRs for a small allow-listed set of finding classes, and for a few of the lowest-risk templates it merges its own PR once CI is green. Closing one of its PRs unmerged is read as a decline: it will not re-open that PR for thirty days. The same path can also switch on two repository settings, the Copilot code review ruleset and GitHub's Dependabot security updates. [`docs/architecture.md`](architecture.md#workflow-choreography) has the full detail.
+Most of what it does is report, but it can change your repo. File changes always arrive as a pull request, never a direct push, and come in three kinds: an onboarding PR that adds the Repo Butler section to your `AGENTS.md` (or your `CLAUDE.md`, if you have not moved to `AGENTS.md`), remediation PRs from its Governance Apply path for gaps such as a missing `SECURITY.md`, `CODEOWNERS`, Dependabot config or CodeQL workflow, and a stale-lockfile refresh for security alerts. A weekly scheduled run opens those remediation PRs for a small allow-listed set of finding classes, and for a few of the lowest-risk templates it merges its own PR once CI is green. Closing one of its PRs unmerged is read as a decline: it will not re-open that PR for thirty days. The same path can also switch on two repository settings, the Copilot code review ruleset and GitHub's Dependabot security updates. [`docs/architecture.md`](architecture.md#workflow-choreography) has the full detail.
 
 Portfolio dashboard: `https://ismaelmartinez.github.io/repo-butler/`
 Weekly digest: `https://ismaelmartinez.github.io/repo-butler/digest.html`
@@ -180,7 +180,7 @@ For GitHub Pages repos the canonical URL is the value returned by `gh api repos/
 
 ## How to reference this from your repo
 
-The onboarding PR adds a fuller version of this section for you. To add it by hand instead, put this in your repo's `CLAUDE.md`:
+The onboarding PR adds a fuller version of this section for you. To add it by hand instead, put it where your agents read it: in `AGENTS.md` if the repo has one, otherwise in an existing `CLAUDE.md`, and only create `AGENTS.md` when the repo has neither — Claude Code ignores `AGENTS.md` whenever a `CLAUDE.md` exists.
 
 ```markdown
 ## Repo Butler

@@ -1,5 +1,6 @@
 // Auto-onboarding: opens a welcome PR to repos that lack the repo-butler
-// consumer guide in their CLAUDE.md. Triggered by the GitHub App installation
+// consumer guide in their agent instructions file (AGENTS.md, or CLAUDE.md on
+// a repo that has not moved yet). Triggered by the GitHub App installation
 // webhook or manually via the onboard workflow.
 //
 // Usage: GITHUB_TOKEN=... node src/onboard.js [repo1] [repo2] ...
@@ -17,21 +18,28 @@ export const MARKER = 'repo-butler';
 // would be re-opened within hours. Same 30 days as apply and PROPOSE.
 export const ONBOARD_DECLINE_COOLDOWN_DAYS = 30;
 
+// The agent instructions files the consumer guide may live in, preferred first.
+// Claude Code reads AGENTS.md natively but ignores it whenever a CLAUDE.md
+// exists, so onboarding must never CREATE a CLAUDE.md: on a repo that has
+// moved to AGENTS.md, a new CLAUDE.md would hide its instructions.
+export const INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md'];
+
 /**
- * Does a repo carry the repo-butler onboarding marker in its CLAUDE.md? The
- * marker is both a consent signal and a blast-radius fence (ADR-011): a
- * cross-repo PROPOSE issue (G9) is filed into a target only once it has been
- * onboarded. Fail-closed — a missing CLAUDE.md (getFileContent returns null), a
- * file without the marker, or any API error all return false, so an unreachable
+ * Does a repo carry the repo-butler onboarding marker in either instructions
+ * file? The marker is both a consent signal and a blast-radius fence (ADR-011):
+ * a cross-repo PROPOSE issue (G9) is filed into a target only once it has been
+ * onboarded. Fail-closed — a missing file (getFileContent returns null), a file
+ * without the marker, or any API error count as "no marker", so an unreachable
  * or un-onboarded repo never receives a nudge.
  */
 export async function hasOnboardingMarker(gh, owner, repo) {
-  try {
-    const content = await gh.getFileContent(owner, repo, 'CLAUDE.md');
-    return typeof content === 'string' && content.includes(MARKER);
-  } catch {
-    return false;
+  for (const path of INSTRUCTION_FILES) {
+    try {
+      const content = await gh.getFileContent(owner, repo, path);
+      if (typeof content === 'string' && content.includes(MARKER)) return true;
+    } catch { /* fail closed: try the next file */ }
   }
+  return false;
 }
 
 const CONSUMER_GUIDE_SECTION = `## Repo Butler
@@ -59,7 +67,7 @@ If this repo deploys a page, set its GitHub repository Homepage URL (the Website
 
 const PR_BODY = `## Welcome to Repo Butler
 
-This PR adds the Repo Butler consumer guide to your CLAUDE.md so AI agents working on this repo can:
+This PR adds the Repo Butler consumer guide to your {FILE} so AI agents working on this repo can:
 
 - Check the repo's health tier and see which checks pass or fail
 - Query portfolio-wide governance findings via the MCP server
@@ -106,26 +114,26 @@ export async function onboard(token, repos) {
 }
 
 /**
- * Read CLAUDE.md at commit `ref` as `{ content, sha }`, `null` when the file is
- * absent (404), or throw when it exists but cannot be read.
+ * Read an instructions file at commit `ref` as `{ content, sha }`, `null` when
+ * the file is absent (404), or throw when it exists but cannot be read.
  *
  * Deliberately not getFileContent: that returns null for absent, any error AND
  * a file over 1 MB (the contents API then sends `encoding: "none"` with no
  * content while the sha is still present), and the caller rewrites the file
- * from whatever it read — so an unreadable CLAUDE.md read as "absent" would be
- * replaced wholesale by `# CLAUDE.md` plus the section.
+ * from whatever it read — so an unreadable file read as "absent" would be
+ * replaced wholesale by a fresh header plus the section.
  */
-async function readClaudeMd(gh, owner, repo, ref) {
+async function readInstructionFile(gh, owner, repo, path, ref) {
   let data;
   try {
-    data = await gh.request(`/repos/${owner}/${repo}/contents/CLAUDE.md`, { params: { ref } });
+    data = await gh.request(`/repos/${owner}/${repo}/contents/${path}`, { params: { ref } });
   } catch (err) {
     // A 500 whose body mentions ": 404" must stay unreadable, not "absent".
     if (err.status === 404) return null;
     throw err;
   }
   if (data?.encoding !== 'base64' || typeof data.content !== 'string') {
-    throw new Error('CLAUDE.md content not returned');
+    throw new Error(`${path} content not returned`);
   }
   return { content: Buffer.from(data.content, 'base64').toString('utf-8'), sha: data.sha };
 }
@@ -139,20 +147,29 @@ export async function onboardRepo(gh, owner, repo) {
   // passed to putFile below matches the branch and the write cannot 409 into
   // putFile's re-read-and-retry — which would overwrite a newer edit with
   // content built from this older read.
-  let file;
-  try {
-    file = await readClaudeMd(gh, owner, repo, headSha);
-  } catch (err) {
-    // Fail CLOSED: the new file is built from this read, so a file we cannot
-    // read must never be written over.
-    console.log(`${owner}/${repo}: CLAUDE.md unreadable, skipping (fail-closed): ${err.message}`);
-    return { status: 'error', reason: 'CLAUDE.md unreadable' };
+  // Both files are read, and either being unreadable fails CLOSED: the target
+  // is chosen by which files exist and the new file is built from this read,
+  // so a file we cannot read must never be written over or guessed absent.
+  const files = {};
+  for (const path of INSTRUCTION_FILES) {
+    try {
+      files[path] = await readInstructionFile(gh, owner, repo, path, headSha);
+    } catch (err) {
+      console.log(`${owner}/${repo}: ${path} unreadable, skipping (fail-closed): ${err.message}`);
+      return { status: 'error', reason: `${path} unreadable` };
+    }
   }
 
-  if (file?.content.includes(MARKER)) {
+  if (INSTRUCTION_FILES.some(path => files[path]?.content.includes(MARKER))) {
     console.log(`${owner}/${repo}: already onboarded, skipping.`);
     return { status: 'skipped', reason: 'already onboarded' };
   }
+
+  // Append to AGENTS.md when present, else to an existing CLAUDE.md (a repo
+  // that has not moved yet, where it is the file agents read), else create
+  // AGENTS.md. Never create CLAUDE.md — see INSTRUCTION_FILES.
+  const target = files['AGENTS.md'] || !files['CLAUDE.md'] ? 'AGENTS.md' : 'CLAUDE.md';
+  const file = files[target];
 
   // Same decline rules as apply's screenApplyTarget: `state: 'all'` so a PR
   // the maintainer closed unmerged is seen; the read fails closed and reports
@@ -184,9 +201,9 @@ export async function onboardRepo(gh, owner, repo) {
   const section = CONSUMER_GUIDE_SECTION.replace(/\{REPO_NAME\}/g, repo);
   const newContent = file?.content
     ? file.content + '\n' + section
-    : `# CLAUDE.md\n\n${section}`;
+    : `# AGENTS.md\n\n${section}`;
 
-  // Create the branch at the commit CLAUDE.md was read from. Only a 422 (the
+  // Create the branch at the commit the files were read from. Only a 422 (the
   // branch already exists, from a previous attempt) resets it; any other
   // failure is not evidence the branch exists and must not force-push over it.
   try {
@@ -203,13 +220,13 @@ export async function onboardRepo(gh, owner, repo) {
   }
 
   // With no file, putFile looks the path up on the branch and creates it on 404.
-  await gh.putFile(owner, repo, 'CLAUDE.md', newContent, {
+  await gh.putFile(owner, repo, target, newContent, {
     branch: BRANCH_NAME,
-    message: 'chore: add repo-butler consumer guide to CLAUDE.md',
+    message: `chore: add repo-butler consumer guide to ${target}`,
     sha: file?.sha,
   });
 
-  const prBody = PR_BODY.replace(/\{REPO_NAME\}/g, repo);
+  const prBody = PR_BODY.replace(/\{REPO_NAME\}/g, repo).replace('{FILE}', target);
   const pr = await gh.request(`/repos/${owner}/${repo}/pulls`, {
     method: 'POST',
     body: {

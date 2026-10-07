@@ -227,7 +227,7 @@ propose-classes:
 propose-targets:
   # github-issue-triage-bot: the graduation canary — the repo named by the
   # soak's current admitted standards-gap candidate (2026-07-20 release-cadence
-  # nudge), onboarded (CLAUDE.md marker). The earlier candidate repo (yourear,
+  # nudge), onboarded (AGENTS.md or CLAUDE.md marker). The earlier candidate repo (yourear,
   # 2026-07-13) had its gap remediated on 2026-07-15, closing its candidacy,
   # so the allow-list follows the live evidence.
   github-issue-triage-bot: true
