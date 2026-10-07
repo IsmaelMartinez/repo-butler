@@ -141,7 +141,7 @@ Onboarding refinement and agent standardization shipped 2026-10-07 (PR #491). Co
 
 Agent instruction standardization and onboarding polish shipped 2026-10-07 (PR #492). Standardizes agentic guidelines by renaming and transitioning `CLAUDE.md` to `AGENTS.md` to align with modern agentic repository workflows and ensure seamless self-planning during scheduled runs.
 
-Resilient Dependabot API error handling shipped 2026-10-07 (PR #493). Hardens the OBSERVE phase's scheduled execution loop by gracefully catching and treating Dependabot 403 permission or configuration errors as an unread scanner state rather than allowing API exceptions to interrupt the portfolio pipeline.
+Consistent Dependabot 403 scoring shipped 2026-10-07 (PR #493). OBSERVE now reads a Dependabot 403 on a repo with `dependabot.yml` as an unread scanner (provisional tier) rather than "not enabled", matching the portfolio fetch through one shared helper, so the per-repo snapshot and the dashboard no longer score the same repo differently.
 
 ---
 
