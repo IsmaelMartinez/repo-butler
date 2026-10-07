@@ -1,5 +1,5 @@
 import { createClient, paginateIssues, getAutomatedSecurityFixesState } from './github.js';
-import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary, awaitNamed, UNREADABLE_SCANNER, isScannerUnreadable, scannerReadFailure } from './report-shared.js';
+import { isActionableBug, isBlocked, isFeatureIssue, autofixActive, isPublishedRelease, getAlertSummary, awaitNamed, UNREADABLE_SCANNER, isScannerUnreadable, scannerReadFailure, dependabotReadFailure } from './report-shared.js';
 
 // Thin orchestration wrapper used by the index dispatcher. Runs both the
 // per-repo and portfolio observation, threads results onto context, persists
@@ -487,7 +487,7 @@ export async function fetchDependabotAlerts(gh, owner, repo) {
     if (err.status === 403 || err.status === 404) {
       console.log(`Note: Dependabot alerts not available for ${owner}/${repo} (${err.message})`);
     }
-    return scannerReadFailure(err);
+    return dependabotReadFailure(gh, owner, repo, err);
   }
 }
 

@@ -472,6 +472,33 @@ describe('scanner "not available" note keys on status (#438)', () => {
   }
 });
 
+describe('fetchDependabotAlerts scores a 403 like the portfolio fetch (#477)', () => {
+  // The per-repo snapshot's tier is scored from this value, so it must agree
+  // with report-portfolio-data.js: a 403 with dependabot.yml present is unread,
+  // not "not enabled", and only a 404 for the file proves it absent.
+  const fail = (status) => Promise.reject(Object.assign(new Error(String(status)), { status }));
+  const gh = (configStatus) => ({
+    request: async (path) => (path.endsWith('/contents/.github/dependabot.yml')
+      ? (configStatus === 200 ? { name: 'dependabot.yml' } : fail(configStatus))
+      : fail(403)),
+  });
+
+  it('reads a 403 with dependabot.yml present as unread', async () => {
+    const { fetchDependabotAlerts } = await import('./observe.js');
+    assert.deepEqual(await fetchDependabotAlerts(gh(200), 'o', 'r'), { unreadable: true });
+  });
+
+  it('keeps a 403 with dependabot.yml absent (404) as not enabled', async () => {
+    const { fetchDependabotAlerts } = await import('./observe.js');
+    assert.equal(await fetchDependabotAlerts(gh(404), 'o', 'r'), null);
+  });
+
+  it('reads a 403 whose dependabot.yml read failed as unread, not absent', async () => {
+    const { fetchDependabotAlerts } = await import('./observe.js');
+    assert.deepEqual(await fetchDependabotAlerts(gh(500), 'o', 'r'), { unreadable: true });
+  });
+});
+
 describe('fetchDependabotAlerts (via observe)', () => {
   // observe() calls fetchDependabotAlerts as part of the parallel fetch; check
   // its severity extractor matches the report-shared.getAlertSummary contract.

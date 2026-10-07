@@ -143,6 +143,25 @@ export function scannerReadFailure(err) {
   return err?.status === 403 || err?.status === 404 ? null : UNREADABLE_SCANNER;
 }
 
+// The Dependabot alerts failure, shared by observe.js and the portfolio fetch so
+// both score the same repo alike. A 403 is "not enabled" unless dependabot.yml
+// shows Dependabot is configured, in which case the alerts exist and could not
+// be read (the token lacks alert scope, or alerts are off while updates run).
+// That is unread (#477): it used to report a zero count, which passed Gold
+// without a single alert having been read. Only a 404 proves the file absent,
+// so this is a status-preserving read: getFileContent returns null alike for
+// absent, a 5xx, a rate limit and a file over 1 MB, and a failed read of a
+// present file must not become "not enabled".
+export async function dependabotReadFailure(gh, owner, repo, err) {
+  if (err?.status !== 403) return scannerReadFailure(err);
+  try {
+    await gh.request(`/repos/${owner}/${repo}/contents/.github/dependabot.yml`);
+    return UNREADABLE_SCANNER;
+  } catch (configErr) {
+    return configErr?.status === 404 ? null : UNREADABLE_SCANNER;
+  }
+}
+
 // Tri-state "is Dependabot actively opening bump PRs" from the raw
 // { enabled, paused } | null state (ADR-012 Phase 3): true when enabled and
 // not paused, false when off or paused, null when the state is unreadable.

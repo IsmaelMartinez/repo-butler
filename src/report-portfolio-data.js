@@ -6,7 +6,7 @@ import { computeLibyearWithTimeout } from './libyear.js';
 import { hasActiveCopilotReviewRuleset, requiresStatusChecks, getAutomatedSecurityFixesState, paginateIssues } from './github.js';
 import {
   REPO_CACHE_SCHEMA_VERSION, awaitNamed, daysAgoISO, getAlertSummary, isActionableBug, isPublishedRelease,
-  isCopyleft, isHighConcernLicense, UNREADABLE_SCANNER, scannerReadFailure,
+  isCopyleft, isHighConcernLicense, UNREADABLE_SCANNER, scannerReadFailure, dependabotReadFailure,
 } from './report-shared.js';
 import { TEMPLATES } from './apply-templates.js';
 
@@ -180,23 +180,7 @@ function fetchDependabotSummary(gh, owner, repo) {
     .then(alerts => (Array.isArray(alerts)
       ? getAlertSummary(alerts, a => a.security_vulnerability?.severity || a.security_advisory?.severity)
       : UNREADABLE_SCANNER))
-    .catch(async (err) => {
-      if (err?.status !== 403) return scannerReadFailure(err);
-      // A 403 is "not enabled" unless dependabot.yml shows Dependabot is
-      // configured, in which case the alerts exist and could not be read (the
-      // token lacks alert scope, or alerts are off while updates run). That is
-      // unread (#477): it used to report a zero count, which passed Gold
-      // without a single alert having been read. Only a 404 proves the file
-      // absent, so this is a status-preserving read: getFileContent returns
-      // null alike for absent, a 5xx, a rate limit and a file over 1 MB, and a
-      // failed read of a present file must not become "not enabled".
-      try {
-        await gh.request(`/repos/${owner}/${repo}/contents/.github/dependabot.yml`);
-        return UNREADABLE_SCANNER;
-      } catch (configErr) {
-        return configErr?.status === 404 ? null : UNREADABLE_SCANNER;
-      }
-    });
+    .catch(err => dependabotReadFailure(gh, owner, repo, err));
 }
 
 function fetchCodeScanningSummary(gh, owner, repo) {
