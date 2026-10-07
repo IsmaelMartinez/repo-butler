@@ -244,7 +244,7 @@ portfolio observed, governed, and remediated.
 | `monitor.yml` | cron every 6h + issue/PR opened or labelled, PR ready for review | monitor → council triage | `monitor-cursor.json` (read by `get_monitor_events`) |
 | `apply-scheduled.yml` | cron Sun 05:00 UTC (live) + manual dispatch (dry-run by default) | read `governance.json` → act only on classes in `apply-schedule`, then auto-merge its own green PRs for classes in `apply-automerge` | up to 5 PRs/run, the Copilot-ruleset settings write, stale-Dependabot nudges |
 | `apply.yml` | manual dispatch only | read `governance.json` → open remediation PRs or settings writes for the named `tools` | up to 5 PRs/run on target repos |
-| `onboard.yml` | manual dispatch only (`repos` input) | onboard the named repos | onboarding PRs adding the Repo Butler section to `CLAUDE.md` |
+| `onboard.yml` | manual dispatch only (`repos` input) | onboard the named repos | onboarding PRs adding the Repo Butler section to `AGENTS.md` (or an existing `CLAUDE.md`) |
 
 The daily/weekly split is the cost choreography from above made concrete: cheap
 deterministic governance every few hours, the expensive LLM ideation and council

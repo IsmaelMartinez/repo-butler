@@ -243,7 +243,7 @@ async function main() {
 
   await runPhases(phasesToRun, context, defaultProvider, deepProvider);
 
-  // Auto-onboard new portfolio repos that lack the CLAUDE.md marker.
+  // Auto-onboard new portfolio repos that lack the marker in AGENTS.md and CLAUDE.md.
   if (context.portfolio && !dryRun) {
     const activeRepos = context.portfolio.repos
       .filter(r => !r.archived && !r.fork)
@@ -258,7 +258,7 @@ async function main() {
       const errors = results.filter(r => r.status === 'error');
       console.log(`Onboarding: ${created.length} new, ${skipped.length} skipped, ${errors.length} errors`);
       // Named, not just counted: an 'error' is a repo onboarding could not
-      // judge (unreadable CLAUDE.md or PR history), and a bare count would let
+      // judge (an unreadable instructions file or PR history), and a bare count would let
       // a token that lost read access pass for a quiet run. Public repos only.
       for (const r of errors) console.warn(`Onboarding error: ${r.repo}: ${r.reason ?? r.error}`);
     }
