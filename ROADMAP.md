@@ -135,6 +135,8 @@ Localized pixel-art comic mod with ASCII fallbacks shipped 2026-10-07 (PRs #479,
 
 Provisional tier communication and unread scanner telemetry hardened 2026-10-07 (PRs #484, #485, #486). Improves user expectation management and dashboard accuracy by explicitly labeling provisional tiers as "Unconfirmed" across dashboards, pages, and badges, and refines integration error handling by ensuring a Dependabot 403 rate-limit or permission error is correctly flagged as an unread scanner state rather than misleadingly reporting zero alerts.
 
+Automated repository governance safeguards and update logic refined 2026-10-07 (PRs #488, #489). Introduces a proactive security flag to identify and prevent auto-merges lacking required status checks, and resolves a logic bug to ensure reference counts are accurately recorded anywhere in the "Implemented" log.
+
 ---
 
 ## Next Up
