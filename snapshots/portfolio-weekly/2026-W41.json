@@ -211,13 +211,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 25,
-      "open_bugs": 12,
+      "open_issues": 27,
+      "open_bugs": 13,
       "commits_6mo": 398,
-      "stars": 5106,
+      "stars": 5108,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9833333333333333,
+      "ciPassRate": 1,
       "vulns": {
         "count": 6,
         "critical": 2,
@@ -939,13 +939,13 @@
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 11,
-      "open_bugs": 1,
+      "open_issues": 9,
+      "open_bugs": 0,
       "commits_6mo": 325,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9634146341463414,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-07T13:40:07Z",
+      "pushed_at": "2026-10-07T17:57:32Z",
       "traffic": {
         "views_14d": {
           "count": 24,
@@ -1251,13 +1251,13 @@
     },
     "delegate-local": {
       "id": 1223288066,
-      "open_issues": 10,
+      "open_issues": 22,
       "open_bugs": 0,
       "commits_6mo": 511,
       "stars": 7,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9342105263157895,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1279,7 +1279,7 @@
       },
       "ci": 8,
       "released_at": "2026-10-06T18:47:14Z",
-      "pushed_at": "2026-10-07T10:31:44Z",
+      "pushed_at": "2026-10-07T17:51:59Z",
       "traffic": {
         "views_14d": {
           "count": 143,
