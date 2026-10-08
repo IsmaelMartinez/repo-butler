@@ -149,9 +149,9 @@ Consistent Dependabot 403 scoring shipped 2026-10-07 (PR #493). OBSERVE now read
 
 Active work. Everything here is unfinished; shipped items move to the log above.
 
-### Simplification pass — wave 3 in progress (tracking issue #429)
+### Simplification pass — AGENTS.md restructure remaining (tracking issue #429)
 
-A 2026-09-26 audit of code, docs, tests and CI was turned into three waves of small, independently reviewed PRs. Waves 1 and 2 are merged. Wave 3 is sequential: #420 is done, and #421 (splitting `report-portfolio.js` into data and rendering) is next, then #422 (the dead-export sweep). An AGENTS.md (formerly CLAUDE.md) restructure goes last. Five owner decisions, #424–#428, are open and gate their own code; #423 is settled by splitting `require_approval` into `apply_enabled` and `propose_live`, which had to land before the G10 flip. Issue #429 is the single source of truth: its "Resume here" block carries the next step and the working rules, and its checklist is ticked as each PR merges.
+A 2026-09-26 audit of code, docs, tests and CI was turned into three waves of small, independently reviewed PRs, and all three are merged, along with the follow-ups #440, #452/#477 and #481. What remains is the AGENTS.md (formerly CLAUDE.md) restructure, which documents the outcome of three owner decisions still on hold: #424 (reusable Action or own-portfolio tool) and the linked #425 and #426. #423, #427 and the #452 tier rule are settled, and #428 waits only on an App permission grant. Issue #429 is the single source of truth: its "Resume here" block carries the next step and the working rules, and its checklist is ticked as each PR merges.
 
 ### Cross-repo PROPOSE — finishing the G10 graduation (ADR-010, ADR-011)
 
