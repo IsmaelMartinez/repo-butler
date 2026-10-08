@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-10-07
+**Last Updated:** 2026-10-08
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -142,6 +142,8 @@ Onboarding refinement and agent standardization shipped 2026-10-07 (PR #491). Co
 Agent instruction standardization and onboarding polish shipped 2026-10-07 (PR #492). Standardizes agentic guidelines by renaming and transitioning `CLAUDE.md` to `AGENTS.md` to align with modern agentic repository workflows and ensure seamless self-planning during scheduled runs.
 
 Consistent Dependabot 403 scoring shipped 2026-10-07 (PR #493). OBSERVE now reads a Dependabot 403 on a repo with `dependabot.yml` as an unread scanner (provisional tier) rather than "not enabled", matching the portfolio fetch through one shared helper, so the per-repo snapshot and the dashboard no longer score the same repo differently.
+
+Roadmap Next Up documentation aligned with active simplification planning 2026-10-08 (PR #495). Brings the "Next Up" roadmap entry for the simplification pass up to date, ensuring the public-facing planning documentation accurately reflects current project status before executing the next phase of development.
 
 ---
 
