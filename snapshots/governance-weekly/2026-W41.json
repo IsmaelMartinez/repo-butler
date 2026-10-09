@@ -51,6 +51,28 @@
     },
     {
       "type": "tier-uplift",
+      "repo": "generator-atlassian-compass-event-catalog",
+      "currentTier": "silver",
+      "targetTier": "gold",
+      "failingChecks": [
+        {
+          "name": "Zero critical/high security findings",
+          "required_for": "gold"
+        }
+      ],
+      "priority": "high",
+      "remediation": {
+        "executor": "agent",
+        "targetFiles": [],
+        "intent": "Uplift generator-atlassian-compass-event-catalog from silver to gold",
+        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+        "acceptanceCriteria": [
+          "Check \"Zero critical/high security findings\" passes"
+        ]
+      }
+    },
+    {
+      "type": "tier-uplift",
       "repo": "wifisentinel",
       "currentTier": "silver",
       "targetTier": "gold",
@@ -97,10 +119,11 @@
       "type": "open-vulnerability",
       "repo": "ismaelmartinez.me.uk",
       "critical": 0,
-      "high": 3,
+      "high": 4,
       "secretScanning": 0,
       "sources": [
-        "dependabot"
+        "dependabot",
+        "code-scanning"
       ],
       "max_severity": "high",
       "priority": "medium",
@@ -109,7 +132,29 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-        "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "0 critical / 4 high open alert(s) from dependabot, code-scanning. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "acceptanceCriteria": [
+          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+        ]
+      }
+    },
+    {
+      "type": "open-vulnerability",
+      "repo": "generator-atlassian-compass-event-catalog",
+      "critical": 1,
+      "high": 1,
+      "secretScanning": 0,
+      "sources": [
+        "dependabot"
+      ],
+      "max_severity": "critical",
+      "priority": "medium",
+      "autofixEnabled": true,
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Remediate open security alerts in generator-atlassian-compass-event-catalog",
+        "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -134,6 +179,23 @@
         "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+        ]
+      }
+    },
+    {
+      "type": "tier-regression",
+      "repo": "generator-atlassian-compass-event-catalog",
+      "previousTier": "gold",
+      "currentTier": "silver",
+      "priorWeek": "2026-W40",
+      "priority": "high",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Restore generator-atlassian-compass-event-catalog to gold",
+        "rationale": "Health tier regressed from gold to silver since 2026-W40.",
+        "acceptanceCriteria": [
+          "generator-atlassian-compass-event-catalog is back at gold in a subsequent weekly snapshot"
         ]
       }
     },
