@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-08T22:34:50.320Z",
+  "timestamp": "2026-10-09T03:23:44.710Z",
   "repository": "IsmaelMartinez/repo-butler",
   "known_issue_numbers": [],
   "known_pr_numbers": [],
@@ -7,7 +7,8 @@
   "known_code_scanning_alerts": [],
   "known_secret_scanning_alerts": [],
   "known_release_tags": [
-    "v1.1.0"
+    "v1.1.2",
+    "v1.1.1"
   ],
-  "last_event_count": 1
+  "last_event_count": 2
 }
