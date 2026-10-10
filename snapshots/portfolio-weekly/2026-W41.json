@@ -214,7 +214,7 @@
       "open_issues": 25,
       "open_bugs": 13,
       "commits_6mo": 401,
-      "stars": 5114,
+      "stars": 5115,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.851063829787234,
@@ -343,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-10T09:52:08Z",
+      "pushed_at": "2026-10-10T17:03:28Z",
       "traffic": {
         "views_14d": {
           "count": 92,
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-10T11:29:35Z",
+      "pushed_at": "2026-10-10T16:29:05Z",
       "traffic": {
         "views_14d": {
           "count": 28,
