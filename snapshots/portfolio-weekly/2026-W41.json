@@ -211,10 +211,10 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 21,
-      "open_bugs": 9,
+      "open_issues": 20,
+      "open_bugs": 8,
       "commits_6mo": 401,
-      "stars": 5118,
+      "stars": 5119,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9361702127659575,
@@ -941,7 +941,7 @@
       "id": 1185787142,
       "open_issues": 8,
       "open_bugs": 0,
-      "commits_6mo": 316,
+      "commits_6mo": 317,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-11T11:42:56Z",
+      "pushed_at": "2026-10-11T16:54:01Z",
       "traffic": {
         "views_14d": {
           "count": 28,
@@ -1251,7 +1251,7 @@
     },
     "delegate-local": {
       "id": 1223288066,
-      "open_issues": 12,
+      "open_issues": 6,
       "open_bugs": 0,
       "commits_6mo": 527,
       "stars": 7,
