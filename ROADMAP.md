@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-10-10
+**Last Updated:** 2026-10-11
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -55,15 +55,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-07** — 11 entries (#326, #328, #329, #330, #342, #343, #344, #345, #348, #349, #352, #354, #355, #356, #357, #358, #10940). Full details in git history.
 
-**2026-08** — 8 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368). Full details in git history.
-
-OSV-Scanner governance migration and Snyk deprecation planned 2026-08-12 (PRs #370, #371). Initiated a strategic transition of the project's security posture by planning the removal of the Snyk integration and adopting `osv-scanner` as a new portfolio-wide standard for open-source vulnerability scanning.
-
-OSV-Scanner security migration initiated 2026-08-12 (PRs #370, #371, #372, #373). Established a strategic transition of the portfolio's security posture by planning the deprecation of Snyk integration, rolling out OSV-Scanner configuration, and targeting the scanner rollout specifically at the three repositories losing Snyk coverage to maintain uninterrupted dependency vulnerability scanning.
-
-OSV-Scanner governance migration completed 2026-08-12 (PR #374). Cleared the rollout exclusion list for the new `osv-scanner` standard, completing the security posture transition and ensuring comprehensive vulnerability scanning across the portfolio.
-
-OSV-Scanner governance migration completed 2026-08-12 (PRs #370, #371, #372, #373, #374). Established a strategic transition of the portfolio's security posture by deprecating the Snyk integration and rolling out OSV-Scanner as the new portfolio-wide standard, ensuring comprehensive and uninterrupted dependency vulnerability scanning.
+**2026-08** — 12 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374). Full details in git history.
 
 Dependabot auto-merge governance fix shipped 2026-08-13 (PR #375). Refined repository governance automation by ensuring the presence of the dependabot-auto-merge configuration is read reliably from the default branch.
 
