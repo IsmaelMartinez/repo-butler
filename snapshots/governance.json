@@ -185,39 +185,5 @@
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
     }
-  },
-  {
-    "type": "tier-regression",
-    "repo": "generator-atlassian-compass-event-catalog",
-    "previousTier": "gold",
-    "currentTier": "silver",
-    "priorWeek": "2026-W40",
-    "priority": "high",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Restore generator-atlassian-compass-event-catalog to gold",
-      "rationale": "Health tier regressed from gold to silver since 2026-W40.",
-      "acceptanceCriteria": [
-        "generator-atlassian-compass-event-catalog is back at gold in a subsequent weekly snapshot"
-      ]
-    }
-  },
-  {
-    "type": "tier-regression",
-    "repo": "wifisentinel",
-    "previousTier": "gold",
-    "currentTier": "silver",
-    "priorWeek": "2026-W40",
-    "priority": "high",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Restore wifisentinel to gold",
-      "rationale": "Health tier regressed from gold to silver since 2026-W40.",
-      "acceptanceCriteria": [
-        "wifisentinel is back at gold in a subsequent weekly snapshot"
-      ]
-    }
   }
 ]
