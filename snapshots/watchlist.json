@@ -50,5 +50,18 @@
     "council_summary": "This proposal targets an external repository and is based on a per-repo vulnerability claim rather than a unique cross-portfolio statistic computed by the butler, failing our strict cross-repo justification threshold.",
     "added_at": "2026-10-05T13:49:53.187Z",
     "review_count": 0
+  },
+  {
+    "title": "Vulnerability Remediation: Resolve critical dependabot findings in teams-for-linux to reach Gold tier",
+    "type": "proposal",
+    "severity": "high",
+    "targetRepo": "teams-for-linux",
+    "held_back_reason": null,
+    "council_verdict": "watch",
+    "council_confidence": "medium",
+    "council_priority": "medium",
+    "council_summary": "As a proposal targeting another repository (`teams-for-linux`), it lacks a unique butler-computed cross-portfolio statistic (such as median drift or adoption fraction) and relies primarily on per-repo alert counts.",
+    "added_at": "2026-10-12T14:38:05.132Z",
+    "review_count": 0
   }
 ]
