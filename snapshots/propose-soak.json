@@ -421,5 +421,14 @@
     "skipped_duplicates": 2,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-10-12T14:38:08.282Z",
+    "dry_run": true,
+    "created": [],
+    "dropped": 1,
+    "skipped_duplicates": 1,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
