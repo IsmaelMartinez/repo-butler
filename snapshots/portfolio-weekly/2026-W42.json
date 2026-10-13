@@ -213,11 +213,11 @@
       "id": 151476958,
       "open_issues": 20,
       "open_bugs": 8,
-      "commits_6mo": 401,
-      "stars": 5129,
+      "commits_6mo": 400,
+      "stars": 5128,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9361702127659575,
+      "ciPassRate": 0.9387755102040817,
       "vulns": {
         "count": 6,
         "critical": 2,
@@ -242,12 +242,12 @@
       "pushed_at": "2026-10-11T12:16:43Z",
       "traffic": {
         "views_14d": {
-          "count": 11226,
-          "uniques": 4716
+          "count": 11336,
+          "uniques": 4744
         },
         "clones_14d": {
-          "count": 8467,
-          "uniques": 1031
+          "count": 7854,
+          "uniques": 1054
         }
       },
       "computed": {
@@ -317,11 +317,11 @@
       "id": 786898753,
       "open_issues": 4,
       "open_bugs": 0,
-      "commits_6mo": 258,
+      "commits_6mo": 257,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9896907216494846,
       "vulns": {
         "count": 5,
         "critical": 0,
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-11T21:35:12Z",
+      "pushed_at": "2026-10-13T00:16:04Z",
       "traffic": {
         "views_14d": {
-          "count": 86,
-          "uniques": 34
+          "count": 83,
+          "uniques": 33
         },
         "clones_14d": {
-          "count": 2248,
-          "uniques": 636
+          "count": 1950,
+          "uniques": 588
         }
       },
       "computed": {
@@ -525,18 +525,18 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 315,
+      "commits_6mo": 319,
       "stars": 3,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.9292929292929293,
+      "ciPassRate": 0.93,
       "vulns": {
-        "count": 0,
+        "count": 2,
         "critical": 0,
-        "high": 0,
+        "high": 2,
         "medium": 0,
         "low": 0,
-        "max_severity": null
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -551,19 +551,19 @@
       },
       "ci": 9,
       "released_at": "2026-09-15T11:10:45Z",
-      "pushed_at": "2026-10-06T22:41:15Z",
+      "pushed_at": "2026-10-13T00:33:16Z",
       "traffic": {
         "views_14d": {
-          "count": 15,
-          "uniques": 5
+          "count": 22,
+          "uniques": 11
         },
         "clones_14d": {
-          "count": 2913,
-          "uniques": 597
+          "count": 2873,
+          "uniques": 599
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "provisional": false,
         "checks": [
           {
@@ -598,7 +598,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -622,25 +622,25 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "betis-escocia": {
       "id": 1006952856,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 112,
+      "commits_6mo": 111,
       "stars": 2,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.93,
+      "ciPassRate": 0.92,
       "vulns": {
         "count": 2,
         "critical": 0,
-        "high": 0,
-        "medium": 2,
+        "high": 2,
+        "medium": 0,
         "low": 0,
-        "max_severity": "medium"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -655,19 +655,19 @@
       },
       "ci": 9,
       "released_at": "2026-09-15T11:29:34Z",
-      "pushed_at": "2026-10-05T07:45:32Z",
+      "pushed_at": "2026-10-12T22:44:59Z",
       "traffic": {
         "views_14d": {
-          "count": 6,
-          "uniques": 4
+          "count": 8,
+          "uniques": 6
         },
         "clones_14d": {
-          "count": 288,
-          "uniques": 124
+          "count": 239,
+          "uniques": 104
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "provisional": false,
         "checks": [
           {
@@ -702,7 +702,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -726,7 +726,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "ai-model-advisor": {
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-12T14:38:09Z",
+      "pushed_at": "2026-10-12T23:53:12Z",
       "traffic": {
         "views_14d": {
           "count": 32,
