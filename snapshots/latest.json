@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-12T16:24:09.619Z",
+  "timestamp": "2026-10-13T01:45:56.191Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,13 +7,13 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 8,
+    "open_issues_count": 9,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-12T14:38:09Z",
+    "pushed_at": "2026-10-12T23:53:12Z",
     "archived": false
   },
   "issues": {
@@ -1426,20 +1426,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-07-21T06:44:50Z"
-      },
-      {
-        "number": 325,
-        "title": "feat: port apply/libyear to pip, cargo, maven/gradle ecosystems + PR #324 review follow-ups",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-07-14T07:44:15Z"
-      },
-      {
-        "number": 324,
-        "title": "feat(governance): promote code-review-bot onto the scheduled apply path",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-07-14T06:31:00Z"
       }
     ]
   },
@@ -1649,8 +1635,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 90,
-    "passed": 90,
+    "total_runs": 89,
+    "passed": 89,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1665,9 +1651,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 32,
-    "recently_merged_prs": 131,
+    "recently_merged_prs": 129,
     "bot_prs": 12,
-    "human_prs": 119,
+    "human_prs": 117,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
