@@ -217,7 +217,7 @@
       "stars": 5136,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9473684210526315,
+      "ciPassRate": 0.9743589743589743,
       "vulns": {
         "count": 6,
         "critical": 2,
@@ -239,7 +239,7 @@
       },
       "ci": 20,
       "released_at": "2026-10-09T18:41:49Z",
-      "pushed_at": "2026-10-13T16:33:43Z",
+      "pushed_at": "2026-10-15T06:49:48Z",
       "traffic": {
         "views_14d": {
           "count": 11249,
@@ -939,13 +939,13 @@
     },
     "repo-butler": {
       "id": 1185787142,
-      "open_issues": 8,
+      "open_issues": 10,
       "open_bugs": 0,
       "commits_6mo": 311,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.9886363636363636,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -967,15 +967,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-14T21:02:50Z",
+      "pushed_at": "2026-10-15T06:53:35Z",
       "traffic": {
         "views_14d": {
           "count": 31,
           "uniques": 6
         },
         "clones_14d": {
-          "count": 4196,
-          "uniques": 1173
+          "count": 3786,
+          "uniques": 1136
         }
       },
       "computed": {
