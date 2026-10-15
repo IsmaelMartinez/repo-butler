@@ -140,6 +140,10 @@ export async function report(context) {
 
     let freshCount = 0;
     let cacheHitCount = 0;
+    // Repos degraded to the light card by the catch below, with the last status
+    // seen, for the systemic-outage check after the loop.
+    let degradedCount = 0;
+    let lastDegradedStatus = null;
 
     for (const r of activeRepos) {
       try {
@@ -324,14 +328,34 @@ export async function report(context) {
         // absorbed. Anything else — a render bug, a network failure, the
         // status-less "rate limited after 3 retries" — still fails the phase
         // as before, so a code fault is never quietly turned into a light card.
-        if (typeof err?.status !== 'number') throw err;
+        // A 401 is never one repo's problem — the token itself is bad — so it
+        // fails the phase too rather than degrading every repo in turn.
+        //
+        // The cache entry is the last statement of each branch above, so a
+        // repo that reaches here never has one: nothing to undo.
+        if (typeof err?.status !== 'number' || err.status === 401) throw err;
+        degradedCount++;
+        lastDegradedStatus = err.status;
         console.log(`report: chart data unreadable for ${r.name} (status ${err.status}); writing lightweight card`);
-        delete newRepoCache.repos[r.name];
         await writeFile(join(outDir, `${r.name}.html`), generateLightRepoReport(owner, r, repoDetails?.[r.name]));
       }
     }
 
     console.log(`Generated reports for ${activeRepos.length} repos (${cacheHitCount} cached, ${freshCount} fresh).`);
+    if (degradedCount > 0) {
+      console.log(`report: ${degradedCount} of ${freshCount} fresh repo(s) degraded to the lightweight card (chart data unreadable).`);
+      // One repo's bad page is that repo's problem; EVERY fresh repo failing is
+      // an outage (a revoked scope, an API incident), and publishing a
+      // portfolio of light cards over the live dashboard would hide it. Fail
+      // the phase as before. Cached repos make no API calls here, so only the
+      // fresh ones are evidence either way.
+      if (degradedCount === freshCount) {
+        throw Object.assign(
+          new Error(`REPORT: chart data unreadable for all ${freshCount} fresh repo(s) — failing the phase rather than publishing degraded cards`),
+          { status: lastDegradedStatus },
+        );
+      }
+    }
   }
 
   // Generate portfolio report (after per-repo reports so contributor data is available).

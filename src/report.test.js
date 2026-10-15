@@ -54,9 +54,10 @@ describe('reportCacheHit', () => {
 // #501: paginate now throws on a page that is not a list, where it used to end
 // the listing with a partial (often empty) result. The per-repo chart fetchers
 // had no catch of their own, so one malformed page would have failed REPORT
-// for the whole portfolio. It must degrade that one repo to the lightweight
-// card and cache nothing for it, so the next run refetches.
-describe('report — a malformed list page on one repo (#501)', () => {
+// for the whole portfolio. One repo's bad read degrades that repo to the
+// lightweight card and caches nothing for it; a 401, or every fresh repo
+// failing, is an outage and still fails the phase.
+describe('report — unreadable chart data (#501)', () => {
   let originalFetch, originalOutDir, outDir;
   beforeEach(async () => {
     originalFetch = globalThis.fetch;
@@ -71,14 +72,19 @@ describe('report — a malformed list page on one repo (#501)', () => {
     await rm(outDir, { recursive: true, force: true });
   });
 
-  it('writes a lightweight card for that repo, still writes the portfolio, and caches nothing for it', async () => {
-    const json = body => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  const ok = body => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  const fail = (status, text = 'ZZBODYZZ') => ({ ok: false, status, headers: new Map(), json: async () => ({}), text: async () => text });
+  // `bad` maps a repo name to the response its /pulls listing gets.
+  function serve(bad) {
     globalThis.fetch = async (url) => {
       const u = new URL(url);
-      if (u.hostname === 'api.github.com' && u.pathname === '/repos/o/repo-a/pulls') return json({ message: 'ZZBODYZZ' });
-      if (u.hostname === 'api.github.com' && /\/(pulls|issues|releases)$/.test(u.pathname)) return json([]);
-      return json({});
+      const m = u.hostname === 'api.github.com' && u.pathname.match(/^\/repos\/o\/([^/]+)\/pulls$/);
+      if (m && bad[m[1]]) return bad[m[1]]();
+      if (u.hostname === 'api.github.com' && /\/(pulls|issues|releases)$/.test(u.pathname)) return ok([]);
+      return ok({});
     };
+  }
+  function makeContext(names) {
     const cacheWrites = [];
     const store = {
       readLastHash: async () => null,
@@ -91,39 +97,56 @@ describe('report — a malformed list page on one repo (#501)', () => {
     const now = new Date().toISOString();
     const context = {
       owner: 'o', token: 't', config: {}, store, snapshot: { repository: 'o/repo-a' }, forceReport: true,
-      portfolio: { repos: [{ name: 'repo-a', pushed_at: now, archived: false, fork: false }] },
-      repoDetails: { 'repo-a': { commits: 20 } },
+      portfolio: { repos: names.map(name => ({ name, pushed_at: now, archived: false, fork: false })) },
+      repoDetails: Object.fromEntries(names.map(n => [n, { commits: 20 }])),
     };
+    return { context, cacheWrites };
+  }
+  async function run(context) {
     const lines = [];
     const orig = console.log;
     console.log = (...a) => { lines.push(a.join(' ')); };
-    try { await report(context); } finally { console.log = orig; }
+    try { await report(context); return { lines }; } catch (err) { return { lines, err }; } finally { console.log = orig; }
+  }
 
-    const html = await readFile(join(outDir, 'repo-a.html'), 'utf8');
-    assert.ok(html.length > 0);
+  it('degrades only the unreadable repo: light card written, portfolio still written, only the good repo cached', async () => {
+    serve({ 'repo-a': () => ok({ message: 'ZZBODYZZ' }) });
+    const { context, cacheWrites } = makeContext(['repo-a', 'repo-b']);
+    const { lines, err } = await run(context);
+    assert.equal(err, undefined);
+    assert.ok((await readFile(join(outDir, 'repo-a.html'), 'utf8')).length > 0);
+    assert.ok((await readFile(join(outDir, 'repo-b.html'), 'utf8')).length > 0);
     await readFile(join(outDir, 'index.html'), 'utf8');
+    assert.equal(cacheWrites.length, 1);
+    assert.deepEqual(Object.keys(cacheWrites[0].repos), ['repo-b'], 'the good repo is cached, the degraded one is not');
+    assert.ok(cacheWrites[0].repos['repo-b'].chartData, 'with its chart data');
     assert.ok(lines.some(l => l.includes('chart data unreadable for repo-a') && l.includes('status 200')), lines.join('\n'));
+    assert.ok(lines.some(l => l.includes('1 of 2 fresh repo(s) degraded')), lines.join('\n'));
     assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'the response body never reaches the log');
-    assert.ok(cacheWrites.every(c => !c.repos['repo-a']), 'a degraded repo is not cached');
+  });
+
+  it('fails the phase when EVERY fresh repo degrades (a systemic outage, not one bad page)', async () => {
+    serve({ 'repo-a': () => fail(500), 'repo-b': () => ok({}) });
+    const { context, cacheWrites } = makeContext(['repo-a', 'repo-b']);
+    const { err } = await run(context);
+    assert.ok(err, 'REPORT must fail');
+    assert.match(err.message, /all 2 fresh repo\(s\)/);
+    assert.equal(await readFile(join(outDir, 'index.html'), 'utf8').catch(() => null), null, 'no degraded dashboard is published');
+    assert.deepEqual(cacheWrites, []);
+  });
+
+  it('fails the phase on a 401 at the first repo instead of degrading it', async () => {
+    serve({ 'repo-a': () => fail(401, 'Bad credentials') });
+    const { context } = makeContext(['repo-a', 'repo-b']);
+    const { err, lines } = await run(context);
+    assert.equal(err?.status, 401);
+    assert.ok(!lines.some(l => l.includes('writing lightweight card')), lines.join('\n'));
   });
 
   it('still fails the phase on an error the API did not answer (no status), so a fault is never masked', async () => {
-    globalThis.fetch = async (url) => {
-      const u = new URL(url);
-      if (u.hostname === 'api.github.com' && u.pathname === '/repos/o/repo-a/pulls') throw new TypeError('fetch failed');
-      return { ok: true, status: 200, headers: new Map(), json: async () => [], text: async () => '[]' };
-    };
-    const store = {
-      readLastHash: async () => null, readRepoCache: async () => null, writeHash: async () => {},
-      writeRepoCache: async () => {}, writePortfolioWeekly: async () => {}, readLatestPortfolioWeekly: async () => null,
-    };
-    const context = {
-      owner: 'o', token: 't', config: {}, store, snapshot: { repository: 'o/repo-a' }, forceReport: true,
-      portfolio: { repos: [{ name: 'repo-a', pushed_at: new Date().toISOString(), archived: false, fork: false }] },
-      repoDetails: { 'repo-a': { commits: 20 } },
-    };
-    const orig = console.log;
-    console.log = () => {};
-    try { await assert.rejects(report(context), /fetch failed/); } finally { console.log = orig; }
+    serve({ 'repo-a': () => { throw new TypeError('fetch failed'); } });
+    const { context } = makeContext(['repo-a', 'repo-b']);
+    const { err } = await run(context);
+    assert.match(err?.message ?? '', /fetch failed/);
   });
 });
