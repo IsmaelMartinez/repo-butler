@@ -412,6 +412,40 @@ describe('stalled-alert — resilience and eligibility', () => {
     assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'the error body never reaches the log');
   });
 
+  it('stalled-alert: a non-array alerts response is unread, never "no alerts"', async () => {
+    const gh = makeGh({ alerts: { 'repo-a': () => ({}) } });
+    let out;
+    const lines = await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.deepEqual(out.findings, []);
+    assert.ok(lines.some(l => l.includes('read failed for repo-a')), lines.join('\n'));
+  });
+
+  it('stalled-alert: a full page of 100 alerts marks the repo unread but still reports page 1', async () => {
+    const alerts = Array.from({ length: 100 }, (_, i) => makeAlert({ number: i + 1, name: `pkg-${i}`, ageDays: 2 }));
+    alerts[0] = makeAlert({ number: 1, ecosystem: 'pip', name: 'pyyaml', ageDays: 40 });
+    const gh = makeGh({ alerts: { 'repo-a': alerts } });
+    let out;
+    await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.equal(out.findings.length, 1, 'the stalled alert visible on page 1 is still reported');
+  });
+
+  it('stalled-alert: 99 alerts is a complete read, not truncated', async () => {
+    const alerts = Array.from({ length: 99 }, (_, i) => makeAlert({ number: i + 1, name: `pkg-${i}`, ageDays: 2 }));
+    const gh = makeGh({ alerts: { 'repo-a': alerts } });
+    const out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]);
+    assert.deepEqual(out.unread, []);
+  });
+
+  it('stalled-alert: a non-array pulls response is unread and fabricates no finding', async () => {
+    const gh = makeGh({ alerts: { 'repo-a': [makeAlert({ ecosystem: 'pip', name: 'pyyaml', ageDays: 40 })] }, prs: { 'repo-a': {} } });
+    let out;
+    await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.deepEqual(out.findings, []);
+  });
+
   it('stalled-alert: archived, fork and excluded repos are never queried', async () => {
     const gh = makeGh({ alerts: {} });
     const repos = [

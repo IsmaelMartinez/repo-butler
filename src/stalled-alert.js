@@ -278,7 +278,21 @@ export async function detectStalledAlertsWithStatus(gh, owner, repos, {
       const alerts = await gh.request(`/repos/${owner}/${repo.name}/dependabot/alerts`, {
         params: { state: 'open', per_page: 100 },
       });
-      if (!Array.isArray(alerts) || alerts.length === 0) return null;
+      // A 200 that is not a list is not "no alerts": record it as unread so the
+      // open-vulnerability downgrade, which treats "no stalled-alert finding"
+      // as evidence, is withheld rather than granted on a malformed response.
+      if (!Array.isArray(alerts)) {
+        console.log(`stalled-alert: read failed for ${repo.name} (non-array alerts response)`);
+        unread.push(repo.name);
+        return null;
+      }
+      // A full page may hide a stalled alert on page 2. Report what page 1
+      // shows, but mark the repo unread so its silence is never evidence.
+      if (alerts.length >= 100) {
+        console.log(`stalled-alert: ${repo.name} alert list truncated at 100; treating as unread`);
+        unread.push(repo.name);
+      }
+      if (alerts.length === 0) return null;
 
       const candidates = [];
       for (const a of alerts) {
@@ -308,7 +322,14 @@ export async function detectStalledAlertsWithStatus(gh, owner, repos, {
       // reopened or rebased by a human still carries the branch, and reading the
       // branch is what makes "possibly addressing" decidable at all.
       const prs = await listOpenPRs(gh, owner, repo.name, openPRs);
-      const branches = (Array.isArray(prs) ? prs : [])
+      // A non-list PR response must not read as "no PRs": that would emit a
+      // stalled-alert finding from bad data.
+      if (!Array.isArray(prs)) {
+        console.log(`stalled-alert: read failed for ${repo.name} (non-array pulls response)`);
+        unread.push(repo.name);
+        return null;
+      }
+      const branches = prs
         .filter(isSameRepoPR)
         .map(pr => pr?.head?.ref)
         .filter(ref => typeof ref === 'string' && ref.startsWith(BRANCH_PREFIX));
