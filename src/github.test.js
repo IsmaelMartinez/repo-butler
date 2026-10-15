@@ -1050,3 +1050,77 @@ describe('getLargeFileContent', () => {
     await assert.rejects(() => getLargeFileContent(gh, 'o', 'r', 'big.json'), /carried no content/);
   });
 });
+
+describe('createClient — paginate (#501)', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  // Serve `pages[n-1]` for `?page=n`; anything past the end is an empty list.
+  function servePages(pages) {
+    const seen = [];
+    globalThis.fetch = mock.fn(async (url) => {
+      const page = Number(new URL(url).searchParams.get('page'));
+      seen.push(page);
+      return jsonResponse(page <= pages.length ? pages[page - 1] : []);
+    });
+    return seen;
+  }
+  const items = (n, from = 0) => Array.from({ length: n }, (_, i) => ({ id: from + i }));
+
+  it('collects every page of a normal multi-page listing', async () => {
+    const seen = servePages([items(100), items(100, 100), items(7, 200)]);
+    const out = await createClient('tok').paginate('/repos/o/r/pulls');
+    assert.equal(out.length, 207);
+    assert.deepEqual(out.map(x => x.id), items(207).map(x => x.id));
+    assert.deepEqual(seen, [1, 2, 3]);
+  });
+
+  it('treats an empty array as the end of the list', async () => {
+    const seen = servePages([items(100), []]);
+    const out = await createClient('tok').paginate('/repos/o/r/pulls');
+    assert.equal(out.length, 100);
+    assert.deepEqual(seen, [1, 2]);
+  });
+
+  it('returns [] for an empty first page', async () => {
+    servePages([[]]);
+    assert.deepEqual(await createClient('tok').paginate('/repos/o/r/pulls'), []);
+  });
+
+  it('throws with status 200 and code NON_ARRAY_PAGE on a non-array first page', async () => {
+    servePages([{ message: 'not a list', secret_body_marker: 'xyz' }]);
+    await assert.rejects(
+      createClient('tok').paginate('/repos/o/r/pulls'),
+      (err) => {
+        assert.equal(err.status, 200);
+        assert.equal(err.code, 'NON_ARRAY_PAGE');
+        assert.match(err.message, /non-array page \(page 1\)/);
+        // Never the body.
+        assert.ok(!err.message.includes('secret_body_marker'));
+        return true;
+      },
+    );
+  });
+
+  it('throws on a non-array LATER page rather than returning the partial list', async () => {
+    servePages([items(100), { total_count: 3 }]);
+    await assert.rejects(
+      createClient('tok').paginate('/repos/o/r/pulls'),
+      (err) => err.status === 200 && err.code === 'NON_ARRAY_PAGE' && /\(page 2\)/.test(err.message),
+    );
+  });
+
+  it('throws on a null page (204) instead of reading it as the end', async () => {
+    globalThis.fetch = mock.fn(async () => ({ ok: true, status: 204, headers: new Map(), json: async () => null, text: async () => '' }));
+    await assert.rejects(createClient('tok').paginate('/repos/o/r/pulls'), { code: 'NON_ARRAY_PAGE' });
+  });
+
+  it('redacts the repo name from the error under redactPaths', async () => {
+    servePages([{}]);
+    await assert.rejects(
+      createClient('tok', { redactPaths: true }).paginate('/repos/o/secret-thing/issues'),
+      (err) => !err.message.includes('secret-thing') && err.message.includes('<redacted>'),
+    );
+  });
+});

@@ -58,14 +58,15 @@ export async function fetchMonthlyPRActivity(gh, owner, repo) {
 export async function fetchMonthlyIssueActivity(gh, owner, repo) {
   const since = daysAgoISO(365);
   const [created, closed] = await Promise.all([
+    // Issues disabled answers 410: no issues, not an unreadable list.
     paginateIssues(gh, owner, repo, {
       params: { state: 'all', since, sort: 'created', direction: 'desc' },
       max: 500,
-    }),
+    }).catch(emptyIfAbsent),
     paginateIssues(gh, owner, repo, {
       params: { state: 'closed', since, sort: 'updated', direction: 'desc' },
       max: 500,
-    }),
+    }).catch(emptyIfAbsent),
   ]);
   const months = last12Months();
   return months.map(({ label, start, end }) => ({
@@ -96,6 +97,18 @@ export async function fetchPRAuthors(gh, owner, repo) {
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * `.catch` handler for a REPORT listing: a 404 or 410 is the API saying the
+ * list does not exist (issues disabled answers 410), which genuinely is empty.
+ * Anything else (a 5xx, a malformed page, a network failure) is rethrown so
+ * report.js's per-repo handler degrades the card and marks the run incomplete,
+ * instead of caching "0 open PRs" read from data that was never read.
+ */
+export function emptyIfAbsent(err) {
+  if (err?.status === 404 || err?.status === 410) return [];
+  throw err;
+}
+
 export async function fetchOpenPRs(gh, owner, repo) {
   try {
     const prs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
@@ -122,8 +135,8 @@ export async function fetchOpenPRs(gh, owner, repo) {
         updated_at: pr.updated_at,
       };
     });
-  } catch {
-    return [];
+  } catch (err) {
+    return emptyIfAbsent(err);
   }
 }
 
@@ -731,7 +744,11 @@ new Chart(document.getElementById('releaseChart'),{type:'bar',data:{labels:[${re
   return htmlPage({ title: `${snapshot.repository} — Health Report`, body, charts });
 }
 
-export function generateLightRepoReport(owner, repo, details) {
+// `degraded: true` is the light card REPORT falls back to when a repo's chart
+// data could not be read on this run. That repo may well have plenty of
+// commits, so the low-activity explanation would be false and would hide why
+// the charts are missing; the degraded copy says what actually happened.
+export function generateLightRepoReport(owner, repo, details, { degraded = false } = {}) {
   const now = new Date().toISOString().split('T')[0];
   const pushed = repo.pushed_at?.split('T')[0] || 'unknown';
   const commits = details?.commits || 0;
@@ -756,8 +773,9 @@ export function generateLightRepoReport(owner, repo, details) {
   ${buildDependabotAutofixCard(autofix)}
 </div>
 <div class="chart-container muted" style="text-align:center;padding:3rem">
-  This repo has fewer than 10 commits in the last 6 months.<br>
-  Full charts are generated for repos with more activity.
+  ${degraded
+    ? 'Chart data could not be read on this run; it will be retried next run.'
+    : 'This repo has fewer than 10 commits in the last 6 months.<br>\n  Full charts are generated for repos with more activity.'}
 </div>
 <p style="text-align:center;margin-top:2rem"><a href="https://github.com/${owner}/${escHtml(repo.name)}">View on GitHub</a></p>`;
   // Route through htmlPage so light cards get the same theme toggle, persisted

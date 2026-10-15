@@ -262,14 +262,19 @@ describe('findDuplicates closed look-back (G7)', () => {
     }
   });
 
-  it('returns open matches even if the closed scan errors (swallow-and-continue)', async () => {
+  // #501: the closed scan carries the cooldown and the permanent
+  // governance-declined signal, so an unreadable one must not read as "none".
+  it('throws when the closed scan errors (fail closed — the caller skips the idea)', async () => {
     const gh = { paginate: async (path, opts) => {
-      if (opts?.params?.state === 'closed') throw new Error('API error');
-      return [{ number: 3, title: 'Add a security policy' }];
+      if (opts?.params?.state === 'closed') throw Object.assign(new Error('API error'), { status: 500 });
+      return [];
     } };
-    const matches = await findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 });
-    assert.equal(matches.length, 1);
-    assert.equal(matches[0].state, 'open');
+    await assert.rejects(findDuplicates(gh, 'o', 'r', 'Add a security policy', { includeClosedDays: 30 }), { status: 500 });
+  });
+
+  it('throws when the open scan errors', async () => {
+    const gh = { paginate: async () => { throw Object.assign(new Error('x'), { status: 200, code: 'NON_ARRAY_PAGE' }); } };
+    await assert.rejects(findDuplicates(gh, 'o', 'r', 'X'), { code: 'NON_ARRAY_PAGE' });
   });
 
   it('merges open and closed matches and sorts by similarity', async () => {
@@ -344,12 +349,22 @@ describe('findDuplicatePRs', () => {
     assert.equal(matches[0].declined, true);
   });
 
-  it('handles API errors gracefully', async () => {
+  // #501: an unreadable listing is not "no duplicate PR"; the caller skips.
+  it('throws on an API error rather than returning [] (fail closed)', async () => {
     const mockGh = {
-      paginate: async () => { throw new Error('API error'); },
+      paginate: async () => { throw Object.assign(new Error('API error'), { status: 500 }); },
     };
-    const matches = await findDuplicatePRs(mockGh, 'owner', 'repo', 'Some title');
-    assert.deepEqual(matches, []);
+    await assert.rejects(findDuplicatePRs(mockGh, 'owner', 'repo', 'Some title'), { status: 500 });
+  });
+
+  it('throws when only the closed scan errors', async () => {
+    const mockGh = {
+      paginate: async (path, opts) => {
+        if (opts?.params?.state === 'closed') throw Object.assign(new Error('API error'), { status: 502 });
+        return [];
+      },
+    };
+    await assert.rejects(findDuplicatePRs(mockGh, 'owner', 'repo', 'Some title', { includeClosedDays: 90 }), { status: 502 });
   });
 });
 
@@ -1192,5 +1207,106 @@ describe('apply_enabled and propose_live each drive only their own lane (#423)',
     assert.equal(config.limits.propose_live, false);
     assert.equal(applyEnabledGate(config, 'apply'), true);
     assert.equal((await liveRun(config)).filed, false);
+  });
+});
+
+// #501: the duplicate checks fail CLOSED. Before, both caught every read error
+// and returned [], which propose() read as "no duplicate" and filed the issue —
+// and once paginate() threw on a malformed page instead of returning page 1,
+// that became the outcome of every malformed page, cross-repo nudges included.
+describe('propose — unreadable duplicate check skips the idea (#501)', () => {
+  const ctx = (over) => ({
+    owner: 'octo', repo: 'repo-butler', token: 'unused', dryRun: false,
+    governanceFindings: [{ type: 'policy-drift', repo: 'teams-for-linux' }],
+    portfolio: { repos: [{ name: 'teams-for-linux', archived: false, fork: false }] },
+    config: {
+      limits: { propose_live: true },
+      'propose-targets': { 'teams-for-linux': true },
+      'propose-classes': { 'policy-drift': true },
+    },
+    ideas: [{
+      title: 'Adopt the portfolio licence', priority: 'medium', labels: [],
+      body: 'A nudge.', rationale: '13/14 repos declare a licence.', targetRepo: 'teams-for-linux',
+    }],
+    ...over,
+  });
+  const quiet = async (fn) => {
+    const lines = [];
+    const [ol, ow, oe] = [console.log, console.warn, console.error];
+    console.log = (...a) => { lines.push(a.join(' ')); };
+    console.warn = () => {}; console.error = () => {};
+    try { return { value: await fn(), lines }; } finally { console.log = ol; console.warn = ow; console.error = oe; }
+  };
+  const issuePosts = gh => gh.calls.filter(c => c.method === 'POST' && c.path.endsWith('/issues'));
+
+  for (const [label, failing] of [
+    ['open issues', (path, opts) => path.endsWith('/issues') && opts?.params?.state === 'open'],
+    ['closed issues', (path, opts) => path.endsWith('/issues') && opts?.params?.state === 'closed'],
+    ['open PRs', (path, opts) => path.endsWith('/pulls') && opts?.params?.state === 'open'],
+    ['closed PRs', (path, opts) => path.endsWith('/pulls') && opts?.params?.state === 'closed'],
+  ]) {
+    it(`an unreadable ${label} listing files no issue, cross-repo or host`, async () => {
+      const gh = stubGh();
+      gh.paginate = async (path, opts) => {
+        gh.calls.push({ path, method: 'GET' });
+        if (failing(path, opts)) throw Object.assign(new Error('GitHub API GET x: 500 ZZBODYZZ'), { status: 500 });
+        return [];
+      };
+      const { value: result, lines } = await quiet(() => propose(ctx({ gh })));
+      assert.equal(result.created.length, 0);
+      assert.deepEqual(issuePosts(gh), [], 'no issue POST anywhere');
+      assert.deepEqual(result.skippedUnreadable, [{ title: 'Adopt the portfolio licence', repo: 'teams-for-linux', status: 500 }]);
+      assert.ok(lines.some(l => l.includes('duplicate check unreadable') && l.includes('status 500')), lines.join('\n'));
+      assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'status only, never the error body');
+    });
+  }
+
+  it('control: the same setup with readable listings does file the issue', async () => {
+    const gh = stubGh();
+    const { value: result } = await quiet(() => propose(ctx({ gh })));
+    assert.equal(result.created.length, 1);
+    assert.ok(issuePosts(gh).some(c => c.path === '/repos/octo/teams-for-linux/issues'), 'the nudge is filed on the target');
+    assert.deepEqual(result.skippedUnreadable, []);
+  });
+
+  it('one unreadable idea does not stop the next from filing', async () => {
+    const gh = stubGh();
+    let n = 0;
+    gh.paginate = async (path) => {
+      gh.calls.push({ path, method: 'GET' });
+      if (n++ === 0) throw Object.assign(new Error('x'), { status: 502 });
+      return [];
+    };
+    const { value: result } = await quiet(() => propose(ctx({
+      gh,
+      config: { limits: { propose_live: true } },
+      ideas: [
+        { title: 'First host idea', priority: 'high', labels: [], body: 'b1.', targetRepo: null },
+        { title: 'Second unrelated thing', priority: 'medium', labels: [], body: 'b2.', targetRepo: null },
+      ],
+    })));
+    assert.equal(result.skippedUnreadable.length, 1);
+    assert.equal(result.created.length, 1);
+  });
+
+  it('behind the real client: a malformed issues page (paginate throws NON_ARRAY_PAGE) files nothing', async () => {
+    const originalFetch = globalThis.fetch;
+    const posts = [];
+    globalThis.fetch = async (url, init) => {
+      const u = new URL(url);
+      const ok = body => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+      if ((init?.method || 'GET') === 'POST') { posts.push(u.pathname); return ok({ number: 1, html_url: 'https://github.com/octo/x/issues/1', title: 't' }); }
+      if (u.pathname.endsWith('/issues')) return ok({ message: 'not a list' });
+      if (u.pathname.includes('/contents/')) return ok({ content: Buffer.from('Managed by repo-butler.').toString('base64') });
+      return ok([]);
+    };
+    try {
+      const { value: result } = await quiet(() => propose(ctx({ gh: undefined, token: 'tok' })));
+      assert.equal(result.created.length, 0);
+      assert.ok(!posts.some(p => p.endsWith('/issues')), posts.join(','));
+      assert.equal(result.skippedUnreadable[0]?.status, 200);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

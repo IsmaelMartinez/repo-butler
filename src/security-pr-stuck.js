@@ -17,6 +17,18 @@
 // setting alone kept reporting "in flight". "Autofix is on" says GitHub MAY open
 // a PR; only an open, recent PR for every alert says it did.
 //
+// The branch name is not the whole story for npm (#500): a version-update PR
+// can lift the root copy above the patch while a pinned, nested copy in the
+// same lockfile stays vulnerable, so merging it would not close the alert. Every
+// npm match is therefore confirmed against the lockfile AT THE PR'S HEAD by
+// lockfile-update.js's lockfileCopiesPatched: every copy must sit outside every
+// vulnerable range the advisory lists for the package (advisoryRangesFor), not
+// merely at or above first_patched_version, which names one patch even when an
+// advisory carries several ranges. A lockfile that cannot be read or ordered,
+// or ranges that are missing or unparseable, leave the match UNVERIFIED — no
+// evidence, and no stuck claim. Other ecosystems keep the branch-name rule:
+// their manifests pin one version per package, and no reader exists for them.
+//
 // Known misses, all failing CLOSED (no evidence, so no downgrade; no stuck
 // finding): GitHub Actions alerts — their manifest is a workflow file, so the
 // alert directory never equals the branch's action path and an Actions bump
@@ -31,6 +43,8 @@
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { alertDirectory, branchNamesAlertPackage, isSameRepoPR } from './stalled-alert.js';
 import { sameReleaseLine } from './trimmer.js';
+import { getLargeFileContent } from './github.js';
+import { lockfileCopiesPatched, npmLockfilePath } from './lockfile-update.js';
 
 // Dependabot opens a security PR within hours and, where auto-merge is wired,
 // lands a green patch/minor bump within a day. Three days is past every
@@ -137,6 +151,82 @@ function alertsFixedBy(ref, alerts) {
 }
 
 /**
+ * Every `vulnerable_version_range` the alert's advisory lists for the alert's
+ * own package, or null when that set cannot be established. One advisory can
+ * carry several ranges for one package (say `< 1.2.3` and `>= 1.5.0, < 1.5.5`)
+ * while first_patched_version names only the patch for the matched one, so the
+ * lockfile check needs them all. `security_advisory.vulnerabilities` is the
+ * full list; `security_vulnerability` (the matched entry) is added too, so it
+ * cannot be left out even if the list disagrees. Null — and so an unverified
+ * match — when the list is missing or names no entry for the package, or when
+ * any matching entry's range is not a string: a partial set is exactly the
+ * bug this exists to close. Ranges are only collected here; parsing (and
+ * refusing what it cannot read) is lockfile-update.js's parseVulnerableRange.
+ */
+export function advisoryRangesFor(alert) {
+  const name = alert?.dependency?.package?.name;
+  const ecosystem = alert?.dependency?.package?.ecosystem;
+  const list = alert?.security_advisory?.vulnerabilities;
+  if (typeof name !== 'string' || typeof ecosystem !== 'string' || !Array.isArray(list)) return null;
+  const ranges = [];
+  for (const v of list) {
+    if (v?.package?.name !== name || v?.package?.ecosystem !== ecosystem) continue;
+    if (typeof v.vulnerable_version_range !== 'string') return null;
+    ranges.push(v.vulnerable_version_range);
+  }
+  if (ranges.length === 0) return null;
+  const matched = alert.security_vulnerability?.vulnerable_version_range;
+  if (matched !== undefined && matched !== null) {
+    if (typeof matched !== 'string') return null;
+    ranges.push(matched);
+  }
+  return [...new Set(ranges)];
+}
+
+/**
+ * Does this PR's lockfile confirm the branch-name match for this alert? Only
+ * npm alerts are checked (see the header): for every other ecosystem the
+ * strict branch match already passed and stands, so this returns 'fixes'.
+ *
+ * For npm: read the alert directory's package-lock.json at the PR's head SHA
+ * (getLargeFileContent: the Contents API, then the blob API above its 1 MB
+ * inline ceiling, null only for a genuine 404) and require EVERY copy of the
+ * package outside every vulnerable range the advisory lists for it
+ * (lockfile-update.js's lockfileCopiesPatched, which also keeps the
+ * first_patched_version floor on the patch's release line). Reads are cached per
+ * (repo, sha, path) in `cache` for the run, so a PR matching several alerts in
+ * one directory costs one read.
+ *
+ * Never throws. Returns:
+ *   'fixes'       every copy patched (or a non-npm ecosystem)
+ *   'not-fixed'   the lockfile was read and a copy sits inside one of the
+ *                 advisory's vulnerable ranges
+ *   'unverified'  no head SHA, no knowable package-lock.json path (yarn, pnpm,
+ *                 a missing manifest path), absent, unreadable, unorderable, no
+ *                 copy of the package (a parent bump may have dropped it), the
+ *                 advisory's ranges missing or unparseable, or the ranges and
+ *                 first_patched_version disagreeing about a copy
+ */
+async function verifyFixAtHead(gh, owner, repoName, p, alert, cache) {
+  if (alert.ecosystem !== 'npm') return 'fixes';
+  const sha = p.pr?.head?.sha;
+  if (typeof sha !== 'string' || sha === '' || !alert.lockfilePath) return 'unverified';
+  const key = `${repoName}\0${sha}\0${alert.lockfilePath}`;
+  if (!cache.has(key)) {
+    cache.set(key, getLargeFileContent(gh, owner, repoName, alert.lockfilePath, { ref: sha }).catch(err => {
+      // Status only: the error text can carry the path and the response body.
+      // Public repos only (eligibleRepos), so naming the repo is fine.
+      console.log(`security-pr-stuck: lockfile at PR #${p.pr?.number ?? '?'} head unreadable in ${repoName} (status ${err?.status ?? 'n/a'}); match left unverified`);
+      return null;
+    }));
+  }
+  const text = await cache.get(key);
+  if (text === null) return 'unverified';
+  const verdict = lockfileCopiesPatched(text, alert.package, alert.patchedVersion, alert.vulnerableRanges);
+  return verdict === 'patched' ? 'fixes' : verdict === 'not-patched' ? 'not-fixed' : 'unverified';
+}
+
+/**
  * Read each repo's Dependabot PRs and critical/high alerts once, and derive two
  * things from them: `security-pr-stuck` findings, and per-repo evidence for
  * whether the fix is actually in flight (consumed by detectOpenVulnerabilities).
@@ -156,7 +246,8 @@ function alertsFixedBy(ref, alerts) {
  *   openPRs is governance.fetchOpenPRs's shared sweep; evidenceRepos are the
  *   repos whose in-flight claim needs checking (autofix on, critical/high open).
  * @returns {Promise<{ findings: Array, fixEvidence: Object, unread: string[] }>}
- *   fixEvidence[repo] = { inFlight, unaddressed, unpatched } for each evidence
+ *   fixEvidence[repo] = { inFlight, unaddressed, unpatched, unidentified,
+ *   unverified } for each evidence
  *   repo read completely; an evidence repo absent from it was not.
  */
 export async function detectSecurityFixState(gh, owner, repos, {
@@ -204,8 +295,15 @@ export async function detectSecurityFixState(gh, owner, repos, {
           package: a.dependency?.package?.name,
           ecosystem: a.dependency?.package?.ecosystem ?? null,
           directory: alertDirectory(a.dependency?.manifest_path),
+          // npm only; null when the alert's lockfile is not a knowable
+          // package-lock.json, which leaves every npm match unverified.
+          lockfilePath: a.dependency?.package?.ecosystem === 'npm' ? npmLockfilePath(a.dependency?.manifest_path) : null,
           severity: a.security_vulnerability?.severity || a.security_advisory?.severity || null,
           patchedVersion: a.security_vulnerability?.first_patched_version?.identifier ?? null,
+          // Every vulnerable range the advisory lists for this package; null
+          // when that cannot be established, which leaves an npm match
+          // unverified (lockfileCopiesPatched).
+          vulnerableRanges: advisoryRangesFor(a),
           alertAge: daysSince(a.created_at, now),
         }))
         .filter(a => a.package && QUALIFYING_SEVERITIES.has(a.severity));
@@ -215,9 +313,28 @@ export async function detectSecurityFixState(gh, owner, repos, {
       // been "the fix" since the alert opened.
       const fixAge = (p, a) => Math.min(p.prAge, a.alertAge);
 
+      // Per-run lockfile reads, keyed by (repo, head sha, path).
+      const lockCache = new Map();
+      const verify = (p, a) => verifyFixAtHead(gh, owner, repo.name, p, a, lockCache);
+
+      // Alerts (by identity, not number: a missing number must not merge two)
+      // that a relevant PR (an old one past the stuck bar, or a recent
+      // one offered as evidence) names but whose lockfile could not confirm.
+      const unverifiedAlerts = new Set();
+
       const stuck = [];
       for (const p of old) {
-        const fixes = alertsFixedBy(p.ref, alerts);
+        const named = alertsFixedBy(p.ref, alerts);
+        if (named.length === 0) continue;
+        // A stuck claim ASSERTS a fix exists, so only a match the lockfile
+        // confirms counts; a PR that leaves a nested copy vulnerable is not
+        // the fix, and one we cannot read is not claimed either way.
+        const fixes = [];
+        for (const a of named) {
+          const v = await verify(p, a);
+          if (v === 'fixes') fixes.push(a);
+          else if (v === 'unverified' && fixAge(p, a) > thresholdDays) unverifiedAlerts.add(a);
+        }
         if (fixes.length === 0) continue;
         const age = Math.max(...fixes.map(a => fixAge(p, a)));
         if (!(age > thresholdDays)) continue;
@@ -238,7 +355,7 @@ export async function detectSecurityFixState(gh, owner, repos, {
       let evidence = null;
       if (needEvidence && !truncated) {
         if (raw.length === 0) {
-          evidence = { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0 };
+          evidence = { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 0 };
         } else {
           const unidentified = raw.length - alerts.length;
           const unpatched = alerts.filter(a => !a.patchedVersion).length;
@@ -246,13 +363,47 @@ export async function detectSecurityFixState(gh, owner, repos, {
           // for a new alert so it is not "stuck" on day one, but a PR that has
           // sat open for weeks is not evidence that a fix is landing — a 40-day
           // version update meeting a 1-day alert would otherwise downgrade it.
-          const unaddressed = alerts.filter(a => a.patchedVersion && !dependabotPRs.some(p =>
-            alertsFixedBy(p.ref, [a]).length === 1 && p.prAge <= thresholdDays)).length;
+          //
+          // A recent PR addresses an alert only if its lockfile confirms the
+          // fix (verifyFixAtHead). One the lockfile REFUTES is no evidence and
+          // the alert is unaddressed, a definite gap. One that cannot be read
+          // leaves the alert UNVERIFIED.
+          const unaddressedAlerts = new Set();
+          for (const a of alerts) {
+            if (!a.patchedVersion) continue;
+            let status = 'unaddressed';
+            for (const p of dependabotPRs) {
+              if (!(p.prAge <= thresholdDays) || alertsFixedBy(p.ref, [a]).length !== 1) continue;
+              const v = await verify(p, a);
+              if (v === 'fixes') { status = 'addressed'; break; }
+              if (v === 'unverified') status = 'unverified';
+            }
+            if (status === 'unaddressed') unaddressedAlerts.add(a);
+            else if (status === 'unverified') unverifiedAlerts.add(a);
+          }
+          const unaddressed = unaddressedAlerts.size;
+          // An alert a recent PR verifiably fixes is still UNVERIFIED when an
+          // older PR for it (past the stuck bar) could not be read: "no fix is
+          // stuck" was never established for it. An unaddressed alert is a
+          // definite gap, so it is counted there and not here.
+          const unverified = [...unverifiedAlerts].filter(a => !unaddressedAlerts.has(a)).length;
+          const definiteGap = unidentified > 0 || unpatched > 0 || unaddressed > 0 || stuck.length > 0;
           evidence = {
-            inFlight: unidentified === 0 && unpatched === 0 && unaddressed === 0 && stuck.length === 0,
+            // null, not false, for an unverified lockfile: false is a positive
+            // claim ("autofix is on and NOT landing a fix", surfaced as such by
+            // the dashboard and MCP via isAutofixOnWithoutEvidence's wording and
+            // the rationale's gap list), and an unread lockfile establishes
+            // neither that the PR fixes the alert nor that it does not. That is
+            // the same call this function already makes for an alerts read
+            // that verified nothing (liveAlertsMissing). Both null and false
+            // withhold the downgrade, so the choice cannot lower a priority;
+            // it only keeps the record honest. A definite gap elsewhere still
+            // wins: one refuted or missing fix is enough to say false.
+            inFlight: definiteGap ? false : unverified > 0 ? null : true,
             unaddressed,
             unpatched,
             unidentified,
+            unverified,
           };
         }
       }

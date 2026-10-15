@@ -298,7 +298,16 @@ dependabot-sourced `open-vulnerability` finding carries `autofixEnabled`
 surfaced on the dashboard and via `get_governance_findings` — the read is inert. The
 setting alone is not "remediation in flight": that needs `fixInFlight`, evidence from
 `src/security-pr-stuck.js` that an open, recent Dependabot PR definitely fixes every
-critical/high alert, and only it downgrades the finding's priority.
+critical/high alert, and only it downgrades the finding's priority. For npm,
+"definitely" includes the lockfile at the PR's head: every copy of the package,
+nested duplicates included, must fall outside every vulnerable range the advisory
+lists for that package (`lockfileCopiesPatched` in `lockfile-update.js`), and a copy
+on the patch's own release line must also be at or above the first patched version.
+A copy inside any range refutes the fix (`fixInFlight: false`). An unreadable
+lockfile, an absent package, a non-release copy, missing or unparseable advisory
+ranges, or ranges and patch floor that disagree leave the match unverified — no
+evidence (`fixInFlight: null`, `lockfileUnverified`) and no stuck claim. The write
+gate (`computeLockfileGate`) keeps its own `not-patched` rule unchanged.
 
 The first content-transformation write in the apply path is the lockfile refresh
 (ADR-015, `src/lockfile-update.js`). It acts on G13 `stalled-alert` findings whose
@@ -414,7 +423,9 @@ Governance Apply go in the `TEMPLATES` map in `apply-templates.js`. New MCP tool
 calls — the custom client in `src/github.js` (`createClient(token)`) is used
 everywhere, because it handles rate limiting with exponential backoff on 429/403
 and provides `request`, `paginate`, `getFileContent`, `listDir`, `putFile`, and
-`deleteFile`.
+`deleteFile`. `paginate` throws (`status: 200`, `code: 'NON_ARRAY_PAGE'`) on a page
+that is not a JSON array instead of treating it as the end of the list; only an
+empty array ends a listing.
 
 ## Further reading
 
