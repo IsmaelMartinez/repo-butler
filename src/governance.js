@@ -681,7 +681,8 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
  * @param {{ stuckSecurityPRs?: Array, fixEvidence?: Object, stalledAlerts?: Array, stalledUnread?: string[] }} [options]
  *   This run's evidence about whether a fix is actually landing, all from
  *   security-pr-stuck.js and stalled-alert.js: security-pr-stuck findings,
- *   fixEvidence[repo] = { inFlight, unaddressed, unpatched } for repos read
+ *   fixEvidence[repo] = { inFlight, unaddressed, unpatched, unidentified,
+ *   unverified } for repos read
  *   completely, stalled-alert findings, and the repos G13 could not read
  *   (whose absence of a stalled-alert finding proves nothing). Without it
  *   nothing is in flight.
@@ -796,7 +797,11 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
         unaddressedAlerts: evidence.unaddressed ?? 0,
         unpatchedAlerts: evidence.unpatched ?? 0,
         ...(evidence.unidentified ? { unidentifiedAlerts: evidence.unidentified } : {}),
+        ...(evidence.unverified ? { unverifiedAlerts: evidence.unverified } : {}),
       } : {}),
+      // A fix PR's lockfile could not confirm every copy of the package is
+      // patched (security-pr-stuck.js, #500): unverifiable, so null, not false.
+      ...(fixInFlight === null && evidence?.unverified > 0 ? { lockfileUnverified: true, unverifiedAlerts: evidence.unverified } : {}),
       // The live read found no critical/high alert while the snapshot reports
       // some: nothing could be verified, so fixInFlight is null, not false.
       ...(fixInFlight === null && evidence?.liveAlertsMissing === true ? { liveAlertsMissing: true } : {}),
@@ -905,11 +910,15 @@ function autofixOnNote(finding) {
     if (finding.unaddressedAlerts) gaps.push(`no open Dependabot PR addresses ${finding.unaddressedAlerts} alert(s)`);
     if (finding.unpatchedAlerts) gaps.push(`${finding.unpatchedAlerts} alert(s) have no patched version to bump to`);
     if (finding.unidentifiedAlerts) gaps.push(`${finding.unidentifiedAlerts} alert(s) could not be matched to a package`);
+    if (finding.unverifiedAlerts) gaps.push(`${finding.unverifiedAlerts} alert(s) have a fix PR whose lockfile could not be verified`);
     if (finding.alertStalled === true) gaps.push('a Dependabot alert here is stalled (see the stalled-alert finding)');
     return ` Dependabot automated security fixes are ON but not landing a fix: ${gaps.join('; ') || 'a fix PR is not evidenced for every alert'}.`;
   }
   if (finding.stalledAlertsUnread === true) {
     return ' Dependabot automated security fixes are ON and fix PRs are open, but the stalled-alert check could not read this repo — unverifiable, not treated as in flight.';
+  }
+  if (finding.lockfileUnverified === true) {
+    return ` Dependabot automated security fixes are ON and fix PRs are open, but the lockfile at a fix PR's head could not be read to confirm every copy of the package is patched (${finding.unverifiedAlerts} alert(s)) — unverifiable, not treated as in flight.`;
   }
   if (finding.liveAlertsMissing === true) {
     return ' Dependabot automated security fixes are ON, but the live alerts read returned no critical/high alert while the snapshot reports some — unverifiable, not treated as in flight.';

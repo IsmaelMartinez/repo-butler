@@ -324,6 +324,87 @@ function cmp(a, b) {
 }
 
 /**
+ * The gate's `not-patched` rule on its own: does every copy of `name` in a
+ * lockfile's `packages` map sit at or above `patch` (a parsed `{major, minor,
+ * patch}`)? Nested duplicates count — that is the whole point, since a root
+ * copy at the patch says nothing about a pinned copy under another parent —
+ * and so does an aliased install whose entry names the package. Returns null
+ * when every copy is patched, otherwise `{ reason: 'not-patched', detail }`,
+ * including when no copy is present at all: a lockfile without the package
+ * proves nothing about the alert. Exported so security-pr-stuck.js asks the
+ * SAME question of a Dependabot PR's lockfile rather than re-deriving it.
+ *
+ * Callers must already have refused any copy that is not a plain release
+ * (PLAIN_RELEASE): parseVersion tolerates suffixes, so this rule alone would
+ * read `1.2.3-beta.0` as `1.2.3`. computeLockfileGate does that check first;
+ * lockfileCopiesPatched below does it for its own callers.
+ */
+export function findUnpatchedCopy(packages, name, patch) {
+  let copies = 0;
+  for (const [path, entry] of Object.entries(packages ?? {})) {
+    if (path === '' || entryName(path, entry) !== name) continue;
+    copies += 1;
+    const v = parseVersion(entry?.version);
+    if (!v || cmp(v, patch) < 0) {
+      return { reason: 'not-patched', detail: `${path} is at ${entry?.version ?? 'unknown'}, below ${name}@${[patch.major, patch.minor, patch.patch].join('.')}` };
+    }
+  }
+  // A refresh that drops every copy has not patched anything it can prove;
+  // the alert may well close, but that is Dependabot's call on rescan, not
+  // a lockfile this gate can vouch for.
+  if (copies === 0) {
+    return { reason: 'not-patched', detail: `no copy of ${name} remains in the refreshed lockfile` };
+  }
+  return null;
+}
+
+/**
+ * Read-only use of the `not-patched` rule against one lockfile's text, for a
+ * caller that wants to know whether a lockfile RESOLVES an alert rather than
+ * whether a refresh may be pushed (security-pr-stuck.js, issue #500). Three
+ * answers, failing closed:
+ *
+ *   patched       every copy of `name` is a plain release at or above
+ *                 `patchedVersion`, and there is at least one copy
+ *   not-patched   findUnpatchedCopy refused (a copy below the patch, or none)
+ *   unverifiable  the text is not JSON, has no lockfileVersion >= 2 packages
+ *                 map, the patched version is not a plain release, or a copy's
+ *                 version is not one — nothing this rule can order
+ *
+ * @returns {'patched'|'not-patched'|'unverifiable'}
+ */
+export function lockfileCopiesPatched(lockText, name, patchedVersion) {
+  if (typeof lockText !== 'string' || typeof name !== 'string' || name === '') return 'unverifiable';
+  const lock = parseJson(lockText);
+  if (!lock || !(Number(lock.lockfileVersion) >= MIN_LOCKFILE_VERSION) || !lock.packages || typeof lock.packages !== 'object') {
+    return 'unverifiable';
+  }
+  const patch = parseVersion(patchedVersion);
+  if (!patch || !PLAIN_RELEASE.test(String(patchedVersion))) return 'unverifiable';
+  for (const [path, entry] of Object.entries(lock.packages)) {
+    if (path !== '' && entryName(path, entry) === name && !PLAIN_RELEASE.test(String(entry?.version ?? ''))) {
+      return 'unverifiable';
+    }
+  }
+  return findUnpatchedCopy(lock.packages, name, patch) ? 'not-patched' : 'patched';
+}
+
+/**
+ * The package-lock.json holding the copies an npm alert is about, derived from
+ * the alert's `manifest_path`, or null when that file is not knowable: a
+ * missing path (which must not collapse into the root), a yarn.lock or
+ * pnpm-lock.yaml manifest (Dependabot's `npm` ecosystem covers both, and
+ * package-lock.json is not their file), or a directory that is not plain
+ * repo-relative segments. The same rules selectLockfileUpdateTargets applies.
+ */
+export function npmLockfilePath(manifestPath) {
+  if (!isNpmManifestPath(manifestPath)) return null;
+  const directory = alertDirectory(manifestPath);
+  if (!isPlainDirectory(directory)) return null;
+  return directory ? `${directory}/${LOCKFILE}` : LOCKFILE;
+}
+
+/**
  * The write decision. Given the manifest and lockfile text before and after
  * `npm update <pkgs> --package-lock-only`, either every rule holds and the
  * refresh may become a PR, or one rule names why it may not. Rules, in order:
@@ -417,21 +498,8 @@ export function computeLockfileGate({ lockBefore, lockAfter, manifestBefore, man
     if (!changes.some(c => c.name === name && c.kind !== 'metadata')) {
       return refuse('not-updated', `${name} did not move`);
     }
-    let copies = 0;
-    for (const [path, entry] of Object.entries(after.packages)) {
-      if (path === '' || entryName(path, entry) !== name) continue;
-      copies += 1;
-      const v = parseVersion(entry?.version);
-      if (!v || cmp(v, patch) < 0) {
-        return refuse('not-patched', `${path} is at ${entry?.version ?? 'unknown'}, below ${name}@${[patch.major, patch.minor, patch.patch].join('.')}`);
-      }
-    }
-    // A refresh that drops every copy has not patched anything it can prove;
-    // the alert may well close, but that is Dependabot's call on rescan, not
-    // a lockfile this gate can vouch for.
-    if (copies === 0) {
-      return refuse('not-patched', `no copy of ${name} remains in the refreshed lockfile`);
-    }
+    const unpatched = findUnpatchedCopy(after.packages, name, patch);
+    if (unpatched) return refuse(unpatched.reason, unpatched.detail);
   }
 
   const family = new Set();
