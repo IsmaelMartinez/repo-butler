@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-15T12:23:23.732Z",
+  "timestamp": "2026-10-15T17:14:28.926Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,41 +7,17 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 11,
+    "open_issues_count": 9,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-15T10:28:09Z",
+    "pushed_at": "2026-10-15T17:14:11Z",
     "archived": false
   },
   "issues": {
     "open": [
-      {
-        "number": 501,
-        "title": "github.js paginate(): surface a malformed (non-array) page instead of returning a partial list",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-10-15T06:33:52Z",
-        "updated_at": "2026-10-15T06:33:52Z",
-        "assignees": [],
-        "milestone": null
-      },
-      {
-        "number": 500,
-        "title": "security-pr-stuck: verify a fix PR resolves every vulnerable copy, not just the branch-named version",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "reactions": 0,
-        "comments": 0,
-        "created_at": "2026-10-15T06:33:47Z",
-        "updated_at": "2026-10-15T06:33:47Z",
-        "assignees": [],
-        "milestone": null
-      },
       {
         "number": 429,
         "title": "Simplification plan (2026-09-26): tracking",
@@ -163,6 +139,22 @@
       }
     ],
     "recently_closed": [
+      {
+        "number": 501,
+        "title": "github.js paginate(): surface a malformed (non-array) page instead of returning a partial list",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-10-15T17:14:10Z",
+        "created_at": "2026-10-15T06:33:52Z"
+      },
+      {
+        "number": 500,
+        "title": "security-pr-stuck: verify a fix PR resolves every vulnerable copy, not just the branch-named version",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "closed_at": "2026-10-15T17:14:10Z",
+        "created_at": "2026-10-15T06:33:47Z"
+      },
       {
         "number": 477,
         "title": "Present a provisional tier consistently on every surface (#452 follow-up)",
@@ -510,6 +502,13 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 502,
+        "title": "fix(governance): verify npm fix PRs against the lockfile; fail closed on malformed pages",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-10-15T17:14:08Z"
+      },
       {
         "number": 499,
         "title": "feat(governance): evidence-based \"fix in flight\" and stuck security-PR detection",
@@ -1675,9 +1674,9 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 0.9886363636363636,
-    "total_runs": 88,
-    "passed": 87,
+    "pass_rate": 0.9883720930232558,
+    "total_runs": 86,
+    "passed": 85,
     "failed": 1
   },
   "automated_security_fixes": {
@@ -1686,15 +1685,15 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 10,
+    "open_issues": 8,
     "open_bugs": 0,
     "open_features": 3,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 32,
-    "recently_merged_prs": 131,
+    "recently_closed": 34,
+    "recently_merged_prs": 132,
     "bot_prs": 13,
-    "human_prs": 118,
+    "human_prs": 119,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
@@ -1712,11 +1711,11 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 0.9886363636363636,
+    "ci_pass_rate": 0.9883720930232558,
     "bus_factor": 1,
     "time_to_close_median": {
-      "median_days": 1.1,
-      "sample_size": 32
+      "median_days": 1,
+      "sample_size": 34
     }
   }
 }
