@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-10-11
+**Last Updated:** 2026-10-15
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -55,13 +55,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-07** — 11 entries (#326, #328, #329, #330, #342, #343, #344, #345, #348, #349, #352, #354, #355, #356, #357, #358, #10940). Full details in git history.
 
-**2026-08** — 12 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374). Full details in git history.
-
-Dependabot auto-merge governance fix shipped 2026-08-13 (PR #375). Refined repository governance automation by ensuring the presence of the dependabot-auto-merge configuration is read reliably from the default branch.
-
-Transient failure reporting stability improvement shipped 2026-08-14 (PR #378). Prevents false positives in compliance monitoring by ensuring transient detection failures are no longer reported as non-compliance.
-
-Copilot review ruleset detection made tri-state, shipped 2026-08-14 (PR #380). `hasActiveCopilotReviewRuleset` absorbed every failure into `false`, so a transient error became the strongest claim available — that a repo has no code-review bot. Governance reported a gap, and the apply guard that exists to prevent a duplicate ruleset read the same `false` as permission to write. It now returns `true`/`false`/`null`, and only an explicit `false` authorises the write.
+**2026-08** — 15 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374, #375, #378, #380). Full details in git history.
 
 Roadmap maintenance process simplified 2026-08-19 (PR #381). A non-code chore updated the project's roadmap to reflect future planning directions and document current progress as the repository enters a temporary maintenance phase following a highly productive period of feature development.
 
@@ -134,6 +128,10 @@ Agent instruction standardization and onboarding polish shipped 2026-10-07 (PR #
 Consistent Dependabot 403 scoring shipped 2026-10-07 (PR #493). OBSERVE now reads a Dependabot 403 on a repo with `dependabot.yml` as an unread scanner (provisional tier) rather than "not enabled", matching the portfolio fetch through one shared helper, so the per-repo snapshot and the dashboard no longer score the same repo differently.
 
 Roadmap Next Up documentation aligned with active simplification planning 2026-10-08 (PR #495). Brings the "Next Up" roadmap entry for the simplification pass up to date, ensuring the public-facing planning documentation accurately reflects current project status before executing the next phase of development.
+
+Evidence-based fix in flight and stuck security PR governance shipped 2026-10-15 (PR #499). Enhances governance logic to detect stuck security PRs and track evidence for fixes in flight, supporting multi-copy vulnerability verification across the repository tree.
+
+Automated maintenance PR validation and paginated GitHub stream safety shipped 2026-10-15 (PRs #501, #502). Hardens automated governance by strictly verifying `npm fix` updates against the package lockfile and failing closed on malformed pages during GitHub API pagination, preventing malformed inputs or improper automated updates from introducing undetected runtime failures.
 
 ---
 
