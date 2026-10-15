@@ -51,82 +51,12 @@
     },
     {
       "type": "tier-uplift",
-      "repo": "generator-atlassian-compass-event-catalog",
-      "currentTier": "silver",
-      "targetTier": "gold",
-      "failingChecks": [
-        {
-          "name": "Zero critical/high security findings",
-          "required_for": "gold"
-        }
-      ],
-      "priority": "high",
-      "remediation": {
-        "executor": "agent",
-        "targetFiles": [],
-        "intent": "Uplift generator-atlassian-compass-event-catalog from silver to gold",
-        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-        "acceptanceCriteria": [
-          "Check \"Zero critical/high security findings\" passes"
-        ]
-      }
-    },
-    {
-      "type": "tier-uplift",
-      "repo": "bonnie-wee-plot",
-      "currentTier": "silver",
-      "targetTier": "gold",
-      "failingChecks": [
-        {
-          "name": "Zero critical/high security findings",
-          "required_for": "gold"
-        }
-      ],
-      "priority": "high",
-      "remediation": {
-        "executor": "agent",
-        "targetFiles": [],
-        "intent": "Uplift bonnie-wee-plot from silver to gold",
-        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-        "acceptanceCriteria": [
-          "Check \"Zero critical/high security findings\" passes"
-        ]
-      }
-    },
-    {
-      "type": "tier-uplift",
-      "repo": "betis-escocia",
-      "currentTier": "silver",
-      "targetTier": "gold",
-      "failingChecks": [
-        {
-          "name": "Zero critical/high security findings",
-          "required_for": "gold"
-        }
-      ],
-      "priority": "high",
-      "remediation": {
-        "executor": "agent",
-        "targetFiles": [],
-        "intent": "Uplift betis-escocia from silver to gold",
-        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
-        "acceptanceCriteria": [
-          "Check \"Zero critical/high security findings\" passes"
-        ]
-      }
-    },
-    {
-      "type": "tier-uplift",
       "repo": "wifisentinel",
       "currentTier": "silver",
       "targetTier": "gold",
       "failingChecks": [
         {
           "name": "Release in the last 90 days",
-          "required_for": "gold"
-        },
-        {
-          "name": "Zero critical/high security findings",
           "required_for": "gold"
         }
       ],
@@ -135,33 +65,32 @@
         "executor": "agent",
         "targetFiles": [],
         "intent": "Uplift wifisentinel from silver to gold",
-        "rationale": "2 check(s) block gold: Release in the last 90 days, Zero critical/high security findings.",
+        "rationale": "1 check(s) block gold: Release in the last 90 days.",
         "acceptanceCriteria": [
-          "Check \"Release in the last 90 days\" passes",
-          "Check \"Zero critical/high security findings\" passes"
+          "Check \"Release in the last 90 days\" passes"
         ]
       }
     },
     {
       "type": "open-vulnerability",
       "repo": "teams-for-linux",
-      "critical": 2,
+      "critical": 0,
       "high": 1,
       "secretScanning": 0,
       "sources": [
         "dependabot"
       ],
-      "max_severity": "critical",
-      "priority": "high",
+      "max_severity": "high",
+      "priority": "medium",
       "autofixEnabled": true,
       "fixInFlight": false,
-      "unaddressedAlerts": 2,
+      "unaddressedAlerts": 0,
       "unpatchedAlerts": 1,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in teams-for-linux",
-        "rationale": "2 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s); 1 alert(s) have no patched version to bump to.",
+        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: 1 alert(s) have no patched version to bump to.",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -171,232 +100,20 @@
       "type": "open-vulnerability",
       "repo": "ismaelmartinez.me.uk",
       "critical": 0,
-      "high": 4,
+      "high": 1,
       "secretScanning": 0,
       "sources": [
-        "dependabot",
         "code-scanning"
       ],
       "max_severity": "high",
       "priority": "medium",
-      "autofixEnabled": true,
-      "fixInFlight": false,
-      "unaddressedAlerts": 2,
-      "unpatchedAlerts": 1,
-      "fixStuck": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-        "rationale": "0 critical / 4 high open alert(s) from dependabot, code-scanning. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
+        "rationale": "0 critical / 1 high open alert(s) from code-scanning.",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-        ]
-      }
-    },
-    {
-      "type": "open-vulnerability",
-      "repo": "generator-atlassian-compass-event-catalog",
-      "critical": 1,
-      "high": 1,
-      "secretScanning": 0,
-      "sources": [
-        "dependabot"
-      ],
-      "max_severity": "critical",
-      "priority": "high",
-      "autofixEnabled": true,
-      "fixInFlight": false,
-      "unaddressedAlerts": 2,
-      "unpatchedAlerts": 0,
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Remediate open security alerts in generator-atlassian-compass-event-catalog",
-        "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s).",
-        "acceptanceCriteria": [
-          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-        ]
-      }
-    },
-    {
-      "type": "open-vulnerability",
-      "repo": "bonnie-wee-plot",
-      "critical": 0,
-      "high": 2,
-      "secretScanning": 0,
-      "sources": [
-        "dependabot"
-      ],
-      "max_severity": "high",
-      "priority": "medium",
-      "autofixEnabled": true,
-      "fixInFlight": false,
-      "unaddressedAlerts": 2,
-      "unpatchedAlerts": 0,
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Remediate open security alerts in bonnie-wee-plot",
-        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s).",
-        "acceptanceCriteria": [
-          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-        ]
-      }
-    },
-    {
-      "type": "open-vulnerability",
-      "repo": "betis-escocia",
-      "critical": 0,
-      "high": 2,
-      "secretScanning": 0,
-      "sources": [
-        "dependabot"
-      ],
-      "max_severity": "high",
-      "priority": "medium",
-      "autofixEnabled": true,
-      "fixInFlight": false,
-      "unaddressedAlerts": 2,
-      "unpatchedAlerts": 0,
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Remediate open security alerts in betis-escocia",
-        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s).",
-        "acceptanceCriteria": [
-          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-        ]
-      }
-    },
-    {
-      "type": "open-vulnerability",
-      "repo": "wifisentinel",
-      "critical": 0,
-      "high": 1,
-      "secretScanning": 0,
-      "sources": [
-        "dependabot"
-      ],
-      "max_severity": "high",
-      "priority": "medium",
-      "autofixEnabled": true,
-      "fixInFlight": false,
-      "unaddressedAlerts": 1,
-      "unpatchedAlerts": 0,
-      "fixStuck": true,
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Remediate open security alerts in wifisentinel",
-        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
-        "acceptanceCriteria": [
-          "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-        ]
-      }
-    },
-    {
-      "type": "security-pr-stuck",
-      "repo": "ismaelmartinez.me.uk",
-      "stuckPRs": [
-        {
-          "number": 452,
-          "age": 7,
-          "package": "source-map-js",
-          "alerts": [
-            111
-          ],
-          "severity": "high",
-          "state": "awaiting-human",
-          "majorBump": false,
-          "draft": false,
-          "verified": true
-        },
-        {
-          "number": 453,
-          "age": 7,
-          "package": "sharp",
-          "alerts": [
-            113
-          ],
-          "severity": "high",
-          "state": "awaiting-human",
-          "majorBump": false,
-          "draft": false,
-          "verified": true
-        }
-      ],
-      "priority": "medium",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Land or close 2 stuck Dependabot security PR(s) in ismaelmartinez.me.uk",
-        "rationale": "2 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 7 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
-        "acceptanceCriteria": [
-          "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
-        ]
-      }
-    },
-    {
-      "type": "security-pr-stuck",
-      "repo": "wifisentinel",
-      "stuckPRs": [
-        {
-          "number": 262,
-          "age": 7,
-          "package": "@grpc/grpc-js",
-          "alerts": [
-            36
-          ],
-          "severity": "high",
-          "state": "ci-red",
-          "majorBump": false,
-          "draft": false,
-          "verified": true
-        }
-      ],
-      "priority": "medium",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Land or close 1 stuck Dependabot security PR(s) in wifisentinel",
-        "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 7 days; state: ci-red). At least one fix is failing CI — the bump needs a code change before it can land.",
-        "acceptanceCriteria": [
-          "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
-        ]
-      }
-    },
-    {
-      "type": "tier-regression",
-      "repo": "bonnie-wee-plot",
-      "previousTier": "gold",
-      "currentTier": "silver",
-      "priorWeek": "2026-W41",
-      "priority": "high",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Restore bonnie-wee-plot to gold",
-        "rationale": "Health tier regressed from gold to silver since 2026-W41.",
-        "acceptanceCriteria": [
-          "bonnie-wee-plot is back at gold in a subsequent weekly snapshot"
-        ]
-      }
-    },
-    {
-      "type": "tier-regression",
-      "repo": "betis-escocia",
-      "previousTier": "gold",
-      "currentTier": "silver",
-      "priorWeek": "2026-W41",
-      "priority": "high",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Restore betis-escocia to gold",
-        "rationale": "Health tier regressed from gold to silver since 2026-W41.",
-        "acceptanceCriteria": [
-          "betis-escocia is back at gold in a subsequent weekly snapshot"
         ]
       }
     }
