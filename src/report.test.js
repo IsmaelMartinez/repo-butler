@@ -135,6 +135,58 @@ describe('report — unreadable chart data (#501)', () => {
     assert.ok(!card.includes('fewer than 10 commits'), 'a 20-commit repo must not be called low-activity');
   });
 
+  // Copilot on #502 (second review): the listings fetched beside the charts
+  // (open PRs, releases, open and closed issues) each swallowed any error as
+  // []. One malformed page or 5xx then cached "0 open PRs" read from nothing
+  // and wrote a complete hash, so no retry ever came. Each must degrade the
+  // repo on its own; only a 404/410 (the list does not exist: issues disabled
+  // answers 410) is a genuine empty list. Each case fails ONE endpoint for
+  // repo-a, matched on path AND state, so the open-only failure is not masked
+  // by a mock that fails every /pulls call.
+  function serveWhere(pred, response) {
+    globalThis.fetch = async (url) => {
+      const u = new URL(url);
+      if (u.hostname === 'api.github.com' && u.pathname.startsWith('/repos/o/repo-a/') && pred(u)) return response();
+      if (u.hostname === 'api.github.com' && /\/(pulls|issues|releases)$/.test(u.pathname)) return ok([]);
+      return ok({});
+    };
+  }
+  const ENDPOINTS = {
+    'open PRs': u => u.pathname.endsWith('/pulls') && u.searchParams.get('state') === 'open',
+    releases: u => u.pathname.endsWith('/releases'),
+    'open issues': u => u.pathname.endsWith('/issues') && u.searchParams.get('state') === 'open',
+    'closed issues': u => u.pathname.endsWith('/issues') && u.searchParams.get('state') === 'closed',
+  };
+  for (const [label, pred] of Object.entries(ENDPOINTS)) {
+    for (const [why, response] of [['a malformed page', () => ok({ message: 'ZZBODYZZ' })], ['a 502', () => fail(502)]]) {
+      it(`${label}: ${why} degrades the repo instead of caching an empty list`, async () => {
+        serveWhere(pred, response);
+        const { context, cacheWrites } = makeContext(['repo-a', 'repo-b']);
+        const { lines, err } = await run(context);
+        assert.equal(err, undefined);
+        assert.ok(lines.some(l => l.includes('chart data unreadable for repo-a')), lines.join('\n'));
+        assert.deepEqual(Object.keys(cacheWrites[0].repos), ['repo-b']);
+        assert.match(await readFile(join(outDir, 'repo-a.html'), 'utf8'), /Chart data could not be read/);
+      });
+    }
+  }
+  for (const [label, pred, status] of [
+    ['issues disabled (410 on every issues listing)', u => u.pathname.endsWith('/issues'), 410],
+    ['open issues 410', ENDPOINTS['open issues'], 410],
+    ['closed issues 410', ENDPOINTS['closed issues'], 410],
+    ['releases 404', ENDPOINTS.releases, 404],
+    ['open PRs 404', ENDPOINTS['open PRs'], 404],
+  ]) {
+    it(`${label} is a genuinely empty list: the repo is NOT degraded and is cached`, async () => {
+      serveWhere(pred, () => fail(status));
+      const { context, cacheWrites } = makeContext(['repo-a', 'repo-b']);
+      const { lines, err } = await run(context);
+      assert.equal(err, undefined);
+      assert.ok(!lines.some(l => l.includes('chart data unreadable')), lines.join('\n'));
+      assert.deepEqual(Object.keys(cacheWrites[0].repos).sort(), ['repo-a', 'repo-b']);
+    });
+  }
+
   // Copilot on #502: leaving the degraded repo out of the repo cache is not a
   // retry if the global hash still short-circuits the next run before any
   // per-repo entry is looked at. A stateful store across runs, same snapshot,

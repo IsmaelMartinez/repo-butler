@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { isBotAuthor, tierStatus, portfolioBadgeTier, generateHealthBadge, SIX_MONTHS_AGO, daysAgoISO, isReleaseExempt, REPO_CACHE_SCHEMA_VERSION, isPublishedRelease, buildRepoSnapshot, isExcludedRepo } from './report-shared.js';
 import { buildAgentCard } from './agent-card.js';
 import {
-  fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs,
+  fetchMonthlyPRActivity, fetchMonthlyIssueActivity, fetchOpenPRs, emptyIfAbsent,
   fetchWeeklyCommits, fetchPRAuthors, computePRCycleTime,
   generateRepoReport, generateLightRepoReport,
 } from './report-repo.js';
@@ -201,12 +201,12 @@ export async function report(context) {
             [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
               gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
                 .then(rels => rels.filter(isPublishedRelease))
-                .catch(() => []),
+                .catch(emptyIfAbsent),
               paginateIssues(gh, owner, r.name, { params: { state: 'open' }, max: 100 })
-                .catch(() => []),
+                .catch(emptyIfAbsent),
               paginateIssues(gh, owner, r.name, { params: { state: 'closed', since: daysAgoISO(90), sort: 'updated', direction: 'desc' }, max: 200 })
                 .then(issues => issues.map(i => ({ created_at: i.created_at, closed_at: i.closed_at })))
-                .catch(() => []),
+                .catch(emptyIfAbsent),
               gh.request(`/repos/${owner}/${r.name}`).catch(() => null),
               gh.request(`/repos/${owner}/${r.name}/community/profile`)
                 .then(d => ({
