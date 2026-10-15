@@ -11,7 +11,7 @@ import { TEMPLATES } from './apply-templates.js';
 // --- Test helpers ---
 
 function makeRepo(name, overrides = {}) {
-  return { name, archived: false, fork: false, language: 'JavaScript', topics: [], pushed_at: new Date().toISOString(), ...overrides };
+  return { name, archived: false, fork: false, default_branch: 'main', language: 'JavaScript', topics: [], pushed_at: new Date().toISOString(), ...overrides };
 }
 
 function makeDetails(repos, detailOverrides = {}) {
@@ -883,8 +883,9 @@ describe('detectOpenVulnerabilities', () => {
     const details = makeDetails(repos, {
       'repo-a': { vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
     });
-    const [f] = detectOpenVulnerabilities(repos, details);
-    assert.equal(f.priority, 'medium', 'in-flight remediation lowers the banner priority');
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: true, unaddressed: 0, unpatched: 0 } } });
+    assert.equal(f.priority, 'medium', 'evidenced in-flight remediation lowers the banner priority');
+    assert.equal(f.fixInFlight, true);
     assert.equal(f.max_severity, 'critical', 'max_severity is NOT touched — the alert is still open');
     assert.equal(f.autofixEnabled, true);
   });
@@ -910,6 +911,125 @@ describe('detectOpenVulnerabilities', () => {
     const [f] = detectOpenVulnerabilities(repos, details);
     assert.deepEqual(f.sources, ['dependabot', 'code-scanning']);
     assert.equal(f.priority, 'high', 'a code-scanning source keeps priority — autofix cannot fix it');
+  });
+
+  // The blind spot: autofix ON says GitHub OPENS the fix PR, not that it lands.
+  // A security-pr-stuck finding for the repo is evidence it is not landing, so
+  // the in-flight downgrade must not apply.
+  const STUCK = { type: 'security-pr-stuck', repo: 'repo-a', stuckPRs: [{ number: 5, age: 20, state: 'ci-red' }], priority: 'medium' };
+  const inFlightCritical = () => {
+    const repos = [makeRepo('repo-a')];
+    return [repos, makeDetails(repos, {
+      'repo-a': { vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
+    })];
+  };
+
+  const IN_FLIGHT = { 'repo-a': { inFlight: true, unaddressed: 0, unpatched: 0 } };
+
+  it('keeps a dependabot-only finding high when its fix PR is stuck, despite autofix in flight', () => {
+    const [repos, details] = inFlightCritical();
+    // Even if a plausible grouped PR made the raw evidence say in flight, the
+    // stuck strict match wins.
+    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [STUCK], fixEvidence: IN_FLIGHT });
+    assert.equal(f.priority, 'high', 'a stuck fix is not remediation in flight');
+    assert.equal(f.fixStuck, true);
+    assert.equal(f.autofixEnabled, true, 'the setting is still reported as it is');
+  });
+
+  it('still downgrades when the only stuck PR belongs to another repo', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [{ ...STUCK, repo: 'other' }], fixEvidence: IN_FLIGHT });
+    assert.equal(f.priority, 'medium', 'a fresh (or absent) fix PR leaves the in-flight downgrade in place');
+    assert.ok(!('fixStuck' in f), 'absence of a stuck PR is not asserted as a field');
+  });
+
+  it('does NOT downgrade on the setting alone: no evidence read means fixInFlight null and priority high', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'high', 'autofix ON with no evidence is not in flight');
+    assert.equal(f.fixInFlight, null);
+    assert.match(buildRemediationPlan(f).rationale, /could not be read/);
+  });
+
+  it('does NOT downgrade when the evidence says no Dependabot PR addresses the alerts (the motivating repos)', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: false, unaddressed: 2, unpatched: 1 } } });
+    assert.equal(f.priority, 'high');
+    assert.equal(f.fixInFlight, false);
+    assert.equal(f.unaddressedAlerts, 2);
+    assert.equal(f.unpatchedAlerts, 1);
+    const { rationale } = buildRemediationPlan(f);
+    assert.match(rationale, /no open Dependabot PR addresses 2 alert\(s\)/);
+    assert.match(rationale, /1 alert\(s\) have no patched version/);
+    assert.doesNotMatch(rationale, /in flight/);
+  });
+
+  it('does NOT downgrade a repo carrying a stalled-alert finding, even with in-flight evidence', () => {
+    const [repos, details] = inFlightCritical();
+    const stalled = { type: 'stalled-alert', repo: 'repo-a', alerts: [], priority: 'medium' };
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: IN_FLIGHT, stalledAlerts: [stalled] });
+    assert.equal(f.priority, 'high');
+    assert.equal(f.fixInFlight, false);
+    assert.equal(f.alertStalled, true);
+    assert.match(buildRemediationPlan(f).rationale, /stalled/);
+  });
+
+  it('a live read with no alert is unverifiable: fixInFlight null, priority high, and the rationale says why', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0 } } });
+    assert.equal(f.priority, 'high');
+    assert.equal(f.fixInFlight, null);
+    assert.equal(f.liveAlertsMissing, true);
+    const { rationale } = buildRemediationPlan(f);
+    assert.match(rationale, /live alerts read returned no critical\/high alert/);
+    assert.doesNotMatch(rationale, /no recent Dependabot PR/);
+  });
+
+  it('names unidentified alerts in the rationale', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: false, unaddressed: 0, unpatched: 0, unidentified: 1 } } });
+    assert.equal(f.unidentifiedAlerts, 1);
+    assert.match(buildRemediationPlan(f).rationale, /1 alert\(s\) could not be matched to a package/);
+  });
+
+  it('does NOT downgrade a multi-source finding even when the evidence says in flight', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': {
+        vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        codeScanning: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        autofix: { enabled: true, paused: false },
+      },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: IN_FLIGHT });
+    assert.equal(f.fixInFlight, true);
+    assert.equal(f.priority, 'high', 'code-scanning still needs manual work autofix cannot do');
+  });
+
+  it('never raises a priority: a high-only finding with no evidence stays medium', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: false, unaddressed: 1, unpatched: 0 } } });
+    assert.equal(f.priority, 'medium');
+  });
+
+  it('does not mark a code-scanning-only finding fixStuck — a Dependabot PR cannot fix it', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { codeScanning: { count: 1, critical: 1, high: 0, max_severity: 'critical' } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [STUCK] });
+    assert.ok(!('fixStuck' in f));
+  });
+
+  it('names the stuck fix in the remediation rationale instead of "in flight"', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [STUCK] });
+    const plan = buildRemediationPlan(f);
+    assert.match(plan.rationale, /stuck/);
+    assert.doesNotMatch(plan.rationale, /in flight/);
   });
 
   it('does not attach autofixEnabled to code-scanning / secret-scanning-only findings', () => {
@@ -1206,6 +1326,15 @@ describe('runGovernance — private repos must never enter the governance pipeli
       body: '*Opened automatically by [Repo Butler](https://github.com/IsmaelMartinez/repo-butler)*',
       labels: [],
       draft: false,
+    }, {
+      // A Dependabot security PR fixing the high lodash alert below, so the
+      // security-pr-stuck detector fires in this guard too.
+      number: 3,
+      title: 'Bump lodash from 4.17.20 to 4.17.21',
+      user: { login: 'dependabot[bot]' },
+      created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'cafef00d', repo: { full_name: 'acme/same' } },
+      base: { ref: 'main', repo: { full_name: 'acme/same' } },
     }];
     // A stale open Dependabot alert for every repo, so detectStalledAlerts (G13)
     // fires too; with an empty alerts page it emits nothing and a private repo
@@ -1216,6 +1345,12 @@ describe('runGovernance — private repos must never enter the governance pipeli
       created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
       dependency: { package: { ecosystem: 'npm', name: 'left-pad' }, manifest_path: 'package-lock.json' },
       security_vulnerability: { severity: 'medium', first_patched_version: { identifier: '1.3.1' } },
+    }, {
+      number: 2,
+      state: 'open',
+      created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
+      dependency: { package: { ecosystem: 'npm', name: 'lodash' }, manifest_path: 'package-lock.json' },
+      security_vulnerability: { severity: 'high', first_patched_version: { identifier: '4.17.21' } },
     }];
     // Every requested URL, so a detector that merely LISTS a private repo's PRs
     // or alerts (fetchOpenPRs, whose map is only read back by public names) is
@@ -1293,6 +1428,8 @@ describe('runGovernance — private repos must never enter the governance pipeli
       'the stalled-alert detector must have run for this guard to mean anything');
     assert.ok(context.governanceFindings.some(f => f.type === 'automerge-unguarded'),
       'the automerge-unguarded detector must have run for this guard to mean anything');
+    assert.ok(context.governanceFindings.some(f => f.type === 'security-pr-stuck'),
+      'the security-pr-stuck detector must have run for this guard to mean anything');
     assert.ok(!fetched.some(u => u.includes(CANARY)),
       `a governance request named the private repo:\n${fetched.filter(u => u.includes(CANARY)).join('\n')}`);
 
@@ -1640,6 +1777,138 @@ describe('runGovernance — stalled-alert wiring', () => {
   });
 });
 
+// --- security-pr-stuck wiring: the detector's result is detectOpenVulnerabilities' evidence ---
+
+describe('runGovernance — security-pr-stuck wiring', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const highAlert = [{
+    number: 4,
+    state: 'open',
+    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+    dependency: { package: { ecosystem: 'npm', name: 'lodash' }, manifest_path: 'package-lock.json' },
+    security_vulnerability: { severity: 'critical', first_patched_version: { identifier: '4.17.21' } },
+  }];
+
+  function mockFetch(prAgeDays) {
+    const prs = prAgeDays === null ? [] : [{
+      number: 12,
+      title: 'Bump lodash from 4.17.20 to 4.17.21',
+      user: { login: 'dependabot[bot]' },
+      created_at: new Date(Date.now() - prAgeDays * 86400000).toISOString(),
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
+      base: { ref: 'main', repo: { full_name: 'acme/repo-a' } },
+    }];
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      const body = u.includes('/pulls') ? prs : u.includes('/dependabot/alerts') ? highAlert : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+    };
+  }
+
+  const store = {
+    readRepoCache: async () => null,
+    readLatestGovernanceWeekly: async () => null,
+    writeGovernanceWeekly: async () => {},
+    writeGovernanceFindings: async () => {},
+  };
+
+  function run() {
+    const repos = [makeRepo('repo-a')];
+    const context = {
+      owner: 'acme', token: 'tok', portfolio: { repos }, config: {}, store,
+      repoDetails: makeDetails(repos, {
+        'repo-a': { vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
+      }),
+    };
+    return runGovernance(context).then(() => context.governanceFindings);
+  }
+
+  it('a stuck fix PR keeps the open-vulnerability finding high and is persisted as its own finding', async () => {
+    mockFetch(10);
+    const findings = await run();
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    const stuck = findings.filter(f => f.type === 'security-pr-stuck');
+    assert.equal(stuck.length, 1);
+    assert.equal(stuck[0].stuckPRs[0].number, 12);
+    assert.equal(stuck[0].remediation.executor, 'manual');
+    assert.equal(vuln.priority, 'high', 'autofix ON but the fix is stuck: not in flight');
+    assert.equal(vuln.fixStuck, true);
+  });
+
+  it('a fresh fix PR leaves the in-flight downgrade in place', async () => {
+    mockFetch(1);
+    const findings = await run();
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.ok(!findings.some(f => f.type === 'security-pr-stuck'));
+    assert.equal(vuln.priority, 'medium');
+    assert.equal(vuln.fixInFlight, true);
+  });
+
+  it('no Dependabot PR at all: autofix ON is not in flight and the finding stays high', async () => {
+    mockFetch(null);
+    const findings = await run();
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high');
+    assert.equal(vuln.fixInFlight, false);
+    assert.equal(vuln.unaddressedAlerts, 1);
+  });
+
+  it('a G13 read failure withholds the downgrade even with a fresh fixing PR', async () => {
+    const prs = [{
+      number: 12, title: 'Bump lodash from 4.17.20 to 4.17.21', user: { login: 'dependabot[bot]' },
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
+      base: { ref: 'main', repo: { full_name: 'acme/repo-a' } },
+    }];
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      // The security-fix read filters severity server-side; G13's does not.
+      if (u.includes('/dependabot/alerts') && !u.includes('severity=')) {
+        return { ok: false, status: 500, headers: new Map(), json: async () => ({}), text: async () => 'boom' };
+      }
+      const body = u.includes('/pulls') ? prs : u.includes('/dependabot/alerts') ? highAlert : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+    };
+    const orig = console.log;
+    console.log = () => {};
+    let findings;
+    try { findings = await run(); } finally { console.log = orig; }
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high', '"no stalled alert" from a failed read is not evidence');
+    assert.equal(vuln.fixInFlight, null);
+    assert.equal(vuln.stalledAlertsUnread, true);
+    assert.match(buildRemediationPlan(vuln).rationale, /stalled-alert check could not read/);
+  });
+
+  it('an unreadable alerts list withholds the downgrade and is logged', async () => {
+    const prs = [{
+      number: 12, title: 'Bump lodash from 4.17.20 to 4.17.21', user: { login: 'dependabot[bot]' },
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
+      base: { ref: 'main', repo: { full_name: 'acme/repo-a' } },
+    }];
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/dependabot/alerts')) {
+        return { ok: false, status: 404, headers: new Map(), json: async () => ({}), text: async () => 'Not Found' };
+      }
+      const body = u.includes('/pulls') ? prs : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+    };
+    const lines = [];
+    const orig = console.log;
+    console.log = (...a) => { lines.push(a.join(' ')); };
+    let findings;
+    try { findings = await run(); } finally { console.log = orig; }
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high');
+    assert.equal(vuln.fixInFlight, null);
+    assert.ok(lines.some(l => l.includes('Security-fix evidence: 1 repo(s) unread')));
+  });
+});
+
 describe('buildRemediationPlan — stalled-alert', () => {
   const finding = {
     type: 'stalled-alert',
@@ -1738,5 +2007,24 @@ describe('detectUnguardedAutoMerge', () => {
     assert.deepEqual(plan.targetFiles, []);
     assert.match(plan.rationale, /osv-scan/);
     assert.match(plan.rationale, /strict/);
+  });
+});
+
+describe('buildRemediationPlan — security-pr-stuck guidance', () => {
+  const plan = states => buildRemediationPlan({
+    type: 'security-pr-stuck', repo: 'repo-a', priority: 'medium',
+    stuckPRs: states.map((state, i) => ({ number: i + 1, age: 5, state, majorBump: false })),
+  });
+
+  it('says nothing is blocking only when every PR is ready for a merge decision', () => {
+    assert.match(plan(['awaiting-human', 'ci-none']).rationale, /Nothing is blocking these/);
+  });
+
+  it('does not claim nothing is blocking when another fix is still waiting on CI or unclassified', () => {
+    for (const mixed of [['awaiting-human', 'ci-pending'], ['ci-none', 'unknown'], ['awaiting-human', 'unclassified']]) {
+      const { rationale } = plan(mixed);
+      assert.doesNotMatch(rationale, /Nothing is blocking/, mixed.join('+'));
+      assert.match(rationale, /Some are ready for a merge decision/, mixed.join('+'));
+    }
   });
 });

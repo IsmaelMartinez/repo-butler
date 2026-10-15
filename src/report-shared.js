@@ -180,6 +180,21 @@ export function isAutofixNotDriven(finding) {
   return finding.type === 'open-vulnerability' && finding.autofixEnabled === false;
 }
 
+// Autofix ON *and* evidenced as landing: an open, recent Dependabot PR for every
+// critical/high alert (governance.js fixInFlight). The setting alone is not
+// "in flight" — that reading hid repos with no Dependabot branch at all. Shared
+// by the MCP summary and the dashboard so the two cannot drift.
+export function isAutofixInFlight(finding) {
+  return finding.type === 'open-vulnerability' && finding.autofixEnabled === true && finding.fixInFlight === true;
+}
+
+// Autofix ON but NOT evidenced as landing — the evidence said no (fixInFlight
+// false, which includes a stuck fix or a stalled alert) or could not be read
+// (null, or absent on findings persisted before the field existed).
+export function isAutofixOnWithoutEvidence(finding) {
+  return finding.type === 'open-vulnerability' && finding.autofixEnabled === true && finding.fixInFlight !== true;
+}
+
 // Week-over-week trend for a governance count, derived from `current` vs
 // `previous`. `invert` controls which direction reads as an improvement:
 // false (default) means a rising count is good (e.g. Gold %), true means a

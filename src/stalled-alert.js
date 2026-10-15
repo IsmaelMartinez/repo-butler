@@ -82,6 +82,43 @@ function looksLikeVersion(s) {
   return /^\d+(?:\.\d+)+$/.test(s) || /^\d{1,4}$/.test(s);
 }
 
+// Split a Dependabot branch into its manager segment and, for a single-package
+// branch, the package path and version it names. `named`/`version` are null for
+// a grouped or unparseable branch, which names no package. Shared by the
+// permissive branchMayAddress below and the strict branchNamesAlertPackage, so
+// the two can differ in what they CONCLUDE but never in how they parse.
+function parseDependabotBranch(ref) {
+  if (typeof ref !== 'string' || !ref.startsWith(BRANCH_PREFIX)) return null;
+
+  const rest = ref.slice(BRANCH_PREFIX.length);
+  const slash = rest.indexOf('/');
+  if (slash === -1) return null;
+  const manager = rest.slice(0, slash);
+  const tail = rest.slice(slash + 1);
+
+  const dash = tail.lastIndexOf('-');
+  const suffix = dash === -1 ? '' : tail.slice(dash + 1);
+  if (dash > 0 && looksLikeVersion(suffix)) {
+    return { manager, tail, named: tail.slice(0, dash), version: suffix };
+  }
+  return { manager, tail, named: null, version: null };
+}
+
+// Dependabot drops the leading @ of a scoped name, so `@babel/core` becomes
+// `babel/core` in a branch.
+const branchSlug = pkg => String(pkg ?? '').replace(/^@/, '');
+
+// A branch prefix is forgeable by anyone who can open a PR: a fork PR named
+// `dependabot/npm_and_yarn/lodash-4.17.21` must not suppress a stalled-alert
+// finding here, be reported as a stuck fix, or count as evidence that a fix is
+// in flight (security-pr-stuck.js). Only a head branch in the repo itself
+// counts — pushing there already needs write access. Both names must be
+// present: a deleted fork has `head.repo: null`.
+export function isSameRepoPR(pr) {
+  const head = pr?.head?.repo?.full_name;
+  return typeof head === 'string' && head === pr?.base?.repo?.full_name;
+}
+
 /**
  * Could this Dependabot branch be addressing this alert?
  *
@@ -95,30 +132,20 @@ function looksLikeVersion(s) {
  * @returns {boolean}
  */
 export function branchMayAddress(ref, alert) {
-  if (typeof ref !== 'string' || !ref.startsWith(BRANCH_PREFIX)) return false;
-
-  const rest = ref.slice(BRANCH_PREFIX.length);
-  const slash = rest.indexOf('/');
-  if (slash === -1) return false;
-  const manager = rest.slice(0, slash);
-  const tail = rest.slice(slash + 1);
+  const parsed = parseDependabotBranch(ref);
+  if (!parsed) return false;
 
   const expected = ECOSYSTEM_MANAGERS[alert?.ecosystem];
   // An ecosystem we have no mapping for cannot be ruled out.
   if (!expected) return true;
-  if (manager !== expected) return false;
+  if (parsed.manager !== expected) return false;
 
-  const dash = tail.lastIndexOf('-');
-  const suffix = dash === -1 ? '' : tail.slice(dash + 1);
-
-  if (dash > 0 && looksLikeVersion(suffix)) {
-    // A single-package branch: it names the package it bumps. Dependabot drops
-    // the leading @ of a scoped name, so `@babel/core` becomes `babel/core`,
-    // and any leading directory is a prefix on the same segment run.
-    const named = tail.slice(0, dash);
-    const slug = String(alert?.package ?? '').replace(/^@/, '');
+  if (parsed.named !== null) {
+    // A single-package branch: it names the package it bumps. Any leading
+    // directory is a prefix on the same segment run.
+    const slug = branchSlug(alert?.package);
     if (!slug) return true;
-    return named === slug || named.endsWith(`/${slug}`);
+    return parsed.named === slug || parsed.named.endsWith(`/${slug}`);
   }
 
   // A grouped (or simply unparseable) branch names no package. Compare
@@ -128,7 +155,30 @@ export function branchMayAddress(ref, alert) {
   // part of the group name — so we cannot rule the PR out, and do not try.
   const dir = alert?.directory;
   if (!dir) return true;
-  return tail.startsWith(`${dir}/`);
+  return parsed.tail.startsWith(`${dir}/`);
+}
+
+/**
+ * Does this Dependabot branch DEFINITELY name this alert's package, in this
+ * alert's directory? The strict mirror of branchMayAddress, for the opposite
+ * question: branchMayAddress suppresses a report, so it errs toward "maybe";
+ * this one ASSERTS that a security fix exists and is stuck, so it errs toward
+ * "no". A grouped branch names no package and never matches; an ecosystem with
+ * no manager mapping never matches; the directory must agree exactly.
+ *
+ * @param {string} ref — the PR's head branch
+ * @param {{ ecosystem: string, package: string, directory: string }} alert
+ * @returns {{ version: string }|null} the version the branch bumps to, or null
+ */
+export function branchNamesAlertPackage(ref, alert) {
+  const parsed = parseDependabotBranch(ref);
+  if (!parsed || parsed.named === null) return null;
+  const expected = ECOSYSTEM_MANAGERS[alert?.ecosystem];
+  if (!expected || parsed.manager !== expected) return null;
+  const slug = branchSlug(alert?.package);
+  if (!slug) return null;
+  const dir = alert?.directory;
+  return parsed.named === (dir ? `${dir}/${slug}` : slug) ? { version: parsed.version } : null;
 }
 
 /**
@@ -194,14 +244,26 @@ function parseJson(text) {
  *   two PR audits already share rather than adding a third.
  * @returns {Promise<Array>} findings of type 'stalled-alert'
  */
-export async function detectStalledAlerts(gh, owner, repos, {
+export async function detectStalledAlerts(gh, owner, repos, options = {}) {
+  return (await detectStalledAlertsWithStatus(gh, owner, repos, options)).findings;
+}
+
+/**
+ * detectStalledAlerts plus the repos it could NOT read. runGovernance needs the
+ * difference: "no stalled-alert finding" from a failed read is not the same as
+ * from a clean one, and the open-vulnerability "in flight" downgrade must not
+ * be granted on the former.
+ * @returns {Promise<{ findings: Array, unread: string[] }>}
+ */
+export async function detectStalledAlertsWithStatus(gh, owner, repos, {
   openPRs = null,
   severityFloor = DEFAULT_SEVERITY_FLOOR,
   thresholdDays = DEFAULT_THRESHOLD_DAYS,
 } = {}) {
-  if (!Array.isArray(repos)) return [];
+  if (!Array.isArray(repos)) return { findings: [], unread: [] };
 
   const eligible = eligibleRepos(repos);
+  const unread = [];
 
   const floor = SEVERITY_RANK[severityFloor] ?? SEVERITY_RANK[DEFAULT_SEVERITY_FLOOR];
   const now = Date.now();
@@ -216,7 +278,21 @@ export async function detectStalledAlerts(gh, owner, repos, {
       const alerts = await gh.request(`/repos/${owner}/${repo.name}/dependabot/alerts`, {
         params: { state: 'open', per_page: 100 },
       });
-      if (!Array.isArray(alerts) || alerts.length === 0) return null;
+      // A 200 that is not a list is not "no alerts": record it as unread so the
+      // open-vulnerability downgrade, which treats "no stalled-alert finding"
+      // as evidence, is withheld rather than granted on a malformed response.
+      if (!Array.isArray(alerts)) {
+        console.log(`stalled-alert: read failed for ${repo.name} (non-array alerts response)`);
+        unread.push(repo.name);
+        return null;
+      }
+      // A full page may hide a stalled alert on page 2. Report what page 1
+      // shows, but mark the repo unread so its silence is never evidence.
+      if (alerts.length >= 100) {
+        console.log(`stalled-alert: ${repo.name} alert list truncated at 100; treating as unread`);
+        unread.push(repo.name);
+      }
+      if (alerts.length === 0) return null;
 
       const candidates = [];
       for (const a of alerts) {
@@ -246,7 +322,15 @@ export async function detectStalledAlerts(gh, owner, repos, {
       // reopened or rebased by a human still carries the branch, and reading the
       // branch is what makes "possibly addressing" decidable at all.
       const prs = await listOpenPRs(gh, owner, repo.name, openPRs);
-      const branches = (Array.isArray(prs) ? prs : [])
+      // A non-list PR response must not read as "no PRs": that would emit a
+      // stalled-alert finding from bad data.
+      if (!Array.isArray(prs)) {
+        console.log(`stalled-alert: read failed for ${repo.name} (non-array pulls response)`);
+        unread.push(repo.name);
+        return null;
+      }
+      const branches = prs
+        .filter(isSameRepoPR)
         .map(pr => pr?.head?.ref)
         .filter(ref => typeof ref === 'string' && ref.startsWith(BRANCH_PREFIX));
 
@@ -314,13 +398,23 @@ export async function detectStalledAlerts(gh, owner, repos, {
         priority: reported.some(a => a.severity === 'critical') ? 'high' : 'medium',
       };
     } catch (err) {
+      // Every failure is logged and recorded as unread. "skipping" stays
+      // reserved for a real 403/404 (#438: a 500 whose body mentions ": 404"
+      // must not read as one), so other statuses log the status only — never
+      // the body, which can echo anything.
       if (err.status === 403 || err.status === 404) {
         console.log(`stalled-alert: skipping ${repo.name} (${err.message.slice(0, 80)})`);
+      } else {
+        console.log(`stalled-alert: read failed for ${repo.name} (status ${err?.status ?? 'n/a'})`);
       }
+      unread.push(repo.name);
       return null;
     }
   }));
 
   // Stable order: findings feed the governance-weekly diffs and the dashboard.
-  return results.filter(Boolean).sort((a, b) => a.repo.localeCompare(b.repo));
+  return {
+    findings: results.filter(Boolean).sort((a, b) => a.repo.localeCompare(b.repo)),
+    unread: unread.sort(),
+  };
 }

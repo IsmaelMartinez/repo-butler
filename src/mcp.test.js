@@ -475,8 +475,11 @@ describe('MCP server', async () => {
       assert.equal(summary.staleButlerPRs, 0);
       assert.equal(summary.stalledAlerts, 1, 'summary counts stalled-alert findings (G13)');
       assert.equal(summary.automergeUnguarded, 0, 'summary carries the automerge-unguarded count (#440)');
+      assert.equal(summary.securityPRsStuck, 0, 'summary carries the security-pr-stuck count');
       assert.equal(summary.openVulnerabilities, 2);
-      assert.equal(summary.autofixInFlight, 1);
+      // gamma's finding predates fixInFlight: the setting alone is not evidence.
+      assert.equal(summary.autofixInFlight, 0);
+      assert.equal(summary.autofixOnWithoutEvidence, 1);
       assert.equal(summary.autofixNotDriven, 1);
       assert.deepEqual(summary.byExecutor, { template: 1, settings: 0, agent: 0, manual: 5 });
       // The prior week is the second-newest real weekly file (W38), never the
@@ -487,6 +490,23 @@ describe('MCP server', async () => {
         { current: 2, previous: 2, delta: 0, direction: 'unchanged', previousWeek: '2026-W38' });
       assert.deepEqual(summary.tierRegressionsTrend,
         { current: 1, previous: 0, delta: 1, direction: 'worsening', previousWeek: '2026-W38' });
+    });
+
+    it('get_governance_findings counts autofix as in flight only on evidence', async () => {
+      restoreStdout();
+      const vuln = (repo, extra) => ({ type: 'open-vulnerability', repo, sources: ['dependabot'], autofixEnabled: true, priority: 'high', remediation: { executor: 'manual' }, ...extra });
+      const files = {
+        ...FIXTURE.files,
+        'snapshots/governance.json': [
+          vuln('a', { fixInFlight: true, priority: 'medium' }),
+          vuln('b', { fixInFlight: false, unaddressedAlerts: 2 }),
+          vuln('c', { fixInFlight: false, fixStuck: true }),
+          vuln('d', { fixInFlight: null }),
+        ],
+      };
+      const { summary } = await withIo({ git: fixtureGit({ files }) }, () => callTool('get_governance_findings', {}));
+      assert.equal(summary.autofixInFlight, 1, 'only the evidenced finding is in flight');
+      assert.equal(summary.autofixOnWithoutEvidence, 3, 'no evidence, a stuck fix and an unread check all count here');
     });
 
     it('get_governance_findings reports no trend when there is no prior weekly file', async () => {

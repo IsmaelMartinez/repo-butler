@@ -1,9 +1,9 @@
 // Governance-lane repo eligibility and the shared open-PR read (#416).
 //
-// A leaf module on purpose: governance.js imports the three audits
-// (dependabot-audit, butler-pr-audit, stalled-alert), so they cannot import
-// governance.js back. Keeping these helpers here is what lets all four share one
-// copy. It must never import governance.js or any of the audits.
+// A leaf module on purpose: governance.js imports the four audits
+// (dependabot-audit, butler-pr-audit, stalled-alert, security-pr-stuck), so they
+// cannot import governance.js back. Keeping these helpers here is what lets all
+// five share one copy. It must never import governance.js or any of the audits.
 //
 // Onboard, report-portfolio-data.js and observe filter repos differently on purpose;
 // this predicate is for the governance lane only.

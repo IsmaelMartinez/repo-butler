@@ -250,6 +250,14 @@ function appendGovernanceContext(parts, findings) {
       const oldest = alerts.reduce((max, a) => Math.max(max, a.ageDays || 0), 0);
       const classes = [...new Set(alerts.map(a => a.classification).filter(Boolean))].sort().join(', ');
       parts.push(`Stalled alerts: ${f.repo} has ${alerts.length} open Dependabot alert(s) with no PR addressing them (oldest: ${oldest}d; classified: ${classes})`);
+    } else if (f.type === 'security-pr-stuck') {
+      // Counts, ages and CI states only — never a PR title, branch or package
+      // name. The branch prefix is forgeable and this string reaches the LLM
+      // prompt; same precedent as the stale-butler-pr line above.
+      const prs = f.stuckPRs || [];
+      const oldest = prs.reduce((max, p) => Math.max(max, p.age || 0), 0);
+      const states = [...new Set(prs.map(p => p.state))].sort().join(', ');
+      parts.push(`Stuck security PRs: ${f.repo} has ${prs.length} Dependabot PR(s) fixing a critical/high alert left unmerged (oldest: ${oldest}d; state: ${states})`);
     } else if (f.type === 'automerge-unguarded') {
       parts.push(`Unguarded auto-merge: ${f.repo} auto-merges Dependabot PRs but requires no status check on its default branch`);
     }

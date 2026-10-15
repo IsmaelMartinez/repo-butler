@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detectStalledAlerts, classifyAlert, branchMayAddress } from './stalled-alert.js';
+import { detectStalledAlerts, detectStalledAlertsWithStatus, classifyAlert, branchMayAddress } from './stalled-alert.js';
 
 // Run fn with console.log captured; returns the lines logged.
 async function captureLogs(fn) {
@@ -94,8 +94,12 @@ function makeGh({ alerts = {}, prs = {}, files = {} } = {}) {
   };
 }
 
-function dependabotPR(ref) {
-  return { number: 7, head: { ref }, user: { login: 'dependabot[bot]' }, created_at: daysAgoISO(1) };
+function dependabotPR(ref, headRepo = 'o/repo-a') {
+  return {
+    number: 7, user: { login: 'dependabot[bot]' }, created_at: daysAgoISO(1),
+    head: { ref, repo: headRepo === null ? null : { full_name: headRepo } },
+    base: { repo: { full_name: 'o/repo-a' } },
+  };
 }
 
 const REPOS = [makeRepo('repo-a')];
@@ -205,6 +209,18 @@ describe('stalled-alert — Dependabot PR matching errs toward silence', () => {
       prs: { 'repo-a': [dependabotPR('dependabot/npm_and_yarn/docs-site/http-proxy-middleware-2.0.10')] },
     });
     assert.deepEqual(await detectStalledAlerts(gh, 'acme', REPOS), []);
+  });
+
+  it('stalled-alert: a fork PR on a forged Dependabot branch does not suppress the finding', async () => {
+    const ref = 'dependabot/npm_and_yarn/docs-site/http-proxy-middleware-2.0.10';
+    for (const headRepo of ['attacker/repo-a', null]) {
+      const gh = makeGh({
+        alerts: { 'repo-a': [makeAlert({ manifestPath: 'docs-site/package-lock.json' })] },
+        prs: { 'repo-a': [dependabotPR(ref, headRepo)] },
+      });
+      const findings = await detectStalledAlerts(gh, 'o', REPOS);
+      assert.equal(findings.length, 1, `a ${headRepo ?? 'deleted-fork'} PR must not read as a fix being driven`);
+    }
   });
 
   it('stalled-alert: a grouped Dependabot PR in the same ecosystem and directory suppresses the finding', async () => {
@@ -384,6 +400,50 @@ describe('stalled-alert — resilience and eligibility', () => {
     assert.ok(forbidden.some(l => l.includes('stalled-alert: skipping repo-a')));
     const server = await run(Object.assign(new Error('GitHub API error: 500 {"message":"upstream said: 404"}'), { status: 500 }));
     assert.ok(!server.some(l => l.includes('skipping')), server.join('\n'));
+  });
+
+  it('stalled-alert: a 500 is still logged with its status (without the body) and reported as unread', async () => {
+    const gh = makeGh({ alerts: { 'repo-a': () => { throw Object.assign(new Error('GitHub API error: 500 {"message":"ZZBODYZZ"}'), { status: 500 }); } } });
+    let out;
+    const lines = await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a'), makeRepo('repo-b')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.deepEqual(out.findings, []);
+    assert.ok(lines.some(l => l.includes('read failed for repo-a') && l.includes('500')), lines.join('\n'));
+    assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'the error body never reaches the log');
+  });
+
+  it('stalled-alert: a non-array alerts response is unread, never "no alerts"', async () => {
+    const gh = makeGh({ alerts: { 'repo-a': () => ({}) } });
+    let out;
+    const lines = await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.deepEqual(out.findings, []);
+    assert.ok(lines.some(l => l.includes('read failed for repo-a')), lines.join('\n'));
+  });
+
+  it('stalled-alert: a full page of 100 alerts marks the repo unread but still reports page 1', async () => {
+    const alerts = Array.from({ length: 100 }, (_, i) => makeAlert({ number: i + 1, name: `pkg-${i}`, ageDays: 2 }));
+    alerts[0] = makeAlert({ number: 1, ecosystem: 'pip', name: 'pyyaml', ageDays: 40 });
+    const gh = makeGh({ alerts: { 'repo-a': alerts } });
+    let out;
+    await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.equal(out.findings.length, 1, 'the stalled alert visible on page 1 is still reported');
+  });
+
+  it('stalled-alert: 99 alerts is a complete read, not truncated', async () => {
+    const alerts = Array.from({ length: 99 }, (_, i) => makeAlert({ number: i + 1, name: `pkg-${i}`, ageDays: 2 }));
+    const gh = makeGh({ alerts: { 'repo-a': alerts } });
+    const out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]);
+    assert.deepEqual(out.unread, []);
+  });
+
+  it('stalled-alert: a non-array pulls response is unread and fabricates no finding', async () => {
+    const gh = makeGh({ alerts: { 'repo-a': [makeAlert({ ecosystem: 'pip', name: 'pyyaml', ageDays: 40 })] }, prs: { 'repo-a': {} } });
+    let out;
+    await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.deepEqual(out.findings, []);
   });
 
   it('stalled-alert: archived, fork and excluded repos are never queried', async () => {

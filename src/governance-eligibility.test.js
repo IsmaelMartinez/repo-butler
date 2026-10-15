@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlerts } from './stalled-alert.js';
+import { detectStuckSecurityPRs } from './security-pr-stuck.js';
 import { eligibleRepos, fetchOpenPRs } from './governance.js';
 
 // Characterisation of the eligibility filter and open-PR fallback that the
@@ -65,6 +66,7 @@ const CALLERS = [
   { name: 'auditDependabot', run: (gh, repos, openPRs) => auditDependabot(gh, 'owner', repos, { openPRs }) },
   { name: 'auditButlerPRs', run: (gh, repos, openPRs) => auditButlerPRs(gh, 'owner', repos, { openPRs }) },
   { name: 'detectStalledAlerts', run: (gh, repos, openPRs) => detectStalledAlerts(gh, 'owner', repos, { openPRs }) },
+  { name: 'detectStuckSecurityPRs', run: (gh, repos, openPRs) => detectStuckSecurityPRs(gh, 'owner', repos, { openPRs }) },
   // fetchOpenPRs takes no map; the fallback cases below skip it.
   { name: 'fetchOpenPRs', run: (gh, repos) => fetchOpenPRs(gh, 'owner', repos), sweep: true },
 ];

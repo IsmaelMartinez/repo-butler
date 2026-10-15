@@ -762,6 +762,32 @@ describe('buildGovernanceSection', () => {
     assert.ok(!html.includes('<script>alert(1)</script>'), 'a detail string built from lockfile contents must be escaped');
   });
 
+  it('renders a Stuck Security PRs table and marks the matching vulnerability "fix PR stuck", not "in flight"', () => {
+    const findings = [{
+      type: 'security-pr-stuck',
+      repo: 'repo-a',
+      stuckPRs: [
+        { number: 12, age: 20, package: '<img src=x>', alerts: [4], severity: 'high', state: 'ci-red', majorBump: true, draft: false },
+        { number: 13, age: 5, package: 'lodash', alerts: [5], severity: 'critical', state: 'unknown', majorBump: null, draft: false },
+      ],
+      priority: 'medium',
+      remediation: { executor: 'manual' },
+    }, {
+      type: 'open-vulnerability', repo: 'repo-a', critical: 1, high: 1, secretScanning: 0,
+      sources: ['dependabot'], max_severity: 'critical', priority: 'high', autofixEnabled: true, fixStuck: true,
+      remediation: { executor: 'manual' },
+    }];
+    const html = buildGovernanceSection(findings);
+
+    assert.ok(html.includes('Stuck Security PRs'), 'a finding type with no block vanishes from the page');
+    assert.ok(html.includes('#12') && html.includes('#13'));
+    assert.ok(html.includes('20d'), 'should show the oldest age');
+    assert.ok(html.includes('CI red') && html.includes('major bump'));
+    assert.ok(!html.includes('<img src=x>'), 'package names are escaped');
+    assert.ok(html.includes('fix PR stuck'), 'the vulnerability row must not read as in flight');
+    assert.ok(!html.includes('✓ in flight'));
+  });
+
   it('renders an Unguarded Auto-merge block for automerge-unguarded findings', () => {
     const findings = [
       { type: 'automerge-unguarded', repo: 'repo-b', priority: 'medium', remediation: { executor: 'manual' } },
@@ -801,16 +827,26 @@ describe('buildGovernanceSection', () => {
 
   it('surfaces the Dependabot autofix state on dependabot-sourced findings (ADR-012 Phase 3)', () => {
     const findings = [
-      { type: 'open-vulnerability', repo: 'inflight', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'medium', autofixEnabled: true, remediation: { executor: 'manual' } },
+      { type: 'open-vulnerability', repo: 'inflight', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'medium', autofixEnabled: true, fixInFlight: true, remediation: { executor: 'manual' } },
       { type: 'open-vulnerability', repo: 'notdriven', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: false, remediation: { executor: 'manual' } },
       { type: 'open-vulnerability', repo: 'unknownstate', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: null, remediation: { executor: 'manual' } },
       { type: 'open-vulnerability', repo: 'codeonly', critical: 1, high: 0, secretScanning: 0, sources: ['code-scanning'], priority: 'high', remediation: { executor: 'manual' } },
     ];
     const html = buildGovernanceSection(findings);
     assert.ok(html.includes('Dependabot autofix'), 'adds the autofix column header');
-    assert.ok(html.includes('in flight'), 'shows in-flight state for autofixEnabled=true');
+    assert.ok(html.includes('✓ in flight'), 'shows in-flight state for evidenced autofix');
     assert.ok(html.includes('not driven'), 'shows not-driven state for autofixEnabled=false');
     assert.ok(html.includes('unknown'), 'shows unknown for autofixEnabled=null');
+  });
+
+  it('never shows "in flight" for autofix ON without evidence', () => {
+    const row = (repo, extra) => ({ type: 'open-vulnerability', repo, critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: true, remediation: { executor: 'manual' }, ...extra });
+    const noPR = buildGovernanceSection([row('nopr', { fixInFlight: false, unaddressedAlerts: 2 })]);
+    assert.ok(!noPR.includes('✓ in flight'));
+    assert.ok(noPR.includes('on, no fix PR landing'));
+    const legacy = buildGovernanceSection([row('legacy', {})]);
+    assert.ok(!legacy.includes('✓ in flight'), 'a finding without fixInFlight is not evidence');
+    assert.ok(legacy.includes('on, unverified'));
   });
 
   it('shows a per-executor remediation breakdown when findings carry executor hints', () => {

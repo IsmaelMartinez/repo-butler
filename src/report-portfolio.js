@@ -11,7 +11,7 @@ import {
   escHtml, fmt, countBy, daysAgo,
   getLibyearColor, isReleaseExempt, isCopyleft, describeLicenseConcern,
   CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
-  isAutofixNotDriven, computeCountTrend, isScannerUnreadable,
+  isAutofixNotDriven, isAutofixInFlight, computeCountTrend, isScannerUnreadable,
   tierStatus, tierBadge, isRecordProvisional, securityState, unreadScannerNames, hasUnreadableScanner, observedFailingChecks,
 } from './report-shared.js';
 
@@ -168,6 +168,7 @@ const STALE_PR_STATE_LABEL = {
   'blocked-transient': 'blocked',
   'ci-none': 'no CI',
   'ci-pending': 'CI running',
+  'ci-red': 'CI red',
   unknown: 'unknown',
   unclassified: 'not checked',
 };
@@ -198,6 +199,7 @@ export function buildGovernanceSection(findings) {
   const regressions = findings.filter(f => f.type === 'tier-regression');
   const staleButlerPRs = findings.filter(f => f.type === 'stale-butler-pr');
   const stalledAlerts = findings.filter(f => f.type === 'stalled-alert');
+  const stuckSecurity = findings.filter(f => f.type === 'security-pr-stuck');
   const unguarded = findings.filter(f => f.type === 'automerge-unguarded');
 
   const parts = [];
@@ -242,7 +244,12 @@ export function buildGovernanceSection(findings) {
         // GitHub is opening the bump PRs; "not driven" = the alerts are unattended;
         // "unknown" = state unreadable. A code/secret-only finding shows "—".
         let autofixCell = '<span class="muted">—</span>';
-        if (v.autofixEnabled === true) autofixCell = `<span style="color:${COLOR_SUCCESS}">✓ in flight</span>`;
+        // "in flight" only on evidence (isAutofixInFlight): the setting alone
+        // read as a green tick on repos with no Dependabot branch at all.
+        if (v.fixStuck === true) autofixCell = `<span style="color:${COLOR_DANGER}">⚠ fix PR stuck</span>`;
+        else if (isAutofixInFlight(v)) autofixCell = `<span style="color:${COLOR_SUCCESS}">✓ in flight</span>`;
+        else if (v.autofixEnabled === true && v.fixInFlight === false) autofixCell = `<span style="color:${COLOR_WARNING}">⚠ on, no fix PR landing</span>`;
+        else if (v.autofixEnabled === true) autofixCell = '<span class="muted">on, unverified</span>';
         else if (v.autofixEnabled === false) autofixCell = `<span style="color:${COLOR_DANGER}">✗ not driven</span>`;
         else if (v.autofixEnabled === null) autofixCell = '<span class="muted">unknown</span>';
         return `<tr>
@@ -255,7 +262,7 @@ export function buildGovernanceSection(findings) {
       })
       .join('');
     parts.push(`<h3>Open Vulnerabilities</h3>
-<p class="muted">Dependabot autofix: <em>in flight</em> = GitHub's automated security fixes are opening the bump PRs; <em>not driven</em> = enable them via the <code>dependabot-security</code> apply action.</p>
+<p class="muted">Dependabot autofix: <em>in flight</em> = an open, recent Dependabot PR addresses every critical/high alert; <em>on, no fix PR landing</em> = the setting is on but some alert has no such PR (or no patched version); <em>on, unverified</em> = the PRs could not be read; <em>not driven</em> = enable them via the <code>dependabot-security</code> apply action.</p>
 <div class="chart-container">
 <table><thead><tr><th>Repo</th><th>Priority</th><th>Source</th><th>Open alerts</th><th>Dependabot autofix</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -319,6 +326,38 @@ export function buildGovernanceSection(findings) {
 <p class="muted">Open Dependabot alerts past the staleness threshold with no Dependabot PR addressing them. <em>reachable-by-update</em> = a lockfile refresh clears it and nobody has run one; <em>unknown</em> = the manifest or lockfile could not be read, which never suppresses the row.</p>
 <div class="chart-container">
 <table><thead><tr><th>Repo</th><th>Alerts</th><th>Oldest</th><th>Detail</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
+  }
+
+  // Stuck security-fix PRs sit with the other security state: each row is a
+  // fix that exists and is not landing, which is why the matching Open
+  // Vulnerabilities row reads "fix PR stuck" rather than "in flight". PR numbers,
+  // ages, states and package names only — never a title or branch.
+  if (stuckSecurity.length > 0) {
+    const rows = stuckSecurity
+      .slice()
+      .sort((a, b) => a.repo.localeCompare(b.repo))
+      .map(f => {
+        const prs = f.stuckPRs || [];
+        const oldest = prs.reduce((max, p) => Math.max(max, p.age || 0), 0);
+        const detail = prs
+          .slice()
+          .sort((a, b) => b.age - a.age)
+          .map(p => `#${escHtml(String(p.number))} ${escHtml(p.package)} <span class="muted">(${escHtml(String(p.age))}d, ${escHtml(p.severity)}, ${escHtml(STALE_PR_STATE_LABEL[p.state] || p.state)}${p.majorBump === true ? ', major bump' : ''}${p.draft ? ', draft' : ''})</span>`)
+          .join(', ');
+        return `<tr>
+  <td><a href="${escHtml(f.repo)}.html">${escHtml(f.repo)}</a></td>
+  <td>${prs.length}</td>
+  <td>${escHtml(String(oldest))}d</td>
+  <td>${detail}</td>
+</tr>`;
+      })
+      .join('');
+    parts.push(`<h3>Stuck Security PRs</h3>
+<p class="muted">Dependabot PRs that fix an open critical/high alert and have not landed. <em>CI red</em> = the bump needs a code change; <em>major bump</em> = auto-merge will not take it; <em>unknown</em> = CI state unreadable, never read as red.</p>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>PRs</th><th>Oldest</th><th>Detail</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`);
   }

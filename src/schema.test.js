@@ -298,6 +298,7 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
       { type: 'tier-regression', repo: 'repo-f', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26' },
       { type: 'stale-butler-pr', repo: 'repo-g', stalePRs: [{ number: 9, age: 40, branch: 'repo-butler/apply-codeowners', prClass: 'apply', state: 'blocked-persistent', verified: true }] },
       { type: 'automerge-unguarded', repo: 'repo-i', priority: 'medium' },
+      { type: 'security-pr-stuck', repo: 'repo-j', stuckPRs: [{ number: 12, age: 9, package: 'lodash', alerts: [4], severity: 'high', state: 'ci-red', majorBump: false, draft: false }] },
       { type: 'stalled-alert', repo: 'repo-h', alerts: [{ number: 153, package: 'http-proxy-middleware', ecosystem: 'npm', manifestPath: 'docs-site/package-lock.json', severity: 'medium', ageDays: 35, classification: 'reachable-by-update', detail: 'refresh the lockfile instead' }] },
     ];
 
@@ -356,6 +357,12 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
     const stalled = buildRemediationPlan({ type: 'stalled-alert', repo: 'r', alerts: [{ number: 1, ageDays: 35, classification: 'reachable-by-update' }] });
     assert.equal(stalled.executor, 'manual');
     assert.deepEqual(stalled.targetFiles, []);
+
+    // security-pr-stuck is a per-repo STATE finding: landing a specific fix is
+    // a per-repo merge decision, never a templated or settings write.
+    const stuck = buildRemediationPlan({ type: 'security-pr-stuck', repo: 'r', stuckPRs: [{ number: 1, age: 9, state: 'ci-red' }] });
+    assert.equal(stuck.executor, 'manual');
+    assert.deepEqual(stuck.targetFiles, []);
 
     // automerge-unguarded is a per-repo STATE finding: the required contexts
     // are chosen per repo (#440), so no template or settings write fits.

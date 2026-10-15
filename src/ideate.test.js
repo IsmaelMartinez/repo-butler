@@ -511,6 +511,24 @@ describe('buildIdeatePrompt', () => {
     assert.ok(prompt.includes('reachable-by-update'));
   });
 
+  it('summarises security-pr-stuck findings as counts, ages and states, never a package name', () => {
+    const findings = [{
+      type: 'security-pr-stuck',
+      repo: 'r4',
+      stuckPRs: [
+        { number: 12, age: 20, package: 'ZZPKGZZ', alerts: [4], severity: 'high', state: 'ci-red', majorBump: false },
+        { number: 13, age: 5, package: 'lodash', alerts: [5], severity: 'critical', state: 'unknown', majorBump: null },
+      ],
+      priority: 'medium',
+    }];
+    const prompt = buildIdeatePrompt(minimalSnapshot, null, null, 3, findings);
+
+    assert.ok(prompt.includes('Stuck security PRs: r4 has 2 Dependabot PR(s)'));
+    assert.ok(prompt.includes('oldest: 20d'));
+    assert.ok(prompt.includes('ci-red, unknown'));
+    assert.ok(!prompt.includes('ZZPKGZZ'));
+  });
+
   it('never leaks advisory text or a package detail string from a stalled-alert finding into the prompt', () => {
     // An advisory summary is written by whoever filed the GHSA, and the detail
     // string is built from target-repo lockfile contents. Both are external
