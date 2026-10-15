@@ -52,6 +52,21 @@ function cmp(a, b) {
   return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
 }
 
+// Same release line: same major, and inside 0.x the same minor too, because
+// there every minor is itself a breaking line (this module's lesson: a
+// major-only comparison is blind exactly where these alerts live). Shared with
+// lockfile-update.js's gate and the security-pr-stuck detector's major-bump
+// flag, so the three cannot disagree about what a crossing is.
+export function sameReleaseLine(a, b) {
+  if (a.major !== b.major) return false;
+  return a.major !== 0 || a.minor === b.minor;
+}
+
+/** Order two parsed versions (parseVersion output). */
+export function compareVersions(a, b) {
+  return cmp(a, b);
+}
+
 /**
  * Does `version` satisfy `range`? Supports the operators that actually appear in
  * npm manifests: caret, tilde, exact pins, and simple >= bounds.

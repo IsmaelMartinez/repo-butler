@@ -82,6 +82,32 @@ function looksLikeVersion(s) {
   return /^\d+(?:\.\d+)+$/.test(s) || /^\d{1,4}$/.test(s);
 }
 
+// Split a Dependabot branch into its manager segment and, for a single-package
+// branch, the package path and version it names. `named`/`version` are null for
+// a grouped or unparseable branch, which names no package. Shared by the
+// permissive branchMayAddress below and the strict branchNamesAlertPackage, so
+// the two can differ in what they CONCLUDE but never in how they parse.
+function parseDependabotBranch(ref) {
+  if (typeof ref !== 'string' || !ref.startsWith(BRANCH_PREFIX)) return null;
+
+  const rest = ref.slice(BRANCH_PREFIX.length);
+  const slash = rest.indexOf('/');
+  if (slash === -1) return null;
+  const manager = rest.slice(0, slash);
+  const tail = rest.slice(slash + 1);
+
+  const dash = tail.lastIndexOf('-');
+  const suffix = dash === -1 ? '' : tail.slice(dash + 1);
+  if (dash > 0 && looksLikeVersion(suffix)) {
+    return { manager, tail, named: tail.slice(0, dash), version: suffix };
+  }
+  return { manager, tail, named: null, version: null };
+}
+
+// Dependabot drops the leading @ of a scoped name, so `@babel/core` becomes
+// `babel/core` in a branch.
+const branchSlug = pkg => String(pkg ?? '').replace(/^@/, '');
+
 /**
  * Could this Dependabot branch be addressing this alert?
  *
@@ -95,30 +121,20 @@ function looksLikeVersion(s) {
  * @returns {boolean}
  */
 export function branchMayAddress(ref, alert) {
-  if (typeof ref !== 'string' || !ref.startsWith(BRANCH_PREFIX)) return false;
-
-  const rest = ref.slice(BRANCH_PREFIX.length);
-  const slash = rest.indexOf('/');
-  if (slash === -1) return false;
-  const manager = rest.slice(0, slash);
-  const tail = rest.slice(slash + 1);
+  const parsed = parseDependabotBranch(ref);
+  if (!parsed) return false;
 
   const expected = ECOSYSTEM_MANAGERS[alert?.ecosystem];
   // An ecosystem we have no mapping for cannot be ruled out.
   if (!expected) return true;
-  if (manager !== expected) return false;
+  if (parsed.manager !== expected) return false;
 
-  const dash = tail.lastIndexOf('-');
-  const suffix = dash === -1 ? '' : tail.slice(dash + 1);
-
-  if (dash > 0 && looksLikeVersion(suffix)) {
-    // A single-package branch: it names the package it bumps. Dependabot drops
-    // the leading @ of a scoped name, so `@babel/core` becomes `babel/core`,
-    // and any leading directory is a prefix on the same segment run.
-    const named = tail.slice(0, dash);
-    const slug = String(alert?.package ?? '').replace(/^@/, '');
+  if (parsed.named !== null) {
+    // A single-package branch: it names the package it bumps. Any leading
+    // directory is a prefix on the same segment run.
+    const slug = branchSlug(alert?.package);
     if (!slug) return true;
-    return named === slug || named.endsWith(`/${slug}`);
+    return parsed.named === slug || parsed.named.endsWith(`/${slug}`);
   }
 
   // A grouped (or simply unparseable) branch names no package. Compare
@@ -128,7 +144,30 @@ export function branchMayAddress(ref, alert) {
   // part of the group name — so we cannot rule the PR out, and do not try.
   const dir = alert?.directory;
   if (!dir) return true;
-  return tail.startsWith(`${dir}/`);
+  return parsed.tail.startsWith(`${dir}/`);
+}
+
+/**
+ * Does this Dependabot branch DEFINITELY name this alert's package, in this
+ * alert's directory? The strict mirror of branchMayAddress, for the opposite
+ * question: branchMayAddress suppresses a report, so it errs toward "maybe";
+ * this one ASSERTS that a security fix exists and is stuck, so it errs toward
+ * "no". A grouped branch names no package and never matches; an ecosystem with
+ * no manager mapping never matches; the directory must agree exactly.
+ *
+ * @param {string} ref — the PR's head branch
+ * @param {{ ecosystem: string, package: string, directory: string }} alert
+ * @returns {{ version: string }|null} the version the branch bumps to, or null
+ */
+export function branchNamesAlertPackage(ref, alert) {
+  const parsed = parseDependabotBranch(ref);
+  if (!parsed || parsed.named === null) return null;
+  const expected = ECOSYSTEM_MANAGERS[alert?.ecosystem];
+  if (!expected || parsed.manager !== expected) return null;
+  const slug = branchSlug(alert?.package);
+  if (!slug) return null;
+  const dir = alert?.directory;
+  return parsed.named === (dir ? `${dir}/${slug}` : slug) ? { version: parsed.version } : null;
 }
 
 /**

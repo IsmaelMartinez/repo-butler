@@ -11,6 +11,7 @@ import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlerts } from './stalled-alert.js';
+import { detectStuckSecurityPRs } from './security-pr-stuck.js';
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
@@ -39,7 +40,6 @@ export async function runGovernance(context) {
   const gaps = detectStandardsGaps(standards, portfolio.repos, context.repoDetails);
   const drift = detectPolicyDrift(portfolio.repos, context.repoDetails, config);
   const uplift = generateUpliftProposals(portfolio.repos, context.repoDetails, config);
-  const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails);
   const unguarded = detectUnguardedAutoMerge(portfolio.repos, context.repoDetails);
 
   // G7 Gold ratchet: diff this run's computed tiers (in the same weekly-snapshot
@@ -54,12 +54,10 @@ export async function runGovernance(context) {
     regressions = detectTierRegressions(currentWeekly, priorPortfolioWeekly);
   }
 
-  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...regressions, ...unguarded];
-  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${regressions.length} tier-regression, ${unguarded.length} automerge-unguarded)`);
-
-  // One open-PR sweep, two consumers. Both audits read the identical
-  // `/pulls?state=open` list for every eligible repo, so fetching it twice would
-  // double that call across the portfolio on every one of the 4 daily runs.
+  // One open-PR sweep, shared by every PR-reading detector. They all read the
+  // identical `/pulls?state=open` list for every eligible repo, so fetching it
+  // per detector would multiply that call across the portfolio on every one of
+  // the 4 daily runs.
   // Deliberately NOT sourced from context.repoDetails: report-portfolio-data fetches
   // the same list but keeps only its length, and that block sits behind the
   // pushed_at cache — a cache hit would hand a stale PR list to a staleness
@@ -70,6 +68,20 @@ export async function runGovernance(context) {
   // findings. An empty map degrades to each audit listing its own repos.
   const openPRs = await fetchOpenPRs(gh, owner, portfolio.repos)
     .catch(err => { console.error(`Open-PR sweep failed: ${err.message}`); return {}; });
+
+  // Security-fix PRs that have not landed. Runs BEFORE detectOpenVulnerabilities
+  // because its result is that detector's evidence: a stuck fix withdraws the
+  // "remediation in flight" downgrade. Passed in as data so the open-vulnerability
+  // detector stays pure. Wrapped like the audits below; a failure degrades to
+  // "no stuck PR seen", which is exactly the pre-existing behaviour.
+  // portfolio.repos only, never privateRepos (see the private-repo section of
+  // AGENTS.md and the guard in governance.test.js).
+  const stuckSecurity = await detectStuckSecurityPRs(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => { console.error(`Stuck security-PR detection failed: ${err.message}`); return []; });
+  const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails, { stuckSecurityPRs: stuckSecurity });
+
+  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...stuckSecurity, ...regressions, ...unguarded];
+  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${stuckSecurity.length} security-pr-stuck, ${regressions.length} tier-regression, ${unguarded.length} automerge-unguarded)`);
 
   // Both audits are wrapped: they own per-repo error handling, but a throw from
   // anything outside that per-repo try (a malformed input, say) would abort
@@ -640,11 +652,17 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
  *
  * @param {Array} repos — portfolio repos from observePortfolio()
  * @param {Object} details — enriched details from fetchPortfolioDetails()
+ * @param {{ stuckSecurityPRs?: Array }} [options] — security-pr-stuck findings
+ *   from this run (security-pr-stuck.js). A repo with one has a Dependabot fix
+ *   PR open past the threshold, which withdraws the in-flight downgrade below.
  * @returns {Array} open-vulnerability findings
  */
-export function detectOpenVulnerabilities(repos, details) {
+export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [] } = {}) {
   const eligible = eligibleRepos(repos);
   const findings = [];
+  const stuckRepos = new Set((Array.isArray(stuckSecurityPRs) ? stuckSecurityPRs : [])
+    .filter(f => f?.type === 'security-pr-stuck')
+    .map(f => f.repo));
 
   for (const r of eligible) {
     const d = details?.[r.name];
@@ -697,8 +715,17 @@ export function detectOpenVulnerabilities(repos, details) {
     // governance annotation, not a tier reprieve). A finding that also carries a
     // code-scanning or secret-scanning source keeps its priority: those sources
     // still need manual work that autofix cannot perform.
+    //
+    // ...unless the fix is demonstrably NOT in flight: a Dependabot PR fixing one
+    // of these alerts has sat open past the security-pr-stuck threshold (red CI,
+    // a major bump auto-merge will not take, or nobody reviewing it). "Autofix is
+    // on" only says GitHub OPENS the PR; a stuck one is evidence it will not
+    // land on its own, so the downgrade's premise is gone and the priority stays.
+    // Only positive evidence withdraws it: a repo whose PR read failed has no
+    // finding and keeps the old behaviour, so an API error cannot inflate.
     const dependabotOnly = sources.length === 1 && dependabotSourced;
-    if (autofixEnabled === true && dependabotOnly && priority === 'high') {
+    const fixStuck = dependabotSourced && stuckRepos.has(r.name);
+    if (autofixEnabled === true && dependabotOnly && priority === 'high' && !fixStuck) {
       priority = 'medium';
     }
 
@@ -714,6 +741,9 @@ export function detectOpenVulnerabilities(repos, details) {
       // Only dependabot-sourced findings carry the annotation — for a
       // code-scanning/secret-only finding the field is irrelevant and omitted.
       ...(dependabotSourced ? { autofixEnabled } : {}),
+      // Present only when true: absence means "no stuck fix seen", which is not
+      // the same claim as "the fix is landing".
+      ...(fixStuck ? { fixStuck: true } : {}),
     });
   }
 
@@ -911,6 +941,30 @@ export function buildRemediationPlan(finding) {
         acceptanceCriteria: ['Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it'],
       };
     }
+    case 'security-pr-stuck': {
+      const prs = finding.stuckPRs || [];
+      const oldest = prs.reduce((max, p) => Math.max(max, p.age || 0), 0);
+      const states = [...new Set(prs.map(p => p.state))].sort();
+      const majors = prs.filter(p => p.majorBump === true).length;
+      // The CI state is the remedy hint. 'unknown' is never read as red.
+      const remedy = states.includes('ci-red')
+        ? 'At least one fix is failing CI — the bump needs a code change before it can land.'
+        : majors > 0
+          ? 'At least one fix is a major-version bump, which auto-merge will not take — review and merge it by hand.'
+          : states.includes('awaiting-human') || states.includes('ci-none')
+            ? 'Nothing is blocking these — they need a merge decision.'
+            : 'Check why CI has not settled.';
+      // executor 'manual', like every per-repo STATE finding: landing a security
+      // fix is a per-repo merge decision, so this must never acquire a
+      // template/settings path or reach cross-repo PROPOSE (ADR-002/ADR-011).
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Land or close ${prs.length} stuck Dependabot security PR(s) in ${finding.repo}`,
+        rationale: `${prs.length} Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest ${oldest} days; state: ${states.join(', ') || 'unknown'}${majors ? `; ${majors} major bump(s)` : ''}). ${remedy}`,
+        acceptanceCriteria: ['Each stuck security PR is merged or closed, and the alerts it fixes are resolved'],
+      };
+    }
     case 'automerge-unguarded': {
       // executor 'manual': the required contexts must be picked per repo, and
       // each trap below has bitten a hand-made ruleset (#440).
@@ -928,7 +982,9 @@ export function buildRemediationPlan(finding) {
       // ADR-012 Phase 3: reflect whether Dependabot autofix is already driving the
       // dependency-bump remediation, so the operator sees "in flight" vs "not
       // driven" alongside the alert counts. Only set on dependabot-sourced findings.
-      const autofixNote = finding.autofixEnabled === true
+      const autofixNote = finding.fixStuck === true
+        ? ` A Dependabot fix PR is open but stuck (see the security-pr-stuck finding)${finding.autofixEnabled === true ? ' — automated security fixes are ON, but the PR is not landing' : ''}.`
+        : finding.autofixEnabled === true
         ? ' Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).'
         : finding.autofixEnabled === false
           ? ' Dependabot automated security fixes are OFF — not being driven to resolution; the dependabot-security apply action would enable them.'

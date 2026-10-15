@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/governance-finding.v1.schema.json",
   "title": "GovernanceFinding",
-  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale), src/butler-pr-audit.js (stale-butler-pr) and src/stalled-alert.js (stalled-alert). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
+  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale), src/butler-pr-audit.js (stale-butler-pr), src/stalled-alert.js (stalled-alert) and src/security-pr-stuck.js (security-pr-stuck). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
   "type": "object",
   "required": ["type", "priority", "remediation"],
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr", "stalled-alert", "automerge-unguarded"],
+      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr", "stalled-alert", "security-pr-stuck", "automerge-unguarded"],
       "description": "The finding category, which determines the remaining fields."
     },
     "priority": {
@@ -22,7 +22,7 @@
     },
     "repo": {
       "type": "string",
-      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr, stalled-alert, automerge-unguarded: the affected repository name."
+      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr, stalled-alert, security-pr-stuck, automerge-unguarded: the affected repository name."
     },
     "nonCompliant": {
       "type": "array",
@@ -56,7 +56,33 @@
     },
     "autofixEnabled": {
       "type": ["boolean", "null"],
-      "description": "open-vulnerability, dependabot-sourced only (ADR-012 Phase 3): whether GitHub's Dependabot automated security fixes are actively opening the bump PRs. true = remediation in flight (enabled and not paused); false = OFF/paused (not being driven to resolution); null = state unreadable/unknown. Read in the OBSERVE/portfolio-details layer (detection stays pure). When true and Dependabot is the only source, a high-priority finding is downgraded to medium; max_severity is never changed and the health-tier drop stands."
+      "description": "open-vulnerability, dependabot-sourced only (ADR-012 Phase 3): whether GitHub's Dependabot automated security fixes are actively opening the bump PRs. true = remediation in flight (enabled and not paused); false = OFF/paused (not being driven to resolution); null = state unreadable/unknown. Read in the OBSERVE/portfolio-details layer (detection stays pure). When true and Dependabot is the only source, a high-priority finding is downgraded to medium — unless fixStuck is set; max_severity is never changed and the health-tier drop stands."
+    },
+    "fixStuck": {
+      "type": "boolean",
+      "const": true,
+      "description": "open-vulnerability, dependabot-sourced only: present (and true) when a security-pr-stuck finding exists for the same repo — a Dependabot PR fixing one of its critical/high alerts has sat open past the threshold. It withdraws the autofix in-flight downgrade, so the finding keeps its priority. Absent means no stuck fix was seen, which is not a claim that the fix is landing."
+    },
+    "stuckPRs": {
+      "type": "array",
+      "description": "security-pr-stuck only: open Dependabot PRs whose single-package branch names a package with an open critical/high Dependabot alert in the same directory (bumping to at least the first patched version), open past the 3-day threshold. Grouped Dependabot PRs name no package and are never matched: this finding asserts a fix exists, so it errs toward silence.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "integer" },
+          "age": { "type": "integer", "minimum": 0, "description": "Days open." },
+          "package": { "type": "string", "description": "The alert package the branch names." },
+          "alerts": { "type": "array", "items": { "type": "integer" }, "description": "Numbers of the open critical/high alerts this PR fixes." },
+          "severity": { "type": "string", "enum": ["critical", "high"], "description": "Highest severity among those alerts." },
+          "state": {
+            "type": "string",
+            "enum": ["awaiting-human", "ci-red", "ci-pending", "ci-none", "unknown", "unclassified"],
+            "description": "From the five-state prCiState (NOT prCiGreen): awaiting-human = green and unmerged; ci-red = a check failed; ci-pending = CI still running; ci-none = no CI signal at all; unknown = CI state unreadable, never reported as red; unclassified = beyond the per-repo classification cap."
+          },
+          "majorBump": { "type": ["boolean", "null"], "description": "Whether the PR crosses a release line (a major, or a 0.x minor), read from Dependabot's 'from X to Y' title. null when the title carries no parseable versions. The title itself is never stored." },
+          "draft": { "type": "boolean" }
+        }
+      }
     },
     "stalePRs": {
       "type": "array",

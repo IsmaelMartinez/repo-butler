@@ -116,10 +116,11 @@ src/
 ├── observe.js            # OBSERVE: GitHub API data gathering + portfolio classification
 ├── assess.js             # ASSESS: snapshot diffing, trend computation, LLM summarisation
 ├── update.js             # UPDATE: roadmap PR generation with safety validation
-├── governance.js         # GOVERNANCE: deterministic detectors for all nine finding types
+├── governance.js         # GOVERNANCE: deterministic detectors for all ten finding types
 ├── dependabot-audit.js   # Stale Dependabot PR detector (called by governance)
 ├── butler-pr-audit.js    # Stale-butler-pr detector: the butler's own PRs nobody landed (called by governance)
 ├── stalled-alert.js      # Stalled-alert detector: open Dependabot alerts with no PR driving them (called by governance)
+├── security-pr-stuck.js  # Stuck security-PR detector: Dependabot fixes for critical/high alerts not landing (called by governance)
 ├── trimmer.js            # Parent-scoped npm override decider for transitive vulns (ADR-013; no caller in the write path yet)
 ├── lockfile-update.js    # Lockfile refresh apply tool for reachable-by-update alerts (ADR-015)
 ├── private-watch.js      # Private-repo security watch — standalone pass, never enters the governance pipeline

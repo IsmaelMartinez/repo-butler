@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { getLargeFileContent } from './github.js';
 import { REPO_NAME_PATTERN, validateIssueBody, validateIssueTitle } from './safety.js';
-import { parseVersion } from './trimmer.js';
+import { parseVersion, sameReleaseLine } from './trimmer.js';
 import { alertDirectory } from './stalled-alert.js';
 import { APPLY_PR_MARKER, isScheduleAllowed, positiveCap, applyEnabledGate, screenApplyTarget } from './apply.js';
 
@@ -321,14 +321,6 @@ function parseJson(text) {
 
 function cmp(a, b) {
   return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
-}
-
-// Same release line: same major, and inside 0.x the same minor too, because
-// there every minor is itself a breaking line (the trimmer's lesson: a
-// major-only comparison is blind exactly where these alerts live).
-function sameReleaseLine(a, b) {
-  if (a.major !== b.major) return false;
-  return a.major !== 0 || a.minor === b.minor;
 }
 
 /**

@@ -475,6 +475,7 @@ describe('MCP server', async () => {
       assert.equal(summary.staleButlerPRs, 0);
       assert.equal(summary.stalledAlerts, 1, 'summary counts stalled-alert findings (G13)');
       assert.equal(summary.automergeUnguarded, 0, 'summary carries the automerge-unguarded count (#440)');
+      assert.equal(summary.securityPRsStuck, 0, 'summary carries the security-pr-stuck count');
       assert.equal(summary.openVulnerabilities, 2);
       assert.equal(summary.autofixInFlight, 1);
       assert.equal(summary.autofixNotDriven, 1);

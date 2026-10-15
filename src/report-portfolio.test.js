@@ -762,6 +762,32 @@ describe('buildGovernanceSection', () => {
     assert.ok(!html.includes('<script>alert(1)</script>'), 'a detail string built from lockfile contents must be escaped');
   });
 
+  it('renders a Stuck Security PRs table and marks the matching vulnerability "fix PR stuck", not "in flight"', () => {
+    const findings = [{
+      type: 'security-pr-stuck',
+      repo: 'repo-a',
+      stuckPRs: [
+        { number: 12, age: 20, package: '<img src=x>', alerts: [4], severity: 'high', state: 'ci-red', majorBump: true, draft: false },
+        { number: 13, age: 5, package: 'lodash', alerts: [5], severity: 'critical', state: 'unknown', majorBump: null, draft: false },
+      ],
+      priority: 'medium',
+      remediation: { executor: 'manual' },
+    }, {
+      type: 'open-vulnerability', repo: 'repo-a', critical: 1, high: 1, secretScanning: 0,
+      sources: ['dependabot'], max_severity: 'critical', priority: 'high', autofixEnabled: true, fixStuck: true,
+      remediation: { executor: 'manual' },
+    }];
+    const html = buildGovernanceSection(findings);
+
+    assert.ok(html.includes('Stuck Security PRs'), 'a finding type with no block vanishes from the page');
+    assert.ok(html.includes('#12') && html.includes('#13'));
+    assert.ok(html.includes('20d'), 'should show the oldest age');
+    assert.ok(html.includes('CI red') && html.includes('major bump'));
+    assert.ok(!html.includes('<img src=x>'), 'package names are escaped');
+    assert.ok(html.includes('fix PR stuck'), 'the vulnerability row must not read as in flight');
+    assert.ok(!html.includes('✓ in flight'));
+  });
+
   it('renders an Unguarded Auto-merge block for automerge-unguarded findings', () => {
     const findings = [
       { type: 'automerge-unguarded', repo: 'repo-b', priority: 'medium', remediation: { executor: 'manual' } },
