@@ -974,6 +974,45 @@ describe('detectOpenVulnerabilities', () => {
     assert.match(buildRemediationPlan(f).rationale, /stalled/);
   });
 
+  // A stalled alert or a stuck fix is a definite gap: it must win over an
+  // unverified lockfile (#500) or an unread repo, never be softened into null.
+  const UNVERIFIED = { 'repo-a': { inFlight: null, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 1 } };
+
+  it('a stalled-alert finding wins over an unverified lockfile: fixInFlight false, not null', () => {
+    const [repos, details] = inFlightCritical();
+    const stalled = { type: 'stalled-alert', repo: 'repo-a', alerts: [], priority: 'medium' };
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: UNVERIFIED, stalledAlerts: [stalled] });
+    assert.equal(f.fixInFlight, false);
+    assert.equal(f.priority, 'high');
+    assert.equal(f.alertStalled, true);
+    assert.ok(!('lockfileUnverified' in f), 'the null-only annotation does not ride a false');
+    assert.equal(f.unverifiedAlerts, 1, 'the unverified count is still reported among the gaps');
+    assert.match(buildRemediationPlan(f).rationale, /stalled/);
+  });
+
+  it('a stalled-alert or stuck finding wins over unread evidence too, without inventing counts', () => {
+    const [repos, details] = inFlightCritical();
+    const stalled = { type: 'stalled-alert', repo: 'repo-a', alerts: [], priority: 'medium' };
+    const [a] = detectOpenVulnerabilities(repos, details, { stalledAlerts: [stalled] });
+    assert.equal(a.fixInFlight, false);
+    assert.ok(!('unaddressedAlerts' in a), 'nothing was read, so no counts are claimed');
+    const [b] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [STUCK], fixEvidence: UNVERIFIED });
+    assert.equal(b.fixInFlight, false);
+    assert.equal(b.fixStuck, true);
+    const [c] = detectOpenVulnerabilities(repos, details, { stalledAlerts: [stalled], fixEvidence: { 'repo-a': { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 0 } } });
+    assert.equal(c.fixInFlight, false);
+    assert.ok(!('liveAlertsMissing' in c) && !('unaddressedAlerts' in c));
+  });
+
+  it('an unverified lockfile alone is null with lockfileUnverified, and never downgrades', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: UNVERIFIED });
+    assert.equal(f.fixInFlight, null);
+    assert.equal(f.priority, 'high');
+    assert.equal(f.lockfileUnverified, true);
+    assert.equal(f.unverifiedAlerts, 1);
+  });
+
   it('a live read with no alert is unverifiable: fixInFlight null, priority high, and the rationale says why', () => {
     const [repos, details] = inFlightCritical();
     const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0 } } });
@@ -1359,6 +1398,14 @@ describe('runGovernance — private repos must never enter the governance pipeli
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
       fetched.push(u);
+      // The security-pr-stuck detector confirms a fix against the lockfile at
+      // the PR head (#500); only that read carries a ref, so G13's own
+      // ref-less manifest reads still see nothing.
+      if (u.includes('/contents/package-lock.json') && u.includes('ref=')) {
+        const lock = { lockfileVersion: 3, packages: { '': {}, 'node_modules/lodash': { version: '4.17.21' } } };
+        const body = { content: Buffer.from(JSON.stringify(lock)).toString('base64'), encoding: 'base64', sha: 'b1' };
+        return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+      }
       const body = u.includes('/pulls') ? stalePR : u.includes('/dependabot/alerts') ? staleAlert : [];
       return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
     };
@@ -1791,7 +1838,16 @@ describe('runGovernance — security-pr-stuck wiring', () => {
     security_vulnerability: { severity: 'critical', first_patched_version: { identifier: '4.17.21' } },
   }];
 
-  function mockFetch(prAgeDays) {
+  const lockBody = (copies) => {
+    const packages = { '': {} };
+    for (const [path, version] of Object.entries(copies)) packages[path] = { version };
+    return { content: Buffer.from(JSON.stringify({ lockfileVersion: 3, packages })).toString('base64'), encoding: 'base64', sha: 'b1' };
+  };
+  const PATCHED_LOCK = lockBody({ 'node_modules/lodash': '4.17.21' });
+
+  // `lock` is what the lockfile read at the PR head answers: a contents body,
+  // or a number for an error status. Only that read carries a ref.
+  function mockFetch(prAgeDays, { lock = PATCHED_LOCK } = {}) {
     const prs = prAgeDays === null ? [] : [{
       number: 12,
       title: 'Bump lodash from 4.17.20 to 4.17.21',
@@ -1802,6 +1858,12 @@ describe('runGovernance — security-pr-stuck wiring', () => {
     }];
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/contents/package-lock.json') && u.includes('ref=abc123')) {
+        if (typeof lock === 'number') {
+          return { ok: false, status: lock, headers: new Map(), json: async () => ({}), text: async () => 'error' };
+        }
+        return { ok: true, status: 200, headers: new Map(), json: async () => lock, text: async () => JSON.stringify(lock) };
+      }
       const body = u.includes('/pulls') ? prs : u.includes('/dependabot/alerts') ? highAlert : [];
       return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
     };
@@ -1868,6 +1930,9 @@ describe('runGovernance — security-pr-stuck wiring', () => {
       if (u.includes('/dependabot/alerts') && !u.includes('severity=')) {
         return { ok: false, status: 500, headers: new Map(), json: async () => ({}), text: async () => 'boom' };
       }
+      if (u.includes('/contents/package-lock.json') && u.includes('ref=')) {
+        return { ok: true, status: 200, headers: new Map(), json: async () => PATCHED_LOCK, text: async () => JSON.stringify(PATCHED_LOCK) };
+      }
       const body = u.includes('/pulls') ? prs : u.includes('/dependabot/alerts') ? highAlert : [];
       return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
     };
@@ -1880,6 +1945,42 @@ describe('runGovernance — security-pr-stuck wiring', () => {
     assert.equal(vuln.fixInFlight, null);
     assert.equal(vuln.stalledAlertsUnread, true);
     assert.match(buildRemediationPlan(vuln).rationale, /stalled-alert check could not read/);
+  });
+
+  it('a fresh PR whose lockfile leaves a nested copy vulnerable is not in flight, and not stuck when old (#500)', async () => {
+    const nested = lockBody({ 'node_modules/lodash': '4.17.21', 'node_modules/legacy/node_modules/lodash': '4.17.15' });
+    mockFetch(1, { lock: nested });
+    let findings = await run();
+    let vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high', 'merging it would not close the alert: no downgrade');
+    assert.equal(vuln.fixInFlight, false);
+    assert.equal(vuln.unaddressedAlerts, 1);
+
+    mockFetch(10, { lock: nested });
+    findings = await run();
+    assert.ok(!findings.some(f => f.type === 'security-pr-stuck'), 'a PR that does not fix the alert is not a stuck fix');
+    assert.equal(findings.find(f => f.type === 'open-vulnerability').priority, 'high');
+  });
+
+  it('an unreadable lockfile at the PR head withholds the downgrade as unverifiable (null) and says why (#500)', async () => {
+    mockFetch(1, { lock: 500 });
+    const orig = console.log;
+    const lines = [];
+    console.log = (...a) => { lines.push(a.join(' ')); };
+    let findings;
+    try { findings = await run(); } finally { console.log = orig; }
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high');
+    assert.equal(vuln.fixInFlight, null);
+    assert.equal(vuln.lockfileUnverified, true);
+    assert.equal(vuln.unverifiedAlerts, 1);
+    assert.match(buildRemediationPlan(vuln).rationale, /lockfile at a fix PR's head could not be read/);
+    assert.ok(lines.some(l => l.includes('status 500')), 'the failed read is logged with its status');
+
+    mockFetch(10, { lock: 500 });
+    console.log = () => {};
+    try { findings = await run(); } finally { console.log = orig; }
+    assert.ok(!findings.some(f => f.type === 'security-pr-stuck'), 'no stuck claim without a verified fix');
   });
 
   it('an unreadable alerts list withholds the downgrade and is logged', async () => {

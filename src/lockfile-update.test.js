@@ -12,6 +12,9 @@ import {
   npmUpdateInvocation,
   findNonRegistrySource,
   displayString,
+  findUnpatchedCopy,
+  lockfileCopiesPatched,
+  npmLockfilePath,
 } from './lockfile-update.js';
 import { validateIssueTitle, validateIssueBody } from './safety.js';
 
@@ -442,6 +445,64 @@ describe('computeLockfileGate', () => {
     assert.equal(absent.reason, 'unexpected-registry');
     const ok = gate({ 'node_modules/libheif': { version: '1.2.5', resolved: 'https://registry.npmjs.org/libheif/-/libheif-1.2.5.tgz' } });
     assert.equal(ok.ok, true);
+  });
+});
+
+describe('the not-patched rule, read-only (#500)', () => {
+  const lock = (packages, lockfileVersion = 3) => JSON.stringify({ lockfileVersion, packages: { '': {}, ...packages } });
+
+  it('findUnpatchedCopy names a nested copy below the patch, and refuses an absent package', () => {
+    const packages = { 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.5.2' } };
+    assert.equal(findUnpatchedCopy(packages, 'qs', { major: 6, minor: 11, patch: 0 })?.reason, 'not-patched');
+    assert.equal(findUnpatchedCopy(packages, 'qs', { major: 6, minor: 5, patch: 2 }), null);
+    assert.equal(findUnpatchedCopy(packages, 'lodash', { major: 1, minor: 0, patch: 0 })?.reason, 'not-patched');
+  });
+
+  it('lockfileCopiesPatched: patched only when every copy reaches the patch', () => {
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.11.1' } }), 'qs', '6.11.0'), 'patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.5.2' } }), 'qs', '6.11.0'), 'not-patched');
+  });
+
+  it('lockfileCopiesPatched reads an absent package as unverifiable, not refuted (a parent bump can drop it)', () => {
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/other': { version: '1.0.0' } }), 'qs', '6.11.0'), 'unverifiable');
+  });
+
+  it('the gate still refuses a refresh that drops every copy as not-patched', () => {
+    assert.equal(findUnpatchedCopy({ 'node_modules/other': { version: '1.0.0' } }, 'qs', { major: 6, minor: 11, patch: 0 })?.reason, 'not-patched');
+  });
+
+  it('lockfileCopiesPatched compares only copies on the patch\'s release line; any other is unverifiable', () => {
+    // One advisory, ranges <1.2.3 and >=2.0.0 <2.0.5, first patched 1.2.3: a
+    // 2.0.0 copy is past 1.2.3 but inside the second range.
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '2.0.0' } }), 'qs', '1.2.3'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.2.3' }, 'node_modules/a/node_modules/qs': { version: '2.0.5' } }), 'qs', '1.2.3'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.9.0' } }), 'qs', '1.2.3'), 'unverifiable', 'a lower major is another line too');
+    // Inside 0.x the minor is the line (sameReleaseLine).
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.35.0' } }), 'qs', '0.34.5'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.6' } }), 'qs', '0.34.5'), 'patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.4' } }), 'qs', '0.34.5'), 'not-patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.9.0' } }), 'qs', '1.2.3'), 'patched', 'a later minor on the same major is compared');
+  });
+
+  it('lockfileCopiesPatched fails closed to unverifiable on anything it cannot order', () => {
+    const ok = lock({ 'node_modules/qs': { version: '6.11.0' } });
+    assert.equal(lockfileCopiesPatched(null, 'qs', '6.11.0'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched('{nope', 'qs', '6.11.0'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' } }, 1), 'qs', '6.11.0'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(ok, 'qs', '6.11.0-beta.1'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(ok, 'qs', null), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(ok, '', '6.11.0'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.12.0-rc.0' } }), 'qs', '6.11.0'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': {} }), 'qs', '6.11.0'), 'unverifiable', 'a copy with no version');
+  });
+
+  it('npmLockfilePath maps an npm manifest to its directory\'s package-lock.json and refuses the rest', () => {
+    assert.equal(npmLockfilePath('package-lock.json'), 'package-lock.json');
+    assert.equal(npmLockfilePath('package.json'), 'package-lock.json');
+    assert.equal(npmLockfilePath('docs-site/package.json'), 'docs-site/package-lock.json');
+    for (const bad of [null, '', 'yarn.lock', 'web/pnpm-lock.yaml', '/package-lock.json', './package-lock.json', '../package-lock.json', 'a b/package.json']) {
+      assert.equal(npmLockfilePath(bad), null, String(bad));
+    }
   });
 });
 
