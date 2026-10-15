@@ -14,6 +14,7 @@ import {
   displayString,
   findUnpatchedCopy,
   lockfileCopiesPatched,
+  parseVulnerableRange,
   npmLockfilePath,
 } from './lockfile-update.js';
 import { validateIssueTitle, validateIssueBody } from './safety.js';
@@ -458,42 +459,83 @@ describe('the not-patched rule, read-only (#500)', () => {
     assert.equal(findUnpatchedCopy(packages, 'lodash', { major: 1, minor: 0, patch: 0 })?.reason, 'not-patched');
   });
 
-  it('lockfileCopiesPatched: patched only when every copy reaches the patch', () => {
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.11.1' } }), 'qs', '6.11.0'), 'patched');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.5.2' } }), 'qs', '6.11.0'), 'not-patched');
+  it('lockfileCopiesPatched: patched only when every copy is outside every vulnerable range', () => {
+    const below = ['< 6.11.0'];
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.11.1' } }), 'qs', '6.11.0', below), 'patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.5.2' } }), 'qs', '6.11.0', below), 'not-patched');
   });
 
   it('lockfileCopiesPatched reads an absent package as unverifiable, not refuted (a parent bump can drop it)', () => {
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/other': { version: '1.0.0' } }), 'qs', '6.11.0'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/other': { version: '1.0.0' } }), 'qs', '6.11.0', ['< 6.11.0']), 'unverifiable');
   });
 
   it('the gate still refuses a refresh that drops every copy as not-patched', () => {
     assert.equal(findUnpatchedCopy({ 'node_modules/other': { version: '1.0.0' } }, 'qs', { major: 6, minor: 11, patch: 0 })?.reason, 'not-patched');
   });
 
-  it('lockfileCopiesPatched compares only copies on the patch\'s release line; any other is unverifiable', () => {
-    // One advisory, ranges <1.2.3 and >=2.0.0 <2.0.5, first patched 1.2.3: a
-    // 2.0.0 copy is past 1.2.3 but inside the second range.
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '2.0.0' } }), 'qs', '1.2.3'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.2.3' }, 'node_modules/a/node_modules/qs': { version: '2.0.5' } }), 'qs', '1.2.3'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.9.0' } }), 'qs', '1.2.3'), 'unverifiable', 'a lower major is another line too');
-    // Inside 0.x the minor is the line (sameReleaseLine).
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.35.0' } }), 'qs', '0.34.5'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.6' } }), 'qs', '0.34.5'), 'patched');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.4' } }), 'qs', '0.34.5'), 'not-patched');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.9.0' } }), 'qs', '1.2.3'), 'patched', 'a later minor on the same major is compared');
+  it('lockfileCopiesPatched checks every range: two vulnerable ranges on the same major', () => {
+    // Copilot on #502: ranges <1.2.3 and >=1.5.0 <1.5.5, first patched 1.2.3.
+    // 1.5.0 is past the patch and on its release line, yet still vulnerable.
+    const ranges = ['< 1.2.3', '>= 1.5.0, < 1.5.5'];
+    const two = (a, b) => lock({ 'node_modules/qs': { version: a }, 'node_modules/a/node_modules/qs': { version: b } });
+    assert.equal(lockfileCopiesPatched(two('1.2.3', '1.5.0'), 'qs', '1.2.3', ranges), 'not-patched');
+    assert.equal(lockfileCopiesPatched(two('1.2.3', '1.5.4'), 'qs', '1.2.3', ranges), 'not-patched');
+    assert.equal(lockfileCopiesPatched(two('1.2.3', '1.5.5'), 'qs', '1.2.3', ranges), 'patched');
+    assert.equal(lockfileCopiesPatched(two('1.2.3', '1.4.9'), 'qs', '1.2.3', ranges), 'patched');
+    assert.equal(lockfileCopiesPatched(two('1.2.2', '1.5.5'), 'qs', '1.2.3', ranges), 'not-patched');
+  });
+
+  it('lockfileCopiesPatched judges copies on other release lines by the ranges, not as unverifiable', () => {
+    const ranges = ['< 1.2.3', '>= 2.0.0, < 2.0.5'];
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '2.0.0' } }), 'qs', '1.2.3', ranges), 'not-patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.2.3' }, 'node_modules/a/node_modules/qs': { version: '2.0.5' } }), 'qs', '1.2.3', ranges), 'patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.9.0' } }), 'qs', '1.2.3', ranges), 'not-patched');
+    // `=` and `<=`, and a 0.x line.
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.0.0' } }), 'qs', '1.0.1', ['= 1.0.0']), 'not-patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.5' } }), 'qs', '0.34.6', ['<= 0.34.5']), 'not-patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.6' } }), 'qs', '0.34.6', ['<= 0.34.5']), 'patched');
+  });
+
+  it('lockfileCopiesPatched keeps the first_patched floor: ranges that miss a copy below it are unverifiable, not patched', () => {
+    // The ranges and the patch disagree about 1.2.0, so neither claim is made.
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.2.0' } }), 'qs', '1.2.3', ['< 1.1.0']), 'unverifiable');
+    // A copy inside a range still refutes, whatever else is going on.
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.2.0' }, 'node_modules/a/node_modules/qs': { version: '1.0.0' } }), 'qs', '1.2.3', ['< 1.1.0']), 'not-patched');
+  });
+
+  it('lockfileCopiesPatched is unverifiable when the ranges are missing, empty or unparseable', () => {
+    const ok = lock({ 'node_modules/qs': { version: '6.11.0' } });
+    assert.equal(lockfileCopiesPatched(ok, 'qs', '6.11.0'), 'unverifiable', 'no ranges at all');
+    assert.equal(lockfileCopiesPatched(ok, 'qs', '6.11.0', null), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(ok, 'qs', '6.11.0', []), 'unverifiable');
+    for (const bad of ['', '^6.0.0', '< 6.11.0-beta', '<< 6.11.0', '< 6.11.0,', '< 6.11.0.1', '6.11.0', '< x', '< 6.11.0 || >= 7.0.0', null, 7]) {
+      assert.equal(lockfileCopiesPatched(ok, 'qs', '6.11.0', ['< 6.11.0', bad]), 'unverifiable', `range ${JSON.stringify(bad)}`);
+    }
+  });
+
+  it('parseVulnerableRange reads GitHub\'s comparator list and nothing else', () => {
+    assert.deepEqual(parseVulnerableRange('>= 1.5.0, < 1.5.5'), [
+      { op: '>=', version: { major: 1, minor: 5, patch: 0 } },
+      { op: '<', version: { major: 1, minor: 5, patch: 5 } },
+    ]);
+    assert.deepEqual(parseVulnerableRange('<2'), [{ op: '<', version: { major: 2, minor: 0, patch: 0 } }]);
+    assert.deepEqual(parseVulnerableRange('= 1.0.0'), [{ op: '=', version: { major: 1, minor: 0, patch: 0 } }]);
+    assert.equal(parseVulnerableRange('~1.2.3'), null);
+    assert.equal(parseVulnerableRange(undefined), null);
   });
 
   it('lockfileCopiesPatched fails closed to unverifiable on anything it cannot order', () => {
+    const r = ['< 6.11.0'];
     const ok = lock({ 'node_modules/qs': { version: '6.11.0' } });
-    assert.equal(lockfileCopiesPatched(null, 'qs', '6.11.0'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched('{nope', 'qs', '6.11.0'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' } }, 1), 'qs', '6.11.0'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(ok, 'qs', '6.11.0-beta.1'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(ok, 'qs', null), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(ok, '', '6.11.0'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.12.0-rc.0' } }), 'qs', '6.11.0'), 'unverifiable');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': {} }), 'qs', '6.11.0'), 'unverifiable', 'a copy with no version');
+    assert.equal(lockfileCopiesPatched(null, 'qs', '6.11.0', r), 'unverifiable');
+    assert.equal(lockfileCopiesPatched('{nope', 'qs', '6.11.0', r), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' } }, 1), 'qs', '6.11.0', r), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(ok, 'qs', '6.11.0-beta.1', r), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(ok, 'qs', null, r), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(ok, '', '6.11.0', r), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.12.0-rc.0' } }), 'qs', '6.11.0', r), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': {} }), 'qs', '6.11.0', r), 'unverifiable', 'a copy with no version');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.0.0' }, 'node_modules/a/node_modules/qs': { version: '6.12.0-rc.0' } }), 'qs', '6.11.0', r), 'unverifiable', 'an unorderable copy wins over a vulnerable one');
   });
 
   it('npmLockfilePath maps an npm manifest to its directory\'s package-lock.json and refuses the rest', () => {

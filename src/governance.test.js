@@ -1383,13 +1383,15 @@ describe('runGovernance — private repos must never enter the governance pipeli
       state: 'open',
       created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
       dependency: { package: { ecosystem: 'npm', name: 'left-pad' }, manifest_path: 'package-lock.json' },
-      security_vulnerability: { severity: 'medium', first_patched_version: { identifier: '1.3.1' } },
+      security_vulnerability: { severity: 'medium', first_patched_version: { identifier: '1.3.1' }, vulnerable_version_range: '< 1.3.1' },
+      security_advisory: { vulnerabilities: [{ package: { ecosystem: 'npm', name: 'left-pad' }, vulnerable_version_range: '< 1.3.1' }] },
     }, {
       number: 2,
       state: 'open',
       created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
       dependency: { package: { ecosystem: 'npm', name: 'lodash' }, manifest_path: 'package-lock.json' },
-      security_vulnerability: { severity: 'high', first_patched_version: { identifier: '4.17.21' } },
+      security_vulnerability: { severity: 'high', first_patched_version: { identifier: '4.17.21' }, vulnerable_version_range: '< 4.17.21' },
+      security_advisory: { vulnerabilities: [{ package: { ecosystem: 'npm', name: 'lodash' }, vulnerable_version_range: '< 4.17.21' }] },
     }];
     // Every requested URL, so a detector that merely LISTS a private repo's PRs
     // or alerts (fetchOpenPRs, whose map is only read back by public names) is
@@ -1835,7 +1837,8 @@ describe('runGovernance — security-pr-stuck wiring', () => {
     state: 'open',
     created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
     dependency: { package: { ecosystem: 'npm', name: 'lodash' }, manifest_path: 'package-lock.json' },
-    security_vulnerability: { severity: 'critical', first_patched_version: { identifier: '4.17.21' } },
+    security_vulnerability: { severity: 'critical', first_patched_version: { identifier: '4.17.21' }, vulnerable_version_range: '< 4.17.21' },
+    security_advisory: { vulnerabilities: [{ package: { ecosystem: 'npm', name: 'lodash' }, vulnerable_version_range: '< 4.17.21' }] },
   }];
 
   const lockBody = (copies) => {

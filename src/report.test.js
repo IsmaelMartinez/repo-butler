@@ -125,6 +125,80 @@ describe('report — unreadable chart data (#501)', () => {
     assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'the response body never reaches the log');
   });
 
+  it('says on the degraded card that chart data could not be read, not that the repo is quiet', async () => {
+    serve({ 'repo-a': () => ok({ message: 'ZZBODYZZ' }) });
+    const { context } = makeContext(['repo-a', 'repo-b']);
+    const { err } = await run(context);
+    assert.equal(err, undefined);
+    const card = await readFile(join(outDir, 'repo-a.html'), 'utf8');
+    assert.match(card, /Chart data could not be read on this run; it will be retried next run\./);
+    assert.ok(!card.includes('fewer than 10 commits'), 'a 20-commit repo must not be called low-activity');
+  });
+
+  // Copilot on #502: leaving the degraded repo out of the repo cache is not a
+  // retry if the global hash still short-circuits the next run before any
+  // per-repo entry is looked at. A stateful store across runs, same snapshot,
+  // same day.
+  describe('a degraded run is retried by the next one', () => {
+    function statefulStore() {
+      const state = { hash: null, cache: null, hashWrites: [] };
+      return {
+        state,
+        store: {
+          readLastHash: async () => state.hash,
+          writeHash: async (h) => { state.hash = h; state.hashWrites.push(h); },
+          readRepoCache: async () => state.cache,
+          writeRepoCache: async (c) => { state.cache = c; },
+          writePortfolioWeekly: async () => {},
+          readLatestPortfolioWeekly: async () => null,
+        },
+      };
+    }
+    const contextFor = (store, { force }) => {
+      const { context } = makeContext(['repo-a', 'repo-b']);
+      return { ...context, store, forceReport: force };
+    };
+    // Counts /pulls reads per repo: a retried repo is one whose charts are read.
+    function serveCounting(bad) {
+      const reads = {};
+      serve(Object.fromEntries(['repo-a', 'repo-b'].map(n => [n, () => {
+        reads[n] = (reads[n] ?? 0) + 1;
+        return bad[n] ? bad[n]() : ok([]);
+      }])));
+      return reads;
+    }
+
+    for (const force of [false, true]) {
+      it(`${force ? 'forced' : 'non-forced'} degraded run, then a non-forced run on the same snapshot regenerates and retries the repo`, async () => {
+        const { state, store } = statefulStore();
+        if (force) {
+          // A complete earlier run left today's hash behind; a forced run
+          // skips the check, so it must actively invalidate that hash.
+          serveCounting({});
+          const earlier = await run(contextFor(store, { force: false }));
+          assert.equal(earlier.err, undefined);
+          assert.equal(state.hashWrites.length, 1);
+        }
+        serveCounting({ 'repo-a': () => ok({ message: 'not a list' }) });
+        const first = await run(contextFor(store, { force }));
+        assert.equal(first.err, undefined);
+        assert.ok(first.lines.some(l => l.includes('chart data unreadable for repo-a')), first.lines.join('\n'));
+
+        const reads = serveCounting({});
+        const second = await run(contextFor(store, { force: false }));
+        assert.equal(second.err, undefined);
+        assert.ok(!second.lines.some(l => l.includes('No changes since last report')), 'the second run must not short-circuit');
+        assert.ok(reads['repo-a'] > 0, 'the degraded repo is read again');
+        assert.ok(state.cache.repos['repo-a']?.chartData, 'and cached once it reads');
+        assert.ok(!(await readFile(join(outDir, 'repo-a.html'), 'utf8')).includes('could not be read'));
+
+        // A complete run stores the real hash again: the third run is a cache hit.
+        const third = await run(contextFor(store, { force: false }));
+        assert.ok(third.lines.some(l => l.includes('No changes since last report')), third.lines.join('\n'));
+      });
+    }
+  });
+
   it('fails the phase when EVERY fresh repo degrades (a systemic outage, not one bad page)', async () => {
     serve({ 'repo-a': () => fail(500), 'repo-b': () => ok({}) });
     const { context, cacheWrites } = makeContext(['repo-a', 'repo-b']);

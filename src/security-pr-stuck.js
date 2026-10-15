@@ -20,9 +20,12 @@
 // The branch name is not the whole story for npm (#500): a version-update PR
 // can lift the root copy above the patch while a pinned, nested copy in the
 // same lockfile stays vulnerable, so merging it would not close the alert. Every
-// npm match is therefore confirmed against the lockfile AT THE PR'S HEAD with
-// lockfile-update.js's own `not-patched` rule (lockfileCopiesPatched), and a
-// lockfile that cannot be read or ordered leaves the match UNVERIFIED — no
+// npm match is therefore confirmed against the lockfile AT THE PR'S HEAD by
+// lockfile-update.js's lockfileCopiesPatched: every copy must sit outside every
+// vulnerable range the advisory lists for the package (advisoryRangesFor), not
+// merely at or above first_patched_version, which names one patch even when an
+// advisory carries several ranges. A lockfile that cannot be read or ordered,
+// or ranges that are missing or unparseable, leave the match UNVERIFIED — no
 // evidence, and no stuck claim. Other ecosystems keep the branch-name rule:
 // their manifests pin one version per package, and no reader exists for them.
 //
@@ -148,6 +151,39 @@ function alertsFixedBy(ref, alerts) {
 }
 
 /**
+ * Every `vulnerable_version_range` the alert's advisory lists for the alert's
+ * own package, or null when that set cannot be established. One advisory can
+ * carry several ranges for one package (say `< 1.2.3` and `>= 1.5.0, < 1.5.5`)
+ * while first_patched_version names only the patch for the matched one, so the
+ * lockfile check needs them all. `security_advisory.vulnerabilities` is the
+ * full list; `security_vulnerability` (the matched entry) is added too, so it
+ * cannot be left out even if the list disagrees. Null — and so an unverified
+ * match — when the list is missing or names no entry for the package, or when
+ * any matching entry's range is not a string: a partial set is exactly the
+ * bug this exists to close. Ranges are only collected here; parsing (and
+ * refusing what it cannot read) is lockfile-update.js's parseVulnerableRange.
+ */
+export function advisoryRangesFor(alert) {
+  const name = alert?.dependency?.package?.name;
+  const ecosystem = alert?.dependency?.package?.ecosystem;
+  const list = alert?.security_advisory?.vulnerabilities;
+  if (typeof name !== 'string' || typeof ecosystem !== 'string' || !Array.isArray(list)) return null;
+  const ranges = [];
+  for (const v of list) {
+    if (v?.package?.name !== name || v?.package?.ecosystem !== ecosystem) continue;
+    if (typeof v.vulnerable_version_range !== 'string') return null;
+    ranges.push(v.vulnerable_version_range);
+  }
+  if (ranges.length === 0) return null;
+  const matched = alert.security_vulnerability?.vulnerable_version_range;
+  if (matched !== undefined && matched !== null) {
+    if (typeof matched !== 'string') return null;
+    ranges.push(matched);
+  }
+  return [...new Set(ranges)];
+}
+
+/**
  * Does this PR's lockfile confirm the branch-name match for this alert? Only
  * npm alerts are checked (see the header): for every other ecosystem the
  * strict branch match already passed and stands, so this returns 'fixes'.
@@ -155,19 +191,21 @@ function alertsFixedBy(ref, alerts) {
  * For npm: read the alert directory's package-lock.json at the PR's head SHA
  * (getLargeFileContent: the Contents API, then the blob API above its 1 MB
  * inline ceiling, null only for a genuine 404) and require EVERY copy of the
- * package at or above first_patched_version — lockfile-update.js's
- * `not-patched` rule, reused, not re-derived. Reads are cached per
+ * package outside every vulnerable range the advisory lists for it
+ * (lockfile-update.js's lockfileCopiesPatched, which also keeps the
+ * first_patched_version floor on the patch's release line). Reads are cached per
  * (repo, sha, path) in `cache` for the run, so a PR matching several alerts in
  * one directory costs one read.
  *
  * Never throws. Returns:
  *   'fixes'       every copy patched (or a non-npm ecosystem)
- *   'not-fixed'   the lockfile was read and a copy on the patch's release
- *                 line is still below the patch
+ *   'not-fixed'   the lockfile was read and a copy sits inside one of the
+ *                 advisory's vulnerable ranges
  *   'unverified'  no head SHA, no knowable package-lock.json path (yarn, pnpm,
  *                 a missing manifest path), absent, unreadable, unorderable, no
- *                 copy of the package (a parent bump may have dropped it), or a
- *                 copy on another release line (a second vulnerable range)
+ *                 copy of the package (a parent bump may have dropped it), the
+ *                 advisory's ranges missing or unparseable, or the ranges and
+ *                 first_patched_version disagreeing about a copy
  */
 async function verifyFixAtHead(gh, owner, repoName, p, alert, cache) {
   if (alert.ecosystem !== 'npm') return 'fixes';
@@ -184,7 +222,7 @@ async function verifyFixAtHead(gh, owner, repoName, p, alert, cache) {
   }
   const text = await cache.get(key);
   if (text === null) return 'unverified';
-  const verdict = lockfileCopiesPatched(text, alert.package, alert.patchedVersion);
+  const verdict = lockfileCopiesPatched(text, alert.package, alert.patchedVersion, alert.vulnerableRanges);
   return verdict === 'patched' ? 'fixes' : verdict === 'not-patched' ? 'not-fixed' : 'unverified';
 }
 
@@ -262,6 +300,10 @@ export async function detectSecurityFixState(gh, owner, repos, {
           lockfilePath: a.dependency?.package?.ecosystem === 'npm' ? npmLockfilePath(a.dependency?.manifest_path) : null,
           severity: a.security_vulnerability?.severity || a.security_advisory?.severity || null,
           patchedVersion: a.security_vulnerability?.first_patched_version?.identifier ?? null,
+          // Every vulnerable range the advisory lists for this package; null
+          // when that cannot be established, which leaves an npm match
+          // unverified (lockfileCopiesPatched).
+          vulnerableRanges: advisoryRangesFor(a),
           alertAge: daysSince(a.created_at, now),
         }))
         .filter(a => a.package && QUALIFYING_SEVERITIES.has(a.severity));

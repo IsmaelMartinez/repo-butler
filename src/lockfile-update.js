@@ -331,13 +331,13 @@ function cmp(a, b) {
  * and so does an aliased install whose entry names the package. Returns null
  * when every copy is patched, otherwise `{ reason: 'not-patched', detail }`,
  * including when no copy is present at all: a lockfile without the package
- * proves nothing about the alert. Exported so security-pr-stuck.js asks the
- * SAME question of a Dependabot PR's lockfile rather than re-deriving it.
+ * proves nothing about the alert. Exported for its tests; the read-only
+ * lockfileCopiesPatched below no longer calls it, because judging a PR's
+ * lockfile needs the advisory's vulnerable ranges and not the patch alone.
  *
  * Callers must already have refused any copy that is not a plain release
  * (PLAIN_RELEASE): parseVersion tolerates suffixes, so this rule alone would
- * read `1.2.3-beta.0` as `1.2.3`. computeLockfileGate does that check first;
- * lockfileCopiesPatched below does it for its own callers.
+ * read `1.2.3-beta.0` as `1.2.3`. computeLockfileGate does that check first.
  */
 export function findUnpatchedCopy(packages, name, patch) {
   let copies = 0;
@@ -358,40 +358,101 @@ export function findUnpatchedCopy(packages, name, patch) {
   return null;
 }
 
+// One comparator of GitHub's `vulnerable_version_range` format: an operator,
+// optional space, and a plain dotted numeric version. Nothing else is read — no
+// prerelease, no build metadata, no `x` wildcards, no caret or tilde (GitHub
+// does not emit them here, so meeting one means the format is not what this
+// parser understands, and the answer must be "cannot tell").
+const RANGE_COMPARATOR = /^(<=|>=|<|>|=)\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
+
+/**
+ * Parse one advisory range such as `< 1.2.3` or `>= 1.5.0, < 1.5.5`
+ * (comma-separated comparators, all of which must hold) into
+ * `[{ op, version: {major, minor, patch} }]`, or null for anything else —
+ * an empty string, an empty comparator, an unknown operator, a version with a
+ * suffix or more than three parts. Missing trailing parts read as 0 (`< 2`
+ * is `< 2.0.0`). Strict on purpose: a range this cannot read leaves the
+ * lockfile unverifiable rather than being half-understood.
+ */
+export function parseVulnerableRange(range) {
+  if (typeof range !== 'string') return null;
+  const parts = range.split(',').map(p => p.trim());
+  if (parts.length === 0 || parts.some(p => p === '')) return null;
+  const out = [];
+  for (const part of parts) {
+    const m = part.match(RANGE_COMPARATOR);
+    if (!m) return null;
+    out.push({ op: m[1], version: { major: +m[2], minor: +(m[3] ?? 0), patch: +(m[4] ?? 0) } });
+  }
+  return out;
+}
+
+function satisfiesComparators(v, comparators) {
+  return comparators.every(({ op, version }) => {
+    const d = cmp(v, version);
+    switch (op) {
+      case '<': return d < 0;
+      case '<=': return d <= 0;
+      case '>': return d > 0;
+      case '>=': return d >= 0;
+      default: return d === 0; // '='
+    }
+  });
+}
+
 /**
  * Read-only use of the `not-patched` rule against one lockfile's text, for a
  * caller that wants to know whether a lockfile RESOLVES an alert rather than
  * whether a refresh may be pushed (security-pr-stuck.js, issue #500). Three
  * answers, failing closed:
  *
- *   patched       every copy of `name` is a plain release at or above
- *                 `patchedVersion` on the patch's own release line, and there
- *                 is at least one copy
- *   not-patched   findUnpatchedCopy refused: a copy on the patch's release
- *                 line is still below it
+ *   patched       there is at least one copy of `name`, every copy is a plain
+ *                 release, none satisfies any of the advisory's vulnerable
+ *                 ranges, and none on the patch's release line sits below
+ *                 `patchedVersion`
+ *   not-patched   a copy satisfies one of the vulnerable ranges: the advisory
+ *                 itself says that copy is affected
  *   unverifiable  the text is not JSON, has no lockfileVersion >= 2 packages
  *                 map, the patched version is not a plain release, a copy's
- *                 version is not one, NO copy is present, or a copy sits on a
- *                 different release line from the patch
+ *                 version is not one, NO copy is present, the ranges are
+ *                 missing, empty or any one is unparseable, or the ranges and
+ *                 `patchedVersion` disagree about a copy (outside every range
+ *                 yet below the patch on its release line)
  *
- * Two departures from the gate, both toward "unverifiable" and both confined
- * to this read-only caller (computeLockfileGate is unchanged):
+ * `vulnerableRanges` is EVERY `vulnerable_version_range` the advisory carries
+ * for this package (security_advisory.vulnerabilities, filtered to the
+ * package): one advisory can hold several, say `< 1.2.3` and
+ * `>= 1.5.0, < 1.5.5`, while `first_patched_version` names only one patch, so
+ * comparing against that patch alone reads 1.5.0 as fixed. The ranges are the
+ * advisory's own statement of what is affected, so they decide; this replaced
+ * the earlier release-line heuristic (any copy off the patch's line was
+ * unverifiable), which the ranges subsume and which still missed a second
+ * range on the SAME major. `patchedVersion` stays as belt and braces: a copy
+ * on its release line below it, that no range covers, means the two sources
+ * disagree, and the answer is unverifiable rather than either claim.
+ *
+ * Two departures from the gate, both confined to this read-only caller
+ * (computeLockfileGate and findUnpatchedCopy are unchanged):
  *
  * - Absence. The gate refuses a refresh that drops every copy, because it
  *   cannot vouch for a lockfile it is about to push. Here a security PR that
  *   bumps a parent until the vulnerable transitive dependency falls out of
  *   the tree is a real fix, so absence is neither a refutation nor proof.
- * - Release lines. One advisory can carry several vulnerable ranges (say
- *   `<1.2.3` and `>=2.0.0 <2.0.5`) while `first_patched_version` names only
- *   the lowest patch, so a 2.0.0 copy "passes" against 1.2.3 while sitting
- *   inside the second range. Only a copy on the patch's own release line
- *   (trimmer's sameReleaseLine: the major, or the minor inside 0.x) is
- *   compared; any other copy makes the answer unverifiable.
+ * - Ranges. The gate compares against the patch alone, which is right for a
+ *   refresh it runs itself (npm update moves within the parent's range); here
+ *   the advisory's ranges are what a copy is judged against.
  *
+ * @param {string} lockText
+ * @param {string} name
+ * @param {string} patchedVersion — the alert's first_patched_version
+ * @param {string[]} vulnerableRanges — the advisory's ranges for `name`
  * @returns {'patched'|'not-patched'|'unverifiable'}
  */
-export function lockfileCopiesPatched(lockText, name, patchedVersion) {
+export function lockfileCopiesPatched(lockText, name, patchedVersion, vulnerableRanges) {
   if (typeof lockText !== 'string' || typeof name !== 'string' || name === '') return 'unverifiable';
+  if (!Array.isArray(vulnerableRanges) || vulnerableRanges.length === 0) return 'unverifiable';
+  const ranges = vulnerableRanges.map(parseVulnerableRange);
+  if (ranges.some(r => r === null)) return 'unverifiable';
   const lock = parseJson(lockText);
   if (!lock || !(Number(lock.lockfileVersion) >= MIN_LOCKFILE_VERSION) || !lock.packages || typeof lock.packages !== 'object') {
     return 'unverifiable';
@@ -399,14 +460,21 @@ export function lockfileCopiesPatched(lockText, name, patchedVersion) {
   const patch = parseVersion(patchedVersion);
   if (!patch || !PLAIN_RELEASE.test(String(patchedVersion))) return 'unverifiable';
   let copies = 0;
+  let vulnerable = false;
+  let disagrees = false;
   for (const [path, entry] of Object.entries(lock.packages)) {
     if (path === '' || entryName(path, entry) !== name) continue;
     copies += 1;
     if (!PLAIN_RELEASE.test(String(entry?.version ?? ''))) return 'unverifiable';
-    if (!sameReleaseLine(parseVersion(entry.version), patch)) return 'unverifiable';
+    const v = parseVersion(entry.version);
+    if (ranges.some(r => satisfiesComparators(v, r))) vulnerable = true;
+    else if (sameReleaseLine(v, patch) && cmp(v, patch) < 0) disagrees = true;
   }
   if (copies === 0) return 'unverifiable';
-  return findUnpatchedCopy(lock.packages, name, patch) ? 'not-patched' : 'patched';
+  // Every copy was read before answering, so an unreadable copy anywhere wins
+  // over a vulnerable one (unverifiable is returned from inside the loop).
+  if (vulnerable) return 'not-patched';
+  return disagrees ? 'unverifiable' : 'patched';
 }
 
 /**

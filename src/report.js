@@ -50,6 +50,12 @@ export function reportCacheHit(context) {
 // src/report*.js module is listed.
 export const TEMPLATE_FILES = ['src/report.js', 'src/report-portfolio.js', 'src/report-portfolio-data.js', 'src/report-repo.js', 'src/report-styles.js', 'src/report-shared.js'];
 
+// Prefix of the global hash written after a run that degraded some repo's
+// card. A computed hash is bare hex, so a marked one never matches it and the
+// next run regenerates (retrying the degraded repo, which has no repo-cache
+// entry). Not exported: report.js exports only its entry points (#422).
+const INCOMPLETE_HASH_PREFIX = 'incomplete:';
+
 export async function report(context) {
   const { owner, token, config, store } = context;
   const outDir = process.env.REPORT_OUTPUT_DIR || 'reports';
@@ -131,6 +137,9 @@ export async function report(context) {
 
   // Per-repo cache for incremental generation.
   const newRepoCache = { repos: {} };
+  // Repos degraded to the light card by the per-repo catch below. Function
+  // scope because the global hash write at the end depends on it.
+  let degradedCount = 0;
 
   // Generate per-repo reports first to collect contributor data for portfolio table.
   if (portfolio) {
@@ -140,9 +149,8 @@ export async function report(context) {
 
     let freshCount = 0;
     let cacheHitCount = 0;
-    // Repos degraded to the light card by the catch below, with the last status
-    // seen, for the systemic-outage check after the loop.
-    let degradedCount = 0;
+    // The last status seen by the degraded catch below, for the
+    // systemic-outage check after the loop (degradedCount is declared above).
     let lastDegradedStatus = null;
 
     for (const r of activeRepos) {
@@ -319,8 +327,9 @@ export async function report(context) {
         // A failed read on one repo's chart data (an HTTP error, or since #501 a
         // list page that is not an array) degrades that repo to the lightweight
         // card instead of failing REPORT for the whole portfolio. Nothing is
-        // cached for it, so the next run refetches rather than serving a
-        // degraded entry until the repo's next push. Portfolio repos are public
+        // cached for it, and the run is marked incomplete in the global hash
+        // (below), so the next run refetches rather than serving a degraded
+        // entry until the repo's next push or the next day. Portfolio repos are public
         // (privateRepos never reach this loop), so naming the repo is fine; the
         // status alone is logged, never the response body.
         //
@@ -337,7 +346,7 @@ export async function report(context) {
         degradedCount++;
         lastDegradedStatus = err.status;
         console.log(`report: chart data unreadable for ${r.name} (status ${err.status}); writing lightweight card`);
-        await writeFile(join(outDir, `${r.name}.html`), generateLightRepoReport(owner, r, repoDetails?.[r.name]));
+        await writeFile(join(outDir, `${r.name}.html`), generateLightRepoReport(owner, r, repoDetails?.[r.name], { degraded: true }));
       }
     }
 
@@ -431,9 +440,17 @@ export async function report(context) {
     console.log('A2A AgentCard and .nojekyll marker written to reports/');
   }
 
-  // Persist hash and repo cache after successful generation.
+  // Persist hash and repo cache after successful generation. A partial
+  // generation (some repo degraded to the light card) must not store the hash
+  // that short-circuits the next run: the cache check at the top returns
+  // before any per-repo cache entry is consulted, so the degraded card would
+  // stand until the snapshot or the date changed, however soon the API
+  // recovered. Writing a marker that can never equal a computed hash, rather
+  // than skipping the write, also invalidates a matching hash an earlier run
+  // stored — the case a forced run (which skips the check) would otherwise
+  // leave behind.
   if (store && currentHash) {
-    await store.writeHash(currentHash);
+    await store.writeHash(degradedCount > 0 ? `${INCOMPLETE_HASH_PREFIX}${currentHash}` : currentHash);
   }
   if (store && newRepoCache && Object.keys(newRepoCache.repos).length > 0) {
     await store.writeRepoCache(newRepoCache);

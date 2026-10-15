@@ -731,7 +731,11 @@ new Chart(document.getElementById('releaseChart'),{type:'bar',data:{labels:[${re
   return htmlPage({ title: `${snapshot.repository} — Health Report`, body, charts });
 }
 
-export function generateLightRepoReport(owner, repo, details) {
+// `degraded: true` is the light card REPORT falls back to when a repo's chart
+// data could not be read on this run. That repo may well have plenty of
+// commits, so the low-activity explanation would be false and would hide why
+// the charts are missing; the degraded copy says what actually happened.
+export function generateLightRepoReport(owner, repo, details, { degraded = false } = {}) {
   const now = new Date().toISOString().split('T')[0];
   const pushed = repo.pushed_at?.split('T')[0] || 'unknown';
   const commits = details?.commits || 0;
@@ -756,8 +760,9 @@ export function generateLightRepoReport(owner, repo, details) {
   ${buildDependabotAutofixCard(autofix)}
 </div>
 <div class="chart-container muted" style="text-align:center;padding:3rem">
-  This repo has fewer than 10 commits in the last 6 months.<br>
-  Full charts are generated for repos with more activity.
+  ${degraded
+    ? 'Chart data could not be read on this run; it will be retried next run.'
+    : 'This repo has fewer than 10 commits in the last 6 months.<br>\n  Full charts are generated for repos with more activity.'}
 </div>
 <p style="text-align:center;margin-top:2rem"><a href="https://github.com/${owner}/${escHtml(repo.name)}">View on GitHub</a></p>`;
   // Route through htmlPage so light cards get the same theme toggle, persisted
