@@ -11,7 +11,7 @@ import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlerts } from './stalled-alert.js';
-import { detectStuckSecurityPRs } from './security-pr-stuck.js';
+import { detectSecurityFixState } from './security-pr-stuck.js';
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
@@ -69,19 +69,52 @@ export async function runGovernance(context) {
   const openPRs = await fetchOpenPRs(gh, owner, portfolio.repos)
     .catch(err => { console.error(`Open-PR sweep failed: ${err.message}`); return {}; });
 
-  // Security-fix PRs that have not landed. Runs BEFORE detectOpenVulnerabilities
-  // because its result is that detector's evidence: a stuck fix withdraws the
-  // "remediation in flight" downgrade. Passed in as data so the open-vulnerability
-  // detector stays pure. Wrapped like the audits below; a failure degrades to
-  // "no stuck PR seen", which is exactly the pre-existing behaviour.
+  // Security-fix PRs that have not landed, and the evidence behind the
+  // open-vulnerability "in flight" downgrade. Both run BEFORE
+  // detectOpenVulnerabilities because their results are that detector's
+  // evidence, passed in as data so it stays pure. The downgrade needs POSITIVE
+  // evidence — an open, recent Dependabot PR for every critical/high alert — so
+  // a failed read here can only withhold it, never raise a priority above what
+  // the un-annotated finding would carry.
   // portfolio.repos only, never privateRepos (see the private-repo section of
   // AGENTS.md and the guard in governance.test.js).
-  const stuckSecurity = await detectStuckSecurityPRs(gh, owner, portfolio.repos, { openPRs })
-    .catch(err => { console.error(`Stuck security-PR detection failed: ${err.message}`); return []; });
-  const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails, { stuckSecurityPRs: stuckSecurity });
+  const evidenceRepos = eligibleRepos(portfolio.repos)
+    .filter(r => autofixActive(context.repoDetails?.[r.name]?.autofix) === true
+      && isHighSeverity(context.repoDetails?.[r.name]?.vulns))
+    .map(r => r.name);
+  const fixState = await detectSecurityFixState(gh, owner, portfolio.repos, { openPRs, evidenceRepos })
+    .catch(err => {
+      console.error(`Stuck security-PR detection failed: ${err.message}`);
+      return { findings: [], fixEvidence: {}, unread: [...evidenceRepos] };
+    });
+  const stuckSecurity = fixState.findings;
+  if (fixState.unread.length > 0) {
+    console.log(`Security-fix evidence: ${fixState.unread.length} repo(s) unread — no in-flight downgrade for them.`);
+  }
 
-  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...stuckSecurity, ...regressions, ...unguarded];
-  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${stuckSecurity.length} security-pr-stuck, ${regressions.length} tier-regression, ${unguarded.length} automerge-unguarded)`);
+  // G13: open Dependabot alerts nobody is driving to resolution. Run here, not
+  // with the audits below, because a stalled alert is also evidence that the
+  // repo's fix is NOT in flight. Wrapped like the audits and for the identical
+  // reason — a throw here would abort runGovernance before
+  // writeGovernanceFindings and leave the data branch serving the previous
+  // run's findings. Detection only: ADR-014 authorises no write in response to
+  // a stalled alert.
+  // portfolio.repos only, never privateRepos (see the private-repo section of
+  // AGENTS.md and the guard in governance.test.js).
+  const stalledAlerts = await detectStalledAlerts(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => { console.error(`Stalled-alert detection failed: ${err.message}`); return []; });
+  if (stalledAlerts.length > 0) {
+    console.log(`Stalled alerts: ${stalledAlerts.length} repos with unattended Dependabot alerts.`);
+  }
+
+  const openVulns = detectOpenVulnerabilities(portfolio.repos, context.repoDetails, {
+    stuckSecurityPRs: stuckSecurity,
+    fixEvidence: fixState.fixEvidence,
+    stalledAlerts,
+  });
+
+  context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...stuckSecurity, ...stalledAlerts, ...regressions, ...unguarded];
+  console.log(`Governance: ${context.governanceFindings.length} findings (${gaps.findings.length} gaps, ${drift.length} drift, ${uplift.length} uplift, ${openVulns.length} open-vuln, ${stuckSecurity.length} security-pr-stuck, ${stalledAlerts.length} stalled-alert, ${regressions.length} tier-regression, ${unguarded.length} automerge-unguarded)`);
 
   // Both audits are wrapped: they own per-repo error handling, but a throw from
   // anything outside that per-repo try (a malformed input, say) would abort
@@ -100,20 +133,6 @@ export async function runGovernance(context) {
   if (butlerPRs.length > 0) {
     context.governanceFindings.push(...butlerPRs);
     console.log(`Butler PR audit: ${butlerPRs.length} repos with stale butler PRs.`);
-  }
-
-  // G13: open Dependabot alerts nobody is driving to resolution. Wrapped like
-  // the two audits above and for the identical reason — a throw here would
-  // abort runGovernance before writeGovernanceFindings and leave the data
-  // branch serving the previous run's findings. Detection only: ADR-014
-  // authorises no write in response to a stalled alert.
-  // portfolio.repos only, never privateRepos (see the private-repo section of
-  // AGENTS.md and the guard in governance.test.js).
-  const stalledAlerts = await detectStalledAlerts(gh, owner, portfolio.repos, { openPRs })
-    .catch(err => { console.error(`Stalled-alert detection failed: ${err.message}`); return []; });
-  if (stalledAlerts.length > 0) {
-    context.governanceFindings.push(...stalledAlerts);
-    console.log(`Stalled alerts: ${stalledAlerts.length} repos with unattended Dependabot alerts.`);
   }
 
   // Attach the portable remediation-plan contract (ADR-007) to every finding
@@ -652,17 +671,21 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
  *
  * @param {Array} repos — portfolio repos from observePortfolio()
  * @param {Object} details — enriched details from fetchPortfolioDetails()
- * @param {{ stuckSecurityPRs?: Array }} [options] — security-pr-stuck findings
- *   from this run (security-pr-stuck.js). A repo with one has a Dependabot fix
- *   PR open past the threshold, which withdraws the in-flight downgrade below.
+ * @param {{ stuckSecurityPRs?: Array, fixEvidence?: Object, stalledAlerts?: Array }} [options]
+ *   This run's evidence about whether a fix is actually landing, all from
+ *   security-pr-stuck.js and stalled-alert.js: security-pr-stuck findings,
+ *   fixEvidence[repo] = { inFlight, unaddressed, unpatched } for repos read
+ *   completely, and stalled-alert findings. Without it nothing is in flight.
  * @returns {Array} open-vulnerability findings
  */
-export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [] } = {}) {
+export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [], fixEvidence = {}, stalledAlerts = [] } = {}) {
   const eligible = eligibleRepos(repos);
   const findings = [];
-  const stuckRepos = new Set((Array.isArray(stuckSecurityPRs) ? stuckSecurityPRs : [])
-    .filter(f => f?.type === 'security-pr-stuck')
+  const reposOf = (list, type) => new Set((Array.isArray(list) ? list : [])
+    .filter(f => f?.type === type)
     .map(f => f.repo));
+  const stuckRepos = reposOf(stuckSecurityPRs, 'security-pr-stuck');
+  const stalledRepos = reposOf(stalledAlerts, 'stalled-alert');
 
   for (const r of eligible) {
     const d = details?.[r.name];
@@ -700,32 +723,41 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
     // The state is fetched in the OBSERVE/portfolio-details layer (detection stays
     // PURE — no gh client here) and threaded into details[repo].autofix as
     // { enabled, paused } | null. autofixEnabled is the derived tri-state:
-    //   true  → autofix ON and not paused: GitHub is already opening the bump PRs
-    //           (remediation in flight);
+    //   true  → autofix ON and not paused: GitHub MAY open the bump PRs — whether
+    //           it did, and whether they land, is fixInFlight below;
     //   false → autofix OFF or paused: the alerts are not being driven to resolution;
     //   null  → state unreadable/unknown (feature unavailable or missing scope) —
     //           we don't annotate and behave exactly as before.
     const dependabotSourced = sources.includes('dependabot');
     const autofixEnabled = dependabotSourced ? autofixActive(d.autofix) : null;
 
-    // When autofix is ON and Dependabot is the ONLY source, GitHub is already
-    // driving the fix — downgrade high→medium so the high-priority governance
-    // banner reflects "in flight, not unattended". max_severity is NOT touched
-    // (the alert is still open, so the health-tier drop stands — "in flight" is a
-    // governance annotation, not a tier reprieve). A finding that also carries a
-    // code-scanning or secret-scanning source keeps its priority: those sources
-    // still need manual work that autofix cannot perform.
+    // Autofix ON says GitHub MAY open the bump PRs, not that it did or that they
+    // will land. "In flight" (fixInFlight, set only when autofixEnabled is true)
+    // therefore needs evidence from this run's reads:
+    //   true  → every open critical/high alert has a patched version and an
+    //           open, recent, same-repo Dependabot PR plausibly addressing it,
+    //           none is stuck, and the repo has no stalled alert;
+    //   false → read, and that is not so (the motivating repos had no
+    //           Dependabot branch at all, or an alert with no patched version);
+    //   null  → the evidence could not be read — treated like
+    //           autofixEnabled === null: no annotation-driven downgrade.
     //
-    // ...unless the fix is demonstrably NOT in flight: a Dependabot PR fixing one
-    // of these alerts has sat open past the security-pr-stuck threshold (red CI,
-    // a major bump auto-merge will not take, or nobody reviewing it). "Autofix is
-    // on" only says GitHub OPENS the PR; a stuck one is evidence it will not
-    // land on its own, so the downgrade's premise is gone and the priority stays.
-    // Only positive evidence withdraws it: a repo whose PR read failed has no
-    // finding and keeps the old behaviour, so an API error cannot inflate.
+    // Only when the fix is evidenced as in flight AND Dependabot is the ONLY
+    // source is a high finding downgraded to medium, so the banner reads "in
+    // flight, not unattended". max_severity is NOT touched (the alert is still
+    // open, so the health-tier drop stands — "in flight" is a governance
+    // annotation, not a tier reprieve). A finding that also carries a
+    // code-scanning or secret-scanning source keeps its priority: those need
+    // manual work autofix cannot perform. Every non-evidenced path leaves the
+    // un-annotated priority, so nothing here can raise one.
     const dependabotOnly = sources.length === 1 && dependabotSourced;
     const fixStuck = dependabotSourced && stuckRepos.has(r.name);
-    if (autofixEnabled === true && dependabotOnly && priority === 'high' && !fixStuck) {
+    const alertStalled = dependabotSourced && stalledRepos.has(r.name);
+    const evidence = fixEvidence?.[r.name] ?? null;
+    const fixInFlight = autofixEnabled !== true ? undefined
+      : evidence == null ? null
+        : evidence.inFlight === true && !fixStuck && !alertStalled;
+    if (fixInFlight === true && dependabotOnly && priority === 'high') {
       priority = 'medium';
     }
 
@@ -741,9 +773,13 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
       // Only dependabot-sourced findings carry the annotation — for a
       // code-scanning/secret-only finding the field is irrelevant and omitted.
       ...(dependabotSourced ? { autofixEnabled } : {}),
-      // Present only when true: absence means "no stuck fix seen", which is not
-      // the same claim as "the fix is landing".
+      ...(fixInFlight !== undefined ? { fixInFlight } : {}),
+      // What is missing when the evidence was read and says "not in flight".
+      ...(fixInFlight === false ? { unaddressedAlerts: evidence.unaddressed ?? 0, unpatchedAlerts: evidence.unpatched ?? 0 } : {}),
+      // Present only when true: absence means "none seen", which is not the
+      // same claim as "the fix is landing".
       ...(fixStuck ? { fixStuck: true } : {}),
+      ...(alertStalled ? { alertStalled: true } : {}),
     });
   }
 
@@ -827,6 +863,26 @@ function standardsExecutor(tool) {
   if (SETTINGS_TOOLS.has(tool)) return 'settings';
   if (AGENT_TOOLS.has(tool)) return 'agent';
   return 'manual';
+}
+
+// The rationale for an open-vulnerability finding with autofix ON. It says "in
+// flight" only on the evidence detectOpenVulnerabilities recorded — the setting
+// alone is what used to make every such repo read as handled.
+function autofixOnNote(finding) {
+  if (finding.fixStuck === true) {
+    return ' Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).';
+  }
+  if (finding.fixInFlight === true) {
+    return ' Dependabot automated security fixes are ON and an open Dependabot PR addresses every critical/high alert — remediation in flight.';
+  }
+  if (finding.fixInFlight === false) {
+    const gaps = [];
+    if (finding.unaddressedAlerts) gaps.push(`no open Dependabot PR addresses ${finding.unaddressedAlerts} alert(s)`);
+    if (finding.unpatchedAlerts) gaps.push(`${finding.unpatchedAlerts} alert(s) have no patched version to bump to`);
+    if (finding.alertStalled === true) gaps.push('a Dependabot alert here is stalled (see the stalled-alert finding)');
+    return ` Dependabot automated security fixes are ON but not landing a fix: ${gaps.join('; ') || 'no recent Dependabot PR covers these alerts'}.`;
+  }
+  return ' Dependabot automated security fixes are ON, but whether a fix PR is open could not be read — not treated as in flight.';
 }
 
 /**
@@ -982,10 +1038,7 @@ export function buildRemediationPlan(finding) {
       // ADR-012 Phase 3: reflect whether Dependabot autofix is already driving the
       // dependency-bump remediation, so the operator sees "in flight" vs "not
       // driven" alongside the alert counts. Only set on dependabot-sourced findings.
-      const autofixNote = finding.fixStuck === true
-        ? ` A Dependabot fix PR is open but stuck (see the security-pr-stuck finding)${finding.autofixEnabled === true ? ' — automated security fixes are ON, but the PR is not landing' : ''}.`
-        : finding.autofixEnabled === true
-        ? ' Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).'
+      const autofixNote = finding.autofixEnabled === true ? autofixOnNote(finding)
         : finding.autofixEnabled === false
           ? ' Dependabot automated security fixes are OFF — not being driven to resolution; the dependabot-security apply action would enable them.'
           : '';

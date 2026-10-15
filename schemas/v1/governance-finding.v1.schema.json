@@ -56,7 +56,26 @@
     },
     "autofixEnabled": {
       "type": ["boolean", "null"],
-      "description": "open-vulnerability, dependabot-sourced only (ADR-012 Phase 3): whether GitHub's Dependabot automated security fixes are actively opening the bump PRs. true = remediation in flight (enabled and not paused); false = OFF/paused (not being driven to resolution); null = state unreadable/unknown. Read in the OBSERVE/portfolio-details layer (detection stays pure). When true and Dependabot is the only source, a high-priority finding is downgraded to medium — unless fixStuck is set; max_severity is never changed and the health-tier drop stands."
+      "description": "open-vulnerability, dependabot-sourced only (ADR-012 Phase 3): whether GitHub's Dependabot automated security fixes are actively opening the bump PRs. true = remediation in flight (enabled and not paused); false = OFF/paused (not being driven to resolution); null = state unreadable/unknown. Read in the OBSERVE/portfolio-details layer (detection stays pure). true alone is NOT 'in flight' — see fixInFlight, which alone can downgrade a finding."
+    },
+    "fixInFlight": {
+      "type": ["boolean", "null"],
+      "description": "open-vulnerability with autofixEnabled true only: whether the fix is evidenced as landing. true = every open critical/high Dependabot alert has a patched version and an open, same-repo Dependabot PR (not from a fork) plausibly addressing it that is within the 3-day threshold, no fix PR is stuck and the repo has no stalled-alert finding; false = read, and that is not so; null = could not be read. Only true, with Dependabot the only source, downgrades a high finding to medium; max_severity is never changed and the health-tier drop stands."
+    },
+    "unaddressedAlerts": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "open-vulnerability with fixInFlight false: open critical/high alerts with a patched version but no recent same-repo Dependabot PR addressing them."
+    },
+    "unpatchedAlerts": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "open-vulnerability with fixInFlight false: open critical/high alerts with no first patched version, which Dependabot cannot open a fix for."
+    },
+    "alertStalled": {
+      "type": "boolean",
+      "const": true,
+      "description": "open-vulnerability, dependabot-sourced only: present when the repo also has a stalled-alert (G13) finding, which rules out in flight."
     },
     "fixStuck": {
       "type": "boolean",
@@ -65,13 +84,14 @@
     },
     "stuckPRs": {
       "type": "array",
-      "description": "security-pr-stuck only: open Dependabot PRs whose single-package branch names a package with an open critical/high Dependabot alert in the same directory (bumping to at least the first patched version), open past the 3-day threshold. Grouped Dependabot PRs name no package and are never matched: this finding asserts a fix exists, so it errs toward silence.",
+      "description": "security-pr-stuck only: open same-repo (never fork) Dependabot PRs whose single-package branch names a package with an open critical/high Dependabot alert in the same directory (bumping to at least the first patched version), open past the 3-day threshold. Grouped Dependabot PRs name no package and are never matched: this finding asserts a fix exists, so it errs toward silence.",
       "items": {
         "type": "object",
         "properties": {
           "number": { "type": "integer" },
-          "age": { "type": "integer", "minimum": 0, "description": "Days open." },
+          "age": { "type": "integer", "minimum": 0, "description": "Days the PR has been available as the fix: the smaller of PR age and alert age, maximised over the alerts it fixes, so a version-update PR that predates the advisory is not 'stuck N days' on the alert's first day." },
           "package": { "type": "string", "description": "The alert package the branch names." },
+          "verified": { "type": "boolean", "description": "Whether the PR author is dependabot[bot]. Recorded, never used to drop a PR." },
           "alerts": { "type": "array", "items": { "type": "integer" }, "description": "Numbers of the open critical/high alerts this PR fixes." },
           "severity": { "type": "string", "enum": ["critical", "high"], "description": "Highest severity among those alerts." },
           "state": {

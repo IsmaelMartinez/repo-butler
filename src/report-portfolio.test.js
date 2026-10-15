@@ -827,16 +827,26 @@ describe('buildGovernanceSection', () => {
 
   it('surfaces the Dependabot autofix state on dependabot-sourced findings (ADR-012 Phase 3)', () => {
     const findings = [
-      { type: 'open-vulnerability', repo: 'inflight', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'medium', autofixEnabled: true, remediation: { executor: 'manual' } },
+      { type: 'open-vulnerability', repo: 'inflight', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'medium', autofixEnabled: true, fixInFlight: true, remediation: { executor: 'manual' } },
       { type: 'open-vulnerability', repo: 'notdriven', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: false, remediation: { executor: 'manual' } },
       { type: 'open-vulnerability', repo: 'unknownstate', critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: null, remediation: { executor: 'manual' } },
       { type: 'open-vulnerability', repo: 'codeonly', critical: 1, high: 0, secretScanning: 0, sources: ['code-scanning'], priority: 'high', remediation: { executor: 'manual' } },
     ];
     const html = buildGovernanceSection(findings);
     assert.ok(html.includes('Dependabot autofix'), 'adds the autofix column header');
-    assert.ok(html.includes('in flight'), 'shows in-flight state for autofixEnabled=true');
+    assert.ok(html.includes('✓ in flight'), 'shows in-flight state for evidenced autofix');
     assert.ok(html.includes('not driven'), 'shows not-driven state for autofixEnabled=false');
     assert.ok(html.includes('unknown'), 'shows unknown for autofixEnabled=null');
+  });
+
+  it('never shows "in flight" for autofix ON without evidence', () => {
+    const row = (repo, extra) => ({ type: 'open-vulnerability', repo, critical: 1, high: 0, secretScanning: 0, sources: ['dependabot'], priority: 'high', autofixEnabled: true, remediation: { executor: 'manual' }, ...extra });
+    const noPR = buildGovernanceSection([row('nopr', { fixInFlight: false, unaddressedAlerts: 2 })]);
+    assert.ok(!noPR.includes('✓ in flight'));
+    assert.ok(noPR.includes('on, no fix PR landing'));
+    const legacy = buildGovernanceSection([row('legacy', {})]);
+    assert.ok(!legacy.includes('✓ in flight'), 'a finding without fixInFlight is not evidence');
+    assert.ok(legacy.includes('on, unverified'));
   });
 
   it('shows a per-executor remediation breakdown when findings carry executor hints', () => {

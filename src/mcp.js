@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeHealthTier, tierStatus, isRecordProvisional, observedFailingChecks, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, computeCountTrend, isReleaseExempt } from './report-shared.js';
+import { computeHealthTier, tierStatus, isRecordProvisional, observedFailingChecks, REPO_EXCLUSION_PATTERNS, CAMPAIGN_DEFS, evaluateCampaign, nextTier, isCheckRequiredForTier, isAutofixNotDriven, isAutofixInFlight, isAutofixOnWithoutEvidence, computeCountTrend, isReleaseExempt } from './report-shared.js';
 import { loadConfigSync } from './config.js';
 import { PERSONAS } from './council.js';
 import { runGit, readCommitsBehindMain } from './staleness.js';
@@ -342,7 +342,7 @@ const TOOLS = [
   },
   {
     name: 'get_governance_findings',
-    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot), stale butler PRs (repo-butler-opened PRs that never landed — counted as staleButlerPRs, each carrying per-PR state: awaiting-human / blocked-persistent / blocked-transient / ci-none / ci-pending / unknown), stalled alerts (open Dependabot alerts past the staleness threshold with no Dependabot PR addressing them — counted as stalledAlerts, each alert carrying a classification of why it is stuck: reachable-by-update / direct-dependency / disjoint-ranges / out-of-scope / override / unknown), stuck security PRs (open Dependabot PRs fixing an open critical/high alert, unmerged past a 3-day threshold — counted as securityPRsStuck, each PR carrying state awaiting-human / ci-red / ci-pending / ci-none / unknown / unclassified and majorBump), unguarded auto-merge (repos where Dependabot auto-merge is on but the default branch requires no status check, so a bump can merge before CI — counted as automergeUnguarded), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes in flight, false = not driven, null = unknown); an open-vulnerability finding whose fix PR is stuck also carries fixStuck: true, keeps its high priority and is excluded from autofixInFlight; the summary counts autofixInFlight / autofixNotDriven, openVulnerabilities, and tierRegressions, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend / tierRegressionsTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
+    description: 'Get portfolio governance findings: standards gaps, policy drift, tier uplift opportunities, tier regressions (repos whose health tier fell since the previous weekly snapshot), stale butler PRs (repo-butler-opened PRs that never landed — counted as staleButlerPRs, each carrying per-PR state: awaiting-human / blocked-persistent / blocked-transient / ci-none / ci-pending / unknown), stalled alerts (open Dependabot alerts past the staleness threshold with no Dependabot PR addressing them — counted as stalledAlerts, each alert carrying a classification of why it is stuck: reachable-by-update / direct-dependency / disjoint-ranges / out-of-scope / override / unknown), stuck security PRs (open Dependabot PRs fixing an open critical/high alert, unmerged past a 3-day threshold — counted as securityPRsStuck, each PR carrying state awaiting-human / ci-red / ci-pending / ci-none / unknown / unclassified and majorBump), unguarded auto-merge (repos where Dependabot auto-merge is on but the default branch requires no status check, so a bump can merge before CI — counted as automergeUnguarded), and open-vulnerability findings (repos with open critical/high Dependabot/code-scanning alerts, or any secret-scanning hit) from the latest pipeline run. Dependabot-sourced open-vulnerability findings carry autofixEnabled (true = GitHub automated security fixes ON, false = OFF/paused, null = unknown); autofix-ON findings also carry fixInFlight (true = an open, recent Dependabot PR addresses every critical/high alert; false = it does not, with unaddressedAlerts / unpatchedAlerts, or the fix is stuck (fixStuck) or an alert stalled (alertStalled); null = could not be read), and only fixInFlight true is downgraded to medium; the summary counts autofixInFlight (evidenced) / autofixOnWithoutEvidence / autofixNotDriven, openVulnerabilities, and tierRegressions, each paired with a week-over-week trend (autofixNotDrivenTrend / openVulnerabilitiesTrend / tierRegressionsTrend: current/previous/delta/direction/previousWeek, null if no prior snapshot).',
     inputSchema: { type: 'object', properties: {} },
     handler: () => toolGetGovernanceFindings(),
   },
@@ -579,9 +579,11 @@ function toolGetGovernanceFindings() {
         // have autofix ON (remediation in flight — GitHub is opening the bump PRs)
         // vs OFF (not being driven to resolution). Each finding also carries the
         // per-repo `autofixEnabled` tri-state (true/false/null) for detail.
-        // A finding whose fix PR is stuck (fixStuck) is NOT in flight, whatever
-        // the setting says — counting it here was the blind spot.
-        autofixInFlight: findings.filter(f => f.type === 'open-vulnerability' && f.autofixEnabled === true && f.fixStuck !== true).length,
+        // In flight only on evidence (fixInFlight), never on the setting alone —
+        // counting the setting was the blind spot. The remainder of autofix-ON
+        // findings is autofixOnWithoutEvidence.
+        autofixInFlight: findings.filter(isAutofixInFlight).length,
+        autofixOnWithoutEvidence: findings.filter(isAutofixOnWithoutEvidence).length,
         autofixNotDriven,
         autofixNotDrivenTrend,
         // ADR-007 remediation contract: route findings by executor hint.

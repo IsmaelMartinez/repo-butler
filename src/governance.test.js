@@ -883,8 +883,9 @@ describe('detectOpenVulnerabilities', () => {
     const details = makeDetails(repos, {
       'repo-a': { vulns: { count: 2, critical: 1, high: 1, max_severity: 'critical' }, autofix: { enabled: true, paused: false } },
     });
-    const [f] = detectOpenVulnerabilities(repos, details);
-    assert.equal(f.priority, 'medium', 'in-flight remediation lowers the banner priority');
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: true, unaddressed: 0, unpatched: 0 } } });
+    assert.equal(f.priority, 'medium', 'evidenced in-flight remediation lowers the banner priority');
+    assert.equal(f.fixInFlight, true);
     assert.equal(f.max_severity, 'critical', 'max_severity is NOT touched — the alert is still open');
     assert.equal(f.autofixEnabled, true);
   });
@@ -923,9 +924,13 @@ describe('detectOpenVulnerabilities', () => {
     })];
   };
 
+  const IN_FLIGHT = { 'repo-a': { inFlight: true, unaddressed: 0, unpatched: 0 } };
+
   it('keeps a dependabot-only finding high when its fix PR is stuck, despite autofix in flight', () => {
     const [repos, details] = inFlightCritical();
-    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [STUCK] });
+    // Even if a plausible grouped PR made the raw evidence say in flight, the
+    // stuck strict match wins.
+    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [STUCK], fixEvidence: IN_FLIGHT });
     assert.equal(f.priority, 'high', 'a stuck fix is not remediation in flight');
     assert.equal(f.fixStuck, true);
     assert.equal(f.autofixEnabled, true, 'the setting is still reported as it is');
@@ -933,9 +938,49 @@ describe('detectOpenVulnerabilities', () => {
 
   it('still downgrades when the only stuck PR belongs to another repo', () => {
     const [repos, details] = inFlightCritical();
-    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [{ ...STUCK, repo: 'other' }] });
+    const [f] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [{ ...STUCK, repo: 'other' }], fixEvidence: IN_FLIGHT });
     assert.equal(f.priority, 'medium', 'a fresh (or absent) fix PR leaves the in-flight downgrade in place');
     assert.ok(!('fixStuck' in f), 'absence of a stuck PR is not asserted as a field');
+  });
+
+  it('does NOT downgrade on the setting alone: no evidence read means fixInFlight null and priority high', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details);
+    assert.equal(f.priority, 'high', 'autofix ON with no evidence is not in flight');
+    assert.equal(f.fixInFlight, null);
+    assert.match(buildRemediationPlan(f).rationale, /could not be read/);
+  });
+
+  it('does NOT downgrade when the evidence says no Dependabot PR addresses the alerts (the motivating repos)', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: false, unaddressed: 2, unpatched: 1 } } });
+    assert.equal(f.priority, 'high');
+    assert.equal(f.fixInFlight, false);
+    assert.equal(f.unaddressedAlerts, 2);
+    assert.equal(f.unpatchedAlerts, 1);
+    const { rationale } = buildRemediationPlan(f);
+    assert.match(rationale, /no open Dependabot PR addresses 2 alert\(s\)/);
+    assert.match(rationale, /1 alert\(s\) have no patched version/);
+    assert.doesNotMatch(rationale, /in flight/);
+  });
+
+  it('does NOT downgrade a repo carrying a stalled-alert finding, even with in-flight evidence', () => {
+    const [repos, details] = inFlightCritical();
+    const stalled = { type: 'stalled-alert', repo: 'repo-a', alerts: [], priority: 'medium' };
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: IN_FLIGHT, stalledAlerts: [stalled] });
+    assert.equal(f.priority, 'high');
+    assert.equal(f.fixInFlight, false);
+    assert.equal(f.alertStalled, true);
+    assert.match(buildRemediationPlan(f).rationale, /stalled/);
+  });
+
+  it('never raises a priority: a high-only finding with no evidence stays medium', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: false } },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: false, unaddressed: 1, unpatched: 0 } } });
+    assert.equal(f.priority, 'medium');
   });
 
   it('does not mark a code-scanning-only finding fixStuck — a Dependabot PR cannot fix it', () => {
@@ -1256,7 +1301,8 @@ describe('runGovernance — private repos must never enter the governance pipeli
       title: 'Bump lodash from 4.17.20 to 4.17.21',
       user: { login: 'dependabot[bot]' },
       created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
-      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'cafef00d' },
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'cafef00d', repo: { full_name: 'acme/same' } },
+      base: { repo: { full_name: 'acme/same' } },
     }];
     // A stale open Dependabot alert for every repo, so detectStalledAlerts (G13)
     // fires too; with an empty alerts page it emits nothing and a private repo
@@ -1714,12 +1760,13 @@ describe('runGovernance — security-pr-stuck wiring', () => {
   }];
 
   function mockFetch(prAgeDays) {
-    const prs = [{
+    const prs = prAgeDays === null ? [] : [{
       number: 12,
       title: 'Bump lodash from 4.17.20 to 4.17.21',
       user: { login: 'dependabot[bot]' },
       created_at: new Date(Date.now() - prAgeDays * 86400000).toISOString(),
-      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123' },
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
+      base: { repo: { full_name: 'acme/repo-a' } },
     }];
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
@@ -1764,6 +1811,42 @@ describe('runGovernance — security-pr-stuck wiring', () => {
     const vuln = findings.find(f => f.type === 'open-vulnerability');
     assert.ok(!findings.some(f => f.type === 'security-pr-stuck'));
     assert.equal(vuln.priority, 'medium');
+    assert.equal(vuln.fixInFlight, true);
+  });
+
+  it('no Dependabot PR at all: autofix ON is not in flight and the finding stays high', async () => {
+    mockFetch(null);
+    const findings = await run();
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high');
+    assert.equal(vuln.fixInFlight, false);
+    assert.equal(vuln.unaddressedAlerts, 1);
+  });
+
+  it('an unreadable alerts list withholds the downgrade and is logged', async () => {
+    const prs = [{
+      number: 12, title: 'Bump lodash from 4.17.20 to 4.17.21', user: { login: 'dependabot[bot]' },
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
+      base: { repo: { full_name: 'acme/repo-a' } },
+    }];
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/dependabot/alerts')) {
+        return { ok: false, status: 404, headers: new Map(), json: async () => ({}), text: async () => 'Not Found' };
+      }
+      const body = u.includes('/pulls') ? prs : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+    };
+    const lines = [];
+    const orig = console.log;
+    console.log = (...a) => { lines.push(a.join(' ')); };
+    let findings;
+    try { findings = await run(); } finally { console.log = orig; }
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high');
+    assert.equal(vuln.fixInFlight, null);
+    assert.ok(lines.some(l => l.includes('Security-fix evidence: 1 repo(s) unread')));
   });
 });
 
