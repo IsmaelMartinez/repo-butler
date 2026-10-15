@@ -382,6 +382,15 @@ describe('security-pr-stuck — versions fail closed', () => {
     assert.deepEqual(old.findings, []);
   });
 
+  it('the 3-day gates compare unrounded time: a PR open 3.5 days is not evidence and is stuck', async () => {
+    const out = await state([makeAlert({ ageDays: 20 })], [makePR({ age: 3.5 })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false, '84h floors to 3 but is past the window');
+    assert.equal(out.findings.length, 1);
+    assert.equal(out.findings[0].stuckPRs[0].age, 3, 'the emitted display age is floored');
+    const inside = await state([makeAlert({ ageDays: 20 })], [makePR({ age: 2.9 })]);
+    assert.equal(inside.fixEvidence['repo-a'].inFlight, true);
+  });
+
   it('a fresh fix PR into a non-default branch is neither evidence nor a stuck PR', async () => {
     const fresh = await state([makeAlert()], [makePR({ age: 1, baseRef: 'develop' })]);
     assert.equal(fresh.fixEvidence['repo-a'].inFlight, false, 'merging into develop does not resolve the main alert');

@@ -2009,3 +2009,22 @@ describe('detectUnguardedAutoMerge', () => {
     assert.match(plan.rationale, /strict/);
   });
 });
+
+describe('buildRemediationPlan — security-pr-stuck guidance', () => {
+  const plan = states => buildRemediationPlan({
+    type: 'security-pr-stuck', repo: 'repo-a', priority: 'medium',
+    stuckPRs: states.map((state, i) => ({ number: i + 1, age: 5, state, majorBump: false })),
+  });
+
+  it('says nothing is blocking only when every PR is ready for a merge decision', () => {
+    assert.match(plan(['awaiting-human', 'ci-none']).rationale, /Nothing is blocking these/);
+  });
+
+  it('does not claim nothing is blocking when another fix is still waiting on CI or unclassified', () => {
+    for (const mixed of [['awaiting-human', 'ci-pending'], ['ci-none', 'unknown'], ['awaiting-human', 'unclassified']]) {
+      const { rationale } = plan(mixed);
+      assert.doesNotMatch(rationale, /Nothing is blocking/, mixed.join('+'));
+      assert.match(rationale, /Some are ready for a merge decision/, mixed.join('+'));
+    }
+  });
+});

@@ -1039,9 +1039,11 @@ export function buildRemediationPlan(finding) {
         ? 'At least one fix is failing CI — the bump needs a code change before it can land.'
         : majors > 0
           ? 'At least one fix is a major-version bump, which auto-merge will not take — review and merge it by hand.'
-          : states.includes('awaiting-human') || states.includes('ci-none')
+          : states.length > 0 && states.every(s => s === 'awaiting-human' || s === 'ci-none')
             ? 'Nothing is blocking these — they need a merge decision.'
-            : 'Check why CI has not settled.';
+            : states.includes('awaiting-human') || states.includes('ci-none')
+              ? 'Some are ready for a merge decision; the others are still waiting on CI or could not be classified.'
+              : 'Check why CI has not settled.';
       // executor 'manual', like every per-repo STATE finding: landing a security
       // fix is a per-repo merge decision, so this must never acquire a
       // template/settings path or reach cross-repo PROPOSE (ADR-002/ADR-011).

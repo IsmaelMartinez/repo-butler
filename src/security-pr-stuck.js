@@ -58,7 +58,10 @@ const ALERTS_PAGE = 100;
 
 const DEPENDABOT_LOGIN = 'dependabot[bot]';
 
-const daysSince = (iso, now) => Math.floor((now - new Date(iso).getTime()) / 86400000);
+// Fractional days. The recency and stuck gates compare this unrounded value —
+// flooring first stretched the 3-day window to just under four (84h floors to
+// 3, so "recent") — and only the emitted display age is floored.
+const daysSince = (iso, now) => (now - new Date(iso).getTime()) / 86400000;
 
 
 // What a human should do, from the five-state prCiState. NEVER prCiGreen: that
@@ -264,7 +267,7 @@ export async function detectSecurityFixState(gh, owner, repos, {
           : null;
         stuckPRs.push({
           number: pr.number,
-          age,
+          age: Math.floor(age),
           package: fixes[0].package,
           alerts: fixes.map(a => a.number).sort((a, b) => a - b),
           severity: fixes.some(a => a.severity === 'critical') ? 'critical' : 'high',
