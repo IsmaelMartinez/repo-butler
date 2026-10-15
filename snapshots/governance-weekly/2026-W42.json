@@ -152,13 +152,16 @@
         "dependabot"
       ],
       "max_severity": "critical",
-      "priority": "medium",
+      "priority": "high",
       "autofixEnabled": true,
+      "fixInFlight": false,
+      "unaddressedAlerts": 2,
+      "unpatchedAlerts": 1,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in teams-for-linux",
-        "rationale": "2 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "2 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s); 1 alert(s) have no patched version to bump to.",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -177,11 +180,15 @@
       "max_severity": "high",
       "priority": "medium",
       "autofixEnabled": true,
+      "fixInFlight": false,
+      "unaddressedAlerts": 2,
+      "unpatchedAlerts": 1,
+      "fixStuck": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-        "rationale": "0 critical / 4 high open alert(s) from dependabot, code-scanning. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "0 critical / 4 high open alert(s) from dependabot, code-scanning. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -197,13 +204,16 @@
         "dependabot"
       ],
       "max_severity": "critical",
-      "priority": "medium",
+      "priority": "high",
       "autofixEnabled": true,
+      "fixInFlight": false,
+      "unaddressedAlerts": 2,
+      "unpatchedAlerts": 0,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in generator-atlassian-compass-event-catalog",
-        "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -221,11 +231,14 @@
       "max_severity": "high",
       "priority": "medium",
       "autofixEnabled": true,
+      "fixInFlight": false,
+      "unaddressedAlerts": 2,
+      "unpatchedAlerts": 0,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in bonnie-wee-plot",
-        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -243,11 +256,14 @@
       "max_severity": "high",
       "priority": "medium",
       "autofixEnabled": true,
+      "fixInFlight": false,
+      "unaddressedAlerts": 2,
+      "unpatchedAlerts": 0,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in betis-escocia",
-        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -265,13 +281,88 @@
       "max_severity": "high",
       "priority": "medium",
       "autofixEnabled": true,
+      "fixInFlight": false,
+      "unaddressedAlerts": 1,
+      "unpatchedAlerts": 0,
+      "fixStuck": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in wifisentinel",
-        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON — the bump PRs are in flight (GitHub is opening them).",
+        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+        ]
+      }
+    },
+    {
+      "type": "security-pr-stuck",
+      "repo": "ismaelmartinez.me.uk",
+      "stuckPRs": [
+        {
+          "number": 452,
+          "age": 7,
+          "package": "source-map-js",
+          "alerts": [
+            111
+          ],
+          "severity": "high",
+          "state": "awaiting-human",
+          "majorBump": false,
+          "draft": false,
+          "verified": true
+        },
+        {
+          "number": 453,
+          "age": 7,
+          "package": "sharp",
+          "alerts": [
+            113
+          ],
+          "severity": "high",
+          "state": "awaiting-human",
+          "majorBump": false,
+          "draft": false,
+          "verified": true
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Land or close 2 stuck Dependabot security PR(s) in ismaelmartinez.me.uk",
+        "rationale": "2 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 7 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
+        "acceptanceCriteria": [
+          "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
+        ]
+      }
+    },
+    {
+      "type": "security-pr-stuck",
+      "repo": "wifisentinel",
+      "stuckPRs": [
+        {
+          "number": 262,
+          "age": 7,
+          "package": "@grpc/grpc-js",
+          "alerts": [
+            36
+          ],
+          "severity": "high",
+          "state": "ci-red",
+          "majorBump": false,
+          "draft": false,
+          "verified": true
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Land or close 1 stuck Dependabot security PR(s) in wifisentinel",
+        "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 7 days; state: ci-red). At least one fix is failing CI — the bump needs a code change before it can land.",
+        "acceptanceCriteria": [
+          "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
         ]
       }
     },
