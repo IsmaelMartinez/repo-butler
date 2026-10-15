@@ -56,17 +56,15 @@ export function jaccardSimilarity(a, b) {
 export async function findDuplicates(gh, owner, repo, title, { threshold = 0.6, includeClosedDays = 0 } = {}) {
   const matches = [];
 
-  let openIssues;
-  try {
-    openIssues = await paginateIssues(gh, owner, repo, {
-      params: { state: 'open' },
-      max: 500,
-    });
-  } catch (error) {
-    // If we can't fetch issues, don't block proposal creation.
-    console.warn(`Could not fetch issues for duplicate check: ${error.message}`);
-    return [];
-  }
+  // THROWS when either listing cannot be read (#501). An unreadable listing is
+  // not "no duplicate": returning [] here let the caller file a duplicate (or
+  // re-file a governance-declined nudge), and since paginate() now throws on a
+  // malformed page instead of returning page 1, that would be the outcome of
+  // every malformed page. propose() catches this and skips the idea.
+  const openIssues = await paginateIssues(gh, owner, repo, {
+    params: { state: 'open' },
+    max: 500,
+  });
 
   for (const issue of openIssues) {
     const similarity = jaccardSimilarity(title, issue.title);
@@ -76,15 +74,12 @@ export async function findDuplicates(gh, owner, repo, title, { threshold = 0.6, 
   }
 
   if (includeClosedDays > 0) {
-    let closedIssues;
-    try {
-      closedIssues = await paginateIssues(gh, owner, repo, {
-        params: { state: 'closed', sort: 'updated', direction: 'desc', per_page: 100 },
-        max: 100,
-      });
-    } catch {
-      closedIssues = [];
-    }
+    // The closed scan carries the cooldown and the permanent
+    // governance-declined signal, so it fails closed too.
+    const closedIssues = await paginateIssues(gh, owner, repo, {
+      params: { state: 'closed', sort: 'updated', direction: 'desc', per_page: 100 },
+      max: 100,
+    });
 
     const cutoff = Date.now() - includeClosedDays * 86400000;
     for (const issue of closedIssues) {
@@ -259,18 +254,16 @@ export function isGovernanceDeclined(labels) {
 /**
  * Find open or recently closed PRs with titles similar to the proposed title.
  * Used by governance proposals to avoid re-proposing declined changes.
+ *
+ * THROWS when either listing cannot be read, for the reason findDuplicates
+ * gives (#501): an unreadable listing must not read as "no duplicate PR".
  */
 export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6, includeClosedDays = 0 } = {}) {
   const matches = [];
 
-  let openPRs;
-  try {
-    openPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
-      params: { state: 'open', per_page: 100 },
-    });
-  } catch {
-    return [];
-  }
+  const openPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+    params: { state: 'open', per_page: 100 },
+  });
 
   for (const pr of openPRs) {
     const similarity = jaccardSimilarity(title, pr.title);
@@ -283,15 +276,10 @@ export async function findDuplicatePRs(gh, owner, repo, title, { threshold = 0.6
   // Uses sort=updated to get most recent first, capped at 100 to avoid excessive
   // API calls on repos with thousands of PRs. The date cutoff below filters further.
   if (includeClosedDays > 0) {
-    let closedPRs;
-    try {
-      closedPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
-        params: { state: 'closed', sort: 'updated', direction: 'desc', per_page: 100 },
-        max: 100,
-      });
-    } catch {
-      closedPRs = [];
-    }
+    const closedPRs = await gh.paginate(`/repos/${owner}/${repo}/pulls`, {
+      params: { state: 'closed', sort: 'updated', direction: 'desc', per_page: 100 },
+      max: 100,
+    });
 
     const cutoff = Date.now() - includeClosedDays * 86400000;
     for (const pr of closedPRs) {
@@ -512,6 +500,7 @@ export async function propose(context) {
   const toPropose = sorted.slice(0, maxIssues);
   const created = [];
   const skippedDuplicates = [];
+  const skippedUnreadable = [];
   const failures = [];
   // Per-target volume cap (ADR-011 two-axis cap): the per-run slice above is the
   // portfolio-wide ceiling; this Map bounds issues filed into any single
@@ -577,7 +566,24 @@ export async function propose(context) {
     // closed one (30-day cooldown) — or a governance-declined one at any age —
     // already exists on the destination repo (G7), so a closed/declined nudge is
     // not re-filed every run.
-    const duplicates = await findDuplicates(gh, owner, destRepo, idea.title, { includeClosedDays: 30 });
+    //
+    // Both checks FAIL CLOSED (#501), like apply's screenApplyTarget and the
+    // onboarding screen: if either cannot be read, the idea is skipped rather
+    // than filed, because "could not check" is not "no duplicate" and a
+    // duplicate or re-filed declined nudge on another repo is the costly
+    // direction. The log carries the status only, never the error body.
+    let duplicates;
+    let prDuplicates;
+    try {
+      duplicates = await findDuplicates(gh, owner, destRepo, idea.title, { includeClosedDays: 30 });
+      prDuplicates = duplicates.length > 0
+        ? []
+        : await findDuplicatePRs(gh, owner, destRepo, idea.title, { includeClosedDays: 90 });
+    } catch (err) {
+      console.log(`Skipping '${idea.title}' — duplicate check unreadable on ${destRepo} (status ${err?.status ?? 'n/a'}), fail-closed.`);
+      skippedUnreadable.push({ title: idea.title, repo: destRepo, status: err?.status ?? null });
+      continue;
+    }
     if (duplicates.length > 0) {
       const best = duplicates[0];
       const reason = best.declined ? 'governance-declined' : (best.state === 'closed' ? 'recently closed' : 'similar open');
@@ -587,7 +593,6 @@ export async function propose(context) {
     }
 
     // PR duplicate detection: skip if a similar open or recently declined PR exists.
-    const prDuplicates = await findDuplicatePRs(gh, owner, destRepo, idea.title, { includeClosedDays: 90 });
     if (prDuplicates.length > 0) {
       const best = prDuplicates[0];
       const reason = best.declined ? 'governance-declined' : `similar ${best.state} PR`;
@@ -680,8 +685,8 @@ export async function propose(context) {
       if (dest.crossRepo) perTargetCreated.set(destRepo, (perTargetCreated.get(destRepo) || 0) + 1);
     } catch (error) {
       // A single failed write (e.g. a cross-repo target with issues disabled or
-      // missing write scope) must not abort the run and block later proposals —
-      // mirroring the defensive try/catch on findDuplicates/findDuplicatePRs/ensureLabel.
+      // missing write scope) must not abort the run and block later proposals.
+      // (The duplicate READS above fail closed instead: their idea is skipped.)
       console.error(`Failed to create issue for '${idea.title}' on ${destRepo}: ${redactErrorForLog(error.message)}`);
       failures.push({ title: idea.title, repo: destRepo, crossRepo: dest.crossRepo });
     }
@@ -691,7 +696,7 @@ export async function propose(context) {
     console.log(`Capped at ${maxIssues} issues. ${safeIdeas.length - maxIssues} ideas dropped.`);
   }
 
-  return { created, dropped: ideas.length - created.length, skippedDuplicates, skippedCapped, failures };
+  return { created, dropped: ideas.length - created.length, skippedDuplicates, skippedCapped, skippedUnreadable, failures };
 }
 
 async function ensureLabel(gh, owner, repo, name, description, color) {

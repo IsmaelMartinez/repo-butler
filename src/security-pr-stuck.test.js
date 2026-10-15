@@ -1,8 +1,10 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { detectStuckSecurityPRs, detectSecurityFixState, isReleaseLineBump, parseDottedVersion } from './security-pr-stuck.js';
 import { branchNamesAlertPackage } from './stalled-alert.js';
 import { resolveCrossRepoDestination } from './safety.js';
+import { createClient } from './github.js';
+import { fetchOpenPRs } from './governance.js';
 
 async function captureLogs(fn) {
   const lines = [];
@@ -685,5 +687,64 @@ describe('security-pr-stuck — the lockfile at the PR head must patch every cop
       { alerts: [makeAlert({ name: 'actionpack', ecosystem: 'rubygems', patched: '6.1.7.1', manifestPath: 'Gemfile.lock' })] });
     assert.equal(gem.out.findings.length, 1);
     for (const r of [pip, gem]) assert.ok(!r.gh.calls.some(c => c.kind === 'contents' || c.kind === 'blob'));
+  });
+});
+
+// #501: behind the real createClient (mocked fetch, not a stubbed paginate), a
+// malformed pulls page used to end the listing and read as "no Dependabot PR",
+// so an evidence repo was reported NOT in flight from bad data. It must be
+// unread with no evidence instead.
+describe('security-pr-stuck — behind the real client (#501)', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const json = body => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  function serve(pullsPages) {
+    globalThis.fetch = async (url) => {
+      const u = new URL(url);
+      if (u.pathname.endsWith('/dependabot/alerts')) return json([makeAlert()]);
+      if (u.pathname.endsWith('/pulls')) {
+        const page = Number(u.searchParams.get('page'));
+        return json(page <= pullsPages.length ? pullsPages[page - 1] : []);
+      }
+      throw new Error(`unexpected fetch ${u.pathname}`);
+    };
+  }
+  const detect = async (opts = {}) => {
+    let out;
+    const lines = await captureLogs(async () => {
+      out = await detectSecurityFixState(createClient('tok'), 'owner', REPOS, { evidenceRepos: ['repo-a'], ...opts });
+    });
+    return { out, lines };
+  };
+
+  it('control: a well-formed empty pulls listing is real evidence the fix is NOT in flight', async () => {
+    serve([[]]);
+    const { out } = await detect();
+    assert.equal(out.fixEvidence['repo-a']?.inFlight, false);
+    assert.deepEqual(out.unread, []);
+  });
+
+  it('a non-array first pulls page leaves evidence unknown (absent) and the repo unread', async () => {
+    serve([{ message: 'ZZBODYZZ' }]);
+    const { out, lines } = await detect();
+    assert.equal(out.fixEvidence['repo-a'], undefined, 'no in-flight claim either way');
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.deepEqual(out.findings, []);
+    assert.ok(lines.some(l => l.includes('skipping repo-a') && l.includes('status 200')), lines.join('\n'));
+    assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'the response body never reaches the log');
+  });
+
+  // A non-array LATER page is pinned by github.test.js's paginate suite:
+  // listOpenPRs caps at 100, so this path never asks for page 2.
+  it('through governance.fetchOpenPRs: the shared sweep drops the repo and the fallback listing reads unread', async () => {
+    serve([{}]);
+    let openPRs;
+    await captureLogs(async () => { openPRs = await fetchOpenPRs(createClient('tok'), 'owner', REPOS); });
+    assert.deepEqual(openPRs, {});
+    const { out } = await detect({ openPRs });
+    assert.equal(out.fixEvidence['repo-a'], undefined);
+    assert.deepEqual(out.unread, ['repo-a']);
   });
 });
