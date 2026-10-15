@@ -30,7 +30,7 @@
 
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { alertDirectory, branchNamesAlertPackage, isSameRepoPR } from './stalled-alert.js';
-import { parseVersion, sameReleaseLine } from './trimmer.js';
+import { sameReleaseLine } from './trimmer.js';
 
 // Dependabot opens a security PR within hours and, where auto-merge is wired,
 // lands a green patch/minor bump within a day. Three days is past every
@@ -85,8 +85,14 @@ const CI_STATE = {
 export function isReleaseLineBump(title) {
   const m = typeof title === 'string' ? title.match(/\bfrom (\S+) to (\S+?)\.?(?:\s|$)/) : null;
   if (!m) return null;
-  const from = parseVersion(m[1]);
-  const to = parseVersion(m[2]);
+  // The local dotted parser, not trimmer's three-part parseVersion: pip's
+  // `from 5.4 to 6.0` is a major bump and must not read as unknown.
+  const asLine = (v) => {
+    const p = parseDottedVersion(v);
+    return p ? { major: p[0], minor: p[1] ?? 0 } : null;
+  };
+  const from = asLine(m[1]);
+  const to = asLine(m[2]);
   if (!from || !to) return null;
   return !sameReleaseLine(from, to);
 }

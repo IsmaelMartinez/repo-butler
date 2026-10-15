@@ -104,6 +104,9 @@ describe('security-pr-stuck — what is reported', () => {
     assert.equal(isReleaseLineBump('Bump axios from 0.34.5 to 0.35.0 in /docs'), true);
     assert.equal(isReleaseLineBump('Bump axios from 1.6.0 to 1.7.4.'), false);
     assert.equal(isReleaseLineBump('Bump the npm_and_yarn group with 3 updates'), null);
+    assert.equal(isReleaseLineBump('Bump pyyaml from 5.4 to 6.0'), true, 'two-part pip versions are a major bump, not unknown');
+    assert.equal(isReleaseLineBump('Bump actionpack from 6.1.7.1 to 6.1.7.3'), false);
+    assert.equal(isReleaseLineBump('Bump foo from 1.2.3-beta.1 to 2.0.0'), null, 'a prerelease is unknown, never guessed');
   });
 
   it('reports a critical alert as critical severity, still at medium priority', async () => {
