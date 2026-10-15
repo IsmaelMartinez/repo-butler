@@ -94,8 +94,12 @@ function makeGh({ alerts = {}, prs = {}, files = {} } = {}) {
   };
 }
 
-function dependabotPR(ref) {
-  return { number: 7, head: { ref }, user: { login: 'dependabot[bot]' }, created_at: daysAgoISO(1) };
+function dependabotPR(ref, headRepo = 'o/repo-a') {
+  return {
+    number: 7, user: { login: 'dependabot[bot]' }, created_at: daysAgoISO(1),
+    head: { ref, repo: headRepo === null ? null : { full_name: headRepo } },
+    base: { repo: { full_name: 'o/repo-a' } },
+  };
 }
 
 const REPOS = [makeRepo('repo-a')];
@@ -205,6 +209,18 @@ describe('stalled-alert — Dependabot PR matching errs toward silence', () => {
       prs: { 'repo-a': [dependabotPR('dependabot/npm_and_yarn/docs-site/http-proxy-middleware-2.0.10')] },
     });
     assert.deepEqual(await detectStalledAlerts(gh, 'acme', REPOS), []);
+  });
+
+  it('stalled-alert: a fork PR on a forged Dependabot branch does not suppress the finding', async () => {
+    const ref = 'dependabot/npm_and_yarn/docs-site/http-proxy-middleware-2.0.10';
+    for (const headRepo of ['attacker/repo-a', null]) {
+      const gh = makeGh({
+        alerts: { 'repo-a': [makeAlert({ manifestPath: 'docs-site/package-lock.json' })] },
+        prs: { 'repo-a': [dependabotPR(ref, headRepo)] },
+      });
+      const findings = await detectStalledAlerts(gh, 'o', REPOS);
+      assert.equal(findings.length, 1, `a ${headRepo ?? 'deleted-fork'} PR must not read as a fix being driven`);
+    }
   });
 
   it('stalled-alert: a grouped Dependabot PR in the same ecosystem and directory suppresses the finding', async () => {

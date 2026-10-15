@@ -459,11 +459,14 @@ ${nextTierHtml}
 // Tier section's inline indicator so both per-repo render paths agree —
 // consistent with the portfolio governance column's autofix cell
 // (report-portfolio.js buildGovernanceSection). `active` is
-// summary.automated_security_fixes_active: true = GitHub is opening the bump
-// PRs, false = the setting is off/paused, null = unreadable or never fetched
-// (e.g. lightweight cards for quiet repos).
+// summary.automated_security_fixes_active: true = the setting is on, false =
+// off/paused, null = unreadable or never fetched (e.g. lightweight cards for
+// quiet repos). The SETTING only: "on" is not "in flight" — GitHub may open no
+// PR at all (no patched version, unreachable by update) — so that word is left
+// to the portfolio's open-vulnerability finding, which carries the evidence
+// (fixInFlight, governance.js).
 function dependabotAutofixState(active) {
-  if (active === true) return { short: 'In flight', text: 'in flight', color: COLOR_SUCCESS, detail: 'GitHub is opening the bump PRs' };
+  if (active === true) return { short: 'On', text: 'automated security fixes on', color: COLOR_SUCCESS, detail: 'GitHub may open bump PRs; whether they land is in Governance' };
   if (active === false) return { short: 'Not driven', text: 'not driven', color: COLOR_DANGER, detail: 'not being driven to resolution' };
   return { short: 'Unknown', text: 'unknown', color: 'var(--muted)', detail: 'state unavailable' };
 }

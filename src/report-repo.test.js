@@ -389,12 +389,15 @@ describe('generateRepoReport restructure', () => {
 describe('Dependabot autofix indicator on the per-repo report (ADR-012 Phase 4)', () => {
   it('buildDependabotAutofixCard renders the three tri-state values with matching colours', async () => {
     const { buildDependabotAutofixCard } = await import('./report-repo.js');
-    assert.match(buildDependabotAutofixCard(true), /color:var\(--color-success\)">In flight</);
+    assert.match(buildDependabotAutofixCard(true), /color:var\(--color-success\)">On</);
+    // The setting alone is never "in flight" — only the evidence-bearing
+    // portfolio finding may say that (fixInFlight, governance.js).
+    assert.doesNotMatch(buildDependabotAutofixCard(true), /in flight/i);
     assert.match(buildDependabotAutofixCard(false), /color:var\(--color-danger\)">Not driven</);
     assert.match(buildDependabotAutofixCard(null), /color:var\(--muted\)">Unknown</);
   });
 
-  it('full-dashboard Health Tier section shows in flight / not driven / unknown', async () => {
+  it('full-dashboard Health Tier section shows on / not driven / unknown', async () => {
     const { generateRepoReport } = await import('./report-repo.js');
     const base = {
       repository: 'owner/test', meta: { stars: 0, forks: 0, watchers: 0 },
@@ -413,7 +416,8 @@ describe('Dependabot autofix indicator on the per-repo report (ADR-012 Phase 4)'
     const htmlOff = generateRepoReport(notDriven, [], [], [], null, [], null, [], null, null, {});
     const htmlUnknown = generateRepoReport(unknown, [], [], [], null, [], null, [], null, null, {});
 
-    assert.ok(htmlOn.includes('Dependabot autofix: <span style="color:var(--color-success)">in flight</span>'), 'shows in-flight state');
+    assert.ok(htmlOn.includes('Dependabot autofix: <span style="color:var(--color-success)">automated security fixes on</span>'), 'shows the setting, not a claim it is landing');
+    assert.ok(!/in flight/i.test(htmlOn), 'the setting alone must never read as in flight');
     assert.ok(htmlOff.includes('Dependabot autofix: <span style="color:var(--color-danger)">not driven</span>'), 'shows not-driven state');
     assert.ok(htmlUnknown.includes('Dependabot autofix: <span style="color:var(--muted)">unknown</span>'), 'shows unknown state');
   });
@@ -428,7 +432,8 @@ describe('Dependabot autofix indicator on the per-repo report (ADR-012 Phase 4)'
     const htmlUnknown = generateLightRepoReport('owner', repo, { commits: 1, ci: 0, license: 'MIT', autofix: null });
 
     assert.ok(htmlOn.includes('<h3>Dependabot Autofix</h3>'), 'renders the autofix card');
-    assert.ok(htmlOn.includes('In flight'), 'in-flight state shown when enabled and not paused');
+    assert.ok(htmlOn.includes('>On<'), 'on state shown when enabled and not paused');
+    assert.ok(!/in flight/i.test(htmlOn), 'the setting alone must never read as in flight');
     assert.ok(htmlOff.includes('Not driven'), 'not-driven state shown when disabled');
     assert.ok(htmlPaused.includes('Not driven'), 'paused autofix also reads as not driven');
     assert.ok(htmlUnknown.includes('Unknown'), 'unknown state shown when autofix data is absent');

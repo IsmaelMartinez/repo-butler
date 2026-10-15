@@ -22,7 +22,7 @@
 // cross-repo PROPOSE (ADR-002/ADR-011 lane boundary).
 
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
-import { alertDirectory, branchMayAddress, branchNamesAlertPackage } from './stalled-alert.js';
+import { alertDirectory, branchNamesAlertPackage, isSameRepoPR } from './stalled-alert.js';
 import { parseVersion, compareVersions, sameReleaseLine } from './trimmer.js';
 
 // Dependabot opens a security PR within hours and, where auto-merge is wired,
@@ -53,15 +53,6 @@ const DEPENDABOT_LOGIN = 'dependabot[bot]';
 
 const daysSince = (iso, now) => Math.floor((now - new Date(iso).getTime()) / 86400000);
 
-// A branch prefix is forgeable by anyone who can open a PR, and a fork PR named
-// `dependabot/npm_and_yarn/lodash-4.17.21` must neither be reported as a stuck
-// fix nor count as evidence that a fix is in flight. Only a head branch in the
-// repo itself counts — pushing there already needs write access. Both names
-// must be present: a deleted fork has `head.repo: null`.
-function isSameRepoPR(pr) {
-  const head = pr?.head?.repo?.full_name;
-  return typeof head === 'string' && head === pr?.base?.repo?.full_name;
-}
 
 // What a human should do, from the five-state prCiState. NEVER prCiGreen: that
 // is a merge guard and collapses red, pending, no-CI and read errors into one
@@ -189,20 +180,33 @@ export async function detectSecurityFixState(gh, owner, repos, {
         stuck.push({ ...p, age, fixes });
       }
 
-      // In-flight evidence: EVERY open critical/high alert has a patched version
-      // and an open same-repo Dependabot PR that plausibly addresses it (the
-      // permissive matcher is right here — this can only LOWER a priority when
-      // a PR plausibly exists) and is not yet past the threshold.
+      // In-flight evidence. This LOWERS a priority, so it is held to the same
+      // bar as an assertion: lowering without evidence is precisely the blind
+      // spot. An alert counts as addressed only by the STRICT rule the stuck
+      // detector uses (alertsFixedBy: exact package and directory, mapped
+      // ecosystem, bump to at least the first patched version) from a recent
+      // same-repo PR — never by a grouped branch, which names no package.
+      // Every alert the read returned must be accounted for: one dropped by the
+      // filter above (no package name, unexpected severity) makes "every alert
+      // has a fix" vacuous, so it rules in-flight out. A read that returns NO
+      // alert, while the snapshot says critical/high are open, verifies nothing
+      // either way — that is null (unverifiable), not false.
       let evidence = null;
       if (needEvidence && !truncated) {
-        const unpatched = alerts.filter(a => !a.patchedVersion).length;
-        const unaddressed = alerts.filter(a => a.patchedVersion && !dependabotPRs.some(p =>
-          branchMayAddress(p.ref, a) && fixAge(p, a) <= thresholdDays)).length;
-        evidence = {
-          inFlight: alerts.length > 0 && unpatched === 0 && unaddressed === 0 && stuck.length === 0,
-          unaddressed,
-          unpatched,
-        };
+        if (raw.length === 0) {
+          evidence = { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0 };
+        } else {
+          const unidentified = raw.length - alerts.length;
+          const unpatched = alerts.filter(a => !a.patchedVersion).length;
+          const unaddressed = alerts.filter(a => a.patchedVersion && !dependabotPRs.some(p =>
+            alertsFixedBy(p.ref, [a]).length === 1 && fixAge(p, a) <= thresholdDays)).length;
+          evidence = {
+            inFlight: unidentified === 0 && unpatched === 0 && unaddressed === 0 && stuck.length === 0,
+            unaddressed,
+            unpatched,
+            unidentified,
+          };
+        }
       }
       const unreadEvidence = needEvidence && truncated;
       if (unreadEvidence) {

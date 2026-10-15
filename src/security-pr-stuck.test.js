@@ -280,18 +280,44 @@ describe('security-pr-stuck — in-flight evidence for the open-vulnerability do
     return { gh, out: await detectSecurityFixState(gh, 'owner', REPOS, { evidenceRepos: ['repo-a'] }) };
   };
 
-  it('is in flight when every critical/high alert has a patched version and a recent plausible PR', async () => {
+  it('is in flight when every critical/high alert has a patched version and a recent PR that definitely fixes it', async () => {
     const { out } = await evidence([makeAlert(), makeAlert({ number: 2, name: 'braces', patched: '3.0.3' })], [
       makePR({ age: 1 }),
-      // A grouped branch counts here: this only ever LOWERS a priority.
-      makePR({ number: 14, age: 2, ref: 'dependabot/npm_and_yarn/npm_and_yarn-479fbeca4e' }),
+      makePR({ number: 14, age: 2, ref: 'dependabot/npm_and_yarn/braces-3.0.3' }),
     ]);
-    assert.deepEqual(out.fixEvidence['repo-a'], { inFlight: true, unaddressed: 0, unpatched: 0 });
+    assert.deepEqual(out.fixEvidence['repo-a'], { inFlight: true, unaddressed: 0, unpatched: 0, unidentified: 0 });
   });
 
   it('is NOT in flight when there is no Dependabot branch at all (the motivating repos)', async () => {
     const { out } = await evidence([makeAlert(), makeAlert({ number: 2, name: 'shell-quote', patched: '1.7.3' })], []);
-    assert.deepEqual(out.fixEvidence['repo-a'], { inFlight: false, unaddressed: 2, unpatched: 0 });
+    assert.deepEqual(out.fixEvidence['repo-a'], { inFlight: false, unaddressed: 2, unpatched: 0, unidentified: 0 });
+  });
+
+  it('(a) a recent grouped version-update PR is not evidence — it names no package', async () => {
+    const { out } = await evidence([makeAlert({ patched: '5.0.0' })],
+      [makePR({ age: 1, ref: 'dependabot/npm_and_yarn/minor-and-patch-479fbeca4e', title: 'Bump the minor-and-patch group' })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+    assert.equal(out.fixEvidence['repo-a'].unaddressed, 1);
+  });
+
+  it('(b) a recent PR bumping below the first patched version is not evidence', async () => {
+    const { out } = await evidence([makeAlert({ patched: '4.17.21' })],
+      [makePR({ age: 1, ref: 'dependabot/npm_and_yarn/lodash-4.17.20' })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+  });
+
+  it('(c) an alert in an unmapped ecosystem is not covered by an unrelated recent bump', async () => {
+    const { out } = await evidence([makeAlert({ name: 'cowboy', ecosystem: 'erlang', patched: '2.12.0' })],
+      [makePR({ age: 1, ref: 'dependabot/github_actions/actions/checkout-5' })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+  });
+
+  it('(d) an alert the filter cannot identify (no package name) rules in-flight out', async () => {
+    const nameless = makeAlert({ number: 2 });
+    delete nameless.dependency.package.name;
+    const { out } = await evidence([makeAlert(), nameless], [makePR({ age: 1 })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false, '"every alert has a fix" must not be vacuous');
+    assert.equal(out.fixEvidence['repo-a'].unidentified, 1);
   });
 
   it('is NOT in flight when an alert has no patched version, even with a PR open', async () => {
@@ -305,15 +331,16 @@ describe('security-pr-stuck — in-flight evidence for the open-vulnerability do
     assert.equal(out.fixEvidence['repo-a'].inFlight, false);
   });
 
-  it('is NOT in flight when the only plausible PR is an old grouped one (not stuck, but not recent either)', async () => {
+  it('is NOT in flight when the only plausible PR is an old grouped one', async () => {
     const { out } = await evidence([makeAlert()], [makePR({ age: 10, ref: 'dependabot/npm_and_yarn/npm_and_yarn-479fbeca4e' })]);
     assert.equal(out.fixEvidence['repo-a'].inFlight, false);
     assert.equal(out.fixEvidence['repo-a'].unaddressed, 1);
   });
 
-  it('is NOT in flight when the read finds no critical/high alert (the details summary is stale)', async () => {
+  it('a live read with no alert while the snapshot says some is unverifiable (null), not false', async () => {
     const { out } = await evidence([], [makePR({ age: 1 })]);
-    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, null);
+    assert.equal(out.fixEvidence['repo-a'].liveAlertsMissing, true);
   });
 
   it('reads alerts for an evidence repo even with no old Dependabot PR', async () => {

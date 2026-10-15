@@ -60,7 +60,7 @@
     },
     "fixInFlight": {
       "type": ["boolean", "null"],
-      "description": "open-vulnerability with autofixEnabled true only: whether the fix is evidenced as landing. true = every open critical/high Dependabot alert has a patched version and an open, same-repo Dependabot PR (not from a fork) plausibly addressing it that is within the 3-day threshold, no fix PR is stuck and the repo has no stalled-alert finding; false = read, and that is not so; null = could not be read. Only true, with Dependabot the only source, downgrades a high finding to medium; max_severity is never changed and the health-tier drop stands."
+      "description": "open-vulnerability with autofixEnabled true only: whether the fix is evidenced as landing. true = every open critical/high Dependabot alert the live read returned has a patched version and an open, same-repo Dependabot PR (not from a fork) that definitely fixes it — single-package branch naming its exact package and directory, bumping to at least the first patched version — within the 3-day threshold, no fix PR is stuck and the repo has no stalled-alert finding; false = read, and that is not so (including any alert the read returned that could not be matched to a package); null = could not be read, or the live read returned no alert while the snapshot reports some (liveAlertsMissing). Only true, with Dependabot the only source, downgrades a high finding to medium; max_severity is never changed and the health-tier drop stands."
     },
     "unaddressedAlerts": {
       "type": "integer",
@@ -71,6 +71,16 @@
       "type": "integer",
       "minimum": 0,
       "description": "open-vulnerability with fixInFlight false: open critical/high alerts with no first patched version, which Dependabot cannot open a fix for."
+    },
+    "unidentifiedAlerts": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "open-vulnerability with fixInFlight false: alerts the live read returned that could not be matched to a package (e.g. no dependency name), which alone rule in-flight out."
+    },
+    "liveAlertsMissing": {
+      "type": "boolean",
+      "const": true,
+      "description": "open-vulnerability with fixInFlight null: the live alerts read returned no critical/high alert while the snapshot reports some, so nothing could be verified."
     },
     "alertStalled": {
       "type": "boolean",

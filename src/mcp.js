@@ -575,13 +575,12 @@ function toolGetGovernanceFindings() {
         // openVulnerabilities, which is therefore a lower bound when this is > 0.
         // null when the weekly file is from a different run than these findings.
         unreadSecurity,
-        // ADR-012 Phase 3: how many dependabot-sourced open-vulnerability findings
-        // have autofix ON (remediation in flight — GitHub is opening the bump PRs)
-        // vs OFF (not being driven to resolution). Each finding also carries the
-        // per-repo `autofixEnabled` tri-state (true/false/null) for detail.
-        // In flight only on evidence (fixInFlight), never on the setting alone —
-        // counting the setting was the blind spot. The remainder of autofix-ON
-        // findings is autofixOnWithoutEvidence.
+        // ADR-012 Phase 3: dependabot-sourced open-vulnerability findings split by
+        // autofix state. autofixInFlight counts ON *with evidence* (fixInFlight —
+        // an open, recent Dependabot PR definitely fixes every critical/high
+        // alert), never the setting alone, which was the blind spot; the rest of
+        // ON is autofixOnWithoutEvidence; OFF/paused is autofixNotDriven. Each
+        // finding carries the per-repo `autofixEnabled` and `fixInFlight` detail.
         autofixInFlight: findings.filter(isAutofixInFlight).length,
         autofixOnWithoutEvidence: findings.filter(isAutofixOnWithoutEvidence).length,
         autofixNotDriven,

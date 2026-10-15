@@ -974,6 +974,38 @@ describe('detectOpenVulnerabilities', () => {
     assert.match(buildRemediationPlan(f).rationale, /stalled/);
   });
 
+  it('a live read with no alert is unverifiable: fixInFlight null, priority high, and the rationale says why', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0 } } });
+    assert.equal(f.priority, 'high');
+    assert.equal(f.fixInFlight, null);
+    assert.equal(f.liveAlertsMissing, true);
+    const { rationale } = buildRemediationPlan(f);
+    assert.match(rationale, /live alerts read returned no critical\/high alert/);
+    assert.doesNotMatch(rationale, /no recent Dependabot PR/);
+  });
+
+  it('names unidentified alerts in the rationale', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: false, unaddressed: 0, unpatched: 0, unidentified: 1 } } });
+    assert.equal(f.unidentifiedAlerts, 1);
+    assert.match(buildRemediationPlan(f).rationale, /1 alert\(s\) could not be matched to a package/);
+  });
+
+  it('does NOT downgrade a multi-source finding even when the evidence says in flight', () => {
+    const repos = [makeRepo('repo-a')];
+    const details = makeDetails(repos, {
+      'repo-a': {
+        vulns: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        codeScanning: { count: 1, critical: 1, high: 0, max_severity: 'critical' },
+        autofix: { enabled: true, paused: false },
+      },
+    });
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: IN_FLIGHT });
+    assert.equal(f.fixInFlight, true);
+    assert.equal(f.priority, 'high', 'code-scanning still needs manual work autofix cannot do');
+  });
+
   it('never raises a priority: a high-only finding with no evidence stays medium', () => {
     const repos = [makeRepo('repo-a')];
     const details = makeDetails(repos, {

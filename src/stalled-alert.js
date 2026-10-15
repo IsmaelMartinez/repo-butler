@@ -108,6 +108,17 @@ function parseDependabotBranch(ref) {
 // `babel/core` in a branch.
 const branchSlug = pkg => String(pkg ?? '').replace(/^@/, '');
 
+// A branch prefix is forgeable by anyone who can open a PR: a fork PR named
+// `dependabot/npm_and_yarn/lodash-4.17.21` must not suppress a stalled-alert
+// finding here, be reported as a stuck fix, or count as evidence that a fix is
+// in flight (security-pr-stuck.js). Only a head branch in the repo itself
+// counts — pushing there already needs write access. Both names must be
+// present: a deleted fork has `head.repo: null`.
+export function isSameRepoPR(pr) {
+  const head = pr?.head?.repo?.full_name;
+  return typeof head === 'string' && head === pr?.base?.repo?.full_name;
+}
+
 /**
  * Could this Dependabot branch be addressing this alert?
  *
@@ -286,6 +297,7 @@ export async function detectStalledAlerts(gh, owner, repos, {
       // branch is what makes "possibly addressing" decidable at all.
       const prs = await listOpenPRs(gh, owner, repo.name, openPRs);
       const branches = (Array.isArray(prs) ? prs : [])
+        .filter(isSameRepoPR)
         .map(pr => pr?.head?.ref)
         .filter(ref => typeof ref === 'string' && ref.startsWith(BRANCH_PREFIX));
 

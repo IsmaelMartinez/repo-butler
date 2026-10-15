@@ -735,11 +735,13 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
     // will land. "In flight" (fixInFlight, set only when autofixEnabled is true)
     // therefore needs evidence from this run's reads:
     //   true  → every open critical/high alert has a patched version and an
-    //           open, recent, same-repo Dependabot PR plausibly addressing it,
-    //           none is stuck, and the repo has no stalled alert;
+    //           open, recent, same-repo Dependabot PR that definitely fixes it
+    //           (exact package, directory and patched version), none is
+    //           stuck, and the repo has no stalled alert;
     //   false → read, and that is not so (the motivating repos had no
     //           Dependabot branch at all, or an alert with no patched version);
-    //   null  → the evidence could not be read — treated like
+    //   null  → the evidence could not be read, or the live read found no
+    //           alert to verify against — treated like
     //           autofixEnabled === null: no annotation-driven downgrade.
     //
     // Only when the fix is evidenced as in flight AND Dependabot is the ONLY
@@ -755,7 +757,7 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
     const alertStalled = dependabotSourced && stalledRepos.has(r.name);
     const evidence = fixEvidence?.[r.name] ?? null;
     const fixInFlight = autofixEnabled !== true ? undefined
-      : evidence == null ? null
+      : evidence == null || evidence.inFlight === null ? null
         : evidence.inFlight === true && !fixStuck && !alertStalled;
     if (fixInFlight === true && dependabotOnly && priority === 'high') {
       priority = 'medium';
@@ -775,7 +777,14 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
       ...(dependabotSourced ? { autofixEnabled } : {}),
       ...(fixInFlight !== undefined ? { fixInFlight } : {}),
       // What is missing when the evidence was read and says "not in flight".
-      ...(fixInFlight === false ? { unaddressedAlerts: evidence.unaddressed ?? 0, unpatchedAlerts: evidence.unpatched ?? 0 } : {}),
+      ...(fixInFlight === false ? {
+        unaddressedAlerts: evidence.unaddressed ?? 0,
+        unpatchedAlerts: evidence.unpatched ?? 0,
+        ...(evidence.unidentified ? { unidentifiedAlerts: evidence.unidentified } : {}),
+      } : {}),
+      // The live read found no critical/high alert while the snapshot reports
+      // some: nothing could be verified, so fixInFlight is null, not false.
+      ...(fixInFlight === null && evidence?.liveAlertsMissing === true ? { liveAlertsMissing: true } : {}),
       // Present only when true: absence means "none seen", which is not the
       // same claim as "the fix is landing".
       ...(fixStuck ? { fixStuck: true } : {}),
@@ -879,8 +888,12 @@ function autofixOnNote(finding) {
     const gaps = [];
     if (finding.unaddressedAlerts) gaps.push(`no open Dependabot PR addresses ${finding.unaddressedAlerts} alert(s)`);
     if (finding.unpatchedAlerts) gaps.push(`${finding.unpatchedAlerts} alert(s) have no patched version to bump to`);
+    if (finding.unidentifiedAlerts) gaps.push(`${finding.unidentifiedAlerts} alert(s) could not be matched to a package`);
     if (finding.alertStalled === true) gaps.push('a Dependabot alert here is stalled (see the stalled-alert finding)');
-    return ` Dependabot automated security fixes are ON but not landing a fix: ${gaps.join('; ') || 'no recent Dependabot PR covers these alerts'}.`;
+    return ` Dependabot automated security fixes are ON but not landing a fix: ${gaps.join('; ') || 'a fix PR is not evidenced for every alert'}.`;
+  }
+  if (finding.liveAlertsMissing === true) {
+    return ' Dependabot automated security fixes are ON, but the live alerts read returned no critical/high alert while the snapshot reports some — unverifiable, not treated as in flight.';
   }
   return ' Dependabot automated security fixes are ON, but whether a fix PR is open could not be read — not treated as in flight.';
 }

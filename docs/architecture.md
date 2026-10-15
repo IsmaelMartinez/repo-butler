@@ -295,8 +295,10 @@ never closing any bump PR GitHub already opened, and it leaves vulnerability-ale
 enabled. Detection now consumes the enabled state (ADR-012 Phase 3): a
 dependabot-sourced `open-vulnerability` finding carries `autofixEnabled`
 (`true`/`false`/`null`), fetched read-only in the OBSERVE/portfolio-details layer and
-surfaced on the dashboard and via `get_governance_findings`, so "remediation in flight"
-is visible without a new trust boundary — the read is inert.
+surfaced on the dashboard and via `get_governance_findings` — the read is inert. The
+setting alone is not "remediation in flight": that needs `fixInFlight`, evidence from
+`src/security-pr-stuck.js` that an open, recent Dependabot PR definitely fixes every
+critical/high alert, and only it downgrades the finding's priority.
 
 The first content-transformation write in the apply path is the lockfile refresh
 (ADR-015, `src/lockfile-update.js`). It acts on G13 `stalled-alert` findings whose
