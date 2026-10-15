@@ -82,6 +82,11 @@
       "const": true,
       "description": "open-vulnerability with fixInFlight null: the live alerts read returned no critical/high alert while the snapshot reports some, so nothing could be verified."
     },
+    "stalledAlertsUnread": {
+      "type": "boolean",
+      "const": true,
+      "description": "open-vulnerability with fixInFlight null: the fix-PR evidence held, but the stalled-alert (G13) read failed for this repo, so 'no stalled alert' was never established and the in-flight downgrade is withheld."
+    },
     "alertStalled": {
       "type": "boolean",
       "const": true,

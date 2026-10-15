@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detectStalledAlerts, classifyAlert, branchMayAddress } from './stalled-alert.js';
+import { detectStalledAlerts, detectStalledAlertsWithStatus, classifyAlert, branchMayAddress } from './stalled-alert.js';
 
 // Run fn with console.log captured; returns the lines logged.
 async function captureLogs(fn) {
@@ -400,6 +400,16 @@ describe('stalled-alert — resilience and eligibility', () => {
     assert.ok(forbidden.some(l => l.includes('stalled-alert: skipping repo-a')));
     const server = await run(Object.assign(new Error('GitHub API error: 500 {"message":"upstream said: 404"}'), { status: 500 }));
     assert.ok(!server.some(l => l.includes('skipping')), server.join('\n'));
+  });
+
+  it('stalled-alert: a 500 is still logged with its status (without the body) and reported as unread', async () => {
+    const gh = makeGh({ alerts: { 'repo-a': () => { throw Object.assign(new Error('GitHub API error: 500 {"message":"ZZBODYZZ"}'), { status: 500 }); } } });
+    let out;
+    const lines = await captureLogs(async () => { out = await detectStalledAlertsWithStatus(gh, 'acme', [makeRepo('repo-a'), makeRepo('repo-b')]); });
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.deepEqual(out.findings, []);
+    assert.ok(lines.some(l => l.includes('read failed for repo-a') && l.includes('500')), lines.join('\n'));
+    assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'the error body never reaches the log');
   });
 
   it('stalled-alert: archived, fork and excluded repos are never queried', async () => {

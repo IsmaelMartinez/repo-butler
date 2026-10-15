@@ -244,14 +244,26 @@ function parseJson(text) {
  *   two PR audits already share rather than adding a third.
  * @returns {Promise<Array>} findings of type 'stalled-alert'
  */
-export async function detectStalledAlerts(gh, owner, repos, {
+export async function detectStalledAlerts(gh, owner, repos, options = {}) {
+  return (await detectStalledAlertsWithStatus(gh, owner, repos, options)).findings;
+}
+
+/**
+ * detectStalledAlerts plus the repos it could NOT read. runGovernance needs the
+ * difference: "no stalled-alert finding" from a failed read is not the same as
+ * from a clean one, and the open-vulnerability "in flight" downgrade must not
+ * be granted on the former.
+ * @returns {Promise<{ findings: Array, unread: string[] }>}
+ */
+export async function detectStalledAlertsWithStatus(gh, owner, repos, {
   openPRs = null,
   severityFloor = DEFAULT_SEVERITY_FLOOR,
   thresholdDays = DEFAULT_THRESHOLD_DAYS,
 } = {}) {
-  if (!Array.isArray(repos)) return [];
+  if (!Array.isArray(repos)) return { findings: [], unread: [] };
 
   const eligible = eligibleRepos(repos);
+  const unread = [];
 
   const floor = SEVERITY_RANK[severityFloor] ?? SEVERITY_RANK[DEFAULT_SEVERITY_FLOOR];
   const now = Date.now();
@@ -365,13 +377,23 @@ export async function detectStalledAlerts(gh, owner, repos, {
         priority: reported.some(a => a.severity === 'critical') ? 'high' : 'medium',
       };
     } catch (err) {
+      // Every failure is logged and recorded as unread. "skipping" stays
+      // reserved for a real 403/404 (#438: a 500 whose body mentions ": 404"
+      // must not read as one), so other statuses log the status only — never
+      // the body, which can echo anything.
       if (err.status === 403 || err.status === 404) {
         console.log(`stalled-alert: skipping ${repo.name} (${err.message.slice(0, 80)})`);
+      } else {
+        console.log(`stalled-alert: read failed for ${repo.name} (status ${err?.status ?? 'n/a'})`);
       }
+      unread.push(repo.name);
       return null;
     }
   }));
 
   // Stable order: findings feed the governance-weekly diffs and the dashboard.
-  return results.filter(Boolean).sort((a, b) => a.repo.localeCompare(b.repo));
+  return {
+    findings: results.filter(Boolean).sort((a, b) => a.repo.localeCompare(b.repo)),
+    unread: unread.sort(),
+  };
 }

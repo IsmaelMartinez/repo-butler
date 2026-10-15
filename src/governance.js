@@ -10,7 +10,7 @@ import { fetchPortfolioDetails } from './report-portfolio-data.js';
 import { parseStandardsConfig } from './config.js';
 import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
-import { detectStalledAlerts } from './stalled-alert.js';
+import { detectStalledAlertsWithStatus } from './stalled-alert.js';
 import { detectSecurityFixState } from './security-pr-stuck.js';
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { detectTierChanges } from './tier-change.js';
@@ -101,8 +101,14 @@ export async function runGovernance(context) {
   // a stalled alert.
   // portfolio.repos only, never privateRepos (see the private-repo section of
   // AGENTS.md and the guard in governance.test.js).
-  const stalledAlerts = await detectStalledAlerts(gh, owner, portfolio.repos, { openPRs })
-    .catch(err => { console.error(`Stalled-alert detection failed: ${err.message}`); return []; });
+  // A repo G13 could not read has no stalled-alert finding for the wrong
+  // reason, so it gets no in-flight downgrade either (stalledUnread below).
+  const stalledState = await detectStalledAlertsWithStatus(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => {
+      console.error(`Stalled-alert detection failed: ${err.message}`);
+      return { findings: [], unread: eligibleRepos(portfolio.repos).map(r => r.name) };
+    });
+  const stalledAlerts = stalledState.findings;
   if (stalledAlerts.length > 0) {
     console.log(`Stalled alerts: ${stalledAlerts.length} repos with unattended Dependabot alerts.`);
   }
@@ -111,6 +117,7 @@ export async function runGovernance(context) {
     stuckSecurityPRs: stuckSecurity,
     fixEvidence: fixState.fixEvidence,
     stalledAlerts,
+    stalledUnread: stalledState.unread,
   });
 
   context.governanceFindings = [...gaps.findings, ...drift, ...uplift, ...openVulns, ...stuckSecurity, ...stalledAlerts, ...regressions, ...unguarded];
@@ -671,14 +678,16 @@ export function detectTierRegressions(currentWeekly, priorWeekly) {
  *
  * @param {Array} repos — portfolio repos from observePortfolio()
  * @param {Object} details — enriched details from fetchPortfolioDetails()
- * @param {{ stuckSecurityPRs?: Array, fixEvidence?: Object, stalledAlerts?: Array }} [options]
+ * @param {{ stuckSecurityPRs?: Array, fixEvidence?: Object, stalledAlerts?: Array, stalledUnread?: string[] }} [options]
  *   This run's evidence about whether a fix is actually landing, all from
  *   security-pr-stuck.js and stalled-alert.js: security-pr-stuck findings,
  *   fixEvidence[repo] = { inFlight, unaddressed, unpatched } for repos read
- *   completely, and stalled-alert findings. Without it nothing is in flight.
+ *   completely, stalled-alert findings, and the repos G13 could not read
+ *   (whose absence of a stalled-alert finding proves nothing). Without it
+ *   nothing is in flight.
  * @returns {Array} open-vulnerability findings
  */
-export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [], fixEvidence = {}, stalledAlerts = [] } = {}) {
+export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [], fixEvidence = {}, stalledAlerts = [], stalledUnread = [] } = {}) {
   const eligible = eligibleRepos(repos);
   const findings = [];
   const reposOf = (list, type) => new Set((Array.isArray(list) ? list : [])
@@ -686,6 +695,7 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
     .map(f => f.repo));
   const stuckRepos = reposOf(stuckSecurityPRs, 'security-pr-stuck');
   const stalledRepos = reposOf(stalledAlerts, 'stalled-alert');
+  const stalledUnreadRepos = new Set(Array.isArray(stalledUnread) ? stalledUnread : []);
 
   for (const r of eligible) {
     const d = details?.[r.name];
@@ -756,9 +766,14 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
     const fixStuck = dependabotSourced && stuckRepos.has(r.name);
     const alertStalled = dependabotSourced && stalledRepos.has(r.name);
     const evidence = fixEvidence?.[r.name] ?? null;
-    const fixInFlight = autofixEnabled !== true ? undefined
+    // A G13 read failure cannot make a "not in flight" any less so, but it does
+    // mean "no stalled alert" was never established — so it turns a would-be
+    // true into null (unverifiable), never into a downgrade.
+    const stalledUnreadHere = stalledUnreadRepos.has(r.name);
+    const evidenced = autofixEnabled !== true ? undefined
       : evidence == null || evidence.inFlight === null ? null
         : evidence.inFlight === true && !fixStuck && !alertStalled;
+    const fixInFlight = evidenced === true && stalledUnreadHere ? null : evidenced;
     if (fixInFlight === true && dependabotOnly && priority === 'high') {
       priority = 'medium';
     }
@@ -785,6 +800,7 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
       // The live read found no critical/high alert while the snapshot reports
       // some: nothing could be verified, so fixInFlight is null, not false.
       ...(fixInFlight === null && evidence?.liveAlertsMissing === true ? { liveAlertsMissing: true } : {}),
+      ...(evidenced === true && stalledUnreadHere ? { stalledAlertsUnread: true } : {}),
       // Present only when true: absence means "none seen", which is not the
       // same claim as "the fix is landing".
       ...(fixStuck ? { fixStuck: true } : {}),
@@ -891,6 +907,9 @@ function autofixOnNote(finding) {
     if (finding.unidentifiedAlerts) gaps.push(`${finding.unidentifiedAlerts} alert(s) could not be matched to a package`);
     if (finding.alertStalled === true) gaps.push('a Dependabot alert here is stalled (see the stalled-alert finding)');
     return ` Dependabot automated security fixes are ON but not landing a fix: ${gaps.join('; ') || 'a fix PR is not evidenced for every alert'}.`;
+  }
+  if (finding.stalledAlertsUnread === true) {
+    return ' Dependabot automated security fixes are ON and fix PRs are open, but the stalled-alert check could not read this repo — unverifiable, not treated as in flight.';
   }
   if (finding.liveAlertsMissing === true) {
     return ' Dependabot automated security fixes are ON, but the live alerts read returned no critical/high alert while the snapshot reports some — unverifiable, not treated as in flight.';

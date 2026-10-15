@@ -62,11 +62,6 @@ export function sameReleaseLine(a, b) {
   return a.major !== 0 || a.minor === b.minor;
 }
 
-/** Order two parsed versions (parseVersion output). */
-export function compareVersions(a, b) {
-  return cmp(a, b);
-}
-
 /**
  * Does `version` satisfy `range`? Supports the operators that actually appear in
  * npm manifests: caret, tilde, exact pins, and simple >= bounds.

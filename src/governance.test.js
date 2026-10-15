@@ -1855,6 +1855,33 @@ describe('runGovernance — security-pr-stuck wiring', () => {
     assert.equal(vuln.unaddressedAlerts, 1);
   });
 
+  it('a G13 read failure withholds the downgrade even with a fresh fixing PR', async () => {
+    const prs = [{
+      number: 12, title: 'Bump lodash from 4.17.20 to 4.17.21', user: { login: 'dependabot[bot]' },
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+      head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
+      base: { repo: { full_name: 'acme/repo-a' } },
+    }];
+    globalThis.fetch = async (url) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      // The security-fix read filters severity server-side; G13's does not.
+      if (u.includes('/dependabot/alerts') && !u.includes('severity=')) {
+        return { ok: false, status: 500, headers: new Map(), json: async () => ({}), text: async () => 'boom' };
+      }
+      const body = u.includes('/pulls') ? prs : u.includes('/dependabot/alerts') ? highAlert : [];
+      return { ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) };
+    };
+    const orig = console.log;
+    console.log = () => {};
+    let findings;
+    try { findings = await run(); } finally { console.log = orig; }
+    const vuln = findings.find(f => f.type === 'open-vulnerability');
+    assert.equal(vuln.priority, 'high', '"no stalled alert" from a failed read is not evidence');
+    assert.equal(vuln.fixInFlight, null);
+    assert.equal(vuln.stalledAlertsUnread, true);
+    assert.match(buildRemediationPlan(vuln).rationale, /stalled-alert check could not read/);
+  });
+
   it('an unreadable alerts list withholds the downgrade and is logged', async () => {
     const prs = [{
       number: 12, title: 'Bump lodash from 4.17.20 to 4.17.21', user: { login: 'dependabot[bot]' },

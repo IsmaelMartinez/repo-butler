@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectStuckSecurityPRs, detectSecurityFixState, isReleaseLineBump } from './security-pr-stuck.js';
+import { detectStuckSecurityPRs, detectSecurityFixState, isReleaseLineBump, parseDottedVersion } from './security-pr-stuck.js';
 import { branchNamesAlertPackage } from './stalled-alert.js';
 import { resolveCrossRepoDestination } from './safety.js';
 
@@ -359,5 +359,69 @@ describe('security-pr-stuck — in-flight evidence for the open-vulnerability do
     const { out } = await evidence(() => { throw Object.assign(new Error('boom'), { status: 502 }); }, [makePR({ age: 1 })]);
     assert.equal(out.fixEvidence['repo-a'], undefined);
     assert.deepEqual(out.unread, ['repo-a']);
+  });
+});
+
+describe('security-pr-stuck — versions fail closed', () => {
+  const state = async (alerts, prs) => detectSecurityFixState(
+    makeGh({ alerts: { 'repo-a': alerts }, prs: { 'repo-a': prs } }), 'owner', REPOS, { evidenceRepos: ['repo-a'] });
+
+  it('(a) pip: a bump to 5.3.1 does not fix an alert patched in 5.4 (a 2-part version is comparable, not "unknown")', async () => {
+    const alert = makeAlert({ name: 'pyyaml', ecosystem: 'pip', patched: '5.4' });
+    const out = await state([alert], [makePR({ ref: 'dependabot/pip/pyyaml-5.3.1', age: 1 })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+    const old = await state([alert], [makePR({ ref: 'dependabot/pip/pyyaml-5.3.1', age: 10 })]);
+    assert.deepEqual(old.findings, [], 'nor is it a stuck fix');
+  });
+
+  it('(b) rubygems: a bump to 6.1.7 does not fix an alert patched in 6.1.7.1 (the 4th part counts)', async () => {
+    const alert = makeAlert({ name: 'actionpack', ecosystem: 'rubygems', patched: '6.1.7.1' });
+    const out = await state([alert], [makePR({ ref: 'dependabot/bundler/actionpack-6.1.7', age: 1 })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+    const old = await state([alert], [makePR({ ref: 'dependabot/bundler/actionpack-6.1.7', age: 10 })]);
+    assert.deepEqual(old.findings, []);
+  });
+
+  it('an unparseable (prerelease) patched version is not a fix', async () => {
+    const out = await state([makeAlert({ patched: '4.17.21-rc.1' })], [makePR({ age: 1 })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+  });
+
+  it('2- and 4-part versions that genuinely reach the patch are fixes', async () => {
+    const pip = await state([makeAlert({ name: 'pyyaml', ecosystem: 'pip', patched: '5.4' })],
+      [makePR({ ref: 'dependabot/pip/pyyaml-5.4', age: 1 })]);
+    assert.equal(pip.fixEvidence['repo-a'].inFlight, true, '5.4 >= 5.4');
+    const gem = await state([makeAlert({ name: 'actionpack', ecosystem: 'rubygems', patched: '6.1.7.1' })],
+      [makePR({ ref: 'dependabot/bundler/actionpack-6.1.7.3', age: 1 })]);
+    assert.equal(gem.fixEvidence['repo-a'].inFlight, true, '6.1.7.3 >= 6.1.7.1');
+  });
+
+  it('parseDottedVersion is fully anchored', () => {
+    assert.deepEqual(parseDottedVersion('6.1.7.1'), [6, 1, 7, 1]);
+    assert.deepEqual(parseDottedVersion('5'), [5]);
+    for (const bad of ['1.2.3-beta.0', '1.2.3foo', 'v1.2.3', '>=1.0.0', '', null, '1..2']) {
+      assert.equal(parseDottedVersion(bad), null, String(bad));
+    }
+  });
+});
+
+describe('security-pr-stuck — the evidence function\'s own contract', () => {
+  const state = async (alerts, prs) => detectSecurityFixState(
+    makeGh({ alerts: { 'repo-a': alerts }, prs: { 'repo-a': prs } }), 'owner', REPOS, { evidenceRepos: ['repo-a'] });
+
+  it('an alert in an ecosystem with no manager mapping is never matched, even by a same-named branch', async () => {
+    const alert = makeAlert({ name: 'cowboy', ecosystem: 'erlang', patched: '2.12.0' });
+    const out = await state([alert], [makePR({ ref: 'dependabot/hex/cowboy-2.12.0', age: 1 })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+  });
+
+  it('a stuck fix rules in-flight out even when a newer PR also fixes the same alert', async () => {
+    const out = await state([makeAlert()], [
+      makePR({ number: 12, ref: 'dependabot/npm_and_yarn/lodash-4.17.21', age: 10 }),
+      makePR({ number: 13, ref: 'dependabot/npm_and_yarn/lodash-4.17.22', age: 1 }),
+    ]);
+    assert.equal(out.findings.length, 1, 'the old PR is stuck');
+    assert.equal(out.fixEvidence['repo-a'].unaddressed, 0, 'the new PR does address it');
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false, 'but a stuck fix is not in flight');
   });
 });

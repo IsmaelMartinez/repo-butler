@@ -17,13 +17,20 @@
 // setting alone kept reporting "in flight". "Autofix is on" says GitHub MAY open
 // a PR; only an open, recent PR for every alert says it did.
 //
+// Known misses, all failing CLOSED (no evidence, so no downgrade; no stuck
+// finding): GitHub Actions alerts — their manifest is a workflow file, so the
+// alert directory never equals the branch's action path and an Actions bump
+// never counts as a fix; prerelease or suffixed versions, which the local
+// comparator refuses to read; and grouped or multi-hash branches, which name no
+// package.
+//
 // DETECTION ONLY — no write of any kind, same as G13. A per-repo STATE finding
 // routed to executor 'manual'; it never reaches the templated-PR path or
 // cross-repo PROPOSE (ADR-002/ADR-011 lane boundary).
 
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { alertDirectory, branchNamesAlertPackage, isSameRepoPR } from './stalled-alert.js';
-import { parseVersion, compareVersions, sameReleaseLine } from './trimmer.js';
+import { parseVersion, sameReleaseLine } from './trimmer.js';
 
 // Dependabot opens a security PR within hours and, where auto-merge is wired,
 // lands a green patch/minor bump within a day. Three days is past every
@@ -81,19 +88,42 @@ export function isReleaseLineBump(title) {
   return !sameReleaseLine(from, to);
 }
 
+// A version this module will COMPARE: dot-separated non-negative integers and
+// nothing else, fully anchored, any number of parts (pip's `5.4`, rubygems'
+// `6.1.7.1`). Anything else — a prerelease, a suffix, a range — is unparseable.
+// Deliberately local: trimmer.js parseVersion is three-part-or-null and its
+// tolerance is tuned for the ADR-013/015 gates; reusing it here read `5.4` as
+// unparseable and `6.1.7.1` as `6.1.7`.
+export function parseDottedVersion(v) {
+  const str = String(v ?? '').trim();
+  if (!/^\d+(?:\.\d+)*$/.test(str)) return null;
+  return str.split('.').map(Number);
+}
+
+// Missing trailing parts read as 0, so `5.4` equals `5.4.0`.
+export function compareDottedVersions(a, b) {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
 /**
- * The qualifying alerts this branch definitively fixes. A branch naming the
- * package but bumping to a version below the first patched one is an ordinary
- * version update, not the fix, and does not match; an unparseable version on
- * either side cannot rule the branch out, since it does name the package.
+ * The qualifying alerts this branch definitely fixes: the branch names the
+ * alert's package and directory, and bumps to at least the first patched
+ * version. FAILS CLOSED: a missing or unparseable version on either side is
+ * not a fix. Both consumers assert something from a match — a stuck fix exists,
+ * or a fix is in flight (which lowers a priority) — so "cannot tell" must never
+ * count as "yes".
  */
 function alertsFixedBy(ref, alerts) {
   return alerts.filter(a => {
     const hit = branchNamesAlertPackage(ref, a);
     if (!hit) return false;
-    const to = parseVersion(hit.version);
-    const patched = parseVersion(a.patchedVersion);
-    return !(to && patched && compareVersions(to, patched) < 0);
+    const to = parseDottedVersion(hit.version);
+    const patched = parseDottedVersion(a.patchedVersion);
+    return to !== null && patched !== null && compareDottedVersions(to, patched) >= 0;
   });
 }
 
@@ -198,6 +228,10 @@ export async function detectSecurityFixState(gh, owner, repos, {
         } else {
           const unidentified = raw.length - alerts.length;
           const unpatched = alerts.filter(a => !a.patchedVersion).length;
+          // The recency test is subsumed today — a strict match older than the
+          // threshold is necessarily a stuck PR, and `stuck.length === 0` below
+          // already rules that out — and is kept so the two rules cannot drift
+          // apart into a downgrade if the stuck criteria ever narrow.
           const unaddressed = alerts.filter(a => a.patchedVersion && !dependabotPRs.some(p =>
             alertsFixedBy(p.ref, [a]).length === 1 && fixAge(p, a) <= thresholdDays)).length;
           evidence = {
