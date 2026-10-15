@@ -131,6 +131,8 @@ Roadmap Next Up documentation aligned with active simplification planning 2026-1
 
 Evidence-based fix in flight and stuck security PR governance shipped 2026-10-15 (PR #499). Enhances governance logic to detect stuck security PRs and track evidence for fixes in flight, supporting multi-copy vulnerability verification across the repository tree.
 
+Automated maintenance PR validation and paginated GitHub stream safety shipped 2026-10-15 (PRs #501, #502). Hardens automated governance by strictly verifying `npm fix` updates against the package lockfile and failing closed on malformed pages during GitHub API pagination, preventing malformed inputs or improper automated updates from introducing undetected runtime failures.
+
 ---
 
 ## Next Up
