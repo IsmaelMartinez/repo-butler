@@ -167,7 +167,12 @@ export async function detectSecurityFixState(gh, owner, repos, {
       if (!Array.isArray(prs)) throw new Error('open-PR listing was not an array');
 
       const dependabotPRs = prs
-        .filter(pr => typeof pr?.head?.ref === 'string' && pr.head.ref.startsWith(BRANCH_PREFIX) && isSameRepoPR(pr))
+        // Only a PR into the default branch can resolve an alert, which GitHub
+        // raises against the default branch: a fresh `target-branch: develop`
+        // version update must not count as the fix for `main`. An unknown
+        // default branch matches nothing — no evidence, no stuck claim.
+        .filter(pr => typeof pr?.head?.ref === 'string' && pr.head.ref.startsWith(BRANCH_PREFIX) && isSameRepoPR(pr)
+          && typeof repo.default_branch === 'string' && pr.base?.ref === repo.default_branch)
         .map(pr => ({ pr, ref: pr.head.ref, prAge: daysSince(pr.created_at, now) }));
       // An unparseable created_at makes the age NaN; every NaN comparison is
       // false, so such a PR is never `old` (never stuck) and never `<=` the
@@ -228,12 +233,12 @@ export async function detectSecurityFixState(gh, owner, repos, {
         } else {
           const unidentified = raw.length - alerts.length;
           const unpatched = alerts.filter(a => !a.patchedVersion).length;
-          // The recency test is subsumed today — a strict match older than the
-          // threshold is necessarily a stuck PR, and `stuck.length === 0` below
-          // already rules that out — and is kept so the two rules cannot drift
-          // apart into a downgrade if the stuck criteria ever narrow.
+          // Recency is the PR's OWN age, not fixAge: fixAge forgives an old PR
+          // for a new alert so it is not "stuck" on day one, but a PR that has
+          // sat open for weeks is not evidence that a fix is landing — a 40-day
+          // version update meeting a 1-day alert would otherwise downgrade it.
           const unaddressed = alerts.filter(a => a.patchedVersion && !dependabotPRs.some(p =>
-            alertsFixedBy(p.ref, [a]).length === 1 && fixAge(p, a) <= thresholdDays)).length;
+            alertsFixedBy(p.ref, [a]).length === 1 && p.prAge <= thresholdDays)).length;
           evidence = {
             inFlight: unidentified === 0 && unpatched === 0 && unaddressed === 0 && stuck.length === 0,
             unaddressed,

@@ -11,7 +11,7 @@ import { TEMPLATES } from './apply-templates.js';
 // --- Test helpers ---
 
 function makeRepo(name, overrides = {}) {
-  return { name, archived: false, fork: false, language: 'JavaScript', topics: [], pushed_at: new Date().toISOString(), ...overrides };
+  return { name, archived: false, fork: false, default_branch: 'main', language: 'JavaScript', topics: [], pushed_at: new Date().toISOString(), ...overrides };
 }
 
 function makeDetails(repos, detailOverrides = {}) {
@@ -1334,7 +1334,7 @@ describe('runGovernance — private repos must never enter the governance pipeli
       user: { login: 'dependabot[bot]' },
       created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
       head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'cafef00d', repo: { full_name: 'acme/same' } },
-      base: { repo: { full_name: 'acme/same' } },
+      base: { ref: 'main', repo: { full_name: 'acme/same' } },
     }];
     // A stale open Dependabot alert for every repo, so detectStalledAlerts (G13)
     // fires too; with an empty alerts page it emits nothing and a private repo
@@ -1798,7 +1798,7 @@ describe('runGovernance — security-pr-stuck wiring', () => {
       user: { login: 'dependabot[bot]' },
       created_at: new Date(Date.now() - prAgeDays * 86400000).toISOString(),
       head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
-      base: { repo: { full_name: 'acme/repo-a' } },
+      base: { ref: 'main', repo: { full_name: 'acme/repo-a' } },
     }];
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
@@ -1860,7 +1860,7 @@ describe('runGovernance — security-pr-stuck wiring', () => {
       number: 12, title: 'Bump lodash from 4.17.20 to 4.17.21', user: { login: 'dependabot[bot]' },
       created_at: new Date(Date.now() - 86400000).toISOString(),
       head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
-      base: { repo: { full_name: 'acme/repo-a' } },
+      base: { ref: 'main', repo: { full_name: 'acme/repo-a' } },
     }];
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();
@@ -1887,7 +1887,7 @@ describe('runGovernance — security-pr-stuck wiring', () => {
       number: 12, title: 'Bump lodash from 4.17.20 to 4.17.21', user: { login: 'dependabot[bot]' },
       created_at: new Date(Date.now() - 86400000).toISOString(),
       head: { ref: 'dependabot/npm_and_yarn/lodash-4.17.21', sha: 'abc123', repo: { full_name: 'acme/repo-a' } },
-      base: { repo: { full_name: 'acme/repo-a' } },
+      base: { ref: 'main', repo: { full_name: 'acme/repo-a' } },
     }];
     globalThis.fetch = async (url) => {
       const u = typeof url === 'string' ? url : url.toString();

@@ -13,7 +13,7 @@ async function captureLogs(fn) {
 }
 
 const daysAgoISO = n => new Date(Date.now() - n * 86400000).toISOString();
-const makeRepo = (name, overrides = {}) => ({ name, archived: false, fork: false, ...overrides });
+const makeRepo = (name, overrides = {}) => ({ name, archived: false, fork: false, default_branch: 'main', ...overrides });
 
 function makeAlert({ number = 1, name = 'lodash', ecosystem = 'npm', manifestPath = 'package-lock.json', severity = 'high', patched = '4.17.21', ageDays = 20 } = {}) {
   return {
@@ -26,11 +26,11 @@ function makeAlert({ number = 1, name = 'lodash', ecosystem = 'npm', manifestPat
   };
 }
 
-function makePR({ number = 12, ref = 'dependabot/npm_and_yarn/lodash-4.17.21', age = 10, title = 'Bump lodash from 4.17.20 to 4.17.21', draft = false, login = 'dependabot[bot]', headRepo = 'owner/repo-a', baseRepo = 'owner/repo-a' } = {}) {
+function makePR({ number = 12, ref = 'dependabot/npm_and_yarn/lodash-4.17.21', age = 10, title = 'Bump lodash from 4.17.20 to 4.17.21', draft = false, login = 'dependabot[bot]', headRepo = 'owner/repo-a', baseRepo = 'owner/repo-a', baseRef = 'main' } = {}) {
   return {
     number, title, draft, user: { login }, created_at: daysAgoISO(age),
     head: { ref, sha: `sha-${number}`, repo: headRepo === null ? null : { full_name: headRepo } },
-    base: { repo: { full_name: baseRepo } },
+    base: { ref: baseRef, repo: { full_name: baseRepo } },
   };
 }
 
@@ -380,6 +380,28 @@ describe('security-pr-stuck — versions fail closed', () => {
     assert.equal(out.fixEvidence['repo-a'].inFlight, false);
     const old = await state([alert], [makePR({ ref: 'dependabot/bundler/actionpack-6.1.7', age: 10 })]);
     assert.deepEqual(old.findings, []);
+  });
+
+  it('a fresh fix PR into a non-default branch is neither evidence nor a stuck PR', async () => {
+    const fresh = await state([makeAlert()], [makePR({ age: 1, baseRef: 'develop' })]);
+    assert.equal(fresh.fixEvidence['repo-a'].inFlight, false, 'merging into develop does not resolve the main alert');
+    const old = await state([makeAlert()], [makePR({ age: 10, baseRef: 'develop' })]);
+    assert.deepEqual(old.findings, []);
+    const control = await state([makeAlert()], [makePR({ age: 1 })]);
+    assert.equal(control.fixEvidence['repo-a'].inFlight, true);
+  });
+
+  it('an unknown default branch matches no PR, so it is never evidence', async () => {
+    const gh = makeGh({ alerts: { 'repo-a': [makeAlert()] }, prs: { 'repo-a': [makePR({ age: 1 })] } });
+    const out = await detectSecurityFixState(gh, 'owner', [makeRepo('repo-a', { default_branch: undefined })], { evidenceRepos: ['repo-a'] });
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+  });
+
+  it('a long-open PR meeting a brand-new alert is not in-flight evidence (recency is the PR\'s own age)', async () => {
+    const out = await state([makeAlert({ ageDays: 1 })], [makePR({ age: 40 })]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
+    assert.equal(out.fixEvidence['repo-a'].unaddressed, 1);
+    assert.deepEqual(out.findings, [], 'and not yet "stuck": the fix has only existed for a day');
   });
 
   it('an unparseable (prerelease) patched version is not a fix', async () => {
