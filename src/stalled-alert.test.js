@@ -1,8 +1,10 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createClient } from './github.js';
+import { fetchOpenPRs } from './governance.js';
 import { detectStalledAlerts, detectStalledAlertsWithStatus, classifyAlert, branchMayAddress } from './stalled-alert.js';
 
 // Run fn with console.log captured; returns the lines logged.
@@ -503,5 +505,62 @@ describe('stalled-alert — resilience and eligibility', () => {
 
     assert.deepEqual(findings, []);
     assert.equal(gh.calls.filter(c => c.kind === 'pulls').length, 0);
+  });
+});
+
+// #501: the tests above stub paginate, so they could never see what the REAL
+// client does with a malformed pulls page — which used to be "end of list",
+// handing the detector an empty array and a fabricated finding. These drive
+// the real createClient over a mocked fetch.
+describe('stalled-alert — behind the real client (#501)', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const json = body => ({ ok: true, status: 200, headers: new Map(), json: async () => body, text: async () => JSON.stringify(body) });
+  // pullsPages[n-1] answers ?page=n of the pulls listing; past the end is [].
+  function serve(pullsPages) {
+    globalThis.fetch = async (url) => {
+      const u = new URL(url);
+      if (u.pathname.endsWith('/dependabot/alerts')) return json([makeAlert({ ecosystem: 'pip', name: 'pyyaml', ageDays: 40 })]);
+      if (u.pathname.endsWith('/pulls')) {
+        const page = Number(u.searchParams.get('page'));
+        return json(page <= pullsPages.length ? pullsPages[page - 1] : []);
+      }
+      throw new Error(`unexpected fetch ${u.pathname}`);
+    };
+  }
+  const detect = async (opts) => {
+    let out;
+    const lines = await captureLogs(async () => { out = await detectStalledAlertsWithStatus(createClient('tok'), 'acme', [makeRepo('repo-a')], opts); });
+    return { out, lines };
+  };
+
+  it('control: a well-formed empty pulls listing does report the stalled alert', async () => {
+    serve([[]]);
+    const { out } = await detect();
+    assert.deepEqual(out.findings.map(f => f.repo), ['repo-a']);
+    assert.deepEqual(out.unread, []);
+  });
+
+  it('a non-array first pulls page marks the repo unread and fabricates no finding', async () => {
+    serve([{ message: 'ZZBODYZZ' }]);
+    const { out, lines } = await detect();
+    assert.deepEqual(out.findings, []);
+    assert.deepEqual(out.unread, ['repo-a']);
+    assert.ok(lines.some(l => l.includes('read failed for repo-a') && l.includes('status 200')), lines.join('\n'));
+    assert.ok(!lines.some(l => l.includes('ZZBODYZZ')), 'the response body never reaches the log');
+  });
+
+  // A non-array LATER page is pinned by github.test.js's paginate suite:
+  // listOpenPRs caps at 100, so this path never asks for page 2.
+  it('through governance.fetchOpenPRs: the shared sweep drops the repo and the fallback listing reads unread', async () => {
+    serve([{}]);
+    let openPRs;
+    await captureLogs(async () => { openPRs = await fetchOpenPRs(createClient('tok'), 'acme', [makeRepo('repo-a')]); });
+    assert.deepEqual(openPRs, {}, 'a malformed listing must not enter the sweep as "no PRs"');
+    const { out } = await detect({ openPRs });
+    assert.deepEqual(out.findings, []);
+    assert.deepEqual(out.unread, ['repo-a']);
   });
 });

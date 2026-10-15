@@ -142,173 +142,192 @@ export async function report(context) {
     let cacheHitCount = 0;
 
     for (const r of activeRepos) {
-      const commits = repoDetails?.[r.name]?.commits || 0;
-      const isCached = cachedRepoNames.has(r.name) && repoCache?.repos?.[r.name]?.chartData;
-
-      if (isCached) {
-        cacheHitCount++;
-        console.log(`Generating report for ${r.name} (cached, ${commits} commits)...`);
-      } else {
-        freshCount++;
-        console.log(`Generating report for ${r.name} (fresh, ${commits} commits)...`);
-      }
-
-      if (commits >= 10) {
-        let prActivity, issueActivity, openPRs, weeklyCommits, cycleTime;
-        let releases, openIssues, closedIssues, meta, communityProfile, prAuthors;
+      try {
+        const commits = repoDetails?.[r.name]?.commits || 0;
+        const isCached = cachedRepoNames.has(r.name) && repoCache?.repos?.[r.name]?.chartData;
 
         if (isCached) {
-          // Use cached chart data — no API calls needed.
-          const cd = repoCache.repos[r.name].chartData;
-          prActivity = cd.prActivity || [];
-          issueActivity = cd.issueActivity || [];
-          openPRs = cd.openPRs || [];
-          weeklyCommits = cd.weeklyCommits || [];
-          cycleTime = cd.cycleTime || null;
-          releases = cd.releases || [];
-          openIssues = cd.openIssues || [];
-          closedIssues = cd.closedIssues || [];
-          meta = cd.meta || null;
-          communityProfile = cd.communityProfile || null;
-          prAuthors = cd.prAuthors || [];
+          cacheHitCount++;
+          console.log(`Generating report for ${r.name} (cached, ${commits} commits)...`);
         } else {
-          // Fresh fetch — full API calls for chart data.
-          const [prResult, issueActivityRaw, openPRsRaw, weeklyCommitsRaw] = await Promise.all([
-            fetchMonthlyPRActivity(gh, owner, r.name),
-            fetchMonthlyIssueActivity(gh, owner, r.name),
-            fetchOpenPRs(gh, owner, r.name),
-            fetchWeeklyCommits(gh, owner, r.name),
-          ]);
-          prActivity = prResult.monthly;
-          cycleTime = computePRCycleTime(prResult.mergedPRs);
-          issueActivity = issueActivityRaw;
-          openPRs = openPRsRaw;
-          weeklyCommits = weeklyCommitsRaw;
-
-          [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
-            gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
-              .then(rels => rels.filter(isPublishedRelease))
-              .catch(() => []),
-            paginateIssues(gh, owner, r.name, { params: { state: 'open' }, max: 100 })
-              .catch(() => []),
-            paginateIssues(gh, owner, r.name, { params: { state: 'closed', since: daysAgoISO(90), sort: 'updated', direction: 'desc' }, max: 200 })
-              .then(issues => issues.map(i => ({ created_at: i.created_at, closed_at: i.closed_at })))
-              .catch(() => []),
-            gh.request(`/repos/${owner}/${r.name}`).catch(() => null),
-            gh.request(`/repos/${owner}/${r.name}/community/profile`)
-              .then(d => ({
-                health_percentage: d.health_percentage,
-                files: {
-                  readme: !!d.files?.readme, license: !!d.files?.license,
-                  contributing: !!d.files?.contributing, code_of_conduct: !!d.files?.code_of_conduct,
-                  issue_template: !!d.files?.issue_template, pull_request_template: !!d.files?.pull_request_template,
-                },
-              }))
-              .catch(() => null),
-          ]);
-
-          prAuthors = await fetchPRAuthors(gh, owner, r.name);
+          freshCount++;
+          console.log(`Generating report for ${r.name} (fresh, ${commits} commits)...`);
         }
 
-        if (!isCached) {
-          // Fetch PR authors for fresh repos.
-          if (repoDetails?.[r.name]) {
-            const humanAuthors = prAuthors.filter(a => !isBotAuthor(a.author));
-            repoDetails[r.name].contributors = humanAuthors.length;
+        if (commits >= 10) {
+          let prActivity, issueActivity, openPRs, weeklyCommits, cycleTime;
+          let releases, openIssues, closedIssues, meta, communityProfile, prAuthors;
+
+          if (isCached) {
+            // Use cached chart data — no API calls needed.
+            const cd = repoCache.repos[r.name].chartData;
+            prActivity = cd.prActivity || [];
+            issueActivity = cd.issueActivity || [];
+            openPRs = cd.openPRs || [];
+            weeklyCommits = cd.weeklyCommits || [];
+            cycleTime = cd.cycleTime || null;
+            releases = cd.releases || [];
+            openIssues = cd.openIssues || [];
+            closedIssues = cd.closedIssues || [];
+            meta = cd.meta || null;
+            communityProfile = cd.communityProfile || null;
+            prAuthors = cd.prAuthors || [];
+          } else {
+            // Fresh fetch — full API calls for chart data.
+            const [prResult, issueActivityRaw, openPRsRaw, weeklyCommitsRaw] = await Promise.all([
+              fetchMonthlyPRActivity(gh, owner, r.name),
+              fetchMonthlyIssueActivity(gh, owner, r.name),
+              fetchOpenPRs(gh, owner, r.name),
+              fetchWeeklyCommits(gh, owner, r.name),
+            ]);
+            prActivity = prResult.monthly;
+            cycleTime = computePRCycleTime(prResult.mergedPRs);
+            issueActivity = issueActivityRaw;
+            openPRs = openPRsRaw;
+            weeklyCommits = weeklyCommitsRaw;
+
+            [releases, openIssues, closedIssues, meta, communityProfile] = await Promise.all([
+              gh.paginate(`/repos/${owner}/${r.name}/releases`, { max: 20 })
+                .then(rels => rels.filter(isPublishedRelease))
+                .catch(() => []),
+              paginateIssues(gh, owner, r.name, { params: { state: 'open' }, max: 100 })
+                .catch(() => []),
+              paginateIssues(gh, owner, r.name, { params: { state: 'closed', since: daysAgoISO(90), sort: 'updated', direction: 'desc' }, max: 200 })
+                .then(issues => issues.map(i => ({ created_at: i.created_at, closed_at: i.closed_at })))
+                .catch(() => []),
+              gh.request(`/repos/${owner}/${r.name}`).catch(() => null),
+              gh.request(`/repos/${owner}/${r.name}/community/profile`)
+                .then(d => ({
+                  health_percentage: d.health_percentage,
+                  files: {
+                    readme: !!d.files?.readme, license: !!d.files?.license,
+                    contributing: !!d.files?.contributing, code_of_conduct: !!d.files?.code_of_conduct,
+                    issue_template: !!d.files?.issue_template, pull_request_template: !!d.files?.pull_request_template,
+                  },
+                }))
+                .catch(() => null),
+            ]);
+
+            prAuthors = await fetchPRAuthors(gh, owner, r.name);
           }
-        } else {
-          // For cached repos, use cached contributor count.
-          prAuthors = repoCache.repos[r.name].chartData.prAuthors || [];
-          if (repoDetails?.[r.name]) {
-            repoDetails[r.name].contributors = repoCache.repos[r.name].chartData.contributors ?? 0;
-          }
-        }
 
-        // Use Phase 1 data from fetchPortfolioDetails where available.
-        const details = repoDetails?.[r.name];
-        const mergedPRsForBusFactor = prAuthors.flatMap(a => Array.from({ length: a.count }, () => ({ author: a.author })));
-
-        const repoSnapshot = buildRepoSnapshot({
-          owner,
-          repo: r.name,
-          details,
-          meta,
-          communityProfile,
-          releases,
-          openIssues,
-          prAuthors,
-          busFactor: computeBusFactor(mergedPRsForBusFactor),
-          timeToCloseMedian: computeTimeToCloseMedian(closedIssues),
-          pushedAt: r.pushed_at,
-          stars: r.stars,
-          forks: r.forks,
-          homepage: r.homepage || null,
-        });
-
-        // Reuse libyear from portfolio details (already computed in fetchPortfolioDetails).
-        const libyear = details?.libyear || null;
-
-        // Compute per-repo trends from portfolio weekly history.
-        let repoTrends = null;
-        if (r.name === context.repo && context.trends) {
-          repoTrends = context.trends;
-        } else if (store) {
-          try {
-            const repoHistory = await store.readRepoWeeklyHistory(r.name);
-            if (repoHistory.length >= 2) {
-              repoTrends = computeTrends(repoHistory);
+          if (!isCached) {
+            // Fetch PR authors for fresh repos.
+            if (repoDetails?.[r.name]) {
+              const humanAuthors = prAuthors.filter(a => !isBotAuthor(a.author));
+              repoDetails[r.name].contributors = humanAuthors.length;
             }
-          } catch {
-            // Trend data unavailable for this repo — not critical.
+          } else {
+            // For cached repos, use cached contributor count.
+            prAuthors = repoCache.repos[r.name].chartData.prAuthors || [];
+            if (repoDetails?.[r.name]) {
+              repoDetails[r.name].contributors = repoCache.repos[r.name].chartData.contributors ?? 0;
+            }
           }
-        }
-        const repoDepSummary = depInventory?.repoSummaries?.[r.name] || null;
-        // Assessment narrative is scoped to the config repo's snapshot (ASSESS runs once per run).
-        const repoAssessment = r.name === context.repo ? (context.assessment?.assessment || null) : null;
-        const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, openPRs, cycleTime, weeklyCommits, repoDepSummary, libyear, config, repoAssessment);
-        await writeFile(join(outDir, `${r.name}.html`), html);
 
-        // Save chart data to cache for future incremental runs.
-        // Strip large fields (sbom) from the cached details; keep only what reports need.
-        const detailsForCache = { ...details };
-        delete detailsForCache.sbom;
-        newRepoCache.repos[r.name] = {
-          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
-          id: r.id ?? null,
-          pushed_at: r.pushed_at,
-          open_issues_count: r.open_issues || 0,
-          details: detailsForCache,
-          chartData: {
-            prActivity, issueActivity, openPRs, weeklyCommits, cycleTime,
-            releases, openIssues, closedIssues, meta, communityProfile,
+          // Use Phase 1 data from fetchPortfolioDetails where available.
+          const details = repoDetails?.[r.name];
+          const mergedPRsForBusFactor = prAuthors.flatMap(a => Array.from({ length: a.count }, () => ({ author: a.author })));
+
+          const repoSnapshot = buildRepoSnapshot({
+            owner,
+            repo: r.name,
+            details,
+            meta,
+            communityProfile,
+            releases,
+            openIssues,
             prAuthors,
-            contributors: repoDetails?.[r.name]?.contributors ?? 0,
-          },
-        };
-      } else {
-        // Lightweight report — just metadata, no chart API calls.
-        if (!isCached) {
-          const prAuthors = await fetchPRAuthors(gh, owner, r.name);
-          if (repoDetails?.[r.name]) {
-            const humanAuthors = prAuthors.filter(a => !isBotAuthor(a.author));
-            repoDetails[r.name].contributors = humanAuthors.length;
-          }
-        } else if (repoDetails?.[r.name]) {
-          repoDetails[r.name].contributors = repoCache.repos[r.name]?.chartData?.contributors ?? 0;
-        }
-        const html = generateLightRepoReport(owner, r, repoDetails?.[r.name]);
-        await writeFile(join(outDir, `${r.name}.html`), html);
+            busFactor: computeBusFactor(mergedPRsForBusFactor),
+            timeToCloseMedian: computeTimeToCloseMedian(closedIssues),
+            pushedAt: r.pushed_at,
+            stars: r.stars,
+            forks: r.forks,
+            homepage: r.homepage || null,
+          });
 
-        // Cache lightweight repo details too.
-        const detailsForCache = { ...(repoDetails?.[r.name] || {}) };
-        delete detailsForCache.sbom;
-        newRepoCache.repos[r.name] = {
-          schemaVersion: REPO_CACHE_SCHEMA_VERSION,
-          id: r.id ?? null,
-          pushed_at: r.pushed_at,
-          open_issues_count: r.open_issues || 0,
-          details: detailsForCache,
-        };
+          // Reuse libyear from portfolio details (already computed in fetchPortfolioDetails).
+          const libyear = details?.libyear || null;
+
+          // Compute per-repo trends from portfolio weekly history.
+          let repoTrends = null;
+          if (r.name === context.repo && context.trends) {
+            repoTrends = context.trends;
+          } else if (store) {
+            try {
+              const repoHistory = await store.readRepoWeeklyHistory(r.name);
+              if (repoHistory.length >= 2) {
+                repoTrends = computeTrends(repoHistory);
+              }
+            } catch {
+              // Trend data unavailable for this repo — not critical.
+            }
+          }
+          const repoDepSummary = depInventory?.repoSummaries?.[r.name] || null;
+          // Assessment narrative is scoped to the config repo's snapshot (ASSESS runs once per run).
+          const repoAssessment = r.name === context.repo ? (context.assessment?.assessment || null) : null;
+          const html = generateRepoReport(repoSnapshot, prActivity, issueActivity, prAuthors, repoTrends, openPRs, cycleTime, weeklyCommits, repoDepSummary, libyear, config, repoAssessment);
+          await writeFile(join(outDir, `${r.name}.html`), html);
+
+          // Save chart data to cache for future incremental runs.
+          // Strip large fields (sbom) from the cached details; keep only what reports need.
+          const detailsForCache = { ...details };
+          delete detailsForCache.sbom;
+          newRepoCache.repos[r.name] = {
+            schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+            id: r.id ?? null,
+            pushed_at: r.pushed_at,
+            open_issues_count: r.open_issues || 0,
+            details: detailsForCache,
+            chartData: {
+              prActivity, issueActivity, openPRs, weeklyCommits, cycleTime,
+              releases, openIssues, closedIssues, meta, communityProfile,
+              prAuthors,
+              contributors: repoDetails?.[r.name]?.contributors ?? 0,
+            },
+          };
+        } else {
+          // Lightweight report — just metadata, no chart API calls.
+          if (!isCached) {
+            const prAuthors = await fetchPRAuthors(gh, owner, r.name);
+            if (repoDetails?.[r.name]) {
+              const humanAuthors = prAuthors.filter(a => !isBotAuthor(a.author));
+              repoDetails[r.name].contributors = humanAuthors.length;
+            }
+          } else if (repoDetails?.[r.name]) {
+            repoDetails[r.name].contributors = repoCache.repos[r.name]?.chartData?.contributors ?? 0;
+          }
+          const html = generateLightRepoReport(owner, r, repoDetails?.[r.name]);
+          await writeFile(join(outDir, `${r.name}.html`), html);
+
+          // Cache lightweight repo details too.
+          const detailsForCache = { ...(repoDetails?.[r.name] || {}) };
+          delete detailsForCache.sbom;
+          newRepoCache.repos[r.name] = {
+            schemaVersion: REPO_CACHE_SCHEMA_VERSION,
+            id: r.id ?? null,
+            pushed_at: r.pushed_at,
+            open_issues_count: r.open_issues || 0,
+            details: detailsForCache,
+          };
+        }
+      } catch (err) {
+        // A failed read on one repo's chart data (an HTTP error, or since #501 a
+        // list page that is not an array) degrades that repo to the lightweight
+        // card instead of failing REPORT for the whole portfolio. Nothing is
+        // cached for it, so the next run refetches rather than serving a
+        // degraded entry until the repo's next push. Portfolio repos are public
+        // (privateRepos never reach this loop), so naming the repo is fine; the
+        // status alone is logged, never the response body.
+        //
+        // Only an error the API ANSWERED (one carrying a numeric `status`) is
+        // absorbed. Anything else — a render bug, a network failure, the
+        // status-less "rate limited after 3 retries" — still fails the phase
+        // as before, so a code fault is never quietly turned into a light card.
+        if (typeof err?.status !== 'number') throw err;
+        console.log(`report: chart data unreadable for ${r.name} (status ${err.status}); writing lightweight card`);
+        delete newRepoCache.repos[r.name];
+        await writeFile(join(outDir, `${r.name}.html`), generateLightRepoReport(owner, r, repoDetails?.[r.name]));
       }
     }
 

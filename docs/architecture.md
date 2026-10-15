@@ -414,7 +414,9 @@ Governance Apply go in the `TEMPLATES` map in `apply-templates.js`. New MCP tool
 calls — the custom client in `src/github.js` (`createClient(token)`) is used
 everywhere, because it handles rate limiting with exponential backoff on 429/403
 and provides `request`, `paginate`, `getFileContent`, `listDir`, `putFile`, and
-`deleteFile`.
+`deleteFile`. `paginate` throws (`status: 200`, `code: 'NON_ARRAY_PAGE'`) on a page
+that is not a JSON array instead of treating it as the end of the list; only an
+empty array ends a listing.
 
 ## Further reading
 

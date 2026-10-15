@@ -119,6 +119,19 @@ export function createClient(token, options = {}) {
     throw new Error(`GitHub API ${method} ${safePath(path)}: rate limited after 3 retries`);
   }
 
+  // List endpoints only: every page must be a top-level JSON array. Endpoints
+  // that wrap their items (`{ total_count, workflow_runs }`, `{ check_runs }`,
+  // `{ repositories }`, …) are paged by hand at their call sites instead.
+  //
+  // An EMPTY array is the end of the list. A page that is not an array — on
+  // the first page or any later one — THROWS (#501) rather than ending the loop
+  // with whatever was collected: a 200 that is not a list used to be
+  // indistinguishable from "no more items", so a malformed response read as
+  // "no open PRs" to detectors that treat silence as evidence. The error
+  // carries `status` (the 200 the server answered with) and
+  // `code: 'NON_ARRAY_PAGE'`, so status-only handlers record it as a read
+  // failure. Its message names the path (redacted under `redactPaths`) and the
+  // page number, never the body.
   async function paginate(path, { params = {}, max = 500 } = {}) {
     const results = [];
     let page = 1;
@@ -129,7 +142,13 @@ export function createClient(token, options = {}) {
         params: { ...params, per_page: perPage, page },
       });
 
-      if (!Array.isArray(data) || data.length === 0) break;
+      if (!Array.isArray(data)) {
+        throw Object.assign(
+          httpError(`GitHub API GET ${safePath(path)}: non-array page (page ${page})`, 200),
+          { code: 'NON_ARRAY_PAGE' },
+        );
+      }
+      if (data.length === 0) break;
       results.push(...data);
       if (data.length < perPage) break;
       page++;
