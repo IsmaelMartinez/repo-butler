@@ -301,7 +301,8 @@ setting alone is not "remediation in flight": that needs `fixInFlight`, evidence
 critical/high alert, and only it downgrades the finding's priority. For npm,
 "definitely" includes the lockfile at the PR's head: every copy of the package,
 nested duplicates included, must be at or above the patch (`lockfile-update.js`'s
-`not-patched` rule, reused), and an unreadable lockfile leaves the match unverified —
+`not-patched` rule, reused), and an unreadable lockfile, an absent package, or a copy on
+another release line than the patch leaves the match unverified —
 no evidence (`fixInFlight: null`, `lockfileUnverified`) and no stuck claim.
 
 The first content-transformation write in the apply path is the lockfile refresh

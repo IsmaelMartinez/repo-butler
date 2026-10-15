@@ -559,10 +559,21 @@ describe('security-pr-stuck — the lockfile at the PR head must patch every cop
     assert.equal(out.fixEvidence['repo-a'].inFlight, false);
   });
 
-  it('a lockfile without the package at all is not the fix', async () => {
+  it('a lockfile without the package at all is unverified, not refuted (a parent bump can drop it)', async () => {
     const { out } = await state({ [KEY]: lockText({ 'node_modules/express': '4.21.0' }) }, [RECENT]);
-    assert.equal(out.fixEvidence['repo-a'].inFlight, false);
-    assert.equal(out.fixEvidence['repo-a'].unaddressed, 1);
+    assert.deepEqual(out.fixEvidence['repo-a'], { inFlight: null, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 1 });
+    const old = await state({ [KEY]: lockText({ 'node_modules/express': '4.21.0' }) }, [OLD]);
+    assert.deepEqual(old.out.findings, [], 'no stuck claim either way');
+  });
+
+  it('a copy on another release line than the patch is unverified (one advisory, several ranges)', async () => {
+    // Patched in 4.17.21, but a 5.x copy may sit in a separate vulnerable range.
+    const lock = lockText({ 'node_modules/lodash': '4.17.21', 'node_modules/new-dep/node_modules/lodash': '5.0.0' });
+    const { out } = await state({ [KEY]: lock }, [RECENT]);
+    assert.equal(out.fixEvidence['repo-a'].inFlight, null);
+    assert.equal(out.fixEvidence['repo-a'].unverified, 1);
+    const old = await state({ [KEY]: lock }, [OLD]);
+    assert.deepEqual(old.out.findings, []);
   });
 
   describe('an unreadable lockfile leaves the match unverified: no evidence (null) and no stuck claim', () => {

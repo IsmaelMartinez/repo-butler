@@ -461,7 +461,27 @@ describe('the not-patched rule, read-only (#500)', () => {
   it('lockfileCopiesPatched: patched only when every copy reaches the patch', () => {
     assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.11.1' } }), 'qs', '6.11.0'), 'patched');
     assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '6.11.0' }, 'node_modules/a/node_modules/qs': { version: '6.5.2' } }), 'qs', '6.11.0'), 'not-patched');
-    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/other': { version: '1.0.0' } }), 'qs', '6.11.0'), 'not-patched');
+  });
+
+  it('lockfileCopiesPatched reads an absent package as unverifiable, not refuted (a parent bump can drop it)', () => {
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/other': { version: '1.0.0' } }), 'qs', '6.11.0'), 'unverifiable');
+  });
+
+  it('the gate still refuses a refresh that drops every copy as not-patched', () => {
+    assert.equal(findUnpatchedCopy({ 'node_modules/other': { version: '1.0.0' } }, 'qs', { major: 6, minor: 11, patch: 0 })?.reason, 'not-patched');
+  });
+
+  it('lockfileCopiesPatched compares only copies on the patch\'s release line; any other is unverifiable', () => {
+    // One advisory, ranges <1.2.3 and >=2.0.0 <2.0.5, first patched 1.2.3: a
+    // 2.0.0 copy is past 1.2.3 but inside the second range.
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '2.0.0' } }), 'qs', '1.2.3'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.2.3' }, 'node_modules/a/node_modules/qs': { version: '2.0.5' } }), 'qs', '1.2.3'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.9.0' } }), 'qs', '1.2.3'), 'unverifiable', 'a lower major is another line too');
+    // Inside 0.x the minor is the line (sameReleaseLine).
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.35.0' } }), 'qs', '0.34.5'), 'unverifiable');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.6' } }), 'qs', '0.34.5'), 'patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '0.34.4' } }), 'qs', '0.34.5'), 'not-patched');
+    assert.equal(lockfileCopiesPatched(lock({ 'node_modules/qs': { version: '1.9.0' } }), 'qs', '1.2.3'), 'patched', 'a later minor on the same major is compared');
   });
 
   it('lockfileCopiesPatched fails closed to unverifiable on anything it cannot order', () => {

@@ -771,9 +771,13 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
     // mean "no stalled alert" was never established — so it turns a would-be
     // true into null (unverifiable), never into a downgrade.
     const stalledUnreadHere = stalledUnreadRepos.has(r.name);
+    // A stalled alert or a stuck fix is a definite gap and wins over every
+    // unknown: an unverifiable read (an unread repo, a lockfile that could not
+    // be checked) must not soften a known "not in flight" into null.
     const evidenced = autofixEnabled !== true ? undefined
-      : evidence == null || evidence.inFlight === null ? null
-        : evidence.inFlight === true && !fixStuck && !alertStalled;
+      : fixStuck || alertStalled ? false
+        : evidence == null || evidence.inFlight === null ? null
+          : evidence.inFlight === true;
     const fixInFlight = evidenced === true && stalledUnreadHere ? null : evidenced;
     if (fixInFlight === true && dependabotOnly && priority === 'high') {
       priority = 'medium';
@@ -793,7 +797,9 @@ export function detectOpenVulnerabilities(repos, details, { stuckSecurityPRs = [
       ...(dependabotSourced ? { autofixEnabled } : {}),
       ...(fixInFlight !== undefined ? { fixInFlight } : {}),
       // What is missing when the evidence was read and says "not in flight".
-      ...(fixInFlight === false ? {
+      // A stalled alert or stuck fix makes it false even when the evidence was
+      // unread or verified nothing, and then there are no counts to report.
+      ...(fixInFlight === false && evidence && evidence.liveAlertsMissing !== true ? {
         unaddressedAlerts: evidence.unaddressed ?? 0,
         unpatchedAlerts: evidence.unpatched ?? 0,
         ...(evidence.unidentified ? { unidentifiedAlerts: evidence.unidentified } : {}),

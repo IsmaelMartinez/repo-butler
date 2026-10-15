@@ -974,6 +974,45 @@ describe('detectOpenVulnerabilities', () => {
     assert.match(buildRemediationPlan(f).rationale, /stalled/);
   });
 
+  // A stalled alert or a stuck fix is a definite gap: it must win over an
+  // unverified lockfile (#500) or an unread repo, never be softened into null.
+  const UNVERIFIED = { 'repo-a': { inFlight: null, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 1 } };
+
+  it('a stalled-alert finding wins over an unverified lockfile: fixInFlight false, not null', () => {
+    const [repos, details] = inFlightCritical();
+    const stalled = { type: 'stalled-alert', repo: 'repo-a', alerts: [], priority: 'medium' };
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: UNVERIFIED, stalledAlerts: [stalled] });
+    assert.equal(f.fixInFlight, false);
+    assert.equal(f.priority, 'high');
+    assert.equal(f.alertStalled, true);
+    assert.ok(!('lockfileUnverified' in f), 'the null-only annotation does not ride a false');
+    assert.equal(f.unverifiedAlerts, 1, 'the unverified count is still reported among the gaps');
+    assert.match(buildRemediationPlan(f).rationale, /stalled/);
+  });
+
+  it('a stalled-alert or stuck finding wins over unread evidence too, without inventing counts', () => {
+    const [repos, details] = inFlightCritical();
+    const stalled = { type: 'stalled-alert', repo: 'repo-a', alerts: [], priority: 'medium' };
+    const [a] = detectOpenVulnerabilities(repos, details, { stalledAlerts: [stalled] });
+    assert.equal(a.fixInFlight, false);
+    assert.ok(!('unaddressedAlerts' in a), 'nothing was read, so no counts are claimed');
+    const [b] = detectOpenVulnerabilities(repos, details, { stuckSecurityPRs: [STUCK], fixEvidence: UNVERIFIED });
+    assert.equal(b.fixInFlight, false);
+    assert.equal(b.fixStuck, true);
+    const [c] = detectOpenVulnerabilities(repos, details, { stalledAlerts: [stalled], fixEvidence: { 'repo-a': { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 0 } } });
+    assert.equal(c.fixInFlight, false);
+    assert.ok(!('liveAlertsMissing' in c) && !('unaddressedAlerts' in c));
+  });
+
+  it('an unverified lockfile alone is null with lockfileUnverified, and never downgrades', () => {
+    const [repos, details] = inFlightCritical();
+    const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: UNVERIFIED });
+    assert.equal(f.fixInFlight, null);
+    assert.equal(f.priority, 'high');
+    assert.equal(f.lockfileUnverified, true);
+    assert.equal(f.unverifiedAlerts, 1);
+  });
+
   it('a live read with no alert is unverifiable: fixInFlight null, priority high, and the rationale says why', () => {
     const [repos, details] = inFlightCritical();
     const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0 } } });

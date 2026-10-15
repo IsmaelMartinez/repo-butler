@@ -365,11 +365,28 @@ export function findUnpatchedCopy(packages, name, patch) {
  * answers, failing closed:
  *
  *   patched       every copy of `name` is a plain release at or above
- *                 `patchedVersion`, and there is at least one copy
- *   not-patched   findUnpatchedCopy refused (a copy below the patch, or none)
+ *                 `patchedVersion` on the patch's own release line, and there
+ *                 is at least one copy
+ *   not-patched   findUnpatchedCopy refused: a copy on the patch's release
+ *                 line is still below it
  *   unverifiable  the text is not JSON, has no lockfileVersion >= 2 packages
- *                 map, the patched version is not a plain release, or a copy's
- *                 version is not one — nothing this rule can order
+ *                 map, the patched version is not a plain release, a copy's
+ *                 version is not one, NO copy is present, or a copy sits on a
+ *                 different release line from the patch
+ *
+ * Two departures from the gate, both toward "unverifiable" and both confined
+ * to this read-only caller (computeLockfileGate is unchanged):
+ *
+ * - Absence. The gate refuses a refresh that drops every copy, because it
+ *   cannot vouch for a lockfile it is about to push. Here a security PR that
+ *   bumps a parent until the vulnerable transitive dependency falls out of
+ *   the tree is a real fix, so absence is neither a refutation nor proof.
+ * - Release lines. One advisory can carry several vulnerable ranges (say
+ *   `<1.2.3` and `>=2.0.0 <2.0.5`) while `first_patched_version` names only
+ *   the lowest patch, so a 2.0.0 copy "passes" against 1.2.3 while sitting
+ *   inside the second range. Only a copy on the patch's own release line
+ *   (trimmer's sameReleaseLine: the major, or the minor inside 0.x) is
+ *   compared; any other copy makes the answer unverifiable.
  *
  * @returns {'patched'|'not-patched'|'unverifiable'}
  */
@@ -381,11 +398,14 @@ export function lockfileCopiesPatched(lockText, name, patchedVersion) {
   }
   const patch = parseVersion(patchedVersion);
   if (!patch || !PLAIN_RELEASE.test(String(patchedVersion))) return 'unverifiable';
+  let copies = 0;
   for (const [path, entry] of Object.entries(lock.packages)) {
-    if (path !== '' && entryName(path, entry) === name && !PLAIN_RELEASE.test(String(entry?.version ?? ''))) {
-      return 'unverifiable';
-    }
+    if (path === '' || entryName(path, entry) !== name) continue;
+    copies += 1;
+    if (!PLAIN_RELEASE.test(String(entry?.version ?? ''))) return 'unverifiable';
+    if (!sameReleaseLine(parseVersion(entry.version), patch)) return 'unverifiable';
   }
+  if (copies === 0) return 'unverifiable';
   return findUnpatchedCopy(lock.packages, name, patch) ? 'not-patched' : 'patched';
 }
 

@@ -162,10 +162,12 @@ function alertsFixedBy(ref, alerts) {
  *
  * Never throws. Returns:
  *   'fixes'       every copy patched (or a non-npm ecosystem)
- *   'not-fixed'   the lockfile was read and a copy is still below the patch,
- *                 or the package is absent from it
+ *   'not-fixed'   the lockfile was read and a copy on the patch's release
+ *                 line is still below the patch
  *   'unverified'  no head SHA, no knowable package-lock.json path (yarn, pnpm,
- *                 a missing manifest path), absent, unreadable, or unorderable
+ *                 a missing manifest path), absent, unreadable, unorderable, no
+ *                 copy of the package (a parent bump may have dropped it), or a
+ *                 copy on another release line (a second vulnerable range)
  */
 async function verifyFixAtHead(gh, owner, repoName, p, alert, cache) {
   if (alert.ecosystem !== 'npm') return 'fixes';

@@ -322,6 +322,34 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
     }
   });
 
+  it('declares the open-vulnerability evidence fields detectOpenVulnerabilities emits (#500)', async () => {
+    const { detectOpenVulnerabilities } = await import('./governance.js');
+    const schema = await loadSchema('governance-finding.v1.schema.json');
+    const props = schema.properties;
+    const repos = [{ name: 'repo-a', archived: false, fork: false, private: false }];
+    const details = { 'repo-a': { vulns: { count: 1, critical: 0, high: 1, max_severity: 'high' }, autofix: { enabled: true, paused: false } } };
+    const evidence = [
+      { inFlight: null, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 2 },
+      { inFlight: false, unaddressed: 1, unpatched: 1, unidentified: 1, unverified: 1 },
+      { inFlight: null, liveAlertsMissing: true, unaddressed: 0, unpatched: 0, unidentified: 0, unverified: 0 },
+    ];
+    for (const e of evidence) {
+      const [f] = detectOpenVulnerabilities(repos, details, { fixEvidence: { 'repo-a': e } });
+      for (const key of Object.keys(f)) {
+        assert.ok(key in props, `open-vulnerability field "${key}" is not declared in the schema`);
+      }
+      if ('lockfileUnverified' in f) assert.equal(f.lockfileUnverified, props.lockfileUnverified.const);
+      if ('unverifiedAlerts' in f) {
+        assert.ok(Number.isInteger(f.unverifiedAlerts) && f.unverifiedAlerts >= props.unverifiedAlerts.minimum);
+        assert.ok(f.fixInFlight === null || f.fixInFlight === false);
+      }
+    }
+    assert.equal(props.lockfileUnverified.type, 'boolean');
+    assert.equal(props.unverifiedAlerts.type, 'integer');
+    assert.match(props.fixInFlight.description, /package-lock\.json at the PR's head/);
+    assert.match(props.fixInFlight.description, /lockfileUnverified/);
+  });
+
   it('executor hints route finding tools as designed', async () => {
     const { buildRemediationPlan } = await import('./governance.js');
 
