@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-14T22:56:34.285Z",
+  "timestamp": "2026-10-15T06:53:48.595Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,17 +7,41 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 9,
+    "open_issues_count": 11,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-14T21:02:50Z",
+    "pushed_at": "2026-10-15T06:53:35Z",
     "archived": false
   },
   "issues": {
     "open": [
+      {
+        "number": 501,
+        "title": "github.js paginate(): surface a malformed (non-array) page instead of returning a partial list",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-10-15T06:33:52Z",
+        "updated_at": "2026-10-15T06:33:52Z",
+        "assignees": [],
+        "milestone": null
+      },
+      {
+        "number": 500,
+        "title": "security-pr-stuck: verify a fix PR resolves every vulnerable copy, not just the branch-named version",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-10-15T06:33:47Z",
+        "updated_at": "2026-10-15T06:33:47Z",
+        "assignees": [],
+        "milestone": null
+      },
       {
         "number": 429,
         "title": "Simplification plan (2026-09-26): tracking",
@@ -486,6 +510,23 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 499,
+        "title": "feat(governance): evidence-based \"fix in flight\" and stuck security-PR detection",
+        "author": "IsmaelMartinez",
+        "labels": [],
+        "merged_at": "2026-10-15T06:53:33Z"
+      },
+      {
+        "number": 498,
+        "title": "chore(deps): bump the minor-and-patch group with 6 updates",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-10-15T01:36:10Z"
+      },
       {
         "number": 496,
         "title": "chore: update roadmap (repo-butler)",
@@ -1634,10 +1675,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 1,
-    "total_runs": 91,
-    "passed": 91,
-    "failed": 0
+    "pass_rate": 0.9886363636363636,
+    "total_runs": 88,
+    "passed": 87,
+    "failed": 1
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1645,15 +1686,15 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 8,
+    "open_issues": 10,
     "open_bugs": 0,
     "open_features": 3,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 32,
-    "recently_merged_prs": 129,
-    "bot_prs": 12,
-    "human_prs": 117,
+    "recently_merged_prs": 131,
+    "bot_prs": 13,
+    "human_prs": 118,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
@@ -1671,7 +1712,7 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 1,
+    "ci_pass_rate": 0.9886363636363636,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1.1,
