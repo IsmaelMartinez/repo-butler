@@ -30,10 +30,6 @@
       {
         "name": "Release in the last 90 days",
         "required_for": "gold"
-      },
-      {
-        "name": "Zero critical/high security findings",
-        "required_for": "gold"
       }
     ],
     "priority": "high",
@@ -41,10 +37,9 @@
       "executor": "agent",
       "targetFiles": [],
       "intent": "Uplift ismaelmartinez.me.uk from silver to gold",
-      "rationale": "2 check(s) block gold: Release in the last 90 days, Zero critical/high security findings.",
+      "rationale": "1 check(s) block gold: Release in the last 90 days.",
       "acceptanceCriteria": [
-        "Check \"Release in the last 90 days\" passes",
-        "Check \"Zero critical/high security findings\" passes"
+        "Check \"Release in the last 90 days\" passes"
       ]
     }
   },
@@ -90,27 +85,6 @@
       "targetFiles": [],
       "intent": "Remediate open security alerts in teams-for-linux",
       "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: 1 alert(s) have no patched version to bump to.",
-      "acceptanceCriteria": [
-        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-      ]
-    }
-  },
-  {
-    "type": "open-vulnerability",
-    "repo": "ismaelmartinez.me.uk",
-    "critical": 0,
-    "high": 1,
-    "secretScanning": 0,
-    "sources": [
-      "code-scanning"
-    ],
-    "max_severity": "high",
-    "priority": "medium",
-    "remediation": {
-      "executor": "manual",
-      "targetFiles": [],
-      "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-      "rationale": "0 critical / 1 high open alert(s) from code-scanning.",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
