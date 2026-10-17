@@ -213,11 +213,11 @@
       "id": 151476958,
       "open_issues": 24,
       "open_bugs": 8,
-      "commits_6mo": 402,
-      "stars": 5158,
+      "commits_6mo": 397,
+      "stars": 5159,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9696969696969697,
+      "ciPassRate": 0.9743589743589743,
       "vulns": {
         "count": 4,
         "critical": 0,
@@ -239,15 +239,15 @@
       },
       "ci": 20,
       "released_at": "2026-10-09T18:41:49Z",
-      "pushed_at": "2026-10-15T08:01:20Z",
+      "pushed_at": "2026-10-17T06:47:47Z",
       "traffic": {
         "views_14d": {
-          "count": 10428,
-          "uniques": 4127
+          "count": 10065,
+          "uniques": 4004
         },
         "clones_14d": {
-          "count": 7835,
-          "uniques": 898
+          "count": 6916,
+          "uniques": 776
         }
       },
       "computed": {
@@ -317,11 +317,11 @@
       "id": 786898753,
       "open_issues": 4,
       "open_bugs": 0,
-      "commits_6mo": 267,
+      "commits_6mo": 270,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9882352941176471,
+      "ciPassRate": 1,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-16T19:24:57Z",
+      "pushed_at": "2026-10-17T09:38:31Z",
       "traffic": {
         "views_14d": {
-          "count": 55,
-          "uniques": 14
+          "count": 52,
+          "uniques": 13
         },
         "clones_14d": {
-          "count": 1942,
-          "uniques": 576
+          "count": 1797,
+          "uniques": 517
         }
       },
       "computed": {
@@ -945,7 +945,7 @@
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9882352941176471,
+      "ciPassRate": 0.9883720930232558,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -967,15 +967,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-16T20:10:05Z",
+      "pushed_at": "2026-10-17T09:49:26Z",
       "traffic": {
         "views_14d": {
           "count": 30,
-          "uniques": 6
+          "uniques": 7
         },
         "clones_14d": {
-          "count": 3537,
-          "uniques": 1078
+          "count": 3528,
+          "uniques": 1058
         }
       },
       "computed": {
