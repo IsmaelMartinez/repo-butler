@@ -81,13 +81,40 @@
       "fixInFlight": false,
       "unaddressedAlerts": 0,
       "unpatchedAlerts": 1,
+      "alertStalled": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in teams-for-linux",
-        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: 1 alert(s) have no patched version to bump to.",
+        "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: 1 alert(s) have no patched version to bump to; a Dependabot alert here is stalled (see the stalled-alert finding).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+        ]
+      }
+    },
+    {
+      "type": "stalled-alert",
+      "repo": "teams-for-linux",
+      "alerts": [
+        {
+          "number": 258,
+          "package": "braces",
+          "ecosystem": "npm",
+          "manifestPath": "docs-site/package-lock.json",
+          "severity": "high",
+          "ageDays": 15,
+          "classification": "no-patched-version",
+          "detail": "no published patched version for braces"
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: no-patched-version). These need a human decision about the dependency graph.",
+        "acceptanceCriteria": [
+          "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
         ]
       }
     }
