@@ -102,7 +102,7 @@
           "ecosystem": "npm",
           "manifestPath": "docs-site/package-lock.json",
           "severity": "high",
-          "ageDays": 16,
+          "ageDays": 17,
           "classification": "no-patched-version",
           "detail": "no published patched version for braces"
         }
@@ -112,7 +112,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 16 days; classified: no-patched-version). These need a human decision about the dependency graph.",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 17 days; classified: no-patched-version). These need a human decision about the dependency graph.",
         "acceptanceCriteria": [
           "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
         ]
