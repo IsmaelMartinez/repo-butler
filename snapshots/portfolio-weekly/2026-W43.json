@@ -217,7 +217,7 @@
       "stars": 5174,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.8292682926829268,
+      "ciPassRate": 0.8780487804878049,
       "vulns": {
         "count": 4,
         "critical": 0,
@@ -323,12 +323,12 @@
       "communityHealth": 100,
       "ciPassRate": 0.9885057471264368,
       "vulns": {
-        "count": 1,
+        "count": 3,
         "critical": 0,
-        "high": 0,
-        "medium": 1,
+        "high": 1,
+        "medium": 2,
         "low": 0,
-        "max_severity": "medium"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -343,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-22T16:45:53Z",
+      "pushed_at": "2026-10-22T22:12:30Z",
       "traffic": {
         "views_14d": {
           "count": 36,
@@ -390,7 +390,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-22T16:11:16Z",
+      "pushed_at": "2026-10-22T20:55:57Z",
       "traffic": {
         "views_14d": {
           "count": 22,
