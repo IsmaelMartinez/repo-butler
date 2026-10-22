@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-21T22:58:19.082Z",
+  "timestamp": "2026-10-22T12:43:15.925Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-21T20:57:38Z",
+    "pushed_at": "2026-10-22T10:45:34Z",
     "archived": false
   },
   "issues": {
@@ -502,6 +502,16 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 503,
+        "title": "chore(deps): bump the minor-and-patch group with 2 updates",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-10-22T01:37:35Z"
+      },
       {
         "number": 502,
         "title": "fix(governance): verify npm fix PRs against the lockfile; fail closed on malformed pages",
@@ -1400,23 +1410,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-07-24T07:17:16Z"
-      },
-      {
-        "number": 337,
-        "title": "feat(report): surface Dependabot autofix on per-repo dashboards + refresh copilot-review cache (ADR-012 Phase 4)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-07-23T18:40:43Z"
-      },
-      {
-        "number": 335,
-        "title": "chore(deps): bump the minor-and-patch group with 2 updates",
-        "author": "dependabot[bot]",
-        "labels": [
-          "dependencies",
-          "github_actions"
-        ],
-        "merged_at": "2026-07-23T01:34:16Z"
       }
     ]
   },
@@ -1626,8 +1619,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 91,
-    "passed": 91,
+    "total_runs": 89,
+    "passed": 89,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1642,9 +1635,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 34,
-    "recently_merged_prs": 125,
+    "recently_merged_prs": 124,
     "bot_prs": 13,
-    "human_prs": 112,
+    "human_prs": 111,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
