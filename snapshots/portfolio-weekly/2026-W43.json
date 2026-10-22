@@ -213,11 +213,11 @@
       "id": 151476958,
       "open_issues": 23,
       "open_bugs": 10,
-      "commits_6mo": 393,
+      "commits_6mo": 394,
       "stars": 5173,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.8292682926829268,
       "vulns": {
         "count": 4,
         "critical": 0,
@@ -239,15 +239,15 @@
       },
       "ci": 20,
       "released_at": "2026-10-19T16:23:08Z",
-      "pushed_at": "2026-10-21T12:45:08Z",
+      "pushed_at": "2026-10-22T07:07:41Z",
       "traffic": {
         "views_14d": {
-          "count": 8888,
-          "uniques": 3618
+          "count": 8127,
+          "uniques": 3294
         },
         "clones_14d": {
-          "count": 5291,
-          "uniques": 689
+          "count": 5572,
+          "uniques": 681
         }
       },
       "computed": {
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-21T21:21:55Z",
+      "pushed_at": "2026-10-22T03:25:27Z",
       "traffic": {
         "views_14d": {
-          "count": 38,
-          "uniques": 14
+          "count": 36,
+          "uniques": 15
         },
         "clones_14d": {
-          "count": 2003,
-          "uniques": 525
+          "count": 2069,
+          "uniques": 518
         }
       },
       "computed": {
@@ -941,7 +941,7 @@
       "id": 1185787142,
       "open_issues": 8,
       "open_bugs": 0,
-      "commits_6mo": 312,
+      "commits_6mo": 313,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -967,15 +967,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-21T20:57:38Z",
+      "pushed_at": "2026-10-22T10:45:34Z",
       "traffic": {
         "views_14d": {
-          "count": 25,
-          "uniques": 7
+          "count": 22,
+          "uniques": 6
         },
         "clones_14d": {
-          "count": 3568,
-          "uniques": 1043
+          "count": 3037,
+          "uniques": 939
         }
       },
       "computed": {
@@ -1046,7 +1046,7 @@
       "open_issues": 0,
       "open_bugs": 0,
       "commits_6mo": 155,
-      "stars": 3,
+      "stars": 4,
       "license": "MIT",
       "communityHealth": 100,
       "ciPassRate": 0.9393939393939394,
