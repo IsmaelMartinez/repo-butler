@@ -106,17 +106,37 @@
         "ecosystem": "npm",
         "manifestPath": "docs-site/package-lock.json",
         "severity": "high",
-        "ageDays": 18,
+        "ageDays": 19,
         "classification": "no-patched-version",
         "detail": "no published patched version for braces"
+      },
+      {
+        "number": 270,
+        "package": "sprintf-js",
+        "ecosystem": "npm",
+        "manifestPath": "package-lock.json",
+        "severity": "medium",
+        "ageDays": 15,
+        "classification": "no-patched-version",
+        "detail": "no published patched version for sprintf-js"
+      },
+      {
+        "number": 263,
+        "package": "postcss-selector-parser",
+        "ecosystem": "npm",
+        "manifestPath": "docs-site/package-lock.json",
+        "severity": "medium",
+        "ageDays": 15,
+        "classification": "disjoint-ranges",
+        "detail": "postcss-selector-parser@7.1.6 sits outside the major line declared by postcss-calc@^6.0.11, postcss-discard-unused@^6.0.16, postcss-merge-rules@^6.0.16, postcss-minify-selectors@^6.0.16, postcss-uniqu"
       }
     ],
     "priority": "medium",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
-      "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 18 days; classified: no-patched-version). These need a human decision about the dependency graph.",
+      "intent": "Unblock 3 stalled Dependabot alert(s) in teams-for-linux",
+      "rationale": "3 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 19 days; classified: disjoint-ranges, no-patched-version). These need a human decision about the dependency graph.",
       "acceptanceCriteria": [
         "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
