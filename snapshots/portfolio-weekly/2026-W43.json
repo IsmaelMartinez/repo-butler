@@ -211,20 +211,20 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 24,
-      "open_bugs": 11,
-      "commits_6mo": 393,
+      "open_issues": 23,
+      "open_bugs": 10,
+      "commits_6mo": 394,
       "stars": 5180,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 1,
       "vulns": {
-        "count": 4,
+        "count": 2,
         "critical": 0,
-        "high": 1,
-        "medium": 2,
+        "high": 0,
+        "medium": 1,
         "low": 1,
-        "max_severity": "high"
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -239,7 +239,7 @@
       },
       "ci": 20,
       "released_at": "2026-10-19T16:23:08Z",
-      "pushed_at": "2026-10-23T18:34:29Z",
+      "pushed_at": "2026-10-23T22:43:34Z",
       "traffic": {
         "views_14d": {
           "count": 7417,
@@ -286,7 +286,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -343,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-23T16:33:04Z",
+      "pushed_at": "2026-10-23T21:05:24Z",
       "traffic": {
         "views_14d": {
           "count": 30,
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-23T16:01:06Z",
+      "pushed_at": "2026-10-23T20:43:39Z",
       "traffic": {
         "views_14d": {
           "count": 18,
