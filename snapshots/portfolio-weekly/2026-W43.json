@@ -213,11 +213,11 @@
       "id": 151476958,
       "open_issues": 24,
       "open_bugs": 11,
-      "commits_6mo": 394,
-      "stars": 5178,
+      "commits_6mo": 393,
+      "stars": 5180,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.8780487804878049,
+      "ciPassRate": 1,
       "vulns": {
         "count": 4,
         "critical": 0,
@@ -239,15 +239,15 @@
       },
       "ci": 20,
       "released_at": "2026-10-19T16:23:08Z",
-      "pushed_at": "2026-10-22T07:07:41Z",
+      "pushed_at": "2026-10-23T18:34:29Z",
       "traffic": {
         "views_14d": {
-          "count": 8127,
-          "uniques": 3294
+          "count": 7417,
+          "uniques": 3022
         },
         "clones_14d": {
-          "count": 5572,
-          "uniques": 681
+          "count": 5474,
+          "uniques": 653
         }
       },
       "computed": {
@@ -343,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-23T03:26:21Z",
+      "pushed_at": "2026-10-23T16:33:04Z",
       "traffic": {
         "views_14d": {
           "count": 30,
@@ -427,12 +427,12 @@
       "communityHealth": 85,
       "ciPassRate": 0.9797979797979798,
       "vulns": {
-        "count": 1,
+        "count": 5,
         "critical": 0,
-        "high": 0,
-        "medium": 1,
+        "high": 1,
+        "medium": 4,
         "low": 0,
-        "max_severity": "medium"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -459,7 +459,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "provisional": false,
         "checks": [
           {
@@ -494,7 +494,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -518,7 +518,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "bonnie-wee-plot": {
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-23T10:37:15Z",
+      "pushed_at": "2026-10-23T16:01:06Z",
       "traffic": {
         "views_14d": {
           "count": 18,
