@@ -211,9 +211,9 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 23,
-      "open_bugs": 10,
-      "commits_6mo": 394,
+      "open_issues": 19,
+      "open_bugs": 7,
+      "commits_6mo": 389,
       "stars": 5180,
       "license": "GPL-3.0",
       "communityHealth": 100,
@@ -242,16 +242,16 @@
       "pushed_at": "2026-10-23T22:43:34Z",
       "traffic": {
         "views_14d": {
-          "count": 7417,
-          "uniques": 3022
+          "count": 6759,
+          "uniques": 2825
         },
         "clones_14d": {
-          "count": 5474,
-          "uniques": 653
+          "count": 4737,
+          "uniques": 645
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "provisional": false,
         "checks": [
           {
@@ -266,7 +266,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -310,7 +310,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Fewer than 10 open bugs"
+        "next_step": null
       }
     },
     "ismaelmartinez.me.uk": {
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-23T21:05:24Z",
+      "pushed_at": "2026-10-24T03:19:44Z",
       "traffic": {
         "views_14d": {
-          "count": 30,
-          "uniques": 12
+          "count": 19,
+          "uniques": 9
         },
         "clones_14d": {
-          "count": 1951,
-          "uniques": 490
+          "count": 1955,
+          "uniques": 488
         }
       },
       "computed": {
@@ -967,15 +967,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-23T20:43:39Z",
+      "pushed_at": "2026-10-24T09:55:38Z",
       "traffic": {
         "views_14d": {
-          "count": 18,
-          "uniques": 6
+          "count": 16,
+          "uniques": 5
         },
         "clones_14d": {
-          "count": 2665,
-          "uniques": 823
+          "count": 2674,
+          "uniques": 806
         }
       },
       "computed": {
