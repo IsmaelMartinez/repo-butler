@@ -1,28 +1,6 @@
 [
   {
     "type": "tier-uplift",
-    "repo": "teams-for-linux",
-    "currentTier": "silver",
-    "targetTier": "gold",
-    "failingChecks": [
-      {
-        "name": "Fewer than 10 open bugs",
-        "required_for": "gold"
-      }
-    ],
-    "priority": "high",
-    "remediation": {
-      "executor": "agent",
-      "targetFiles": [],
-      "intent": "Uplift teams-for-linux from silver to gold",
-      "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
-      "acceptanceCriteria": [
-        "Check \"Fewer than 10 open bugs\" passes"
-      ]
-    }
-  },
-  {
-    "type": "tier-uplift",
     "repo": "ismaelmartinez.me.uk",
     "currentTier": "silver",
     "targetTier": "gold",
@@ -150,7 +128,7 @@
         "ecosystem": "npm",
         "manifestPath": "docs-site/package-lock.json",
         "severity": "medium",
-        "ageDays": 16,
+        "ageDays": 17,
         "classification": "disjoint-ranges",
         "detail": "postcss-selector-parser@7.1.6 sits outside the major line declared by postcss-calc@^6.0.11, postcss-discard-unused@^6.0.16, postcss-merge-rules@^6.0.16, postcss-minify-selectors@^6.0.16, postcss-uniqu"
       }
@@ -160,7 +138,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 16 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 17 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
       "acceptanceCriteria": [
         "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
