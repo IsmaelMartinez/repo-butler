@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-25T22:13:53.731Z",
+  "timestamp": "2026-10-26T13:47:59.236Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-25T20:04:59Z",
+    "pushed_at": "2026-10-26T12:24:16Z",
     "archived": false
   },
   "issues": {
@@ -1292,41 +1292,6 @@
         "author": "IsmaelMartinez",
         "labels": [],
         "merged_at": "2026-07-29T02:36:51Z"
-      },
-      {
-        "number": 351,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-07-27T14:55:57Z"
-      },
-      {
-        "number": 352,
-        "title": "fix(update): normalise whitespace around appended roadmap entries",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-07-27T14:43:18Z"
-      },
-      {
-        "number": 349,
-        "title": "chore(roadmap): restructure around done/in-flight and compact the shipped log by month",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-07-27T13:23:14Z"
-      },
-      {
-        "number": 348,
-        "title": "feat(private-watch): watch private repos without touching the shared pipeline",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-07-27T13:20:31Z"
-      },
-      {
-        "number": 346,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-07-27T06:46:52Z"
       }
     ]
   },
@@ -1536,8 +1501,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 93,
-    "passed": 93,
+    "total_runs": 94,
+    "passed": 94,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1552,9 +1517,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 34,
-    "recently_merged_prs": 113,
+    "recently_merged_prs": 108,
     "bot_prs": 11,
-    "human_prs": 102,
+    "human_prs": 97,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
