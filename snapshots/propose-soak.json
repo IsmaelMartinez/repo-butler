@@ -448,5 +448,23 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-10-26T12:24:15.484Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Standardize workflow least-privilege permissions and SHA action pinning",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
