@@ -213,18 +213,18 @@
       "id": 151476958,
       "open_issues": 20,
       "open_bugs": 7,
-      "commits_6mo": 398,
+      "commits_6mo": 400,
       "stars": 5182,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.803921568627451,
+      "ciPassRate": 0.9591836734693877,
       "vulns": {
-        "count": 3,
+        "count": 2,
         "critical": 0,
         "high": 0,
-        "medium": 1,
+        "medium": 0,
         "low": 2,
-        "max_severity": "medium"
+        "max_severity": "low"
       },
       "codeScanning": {
         "count": 0,
@@ -239,7 +239,7 @@
       },
       "ci": 20,
       "released_at": "2026-10-25T11:16:53Z",
-      "pushed_at": "2026-10-25T11:29:19Z",
+      "pushed_at": "2026-10-26T15:03:15Z",
       "traffic": {
         "views_14d": {
           "count": 6688,
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-26T12:24:16Z",
+      "pushed_at": "2026-10-26T17:46:26Z",
       "traffic": {
         "views_14d": {
           "count": 14,
@@ -1045,11 +1045,11 @@
       "id": 1196601911,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 155,
+      "commits_6mo": 150,
       "stars": 4,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9393939393939394,
+      "ciPassRate": 0.9595959595959596,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1071,15 +1071,15 @@
       },
       "ci": 8,
       "released_at": "2026-07-12T13:00:13Z",
-      "pushed_at": "2026-10-19T13:59:28Z",
+      "pushed_at": "2026-10-26T13:56:11Z",
       "traffic": {
         "views_14d": {
-          "count": 30,
-          "uniques": 16
+          "count": 12,
+          "uniques": 10
         },
         "clones_14d": {
-          "count": 273,
-          "uniques": 76
+          "count": 326,
+          "uniques": 80
         }
       },
       "computed": {
@@ -1395,7 +1395,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "provisional": false,
         "checks": [
           {
@@ -1415,7 +1415,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -1454,7 +1454,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Release in the last 90 days"
       }
     }
   }
