@@ -1,6 +1,28 @@
 [
   {
     "type": "tier-uplift",
+    "repo": "yourear",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Zero critical/high security findings",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift yourear from silver to gold",
+      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+      "acceptanceCriteria": [
+        "Check \"Zero critical/high security findings\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
     "repo": "ismaelmartinez.me.uk",
     "currentTier": "silver",
     "targetTier": "gold",
@@ -50,6 +72,28 @@
   },
   {
     "type": "tier-uplift",
+    "repo": "bonnie-wee-plot",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Zero critical/high security findings",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift bonnie-wee-plot from silver to gold",
+      "rationale": "1 check(s) block gold: Zero critical/high security findings.",
+      "acceptanceCriteria": [
+        "Check \"Zero critical/high security findings\" passes"
+      ]
+    }
+  },
+  {
+    "type": "tier-uplift",
     "repo": "wifisentinel",
     "currentTier": "silver",
     "targetTier": "gold",
@@ -67,6 +111,29 @@
       "rationale": "1 check(s) block gold: Release in the last 90 days.",
       "acceptanceCriteria": [
         "Check \"Release in the last 90 days\" passes"
+      ]
+    }
+  },
+  {
+    "type": "open-vulnerability",
+    "repo": "yourear",
+    "critical": 1,
+    "high": 1,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "critical",
+    "priority": "medium",
+    "autofixEnabled": true,
+    "fixInFlight": true,
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in yourear",
+      "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON and an open Dependabot PR addresses every critical/high alert — remediation in flight.",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
     }
   },
@@ -122,6 +189,31 @@
     }
   },
   {
+    "type": "open-vulnerability",
+    "repo": "bonnie-wee-plot",
+    "critical": 0,
+    "high": 1,
+    "secretScanning": 0,
+    "sources": [
+      "dependabot"
+    ],
+    "max_severity": "high",
+    "priority": "medium",
+    "autofixEnabled": true,
+    "fixInFlight": false,
+    "unaddressedAlerts": 1,
+    "unpatchedAlerts": 0,
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Remediate open security alerts in bonnie-wee-plot",
+      "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 1 alert(s).",
+      "acceptanceCriteria": [
+        "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
+      ]
+    }
+  },
+  {
     "type": "security-pr-stuck",
     "repo": "ismaelmartinez.me.uk",
     "stuckPRs": [
@@ -160,7 +252,7 @@
         "ecosystem": "npm",
         "manifestPath": "docs-site/package-lock.json",
         "severity": "medium",
-        "ageDays": 18,
+        "ageDays": 19,
         "classification": "disjoint-ranges",
         "detail": "postcss-selector-parser@7.1.6 sits outside the major line declared by postcss-calc@^6.0.11, postcss-discard-unused@^6.0.16, postcss-merge-rules@^6.0.16, postcss-minify-selectors@^6.0.16, postcss-uniqu"
       }
@@ -170,7 +262,7 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 18 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+      "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 19 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
       "acceptanceCriteria": [
         "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
       ]
@@ -178,18 +270,35 @@
   },
   {
     "type": "tier-regression",
-    "repo": "generator-atlassian-compass-event-catalog",
+    "repo": "yourear",
     "previousTier": "gold",
     "currentTier": "silver",
-    "priorWeek": "2026-W42",
+    "priorWeek": "2026-W43",
     "priority": "high",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
-      "intent": "Restore generator-atlassian-compass-event-catalog to gold",
-      "rationale": "Health tier regressed from gold to silver since 2026-W42.",
+      "intent": "Restore yourear to gold",
+      "rationale": "Health tier regressed from gold to silver since 2026-W43.",
       "acceptanceCriteria": [
-        "generator-atlassian-compass-event-catalog is back at gold in a subsequent weekly snapshot"
+        "yourear is back at gold in a subsequent weekly snapshot"
+      ]
+    }
+  },
+  {
+    "type": "tier-regression",
+    "repo": "bonnie-wee-plot",
+    "previousTier": "gold",
+    "currentTier": "silver",
+    "priorWeek": "2026-W43",
+    "priority": "high",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Restore bonnie-wee-plot to gold",
+      "rationale": "Health tier regressed from gold to silver since 2026-W43.",
+      "acceptanceCriteria": [
+        "bonnie-wee-plot is back at gold in a subsequent weekly snapshot"
       ]
     }
   }
