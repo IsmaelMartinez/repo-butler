@@ -211,10 +211,10 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 22,
+      "open_issues": 24,
       "open_bugs": 8,
-      "commits_6mo": 397,
-      "stars": 5184,
+      "commits_6mo": 395,
+      "stars": 5186,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 1,
@@ -242,12 +242,12 @@
       "pushed_at": "2026-10-26T23:39:01Z",
       "traffic": {
         "views_14d": {
-          "count": 6502,
-          "uniques": 3051
+          "count": 6583,
+          "uniques": 3124
         },
         "clones_14d": {
-          "count": 5419,
-          "uniques": 649
+          "count": 4820,
+          "uniques": 646
         }
       },
       "computed": {
@@ -317,11 +317,11 @@
       "id": 786898753,
       "open_issues": 4,
       "open_bugs": 0,
-      "commits_6mo": 263,
+      "commits_6mo": 262,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9791666666666666,
+      "ciPassRate": 0.979381443298969,
       "vulns": {
         "count": 7,
         "critical": 0,
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-07-12T21:31:52Z",
-      "pushed_at": "2026-10-27T17:33:14Z",
+      "pushed_at": "2026-10-27T21:53:29Z",
       "traffic": {
         "views_14d": {
           "count": 23,
           "uniques": 12
         },
         "clones_14d": {
-          "count": 1901,
-          "uniques": 461
+          "count": 1921,
+          "uniques": 468
         }
       },
       "computed": {
@@ -941,7 +941,7 @@
       "id": 1185787142,
       "open_issues": 8,
       "open_bugs": 0,
-      "commits_6mo": 283,
+      "commits_6mo": 274,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -967,15 +967,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-27T16:57:06Z",
+      "pushed_at": "2026-10-28T11:44:48Z",
       "traffic": {
         "views_14d": {
-          "count": 14,
-          "uniques": 3
+          "count": 20,
+          "uniques": 7
         },
         "clones_14d": {
-          "count": 2603,
-          "uniques": 741
+          "count": 2580,
+          "uniques": 730
         }
       },
       "computed": {
