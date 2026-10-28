@@ -242,7 +242,7 @@
       "stuckPRs": [
         {
           "number": 473,
-          "age": 4,
+          "age": 5,
           "package": "vite",
           "alerts": [
             115
@@ -259,7 +259,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Land or close 1 stuck Dependabot security PR(s) in ismaelmartinez.me.uk",
-        "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 4 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
+        "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 5 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
         "acceptanceCriteria": [
           "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
         ]
