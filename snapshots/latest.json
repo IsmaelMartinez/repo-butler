@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-28T20:43:35.697Z",
+  "timestamp": "2026-10-29T13:53:26.539Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-28T17:31:24Z",
+    "pushed_at": "2026-10-29T11:53:22Z",
     "archived": false
   },
   "issues": {
@@ -502,6 +502,16 @@
   },
   "pull_requests": {
     "recently_merged": [
+      {
+        "number": 504,
+        "title": "chore(deps): bump the minor-and-patch group with 2 updates",
+        "author": "dependabot[bot]",
+        "labels": [
+          "dependencies",
+          "github_actions"
+        ],
+        "merged_at": "2026-10-29T01:37:52Z"
+      },
       {
         "number": 503,
         "title": "chore(deps): bump the minor-and-patch group with 2 updates",
@@ -1466,8 +1476,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 93,
-    "passed": 93,
+    "total_runs": 90,
+    "passed": 90,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1482,8 +1492,8 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 34,
-    "recently_merged_prs": 103,
-    "bot_prs": 11,
+    "recently_merged_prs": 104,
+    "bot_prs": 12,
     "human_prs": 92,
     "unique_contributors": 3,
     "releases": 3,
