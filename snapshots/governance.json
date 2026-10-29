@@ -146,14 +146,17 @@
       "dependabot"
     ],
     "max_severity": "critical",
-    "priority": "medium",
+    "priority": "high",
     "autofixEnabled": true,
-    "fixInFlight": true,
+    "fixInFlight": false,
+    "unaddressedAlerts": 2,
+    "unpatchedAlerts": 0,
+    "fixStuck": true,
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in yourear",
-      "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON and an open Dependabot PR addresses every critical/high alert — remediation in flight.",
+      "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
@@ -163,7 +166,7 @@
     "type": "open-vulnerability",
     "repo": "ismaelmartinez.me.uk",
     "critical": 0,
-    "high": 1,
+    "high": 2,
     "secretScanning": 0,
     "sources": [
       "dependabot"
@@ -172,14 +175,14 @@
     "priority": "medium",
     "autofixEnabled": true,
     "fixInFlight": false,
-    "unaddressedAlerts": 1,
+    "unaddressedAlerts": 2,
     "unpatchedAlerts": 0,
     "fixStuck": true,
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-      "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
+      "rationale": "0 critical / 2 high open alert(s) from dependabot. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
       "acceptanceCriteria": [
         "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
       ]
@@ -241,7 +244,7 @@
     "stuckPRs": [
       {
         "number": 473,
-        "age": 5,
+        "age": 6,
         "package": "vite",
         "alerts": [
           115
@@ -258,7 +261,37 @@
       "executor": "manual",
       "targetFiles": [],
       "intent": "Land or close 1 stuck Dependabot security PR(s) in ismaelmartinez.me.uk",
-      "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 5 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
+      "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 6 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
+      "acceptanceCriteria": [
+        "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
+      ]
+    }
+  },
+  {
+    "type": "security-pr-stuck",
+    "repo": "yourear",
+    "stuckPRs": [
+      {
+        "number": 138,
+        "age": 3,
+        "package": "dompurify",
+        "alerts": [
+          84,
+          85
+        ],
+        "severity": "critical",
+        "state": "awaiting-human",
+        "majorBump": false,
+        "draft": false,
+        "verified": true
+      }
+    ],
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Land or close 1 stuck Dependabot security PR(s) in yourear",
+      "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 3 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
       "acceptanceCriteria": [
         "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
       ]
@@ -312,6 +345,27 @@
       "rationale": "Health tier regressed from gold to silver since 2026-W43.",
       "acceptanceCriteria": [
         "skill-sources is back at gold in a subsequent weekly snapshot"
+      ]
+    }
+  },
+  {
+    "type": "dependabot-stale",
+    "repo": "bonnie-wee-plot",
+    "stalePRs": [
+      {
+        "number": 595,
+        "title": "chore(deps): bump @sentry/nextjs from 10.75.2 to 11.8.0 in the sentry group across 1 directory",
+        "age": 31
+      }
+    ],
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
+      "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 31 days).",
+      "acceptanceCriteria": [
+        "Each stale Dependabot PR is merged or closed"
       ]
     }
   }
