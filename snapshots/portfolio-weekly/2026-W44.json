@@ -213,18 +213,18 @@
       "id": 151476958,
       "open_issues": 19,
       "open_bugs": 5,
-      "commits_6mo": 395,
+      "commits_6mo": 397,
       "stars": 5196,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9512195121951219,
+      "ciPassRate": 1,
       "vulns": {
-        "count": 3,
+        "count": 8,
         "critical": 0,
-        "high": 0,
-        "medium": 0,
+        "high": 3,
+        "medium": 2,
         "low": 3,
-        "max_severity": "low"
+        "max_severity": "high"
       },
       "codeScanning": {
         "count": 0,
@@ -239,7 +239,7 @@
       },
       "ci": 20,
       "released_at": "2026-10-30T14:56:26Z",
-      "pushed_at": "2026-10-31T08:26:51Z",
+      "pushed_at": "2026-10-31T17:26:49Z",
       "traffic": {
         "views_14d": {
           "count": 7605,
@@ -251,7 +251,7 @@
         }
       },
       "computed": {
-        "tier": "gold",
+        "tier": "silver",
         "provisional": false,
         "checks": [
           {
@@ -286,7 +286,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": true,
+            "passed": false,
             "required_for": "gold"
           },
           {
@@ -310,7 +310,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": null
+        "next_step": "Zero critical/high security findings"
       }
     },
     "ismaelmartinez.me.uk": {
@@ -321,7 +321,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9795918367346939,
+      "ciPassRate": 0.9693877551020408,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-10-31T08:20:29Z",
-      "pushed_at": "2026-10-31T11:47:10Z",
+      "pushed_at": "2026-10-31T16:55:08Z",
       "traffic": {
         "views_14d": {
-          "count": 32,
-          "uniques": 13
+          "count": 36,
+          "uniques": 14
         },
         "clones_14d": {
-          "count": 1512,
-          "uniques": 387
+          "count": 1189,
+          "uniques": 327
         }
       },
       "computed": {
@@ -427,12 +427,12 @@
       "communityHealth": 85,
       "ciPassRate": 0.9693877551020408,
       "vulns": {
-        "count": 5,
+        "count": 4,
         "critical": 0,
-        "high": 1,
+        "high": 0,
         "medium": 4,
         "low": 0,
-        "max_severity": "high"
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -459,7 +459,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "provisional": false,
         "checks": [
           {
@@ -494,7 +494,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -518,25 +518,25 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "bonnie-wee-plot": {
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 314,
+      "commits_6mo": 315,
       "stars": 3,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.845360824742268,
+      "ciPassRate": 0.8645833333333334,
       "vulns": {
-        "count": 5,
+        "count": 2,
         "critical": 0,
-        "high": 1,
+        "high": 0,
         "medium": 2,
-        "low": 2,
-        "max_severity": "high"
+        "low": 0,
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -551,7 +551,7 @@
       },
       "ci": 9,
       "released_at": "2026-09-15T11:10:45Z",
-      "pushed_at": "2026-10-31T08:46:06Z",
+      "pushed_at": "2026-10-31T14:33:28Z",
       "traffic": {
         "views_14d": {
           "count": 48,
@@ -563,7 +563,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "provisional": false,
         "checks": [
           {
@@ -598,7 +598,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -622,7 +622,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "betis-escocia": {
@@ -739,11 +739,11 @@
       "communityHealth": 100,
       "ciPassRate": 0.9278350515463918,
       "vulns": {
-        "count": 2,
+        "count": 1,
         "critical": 0,
         "high": 0,
         "medium": 0,
-        "low": 2,
+        "low": 1,
         "max_severity": "low"
       },
       "codeScanning": {
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-31T11:20:15Z",
+      "pushed_at": "2026-10-31T16:25:47Z",
       "traffic": {
         "views_14d": {
           "count": 188,
@@ -1051,12 +1051,12 @@
       "communityHealth": 100,
       "ciPassRate": 0.97,
       "vulns": {
-        "count": 0,
+        "count": 1,
         "critical": 0,
         "high": 0,
-        "medium": 0,
+        "medium": 1,
         "low": 0,
-        "max_severity": null
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
