@@ -29,10 +29,6 @@
       "targetTier": "gold",
       "failingChecks": [
         {
-          "name": "Release in the last 90 days",
-          "required_for": "gold"
-        },
-        {
           "name": "Zero critical/high security findings",
           "required_for": "gold"
         }
@@ -42,9 +38,8 @@
         "executor": "agent",
         "targetFiles": [],
         "intent": "Uplift ismaelmartinez.me.uk from silver to gold",
-        "rationale": "2 check(s) block gold: Release in the last 90 days, Zero critical/high security findings.",
+        "rationale": "1 check(s) block gold: Zero critical/high security findings.",
         "acceptanceCriteria": [
-          "Check \"Release in the last 90 days\" passes",
           "Check \"Zero critical/high security findings\" passes"
         ]
       }
@@ -90,28 +85,6 @@
         "rationale": "1 check(s) block gold: Zero critical/high security findings.",
         "acceptanceCriteria": [
           "Check \"Zero critical/high security findings\" passes"
-        ]
-      }
-    },
-    {
-      "type": "tier-uplift",
-      "repo": "wifisentinel",
-      "currentTier": "silver",
-      "targetTier": "gold",
-      "failingChecks": [
-        {
-          "name": "Release in the last 90 days",
-          "required_for": "gold"
-        }
-      ],
-      "priority": "high",
-      "remediation": {
-        "executor": "agent",
-        "targetFiles": [],
-        "intent": "Uplift wifisentinel from silver to gold",
-        "rationale": "1 check(s) block gold: Release in the last 90 days.",
-        "acceptanceCriteria": [
-          "Check \"Release in the last 90 days\" passes"
         ]
       }
     },
@@ -295,7 +268,7 @@
         {
           "number": 595,
           "title": "chore(deps): bump @sentry/nextjs from 10.75.2 to 11.8.0 in the sentry group across 1 directory",
-          "age": 32
+          "age": 33
         }
       ],
       "priority": "medium",
@@ -303,7 +276,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 32 days).",
+        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 33 days).",
         "acceptanceCriteria": [
           "Each stale Dependabot PR is merged or closed"
         ]
