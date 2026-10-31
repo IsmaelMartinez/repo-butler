@@ -152,12 +152,11 @@
       "fixInFlight": false,
       "unaddressedAlerts": 2,
       "unpatchedAlerts": 0,
-      "fixStuck": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in yourear",
-        "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
+        "rationale": "1 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 2 alert(s).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -178,12 +177,11 @@
       "fixInFlight": false,
       "unaddressedAlerts": 3,
       "unpatchedAlerts": 0,
-      "fixStuck": true,
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Remediate open security alerts in ismaelmartinez.me.uk",
-        "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON, but a fix PR is open and stuck (see the security-pr-stuck finding).",
+        "rationale": "0 critical / 3 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 3 alert(s).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
         ]
@@ -236,65 +234,6 @@
         "rationale": "0 critical / 1 high open alert(s) from dependabot. Dependabot automated security fixes are ON but not landing a fix: no open Dependabot PR addresses 1 alert(s).",
         "acceptanceCriteria": [
           "No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain"
-        ]
-      }
-    },
-    {
-      "type": "security-pr-stuck",
-      "repo": "ismaelmartinez.me.uk",
-      "stuckPRs": [
-        {
-          "number": 473,
-          "age": 7,
-          "package": "vite",
-          "alerts": [
-            115
-          ],
-          "severity": "high",
-          "state": "awaiting-human",
-          "majorBump": false,
-          "draft": false,
-          "verified": true
-        }
-      ],
-      "priority": "medium",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Land or close 1 stuck Dependabot security PR(s) in ismaelmartinez.me.uk",
-        "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 7 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
-        "acceptanceCriteria": [
-          "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
-        ]
-      }
-    },
-    {
-      "type": "security-pr-stuck",
-      "repo": "yourear",
-      "stuckPRs": [
-        {
-          "number": 138,
-          "age": 4,
-          "package": "dompurify",
-          "alerts": [
-            84,
-            85
-          ],
-          "severity": "critical",
-          "state": "awaiting-human",
-          "majorBump": false,
-          "draft": false,
-          "verified": true
-        }
-      ],
-      "priority": "medium",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Land or close 1 stuck Dependabot security PR(s) in yourear",
-        "rationale": "1 Dependabot PR(s) fixing an open critical/high alert unmerged beyond the threshold (oldest 4 days; state: awaiting-human). Nothing is blocking these — they need a merge decision.",
-        "acceptanceCriteria": [
-          "Each stuck security PR is merged or closed, and the alerts it fixes are resolved"
         ]
       }
     },
