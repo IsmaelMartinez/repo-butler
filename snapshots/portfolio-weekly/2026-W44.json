@@ -11,12 +11,12 @@
       "communityHealth": 100,
       "ciPassRate": 0.9595959595959596,
       "vulns": {
-        "count": 10,
-        "critical": 1,
-        "high": 1,
-        "medium": 2,
-        "low": 6,
-        "max_severity": "critical"
+        "count": 2,
+        "critical": 0,
+        "high": 0,
+        "medium": 1,
+        "low": 1,
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -43,7 +43,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "provisional": false,
         "checks": [
           {
@@ -78,7 +78,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -102,7 +102,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "sound3fy": {
@@ -214,7 +214,7 @@
       "open_issues": 19,
       "open_bugs": 5,
       "commits_6mo": 395,
-      "stars": 5195,
+      "stars": 5196,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9512195121951219,
@@ -321,14 +321,14 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.9897959183673469,
+      "ciPassRate": 0.9795918367346939,
       "vulns": {
-        "count": 12,
+        "count": 1,
         "critical": 0,
-        "high": 3,
-        "medium": 8,
-        "low": 1,
-        "max_severity": "high"
+        "high": 0,
+        "medium": 1,
+        "low": 0,
+        "max_severity": "medium"
       },
       "codeScanning": {
         "count": 0,
@@ -343,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-10-31T08:20:29Z",
-      "pushed_at": "2026-10-31T08:32:09Z",
+      "pushed_at": "2026-10-31T11:47:10Z",
       "traffic": {
         "views_14d": {
           "count": 32,
@@ -355,7 +355,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "provisional": false,
         "checks": [
           {
@@ -390,7 +390,7 @@
           },
           {
             "name": "Zero critical/high security findings",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -414,7 +414,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Zero critical/high security findings"
+        "next_step": null
       }
     },
     "generator-atlassian-compass-event-catalog": {
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-31T09:39:35Z",
+      "pushed_at": "2026-10-31T11:20:15Z",
       "traffic": {
         "views_14d": {
           "count": 188,
