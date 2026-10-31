@@ -89,28 +89,6 @@
       }
     },
     {
-      "type": "tier-uplift",
-      "repo": "skill-sources",
-      "currentTier": "silver",
-      "targetTier": "gold",
-      "failingChecks": [
-        {
-          "name": "Release in the last 90 days",
-          "required_for": "gold"
-        }
-      ],
-      "priority": "high",
-      "remediation": {
-        "executor": "agent",
-        "targetFiles": [],
-        "intent": "Uplift skill-sources from silver to gold",
-        "rationale": "1 check(s) block gold: Release in the last 90 days.",
-        "acceptanceCriteria": [
-          "Check \"Release in the last 90 days\" passes"
-        ]
-      }
-    },
-    {
       "type": "open-vulnerability",
       "repo": "yourear",
       "critical": 1,
@@ -241,44 +219,6 @@
         "rationale": "Health tier regressed from gold to silver since 2026-W43.",
         "acceptanceCriteria": [
           "bonnie-wee-plot is back at gold in a subsequent weekly snapshot"
-        ]
-      }
-    },
-    {
-      "type": "tier-regression",
-      "repo": "skill-sources",
-      "previousTier": "gold",
-      "currentTier": "silver",
-      "priorWeek": "2026-W43",
-      "priority": "high",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Restore skill-sources to gold",
-        "rationale": "Health tier regressed from gold to silver since 2026-W43.",
-        "acceptanceCriteria": [
-          "skill-sources is back at gold in a subsequent weekly snapshot"
-        ]
-      }
-    },
-    {
-      "type": "dependabot-stale",
-      "repo": "bonnie-wee-plot",
-      "stalePRs": [
-        {
-          "number": 595,
-          "title": "chore(deps): bump @sentry/nextjs from 10.75.2 to 11.8.0 in the sentry group across 1 directory",
-          "age": 33
-        }
-      ],
-      "priority": "medium",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Review 1 stale Dependabot PR(s) in bonnie-wee-plot",
-        "rationale": "1 Dependabot PR(s) open beyond the staleness threshold (oldest 33 days).",
-        "acceptanceCriteria": [
-          "Each stale Dependabot PR is merged or closed"
         ]
       }
     }
