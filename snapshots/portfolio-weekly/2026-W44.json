@@ -525,11 +525,11 @@
       "id": 1004899012,
       "open_issues": 0,
       "open_bugs": 0,
-      "commits_6mo": 313,
+      "commits_6mo": 314,
       "stars": 3,
       "license": "NOASSERTION",
       "communityHealth": 100,
-      "ciPassRate": 0.8350515463917526,
+      "ciPassRate": 0.845360824742268,
       "vulns": {
         "count": 5,
         "critical": 0,
@@ -551,7 +551,7 @@
       },
       "ci": 9,
       "released_at": "2026-09-15T11:10:45Z",
-      "pushed_at": "2026-10-31T08:39:51Z",
+      "pushed_at": "2026-10-31T08:46:06Z",
       "traffic": {
         "views_14d": {
           "count": 48,
@@ -967,7 +967,7 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-10-31T08:42:08Z",
+      "pushed_at": "2026-10-31T08:45:12Z",
       "traffic": {
         "views_14d": {
           "count": 188,
@@ -1357,11 +1357,11 @@
       "id": 1313126760,
       "open_issues": 1,
       "open_bugs": 0,
-      "commits_6mo": 74,
+      "commits_6mo": 75,
       "stars": 0,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 1,
+      "ciPassRate": 0.98989898989899,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -1382,8 +1382,8 @@
         "count": 0
       },
       "ci": 10,
-      "released_at": "2026-07-27T15:48:04Z",
-      "pushed_at": "2026-10-31T08:23:12Z",
+      "released_at": "2026-10-31T09:36:27Z",
+      "pushed_at": "2026-10-31T09:36:26Z",
       "traffic": {
         "views_14d": {
           "count": 5,
@@ -1395,7 +1395,7 @@
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "provisional": false,
         "checks": [
           {
@@ -1415,7 +1415,7 @@
           },
           {
             "name": "Release in the last 90 days",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -1454,7 +1454,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Release in the last 90 days"
+        "next_step": null
       }
     }
   }
