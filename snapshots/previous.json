@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-31T22:58:16.411Z",
+  "timestamp": "2026-11-01T13:58:18.578Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -7,17 +7,31 @@
     "stars": 3,
     "forks": 0,
     "watchers": 0,
-    "open_issues_count": 9,
+    "open_issues_count": 10,
     "default_branch": "main",
     "license": "MIT",
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-10-31T20:44:19Z",
+    "pushed_at": "2026-11-01T12:10:47Z",
     "archived": false
   },
   "issues": {
     "open": [
+      {
+        "number": 505,
+        "title": "Pipeline optimiser: rank CI savings from run history, then standardise workflows",
+        "author": "IsmaelMartinez",
+        "labels": [
+          "enhancement"
+        ],
+        "reactions": 0,
+        "comments": 0,
+        "created_at": "2026-10-31T23:34:13Z",
+        "updated_at": "2026-10-31T23:34:13Z",
+        "assignees": [],
+        "milestone": null
+      },
       {
         "number": 429,
         "title": "Simplification plan (2026-09-26): tracking",
@@ -489,14 +503,6 @@
         "labels": [],
         "closed_at": "2026-09-06T09:35:13Z",
         "created_at": "2026-07-15T10:04:57Z"
-      },
-      {
-        "number": 350,
-        "title": "Live skills and MCP server are bound to a working tree, with no staleness signal",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "closed_at": "2026-08-02T10:53:39Z",
-        "created_at": "2026-07-27T08:02:56Z"
       }
     ]
   },
@@ -1218,41 +1224,6 @@
           "github_actions"
         ],
         "merged_at": "2026-08-06T01:36:39Z"
-      },
-      {
-        "number": 365,
-        "title": "feat(skills): report when the running skill is not the one on main (#350)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-02T10:48:50Z"
-      },
-      {
-        "number": 364,
-        "title": "fix(update): build a refresh on the open PR branch, not the default branch",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-02T09:21:22Z"
-      },
-      {
-        "number": 363,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-08-02T09:13:37Z"
-      },
-      {
-        "number": 362,
-        "title": "fix(update): give the roadmap prompt the merged PR titles it was told to use",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-02T09:01:38Z"
-      },
-      {
-        "number": 361,
-        "title": "feat(mcp): G8 staleness guard — report the age of the answer, read stored tiers",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-02T09:01:26Z"
       }
     ]
   },
@@ -1461,10 +1432,10 @@
     "count": 0
   },
   "ci_pass_rate": {
-    "pass_rate": 1,
-    "total_runs": 91,
-    "passed": 91,
-    "failed": 0
+    "pass_rate": 0.9893617021276596,
+    "total_runs": 94,
+    "passed": 93,
+    "failed": 1
   },
   "automated_security_fixes": {
     "enabled": true,
@@ -1472,22 +1443,22 @@
   },
   "summary": {
     "repo": "3 stars, 0 forks",
-    "open_issues": 8,
+    "open_issues": 9,
     "open_bugs": 0,
-    "open_features": 3,
+    "open_features": 4,
     "blocked_issues": 0,
     "awaiting_feedback": 0,
-    "recently_closed": 34,
-    "recently_merged_prs": 102,
+    "recently_closed": 33,
+    "recently_merged_prs": 97,
     "bot_prs": 12,
-    "human_prs": 90,
+    "human_prs": 85,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
     "top_open_labels": [
       "agent-generated (7)",
       "question (5)",
-      "enhancement (3)"
+      "enhancement (4)"
     ],
     "high_reaction_issues": [],
     "stale_awaiting_feedback": [],
@@ -1498,11 +1469,11 @@
     "code_scanning_max_severity": null,
     "secret_scanning_alert_count": 0,
     "automated_security_fixes_active": true,
-    "ci_pass_rate": 1,
+    "ci_pass_rate": 0.9893617021276596,
     "bus_factor": 1,
     "time_to_close_median": {
       "median_days": 1,
-      "sample_size": 34
+      "sample_size": 33
     }
   }
 }
