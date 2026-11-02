@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-10-27
+**Last Updated:** 2026-11-02
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -57,7 +57,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-08** — 21 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374, #375, #378, #380, #381, #383, #384, #385, #386, #387, #388, #389, #390). Full details in git history.
 
-Automated dependency upkeep group update shipped 2026-09-03 (PR #391), bundling minor and patch dependency updates to keep the repository secure and up-to-date with minimal manual overhead.
+**2026-09** — 1 entry (#391). Full details in git history.
 
 Roadmap citation integrity guard shipped 2026-09-09 (PR #396). Prevents the automated roadmap generator from citing unverified or self-referential pull requests, ensuring data integrity and keeping the self-planning loop reliable.
 
