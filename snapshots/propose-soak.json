@@ -466,5 +466,31 @@
     "skipped_duplicates": 0,
     "skipped_capped": 0,
     "failures": 0
+  },
+  {
+    "at": "2026-11-02T14:57:17.392Z",
+    "dry_run": true,
+    "created": [
+      {
+        "title": "Enforce Action SHA-pinning and least-privilege workflow permissions across GitHub workflows",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      },
+      {
+        "title": "Standardize pipeline CI performance tracking and workflow optimization",
+        "target_repo": null,
+        "routed_repo": "repo-butler",
+        "cross_repo": false,
+        "route_reason": "no-target",
+        "number": null
+      }
+    ],
+    "dropped": 0,
+    "skipped_duplicates": 0,
+    "skipped_capped": 0,
+    "failures": 0
   }
 ]
