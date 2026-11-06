@@ -31,7 +31,10 @@ export class GeminiProvider extends LLMProvider {
           // tokens today, ~16k headroom for multi-year growth). 4k truncated
           // mid-document and tripped the length-preservation guard.
           maxOutputTokens: 32768,
-          thinkingConfig: { thinkingBudget: 0 },
+          // gemini-3.5-flash-lite answers thinkingBudget: 0 with 400
+          // INVALID_ARGUMENT; the Gemini 3 control is thinkingLevel, and
+          // omitting it leaves thinking on (and billed).
+          thinkingConfig: { thinkingLevel: 'minimal' },
         },
       },
       extractText: (data) => {
