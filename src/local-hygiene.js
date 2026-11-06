@@ -14,8 +14,8 @@
 // ref with a compare-and-delete, so a commit added after the audit survives.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { GIT_NONINTERACTIVE_ENV } from './staleness.js';
 
 const RESCUE_DIRTY_THRESHOLD = 20;
@@ -215,6 +215,53 @@ export function pruneWorktree({ repoDir, worktreePath, expectTip, listPRs = defa
     return { ok: false, reason: 'worktree removed but branch ref moved; left in place' };
   }
   return { ok: true };
+}
+
+// ---- Approvals record (design section 6) --------------------------------
+//
+// Every dispatched action is logged with whether the owner took it as drafted.
+// Only these two classes may ever graduate to running without asking; replies,
+// reviews, labels and merges never do. Graduation itself is the owner's config
+// change — this code only reports the streak.
+export const ELIGIBLE_CLASSES = new Set(['prune-merged-worktree', 'release-reopen-for-ci']);
+const OUTCOMES = new Set(['accepted-unchanged', 'edited', 'rejected', 'skipped']);
+const GRADUATION_STREAK = 8;
+
+export function approvalsFile(env = process.env) {
+  const base = env.XDG_STATE_HOME || join(env.HOME || '', '.local', 'state');
+  return join(base, 'repo-butler', 'approvals.jsonl');
+}
+
+export function recordApproval({ findingType, actionClass, repo, item, outcome }, { file = approvalsFile(), now = new Date() } = {}) {
+  if (!OUTCOMES.has(outcome)) throw new Error(`unknown outcome: ${outcome}`);
+  for (const [k, v] of Object.entries({ findingType, actionClass, repo, item })) {
+    if (typeof v !== 'string' || !v) throw new Error(`${k} is required`);
+  }
+  mkdirSync(dirname(file), { recursive: true });
+  appendFileSync(file, `${JSON.stringify({ ts: now.toISOString(), findingType, actionClass, repo, item, outcome })}\n`);
+}
+
+/**
+ * Trailing run of `accepted-unchanged` for a class. `skipped` neither extends
+ * nor breaks the run (nothing was judged); `edited` and `rejected` reset it.
+ */
+export function approvalStreak(actionClass, { file = approvalsFile() } = {}) {
+  let lines = [];
+  try {
+    lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
+  } catch {
+    // No record yet: a streak of zero.
+  }
+  let streak = 0;
+  for (const line of lines) {
+    let entry;
+    try { entry = JSON.parse(line); } catch { continue; }
+    if (entry.actionClass !== actionClass) continue;
+    if (entry.outcome === 'accepted-unchanged') streak += 1;
+    else if (entry.outcome === 'edited' || entry.outcome === 'rejected') streak = 0;
+  }
+  const eligible = ELIGIBLE_CLASSES.has(actionClass);
+  return { streak, eligible, graduated: eligible && streak >= GRADUATION_STREAK };
 }
 
 /**

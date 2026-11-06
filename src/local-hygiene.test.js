@@ -5,11 +5,21 @@
 
 import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { classifyWorktree, summariseRepo, readRepo, auditDirs, pruneWorktree } from './local-hygiene.js';
+import {
+  classifyWorktree, summariseRepo, readRepo, auditDirs, pruneWorktree,
+  recordApproval, approvalStreak, approvalsFile,
+} from './local-hygiene.js';
+
+const CLI = join(import.meta.dirname, '..', 'scripts', 'local-hygiene.js');
+// The CLI calls the real `gh`. Unauthenticated, it fails at once with no network
+// call, so PR evidence reads as null and the tests stay deterministic.
+const NO_GH = { ...process.env, GH_CONFIG_DIR: mkdtempSync(join(tmpdir(), 'no-gh-')), GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' };
+const cli = (...args) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', env: NO_GH });
+after(() => rmSync(NO_GH.GH_CONFIG_DIR, { recursive: true, force: true }));
 
 const HEAD = 'a'.repeat(40);
 const clean = {
@@ -238,6 +248,64 @@ describe('readRepo against a real repository', () => {
     const findings = auditDirs([fx.tmp], opts());
     assert.deepEqual(findings.map(f => f.repo), ['repo']);
   });
+
+  it('the CLI audit prints parsable JSON and exits 1 when there are findings', () => {
+    // gh cannot resolve o/r, so PR evidence is unread; ancestry still works.
+    const r = cli('audit', '--json', '--no-fetch', '--dir', fx.tmp);
+    assert.equal(r.status, 1, r.stderr);
+    const findings = JSON.parse(r.stdout);
+    assert.equal(findings[0].repo, 'repo');
+    assert.equal(byName(findings[0], 'merged').status, 'prunable');
+  });
+});
+
+describe('approvals record', () => {
+  let dir;
+  let file;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'approvals-'));
+    file = join(dir, 'nested', 'approvals.jsonl');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  const rec = (actionClass, outcome) => recordApproval({ findingType: 'local-hygiene', actionClass, repo: 'r', item: 'w', outcome }, { file });
+
+  it('counts the trailing run of accepted-unchanged; edited resets it, skipped does not', () => {
+    rec('prune-merged-worktree', 'accepted-unchanged');
+    rec('prune-merged-worktree', 'edited');
+    rec('prune-merged-worktree', 'accepted-unchanged');
+    rec('prune-merged-worktree', 'skipped');
+    rec('prune-merged-worktree', 'accepted-unchanged');
+    rec('release-reopen-for-ci', 'rejected');
+    assert.deepEqual(approvalStreak('prune-merged-worktree', { file }), { streak: 2, eligible: true, graduated: false });
+  });
+
+  it('graduates an eligible class at 8, never an ineligible one', () => {
+    for (let i = 0; i < 8; i++) {
+      rec('prune-merged-worktree', 'accepted-unchanged');
+      rec('owner-move-reply', 'accepted-unchanged');
+    }
+    assert.equal(approvalStreak('prune-merged-worktree', { file }).graduated, true);
+    assert.deepEqual(approvalStreak('owner-move-reply', { file }), { streak: 8, eligible: false, graduated: false });
+  });
+
+  it('rejects an unknown outcome and a missing field', () => {
+    assert.throws(() => rec('prune-merged-worktree', 'approved'), /unknown outcome/);
+    assert.throws(() => recordApproval({ findingType: 'x', actionClass: '', repo: 'r', item: 'i', outcome: 'skipped' }, { file }), /actionClass/);
+  });
+
+  it('reports a zero streak when there is no record yet', () => {
+    assert.deepEqual(approvalStreak('prune-merged-worktree', { file: join(dir, 'missing.jsonl') }), { streak: 0, eligible: true, graduated: false });
+  });
+
+  it('honours XDG_STATE_HOME, else ~/.local/state', () => {
+    assert.equal(approvalsFile({ XDG_STATE_HOME: '/x' }), '/x/repo-butler/approvals.jsonl');
+    assert.equal(approvalsFile({ HOME: '/h' }), '/h/.local/state/repo-butler/approvals.jsonl');
+  });
+
+  it('the CLI exits 2 with no command', () => {
+    assert.equal(cli().status, 2);
+  });
 });
 
 describe('pruneWorktree', () => {
@@ -287,6 +355,15 @@ describe('pruneWorktree', () => {
     assert.match(dirty.reason, /not prunable/);
     assert.equal(prune('closed').ok, false);
     assert.ok(refExists('closed'));
+  });
+
+  it('the CLI prunes with the approved tip and refuses a bad one', () => {
+    const bad = cli('prune', fx.repo, join(fx.wtDir, 'merged'), '--expect-tip', 'f'.repeat(40));
+    assert.equal(bad.status, 1);
+    assert.match(bad.stderr, /refused: tip moved/);
+    const good = cli('prune', fx.repo, join(fx.wtDir, 'merged'), '--expect-tip', fx.heads.merged);
+    assert.equal(good.status, 0, good.stderr);
+    assert.equal(existsSync(join(fx.wtDir, 'merged')), false);
   });
 
   it('refuses the main checkout and paths that are not its worktrees', () => {
