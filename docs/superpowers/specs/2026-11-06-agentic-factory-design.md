@@ -131,10 +131,10 @@ Each worktree is classified as follows.
 `prunable` requires all of these to hold:
 
 - the worktree has no uncommitted changes;
-- it has no commits that are not on a remote branch, unless its tip equals the final head SHA of a merged PR (below), which proves the same thing after `fetch --prune` has removed a squash-merged PR's deleted source branch;
+- it has no commits that are not on a remote branch, unless the final head of a merged PR contains its tip (below), which proves the same thing after `fetch --prune` has removed a squash-merged PR's deleted source branch;
 - no stash references its branch;
 - it is not locked by a live process (the lock reason's PID is checked with `kill -0`);
-- its branch has landed, in one of two ways: it is an ancestor of the default branch (`git merge-base --is-ancestor`), or a PR from it was merged (state `MERGED`, not merely closed) and that PR's final head SHA equals the local branch tip, so nothing local was left out of the squash.
+- its branch has landed, in one of two ways: it is an ancestor of the default branch (`git merge-base --is-ancestor`), or a PR from it was merged (state `MERGED`, not merely closed) and that PR's final head contains the local branch tip, so nothing local was left out of the squash. "Contains" means equal to the tip, or a descendant of it when the branch was pushed further after this checkout last moved. It is checked with `merge-base --is-ancestor` against the locally available PR head object, so an unfetched head proves nothing. (Phase 1 widened this from "equals" after the first real audit: 2 of the 9 teams-for-linux worktrees the sweep expected were behind their merged PR heads.)
 
 A branch whose PR was closed without merging is `needs-look`, never `prunable`.
 

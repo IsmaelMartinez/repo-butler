@@ -15,7 +15,7 @@
 - The code is zero-dependency. Git runs through `execFileSync('git', args)` with no shell. Every helper call is a single command, never chained.
 - No readings are cached. Every unreadable reading yields `needs-look`, never `prunable`. "Could not check" must never look like "checked, it is fine".
 - The prune helper never passes `--force`. It deletes branches only with `git update-ref -d refs/heads/<branch> <expectTip>`. It re-runs every prunable condition at action time.
-- A branch has landed only when it is an ancestor of the default branch, or a PR from it is `MERGED` and that PR's `headRefOid` equals the local tip. A `CLOSED` PR is never landed.
+- A branch has landed only when it is an ancestor of the default branch, or a PR from it is `MERGED` and that PR's `headRefOid` contains the local tip (it is equal to it or a descendant of it; see the spec). A `CLOSED` PR is never landed.
 - Stashes are never prunable.
 - `at-risk` means the checkout has more than 20 dirty files, sits on a detached HEAD, or has more than 3 stashes.
 - The approvals file is `${XDG_STATE_HOME:-~/.local/state}/repo-butler/approvals.jsonl`. Each line has exactly the fields `{ ts, findingType, actionClass, repo, item, outcome }`. `outcome` is one of `accepted-unchanged`, `edited`, `rejected` or `skipped`.

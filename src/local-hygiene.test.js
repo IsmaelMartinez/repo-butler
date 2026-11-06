@@ -41,8 +41,8 @@ describe('classifyWorktree', () => {
     assert.deepEqual(classifyWorktree(clean), { status: 'prunable', reasons: [] });
   });
 
-  it('a squash-merged branch whose tip equals the PR head is prunable even with "unpushed" commits', () => {
-    const r = classifyWorktree({ ...clean, ancestorOfDefault: false, unpushed: 3, pr: { state: 'MERGED', headSha: HEAD } });
+  it('a squash-merged branch whose tip the PR head contains is prunable even with "unpushed" commits', () => {
+    const r = classifyWorktree({ ...clean, ancestorOfDefault: false, unpushed: 3, pr: { state: 'MERGED', headSha: HEAD, containsTip: true } });
     assert.equal(r.status, 'prunable');
   });
 
@@ -52,8 +52,8 @@ describe('classifyWorktree', () => {
     assert.ok(r.reasons.some(x => /closed without merging/.test(x)));
   });
 
-  it('a merged PR whose head differs from the local tip needs a look', () => {
-    const r = classifyWorktree({ ...clean, ancestorOfDefault: false, pr: { state: 'MERGED', headSha: 'b'.repeat(40) } });
+  it('a merged PR whose head does not contain the local tip needs a look', () => {
+    const r = classifyWorktree({ ...clean, ancestorOfDefault: false, pr: { state: 'MERGED', headSha: 'b'.repeat(40), containsTip: false } });
     assert.equal(r.status, 'needs-look');
   });
 
@@ -180,7 +180,24 @@ function buildFixture() {
   // closed and open are pushed; squashed never is (its source branch was deleted).
   g(repo, 'push', '-q', 'origin', 'closed', 'open');
 
+  // behind: the branch was pushed one commit further than this checkout, then
+  // squash-merged and its remote branch deleted. The PR head object is still
+  // local, and it contains the checkout's tip.
+  const behindPath = join(wtDir, 'behind');
+  g(repo, 'worktree', 'add', '-q', '-b', 'behind', behindPath, 'main');
+  writeFileSync(join(behindPath, 'behind.txt'), '1\n');
+  g(behindPath, 'add', '.');
+  g(behindPath, 'commit', '-q', '-m', 'behind 1');
+  heads.behind = g(behindPath, 'rev-parse', 'HEAD');
+  writeFileSync(join(behindPath, 'behind.txt'), '2\n');
+  g(behindPath, 'commit', '-q', '-am', 'behind 2');
+  const behindPrHead = g(behindPath, 'rev-parse', 'HEAD');
+  g(behindPath, 'push', '-q', 'origin', 'behind');
+  g(behindPath, 'reset', '-q', '--hard', heads.behind);
+  g(repo, 'push', '-q', 'origin', '--delete', 'behind');
+
   const prs = [
+    { headRefName: 'behind', headRefOid: behindPrHead, state: 'MERGED', number: 4 },
     { headRefName: 'squashed', headRefOid: heads.squashed, state: 'MERGED', number: 1 },
     { headRefName: 'closed', headRefOid: heads.closed, state: 'CLOSED', number: 2 },
     { headRefName: 'open', headRefOid: heads.open, state: 'OPEN', number: 3 },
@@ -202,6 +219,7 @@ describe('readRepo against a real repository', () => {
     assert.equal(f.slug, 'o/r');
     assert.equal(byName(f, 'merged').status, 'prunable');
     assert.equal(byName(f, 'squashed').status, 'prunable', 'tip equals the merged PR head');
+    assert.equal(byName(f, 'behind').status, 'prunable', 'the merged PR head descends from the tip');
     assert.equal(byName(f, 'closed').status, 'needs-look');
     assert.equal(byName(f, 'dirty').status, 'needs-look');
     assert.equal(byName(f, 'open').status, 'live');
@@ -322,7 +340,7 @@ describe('pruneWorktree', () => {
   };
 
   it('removes a prunable worktree and its branch, merged or squash-merged', () => {
-    for (const name of ['merged', 'squashed']) {
+    for (const name of ['merged', 'squashed', 'behind']) {
       assert.deepEqual(prune(name), { ok: true });
       assert.equal(existsSync(join(fx.wtDir, name)), false);
       assert.equal(refExists(name), false);

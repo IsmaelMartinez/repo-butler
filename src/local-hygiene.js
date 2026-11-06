@@ -68,16 +68,19 @@ export function defaultListPRs(slug) {
 }
 
 // The PR that best describes a branch: an open one wins, then a merged one
-// whose head is this exact tip, then any merged, then closed. `{ state: 'NONE' }`
+// whose head contains this tip, then any merged, then closed. `{ state: 'NONE' }`
 // when the list was read and has no PR from this branch; null when unread.
-function pickPR(prs, branch, head) {
+// `contains(sha)` answers "is the tip equal to or an ancestor of sha"; an
+// unfetched PR head answers no, so it can never prove landing.
+function pickPR(prs, branch, contains) {
   if (prs === null) return null;
   const mine = prs.filter(p => p.headRefName === branch);
-  const pick = mine.find(p => p.state === 'OPEN')
-    ?? mine.find(p => p.state === 'MERGED' && p.headRefOid === head)
-    ?? mine.find(p => p.state === 'MERGED')
-    ?? mine.find(p => p.state === 'CLOSED');
-  return pick ? { state: pick.state, headSha: pick.headRefOid, number: pick.number } : { state: 'NONE' };
+  const open = mine.find(p => p.state === 'OPEN');
+  const merged = mine.filter(p => p.state === 'MERGED');
+  const containing = open ? undefined : merged.find(p => contains(p.headRefOid));
+  const pick = open ?? containing ?? merged[0] ?? mine.find(p => p.state === 'CLOSED');
+  if (!pick) return { state: 'NONE' };
+  return { state: pick.state, headSha: pick.headRefOid, number: pick.number, containsTip: pick === containing };
 }
 
 function slugFromRemote(url) {
@@ -141,7 +144,9 @@ function readWorktree(wt, ctx) {
     lockLive: pid === undefined ? false : pid === null ? true : isAlive(pid),
     stashOnBranch: ctx.stashes === null ? true : ctx.stashes.some(s => s.branch === wt.branch),
     ancestorOfDefault: ctx.defaultRef ? gitOk(['merge-base', '--is-ancestor', wt.head, ctx.defaultRef], ctx.repoDir) : null,
-    pr: wt.branch && !wt.detached ? pickPR(ctx.prs, wt.branch, wt.head) : null,
+    pr: wt.branch && !wt.detached
+      ? pickPR(ctx.prs, wt.branch, sha => sha === wt.head || gitOk(['merge-base', '--is-ancestor', wt.head, sha], ctx.repoDir) === true)
+      : null,
   };
 }
 
@@ -303,9 +308,11 @@ export function classifyWorktree(r) {
   if (r.lockPid !== undefined && r.lockLive) reasons.push('locked by a live process');
 
   // Landed: an ancestor of the default branch, or a MERGED PR whose final head
-  // is exactly this tip (squash merges are not ancestors). A CLOSED PR proves
+  // contains this tip — equal to it, or a descendant of it when the branch was
+  // pushed further after this checkout last moved (squash merges are not
+  // ancestors of main). The reader computes containsTip; a CLOSED PR proves
   // nothing landed.
-  const prHeadMatches = r.pr?.state === 'MERGED' && r.pr.headSha === r.head;
+  const prHeadMatches = r.pr?.state === 'MERGED' && r.pr.containsTip === true;
   const landed = r.ancestorOfDefault === true || prHeadMatches;
   if (!landed) {
     if (r.pr?.state === 'CLOSED') reasons.push('PR closed without merging');
@@ -315,8 +322,8 @@ export function classifyWorktree(r) {
   }
 
   // A squash-merged PR's source branch is usually deleted, so after
-  // `fetch --prune` its commits look unpushed. The head match proves nothing
-  // local was left out, so it stands in for remote reachability.
+  // `fetch --prune` its commits look unpushed. A merged head containing the tip
+  // proves nothing local was left out, so it stands in for remote reachability.
   if (!prHeadMatches) {
     if (r.unpushed === null) reasons.push('could not count unpushed commits');
     else if (r.unpushed > 0) reasons.push(`${r.unpushed} unpushed commit(s)`);
