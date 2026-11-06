@@ -205,15 +205,21 @@ function readWorktree(wt, ctx) {
  */
 export function readRepo(repoDir, { listPRs = defaultListPRs, fetch = true, scriptPath, today } = {}) {
   if (fetch) git(['fetch', '--prune', '--quiet'], repoDir, 30000);
+  // A read that fails is reported in `unread`, never folded into an empty
+  // result: an unread repo must not look like a tidy one.
   const porcelain = git(['worktree', 'list', '--porcelain'], repoDir);
-  if (porcelain === null) return null;
+  if (porcelain === null) return unreadFinding(repoDir, ['worktree list']);
 
   const all = parseWorktrees(porcelain);
   const branches = all.filter(w => !w.isMain && !w.detached && !w.prunable && w.branch).map(w => w.branch);
   const ctx = readContext(repoDir, { listPRs, branches });
   const main = all[0];
   const mainStatus = git(['status', '--porcelain'], main.path);
-  const pruneOut = git(['worktree', 'prune', '--dry-run', '--verbose'], repoDir) ?? '';
+  const pruneOut = git(['worktree', 'prune', '--dry-run', '--verbose'], repoDir);
+  const unread = [];
+  if (ctx.stashes === null) unread.push('stash list');
+  if (mainStatus === null) unread.push('main checkout status');
+  if (pruneOut === null) unread.push('stale worktree entries');
 
   const worktrees = all.filter(w => !w.prunable).map(w => {
     const reading = readWorktree(w, ctx);
@@ -229,9 +235,17 @@ export function readRepo(repoDir, { listPRs = defaultListPRs, fetch = true, scri
     stashes: ctx.stashes ?? [],
     mainDirtyCount: mainStatus ? mainStatus.split('\n').length : 0,
     mainDetached: main.detached,
-    staleEntries: pruneOut.split('\n').map(l => l.match(/^Removing (\S+?):/)?.[1]).filter(Boolean),
+    staleEntries: (pruneOut ?? '').split('\n').map(l => l.match(/^Removing (\S+?):/)?.[1]).filter(Boolean),
+    unread,
     scriptPath,
     today,
+  });
+}
+
+function unreadFinding(repoDir, unread) {
+  return summariseRepo({
+    repo: basename(repoDir), repoDir, slug: null, worktrees: [], stashes: [], mainDirtyCount: 0,
+    mainDetached: false, staleEntries: [], unread, scriptPath: '', today: '',
   });
 }
 
@@ -239,12 +253,19 @@ export function readRepo(repoDir, { listPRs = defaultListPRs, fetch = true, scri
  * Remove one worktree and its branch, re-checking everything at action time.
  * A check made when the command was printed protects nothing: an agent can
  * commit between the audit and the owner's yes. So the worktree is re-read and
- * re-classified here, `worktree remove` runs without --force (it refuses a
- * dirty tree), and the branch goes through `update-ref -d <ref> <expectTip>`,
+ * re-classified here after a fresh fetch, `worktree remove` runs without
+ * --force (it refuses a dirty tree), and the branch goes through
+ * `update-ref -d <ref> <expectTip>`,
  * which git refuses atomically if the ref moved — so new work always survives.
  * @returns {{ ok: boolean, reason?: string }}
  */
 export function pruneWorktree({ repoDir, worktreePath, expectTip, listPRs = defaultListPRs }) {
+  // Ancestry and "unpushed" are judged against remote-tracking refs, which may
+  // be as old as the audit's fetch (or older, after a --no-fetch briefing).
+  // Refresh them now, and refuse rather than decide on stale refs.
+  if (git(['fetch', '--prune', '--quiet'], repoDir, 30000) === null) {
+    return { ok: false, reason: 'could not refresh remote refs (git fetch failed)' };
+  }
   const porcelain = git(['worktree', 'list', '--porcelain'], repoDir);
   if (porcelain === null) return { ok: false, reason: 'could not list worktrees' };
   let target;
@@ -265,6 +286,13 @@ export function pruneWorktree({ repoDir, worktreePath, expectTip, listPRs = defa
   const { status, reasons } = classifyWorktree(readWorktree(wt, ctx));
   if (status !== 'prunable') return { ok: false, reason: `not prunable: ${reasons.join('; ') || status}` };
 
+  // Git keeps a lock whatever became of the process that took it, and
+  // `worktree remove` refuses a locked tree. The classifier has just proved the
+  // locking PID dead, so release that stale lock rather than advertise a prune
+  // the helper cannot perform.
+  if (wt.locked !== undefined && git(['worktree', 'unlock', wt.path], repoDir) === null) {
+    return { ok: false, reason: 'could not release the stale worktree lock' };
+  }
   if (git(['worktree', 'remove', wt.path], repoDir) === null) {
     return { ok: false, reason: 'git worktree remove refused' };
   }
@@ -393,12 +421,13 @@ export function classifyWorktree(r) {
  * nothing to act on. Pure. Commands are single lines, never chained, never
  * forced, and never stash or reset.
  */
-export function summariseRepo({ repo, repoDir, slug, worktrees, stashes, mainDirtyCount, mainDetached, staleEntries, scriptPath, today }) {
+export function summariseRepo({ repo, repoDir, slug, worktrees, stashes, mainDirtyCount, mainDetached, staleEntries, unread = [], scriptPath, today }) {
   const prunable = worktrees.filter(w => w.status === 'prunable');
   const needsLook = worktrees.filter(w => w.status === 'needs-look');
   const atRisk = mainDetached || mainDirtyCount > RESCUE_DIRTY_THRESHOLD || stashes.length > RESCUE_STASH_THRESHOLD;
 
-  if (!prunable.length && !needsLook.length && !staleEntries.length && !atRisk) return null;
+  // Any stash is worth reporting; the threshold only decides whether it is a risk.
+  if (!prunable.length && !needsLook.length && !staleEntries.length && !stashes.length && !unread.length && !atRisk) return null;
 
   const q = shellQuote;
   const commands = [];
@@ -419,6 +448,7 @@ export function summariseRepo({ repo, repoDir, slug, worktrees, stashes, mainDir
   if (needsLook.length) parts.push(`${needsLook.length} worktree(s) need a look`);
   if (stashes.length) parts.push(`${stashes.length} stash(es)`);
   if (staleEntries.length) parts.push(`${staleEntries.length} stale worktree entr(ies)`);
+  if (unread.length) parts.push(`could not read: ${unread.join(', ')}`);
   if (atRisk) {
     const risks = [];
     if (mainDetached) risks.push('on a detached HEAD');
@@ -435,6 +465,7 @@ export function summariseRepo({ repo, repoDir, slug, worktrees, stashes, mainDir
     worktrees,
     stashes,
     staleEntries,
+    unread,
     atRisk,
     priority: atRisk ? 'high' : prunable.length ? 'medium' : 'low',
     remediation: {

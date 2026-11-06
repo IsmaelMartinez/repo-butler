@@ -136,6 +136,20 @@ describe('summariseRepo', () => {
     }
   });
 
+  it('reports even one stash, as low priority without a risk flag', () => {
+    const f = summariseRepo({ ...base, stashes: [{ ref: 'stash@{0}' }], worktrees: [wt()] });
+    assert.notEqual(f, null);
+    assert.equal(f.atRisk, false);
+    assert.equal(f.priority, 'low');
+  });
+
+  it('an unread reading is reported, never folded into an all-clear', () => {
+    const f = summariseRepo({ ...base, unread: ['stash list'], worktrees: [wt()] });
+    assert.notEqual(f, null);
+    assert.deepEqual(f.unread, ['stash list']);
+    assert.match(f.remediation.rationale, /could not read: stash list/);
+  });
+
   it('quotes paths with spaces or metacharacters in printed commands', () => {
     const f = summariseRepo({
       ...base, repoDir: '/Library/Application Support/r', mainDetached: true,
@@ -437,6 +451,21 @@ describe('pruneWorktree', () => {
     const good = cli('prune', fx.repo, join(fx.wtDir, 'merged'), '--expect-tip', fx.heads.merged);
     assert.equal(good.status, 0, good.stderr);
     assert.equal(existsSync(join(fx.wtDir, 'merged')), false);
+  });
+
+  it('releases a lock left by a dead process, then prunes', () => {
+    const wt = join(fx.wtDir, 'merged');
+    g(fx.repo, 'worktree', 'lock', '--reason', 'claude agent (pid 999999)', wt);
+    assert.deepEqual(prune('merged'), { ok: true });
+    assert.equal(existsSync(wt), false);
+  });
+
+  it('refuses when remote refs cannot be refreshed', () => {
+    g(fx.repo, 'config', 'remote.origin.url', join(fx.tmp, 'gone.git'));
+    const r = prune('merged');
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /git fetch failed/);
+    assert.ok(refExists('merged'));
   });
 
   it('refuses the main checkout and paths that are not its worktrees', () => {
