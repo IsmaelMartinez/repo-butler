@@ -3,9 +3,13 @@
 // throwaway git fixtures, because "is this branch really landed" is exactly
 // what a mocked git would let us get wrong.
 
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyWorktree, summariseRepo } from './local-hygiene.js';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { classifyWorktree, summariseRepo, readRepo, auditDirs } from './local-hygiene.js';
 
 const HEAD = 'a'.repeat(40);
 const clean = {
@@ -117,5 +121,121 @@ describe('summariseRepo', () => {
     const f = summariseRepo({ ...base, staleEntries: ['worktrees/gone'], worktrees: [wt()] });
     assert.deepEqual(f.staleEntries, ['worktrees/gone']);
     assert.ok(f.remediation.commands.includes('git -C /r worktree prune'));
+  });
+});
+
+// ---- Real git fixtures -------------------------------------------------
+
+// Isolate from the developer's git config (signing, hooks, templates).
+Object.assign(process.env, {
+  GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+  GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
+});
+
+const g = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+// Builds remote.git (bare) and repo (its clone, origin/HEAD = origin/main,
+// origin URL presented as github.com/o/r through insteadOf) with worktrees
+// merged / squashed / closed / dirty / open under .claude/worktrees.
+function buildFixture() {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'hygiene-')));
+  const remote = join(tmp, 'remote.git');
+  g(tmp, 'init', '-q', '--bare', '-b', 'main', remote);
+  g(tmp, 'clone', '-q', remote, 'repo');
+  const repo = join(tmp, 'repo');
+  writeFileSync(join(repo, 'a.txt'), 'a\n');
+  g(repo, 'add', '.');
+  g(repo, 'commit', '-q', '-m', 'init');
+  g(repo, 'push', '-q', '-u', 'origin', 'main');
+  g(repo, 'remote', 'set-head', 'origin', 'main');
+  g(repo, 'config', `url.${remote}.insteadOf`, 'https://github.com/o/r.git');
+  g(repo, 'remote', 'set-url', 'origin', 'https://github.com/o/r.git');
+
+  const wtDir = join(repo, '.claude', 'worktrees');
+  mkdirSync(wtDir, { recursive: true });
+  const heads = {};
+  for (const name of ['merged', 'squashed', 'closed', 'dirty', 'open']) {
+    const path = join(wtDir, name);
+    g(repo, 'worktree', 'add', '-q', '-b', name, path, 'main');
+    writeFileSync(join(path, `${name}.txt`), `${name}\n`);
+    g(path, 'add', '.');
+    g(path, 'commit', '-q', '-m', name);
+    heads[name] = g(path, 'rev-parse', 'HEAD');
+  }
+  // merged and dirty land on main by merge; dirty then gets an uncommitted edit.
+  g(repo, 'merge', '-q', '--no-edit', 'merged');
+  g(repo, 'merge', '-q', '--no-edit', 'dirty');
+  g(repo, 'push', '-q', 'origin', 'main');
+  writeFileSync(join(wtDir, 'dirty', 'dirty.txt'), 'changed\n');
+  // closed and open are pushed; squashed never is (its source branch was deleted).
+  g(repo, 'push', '-q', 'origin', 'closed', 'open');
+
+  const prs = [
+    { headRefName: 'squashed', headRefOid: heads.squashed, state: 'MERGED', number: 1 },
+    { headRefName: 'closed', headRefOid: heads.closed, state: 'CLOSED', number: 2 },
+    { headRefName: 'open', headRefOid: heads.open, state: 'OPEN', number: 3 },
+  ];
+  return { tmp, repo, wtDir, heads, prs };
+}
+
+const byName = (finding, name) => finding.worktrees.find(w => w.path.endsWith(`/${name}`));
+
+describe('readRepo against a real repository', () => {
+  let fx;
+  before(() => { fx = buildFixture(); });
+  after(() => rmSync(fx.tmp, { recursive: true, force: true }));
+
+  const opts = (over = {}) => ({ fetch: false, scriptPath: '/s.js', today: '2026-11-06', listPRs: () => fx.prs, ...over });
+
+  it('classifies each worktree from live git and PR state', () => {
+    const f = readRepo(fx.repo, opts());
+    assert.equal(f.slug, 'o/r');
+    assert.equal(byName(f, 'merged').status, 'prunable');
+    assert.equal(byName(f, 'squashed').status, 'prunable', 'tip equals the merged PR head');
+    assert.equal(byName(f, 'closed').status, 'needs-look');
+    assert.equal(byName(f, 'dirty').status, 'needs-look');
+    assert.equal(byName(f, 'open').status, 'live');
+    assert.equal(f.worktrees.find(w => w.path === fx.repo).status, 'main');
+  });
+
+  it('unread PR state leaves a squash-merged branch as needs-look but still audits', () => {
+    const f = readRepo(fx.repo, opts({ listPRs: () => null }));
+    assert.equal(byName(f, 'squashed').status, 'needs-look');
+    assert.equal(byName(f, 'merged').status, 'prunable', 'ancestry needs no PR evidence');
+  });
+
+  it('a branch referenced by a stash needs a look', () => {
+    const wt = join(fx.wtDir, 'merged');
+    writeFileSync(join(wt, 'a.txt'), 'stashed\n');
+    g(wt, 'stash', 'push', '-q', '-m', 'hygiene-test');
+    try {
+      const f = readRepo(fx.repo, opts());
+      assert.equal(byName(f, 'merged').status, 'needs-look');
+      assert.equal(f.stashes.length, 1);
+    } finally {
+      g(wt, 'stash', 'drop', '-q');
+    }
+  });
+
+  it('a lock held by a dead PID does not block; a lock without a PID does', () => {
+    const wt = join(fx.wtDir, 'merged');
+    g(fx.repo, 'worktree', 'lock', '--reason', 'claude agent (pid 999999)', wt);
+    try {
+      assert.equal(byName(readRepo(fx.repo, opts()), 'merged').status, 'prunable');
+    } finally {
+      g(fx.repo, 'worktree', 'unlock', wt);
+    }
+    g(fx.repo, 'worktree', 'lock', '--reason', 'held', wt);
+    try {
+      assert.equal(byName(readRepo(fx.repo, opts()), 'merged').status, 'needs-look');
+    } finally {
+      g(fx.repo, 'worktree', 'unlock', wt);
+    }
+  });
+
+  it('auditDirs finds the repo and ignores plain directories', () => {
+    mkdirSync(join(fx.tmp, 'not-a-repo'), { recursive: true });
+    const findings = auditDirs([fx.tmp], opts());
+    assert.deepEqual(findings.map(f => f.repo), ['repo']);
   });
 });
