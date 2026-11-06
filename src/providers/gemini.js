@@ -1,10 +1,13 @@
-// Gemini Flash provider via the REST API.
-// Free tier: 10 RPM, 250 RPD, 250K TPM. No credit card needed.
+// Gemini provider via the REST API.
 
 import { LLMProvider, fetchJson } from './base.js';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const DEFAULT_MODEL = 'gemini-3.5-flash';
+// Pinned explicitly. gemini-3.5-flash is no longer offered and the API had
+// been silently routing it to gemini-3.6-flash. Flash-Lite (about a fifth of
+// Flash's input price and a third of its output price) is enough for this
+// pipeline's summarising and triage calls (2026-11-06).
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
 export class GeminiProvider extends LLMProvider {
   constructor(apiKey, { model = DEFAULT_MODEL } = {}) {
@@ -28,7 +31,10 @@ export class GeminiProvider extends LLMProvider {
           // tokens today, ~16k headroom for multi-year growth). 4k truncated
           // mid-document and tripped the length-preservation guard.
           maxOutputTokens: 32768,
-          thinkingConfig: { thinkingBudget: 0 },
+          // gemini-3.5-flash-lite answers thinkingBudget: 0 with 400
+          // INVALID_ARGUMENT; the Gemini 3 control is thinkingLevel, and
+          // omitting it leaves thinking on (and billed).
+          thinkingConfig: { thinkingLevel: 'minimal' },
         },
       },
       extractText: (data) => {

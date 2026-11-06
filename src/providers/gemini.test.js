@@ -32,7 +32,9 @@ describe('GeminiProvider', () => {
     assert.deepEqual(body.contents, [{ parts: [{ text: 'prompt-text' }] }]);
     assert.equal(body.generationConfig.temperature, 0.7);
     assert.equal(body.generationConfig.maxOutputTokens, 32768);
-    assert.deepEqual(body.generationConfig.thinkingConfig, { thinkingBudget: 0 });
+    // Flash-Lite rejects thinkingBudget: 0 with 400 INVALID_ARGUMENT (PR #508's
+    // monitor run); the Gemini 3 control is thinkingLevel.
+    assert.deepEqual(body.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
   });
 
   it('throws "no content" when candidates missing', async () => {
