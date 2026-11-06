@@ -45,7 +45,9 @@ If the reading says the skill is current with `origin/main`, carry on silently. 
 
 1. Call MCP tool `get_governance_findings` (no arguments) to fetch the latest governance ledger. Each finding carries a `remediation` object with an `executor` (`template` | `agent` | `manual`), `targetFiles`, `intent`, `rationale`, and `acceptanceCriteria`. The response `summary.byExecutor` gives the per-executor counts directly.
 
-2. If the call fails or returns an empty list, output a single panel with Reginald saying "The governance ledger is bare, sir. I shall fetch it once the pipeline has run." and stop.
+   1b. Run the local hygiene audit (Section D's block) and keep its findings. It needs neither the ledger nor the pipeline, so none of the exits below may skip it.
+
+2. If the call fails or returns an empty list, output a single panel with Reginald saying "The governance ledger is bare, sir. I shall fetch it once the pipeline has run." Then, if step 1b found local findings, go straight to Section D. Otherwise stop.
 
 3. Sort findings into three trays by `remediation.executor`. A finding whose `remediation` is absent (older snapshot) is treated as `manual`. The template tray additionally requires the finding to be a `standards-gap` with at least one `nonCompliant` repo, since only those can be dispatched to the cloud workflow.
    - **Template tray** — `remediation.executor === 'template'`. Handled by the cloud Governance Apply workflow.
@@ -54,7 +56,7 @@ If the reading says the skill is current with `origin/main`, carry on silently. 
 
 4. For the template and agent trays, collect the affected repos. Standards-gap findings list them in `nonCompliant`; tier-uplift findings name a single `repo`. Count distinct repos per tray and collect up to 5 example names for the panel.
 
-5. If all three trays are empty, output the comic below and stop — do not dispatch or draft anything:
+5. If all three trays are empty, output the comic below, then go to Section D if step 1b found local findings, and otherwise stop. Do not dispatch or draft anything:
 
 ```
 +================================================================+
@@ -109,7 +111,7 @@ The single glyph between the cuffs `( | X | )` is the tray's content slot: `o` f
 +================================================================+
 ```
 
-7. After rendering, ask the user which tray to action. Lowercase the reply and trim whitespace. `template` actions the template tray (Section A). `agent` actions the agent tray (Section B). Anything else — including `none`, `manual`, `no` — means abort: Reginald replies "Very good, sir. The tray remains on the sideboard." and stops. The manual tray is never actioned; it is presented for the owner's own attention.
+7. After rendering, ask the user which tray to action. Lowercase the reply and trim whitespace. `template` actions the template tray (Section A). `agent` actions the agent tray (Section B). `local` goes straight to Section D: local cleanup only, with no governance write and no `gh` identity check, because it touches nothing on GitHub. Anything else — including `none`, `manual`, `no` — means abort: Reginald replies "Very good, sir. The tray remains on the sideboard." and stops. The governance manual tray is never actioned; it is presented for the owner's own attention. Local hygiene (Section D) is the one exception: its commands may be run item by item, each on its own yes. After Section A or B finishes, offer Section D too, if step 1b found anything.
 
 8. Before any write, verify the active `gh` identity matches `$OWNER`. If `gh` is signed in as someone else, render the abort comic below and stop without dispatching or drafting:
 
@@ -256,6 +258,59 @@ One manual finding has a settings-write remediation the owner may run deliberate
 
 Such a finding now carries an `autofixEnabled` field (ADR-012 Phase 3, dependabot-sourced only): `true` means GitHub's automated security fixes are already opening the bump PRs — the remediation is **in flight**, so there is nothing to dispatch; `false` means they are **not driven** and the `dependabot-security` dispatch above is the lever; `null` means the state was unreadable. When it is already `true`, say so and do not offer the enable dispatch. The reversal is `tools=dependabot-security-off dry-run=false` — it issues the ADR-012 `DELETE`, disabling the setting on the same dependabot-sourced targets. Reversal is **partial**: it reverts the *setting only*, never closing any bump PR GitHub already opened, and it leaves vulnerability-alerts on. Like the enable path it is manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default — offer it only if the owner asks to turn autofix back off, and leave the dispatch to them.
 
+## Section D — Local hygiene (worktrees and stashes)
+
+The pipeline cannot see this machine, so the worktrees and stashes that agent sessions leave behind are audited locally and never reach the data branch (factory design, `docs/superpowers/specs/2026-11-06-agentic-factory-design.md`, sections 4 to 6). Run this at step 1b, before any governance exit, so local cleanup never waits on the ledger:
+
+```bash
+[ -f "$HOME/.config/repo-butler/config.sh" ] && . "$HOME/.config/repo-butler/config.sh"
+export REPO_BUTLER_PROJECTS_DIRS
+HYGIENE="$SKILL_DIR/../../scripts/local-hygiene.js"
+node "$HYGIENE" audit --json || true
+```
+
+`audit` exits 1 whenever it has findings, so the `|| true` is required. It scans `REPO_BUTLER_PROJECTS_DIRS` and fetches each repo once. Each finding is `type: 'local-hygiene'`, with `worktrees[]` (each `status` is `prunable`, `needs-look`, `live` or `main`, with `reasons`), `stashes[]`, `unread[]`, `atRisk`, and `remediation.commands`.
+
+A finding with a non-empty `unread` names what could not be read for that repo. Report it as unchecked, never as tidy. Output that does not parse as a JSON array means the whole audit could not be read: say so, and skip this section.
+
+List the findings in priority order:
+
+- At-risk checkouts come first, by repo, with the rationale's list of risks. A detached HEAD also gets the rescue command, which names a WIP branch so its commits stay reachable; it never stashes and never resets. Uncommitted files and stashes get no command, because committing work in progress is the owner's call.
+- Then the prunable count per repo.
+- Then the `needs-look` worktrees with their reasons, so the owner can decide on each one themselves.
+
+Never offer a command for a `needs-look` or `live` worktree, and never for a stash.
+
+To act on the list, show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain commands, and never fold several items into one yes unless the owner names them all. Prune commands are always the guarded helper, `node "$HYGIENE" prune <repoDir> <worktreePath> --expect-tip <sha>`. Never rewrite one as raw `git worktree remove` or `git branch -D`: the helper re-checks at action time and deletes the branch only if its tip is unchanged. If it prints `refused:`, report the reason and move on; the refusal is the safe outcome.
+
+After each item, record what happened, under the class that matches the command actually shown:
+
+```bash
+node "$HYGIENE" record local-hygiene <class> <repo> <worktreePath-or-repoDir> <outcome>
+```
+
+`<class>` is one of these:
+
+- `prune-merged-worktree`, for the guarded `prune` helper only;
+- `rescue-detached-head`, for the `switch -c wip/...-rescue` command;
+- `prune-stale-entries`, for `git worktree prune`.
+
+Only `prune-merged-worktree` can ever graduate, and its streak must be earned by guarded prunes alone. Recording any other command under that class would let unrelated approvals unlock unattended deletions.
+
+`<outcome>` is one of these:
+
+- `accepted-unchanged`, when it was run as shown;
+- `edited`, when the owner changed the command;
+- `rejected`, when the owner said no;
+- `skipped`, when the item was passed over.
+
+Graduation. `node "$HYGIENE" streak prune-merged-worktree` prints `{ streak, eligible, graduated }`. Prune commands may run without a per-item yes only when both conditions hold:
+
+- `graduated` is true (8 consecutive unchanged accepts);
+- the owner has listed the class in `REPO_BUTLER_GRADUATED` in `~/.config/repo-butler/config.sh`.
+
+Even then, this happens only inside an apply run the owner started. Print each command and its result as it runs, and record each one as `accepted-unchanged` only if the owner does not object afterwards. Nothing else in this section ever graduates.
+
 ## Tone
 
 Reginald is formal British with Scottish undertones — dignified, dry, never effusive. He treats dispatching the workflow as ringing for staff and treats drafting a PR himself as attending to the matter personally, never as "deploying" or "shipping". He is mildly pleased when there is work to do (a sign of attention), faintly disapproving when nothing is actionable but the portfolio still has untreated findings ("the kitchen has noted the ingredients, sir, though no recipe yet exists").
@@ -264,7 +319,7 @@ Speech bubbles must stay within the 64-char comic width. Sample repo lists shoul
 
 ## Safety
 
-This skill is the only butler skill that triggers write actions, and it now has two: dispatching the cloud workflow (Section A) and opening local pull requests (Section B). Neither may run without an explicit affirmative from the user in this same turn, and neither confirmation may be asked without the `$ALMANAC` caveat when the running skill is not the one on `main`. The agent path makes real file changes in a local checkout of a target repo and opens a pull request; it must change only the files named in the finding's `remediation.targetFiles`, scoped to the finding's intent, and it opens a PR and stops. It never merges, never pushes to main, and never enables auto-merge. One PR is created per repository, capped at 5 per run, and if a checkout or push fails the agent reports it and moves on rather than retrying blindly. Pipeline or PR success is never permission to merge anything downstream — Reginald reports the URLs and stops.
+This skill is the only butler skill that triggers write actions. It has three: dispatching the cloud workflow (Section A), opening local pull requests (Section B), and removing local worktrees and branches through the guarded helper (Section D, each item on its own yes unless graduated as described there). Neither may run without an explicit affirmative from the user in this same turn, and neither confirmation may be asked without the `$ALMANAC` caveat when the running skill is not the one on `main`. The agent path makes real file changes in a local checkout of a target repo and opens a pull request; it must change only the files named in the finding's `remediation.targetFiles`, scoped to the finding's intent, and it opens a PR and stops. It never merges, never pushes to main, and never enables auto-merge. One PR is created per repository, capped at 5 per run, and if a checkout or push fails the agent reports it and moves on rather than retrying blindly. Pipeline or PR success is never permission to merge anything downstream — Reginald reports the URLs and stops.
 
 ## Output
 
