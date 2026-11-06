@@ -3,13 +3,13 @@
 // throwaway git fixtures, because "is this branch really landed" is exactly
 // what a mocked git would let us get wrong.
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { classifyWorktree, summariseRepo, readRepo, auditDirs } from './local-hygiene.js';
+import { classifyWorktree, summariseRepo, readRepo, auditDirs, pruneWorktree } from './local-hygiene.js';
 
 const HEAD = 'a'.repeat(40);
 const clean = {
@@ -237,5 +237,60 @@ describe('readRepo against a real repository', () => {
     mkdirSync(join(fx.tmp, 'not-a-repo'), { recursive: true });
     const findings = auditDirs([fx.tmp], opts());
     assert.deepEqual(findings.map(f => f.repo), ['repo']);
+  });
+});
+
+describe('pruneWorktree', () => {
+  // Each test mutates the repository, so each gets its own fixture.
+  let fx;
+  beforeEach(() => { fx = buildFixture(); });
+  afterEach(() => rmSync(fx.tmp, { recursive: true, force: true }));
+
+  const prune = (name, expectTip = fx.heads[name]) => pruneWorktree({
+    repoDir: fx.repo, worktreePath: join(fx.wtDir, name), expectTip, listPRs: () => fx.prs,
+  });
+  const refExists = (name) => {
+    try { g(fx.repo, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`); return true; } catch { return false; }
+  };
+
+  it('removes a prunable worktree and its branch, merged or squash-merged', () => {
+    for (const name of ['merged', 'squashed']) {
+      assert.deepEqual(prune(name), { ok: true });
+      assert.equal(existsSync(join(fx.wtDir, name)), false);
+      assert.equal(refExists(name), false);
+    }
+  });
+
+  it('refuses when the tip is not the approved one', () => {
+    const r = prune('merged', 'f'.repeat(40));
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /tip moved/);
+    assert.ok(existsSync(join(fx.wtDir, 'merged')));
+    assert.ok(refExists('merged'));
+  });
+
+  it('a commit added after the audit survives', () => {
+    const wt = join(fx.wtDir, 'squashed');
+    const approved = fx.heads.squashed;
+    writeFileSync(join(wt, 'late.txt'), 'late\n');
+    g(wt, 'add', '.');
+    g(wt, 'commit', '-q', '-m', 'late work');
+    const late = g(wt, 'rev-parse', 'HEAD');
+    assert.equal(prune('squashed', approved).ok, false);
+    assert.equal(g(fx.repo, 'rev-parse', 'refs/heads/squashed'), late);
+  });
+
+  it('refuses a worktree that became dirty, and one whose PR was closed', () => {
+    writeFileSync(join(fx.wtDir, 'merged', 'a.txt'), 'edit\n');
+    const dirty = prune('merged');
+    assert.equal(dirty.ok, false);
+    assert.match(dirty.reason, /not prunable/);
+    assert.equal(prune('closed').ok, false);
+    assert.ok(refExists('closed'));
+  });
+
+  it('refuses the main checkout and paths that are not its worktrees', () => {
+    assert.equal(pruneWorktree({ repoDir: fx.repo, worktreePath: fx.repo, expectTip: g(fx.repo, 'rev-parse', 'HEAD'), listPRs: () => fx.prs }).ok, false);
+    assert.match(pruneWorktree({ repoDir: fx.repo, worktreePath: fx.tmp, expectTip: 'x', listPRs: () => fx.prs }).reason, /not a worktree/);
   });
 });

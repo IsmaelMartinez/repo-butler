@@ -14,7 +14,7 @@
 // ref with a compare-and-delete, so a commit added after the audit survives.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { GIT_NONINTERACTIVE_ENV } from './staleness.js';
 
@@ -180,6 +180,41 @@ export function readRepo(repoDir, { listPRs = defaultListPRs, fetch = true, scri
     scriptPath,
     today,
   });
+}
+
+/**
+ * Remove one worktree and its branch, re-checking everything at action time.
+ * A check made when the command was printed protects nothing: an agent can
+ * commit between the audit and the owner's yes. So the worktree is re-read and
+ * re-classified here, `worktree remove` runs without --force (it refuses a
+ * dirty tree), and the branch goes through `update-ref -d <ref> <expectTip>`,
+ * which git refuses atomically if the ref moved — so new work always survives.
+ * @returns {{ ok: boolean, reason?: string }}
+ */
+export function pruneWorktree({ repoDir, worktreePath, expectTip, listPRs = defaultListPRs }) {
+  const porcelain = git(['worktree', 'list', '--porcelain'], repoDir);
+  if (porcelain === null) return { ok: false, reason: 'could not list worktrees' };
+  let target;
+  try {
+    target = realpathSync(worktreePath);
+  } catch {
+    return { ok: false, reason: 'worktree path does not exist' };
+  }
+  const wt = parseWorktrees(porcelain).find(w => w.path === target);
+  if (!wt) return { ok: false, reason: 'not a worktree of this repository' };
+  if (wt.isMain) return { ok: false, reason: 'refusing to remove the main checkout' };
+  if (wt.head !== expectTip) return { ok: false, reason: `tip moved: expected ${expectTip}, found ${wt.head}` };
+
+  const { status, reasons } = classifyWorktree(readWorktree(wt, readContext(repoDir, { listPRs })));
+  if (status !== 'prunable') return { ok: false, reason: `not prunable: ${reasons.join('; ') || status}` };
+
+  if (git(['worktree', 'remove', wt.path], repoDir) === null) {
+    return { ok: false, reason: 'git worktree remove refused' };
+  }
+  if (git(['update-ref', '-d', `refs/heads/${wt.branch}`, expectTip], repoDir) === null) {
+    return { ok: false, reason: 'worktree removed but branch ref moved; left in place' };
+  }
+  return { ok: true };
 }
 
 /**
