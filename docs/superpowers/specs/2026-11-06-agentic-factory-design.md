@@ -64,7 +64,9 @@ The pipeline has been red since 2026-11-04 21:40. Provider validation fails with
 
 For every eligible repo, this detector lists the open issues and PRs whose next move is the owner's.
 
-Inputs. The open-PR list comes from the shared `openPRs` map. Open issues come from one paginated `/repos/{o}/{r}/issues?state=open` read per repo, with PRs dropped by the `pull_request` key. Conversation comments come from one `/repos/{o}/{r}/issues/comments?since=<60 days ago>` read per repo, grouped by issue number. Reviews come from `/pulls/{n}/reviews`, read only for open PRs. Runs waiting for approval come from one `/actions/runs?status=action_required&event=pull_request` read per repo, matched to PRs by head SHA. That is three list reads per repo plus one reviews read per open PR. With teams-for-linux's queue it comes to about 16 calls per run.
+Inputs. The open-PR list comes from the shared `openPRs` map. Open issues come from one paginated `/repos/{o}/{r}/issues?state=open` read per repo, with PRs dropped by the `pull_request` key. Conversation comments come from one `/repos/{o}/{r}/issues/comments?since=<60 days ago>` read per repo, grouped by issue number. Reviews come from `/pulls/{n}/reviews`, read only for open PRs. Runs waiting for approval come from one `/actions/runs?status=action_required&event=pull_request` read per repo, matched to PRs by head SHA. That is three list reads per repo plus one reviews read per open PR.
+
+The 60-day comment window is only a shortcut. An item with no human comment inside the window, but with a non-zero `comments` count, could still be waiting on the reporter: an owner's question 61 days ago would be invisible. For those items the detector reads the item's full comment history (`/issues/{n}/comments`) before classifying. That costs one extra read per long-quiet item. If the read fails, the item is left out rather than guessed. With teams-for-linux's queue the total comes to about 16 to 20 calls per run.
 
 "Whose move" is decided from the last human actor. A human is any login that is not a bot. Bots are `[bot]`-suffixed logins plus a small configured list (`owner_move.ignore_actors` in `.github/roadmap.yml`, for actors such as a stale bot that comments as a user). An item is the owner's move when any of these holds:
 
@@ -89,9 +91,24 @@ This detector finds release PRs that are waiting.
 
 A release PR is an open PR whose head ref starts with `release-please--`, whose author is `github-actions[bot]` or the repo's release App, or which carries the `autorelease: pending` label. Two out of three is enough. The idea mirrors `isVerified` in the butler-PR audit: the branch name is the main locator, and identity only backs it up.
 
-State comes from `classifyPR` in `src/butler-pr-audit.js`. It should be exported and reused rather than copied. One extra state is added: `ci-not-triggered`. It applies when the head SHA has no check run from the GitHub Actions app (`app.slug === 'github-actions'`) and the repo has at least one active workflow whose `on:` includes `pull_request` without a `paths` filter, read from `/actions/workflows` and the workflow file. This is the known release-please case: a PR opened with the default token triggers no Actions workflows at all, and only external apps such as SonarCloud report. The test needs no baseline PR, so a repo with no other merged PRs, or with path-filtered workflows, cannot produce a false match. When the workflow list or files cannot be read, the state is `unknown`. `ci-not-triggered` takes precedence over `awaiting-human`, because `prCiState` reads those few external checks as green.
+State comes from `classifyPR` in `src/butler-pr-audit.js`. It should be exported and reused rather than copied. One extra state is added: `ci-not-triggered`. It applies when the head SHA has no check run from the GitHub Actions app (`app.slug === 'github-actions'`) and the repo has at least one proven-applicable workflow.
 
-The finding fires when a release PR has been open more than `release_pending.grace_days` (default 2). The finding carries `{ number, title, version, state, waitingDays, mergeMethod }`, where `version` is parsed from the title and `mergeMethod` comes from the repo's allowed merge methods (squash preferred). Priority is `high` when the repo has an open issue labelled `bug` that was created after the previous release tag (a shipped regression waiting on a release), and `medium` otherwise.
+That holds whether the head has some external check runs or none at all. With external checks, `prCiState` reads them as green. With none, `classifyPR` alone would say `ci-none`, which is the same failure on a repo with no external checks. `ci-not-triggered` takes precedence over both `awaiting-human` and `ci-none`.
+
+A workflow is proven-applicable only when its file is readable, it is active in `/actions/workflows`, and its `pull_request` trigger has all of the following:
+
+- no `paths` or `paths-ignore` filter;
+- either no `branches` filter, or one that names the PR's base branch literally (glob patterns count as unprovable);
+- no `branches-ignore` filter;
+- either no `types` filter (the default includes `reopened`), or one that lists `reopened`.
+
+The last condition matters because a close and reopen is the remediation, so the workflow must be proven to fire on that event.
+
+This is the known release-please case: a PR opened with the default token triggers no Actions workflows at all. The test needs no baseline PR, so a repo with no other merged PRs cannot produce a false match.
+
+When no workflow can be proven applicable, or any workflow file cannot be read or parsed, the state is `unknown` and no close or reopen command is emitted. The detector errs towards saying nothing, never towards recommending an action that cannot work. That matters doubly because `release-reopen-for-ci` can graduate.
+
+The finding fires when a release PR has been open more than `release_pending.grace_days` (default 2). The finding carries `{ number, title, version, state, headSha, waitingDays, mergeMethod }`, where `version` is parsed from the title and `mergeMethod` comes from the repo's allowed merge methods (squash preferred). Priority is `high` when the repo has an open issue labelled `bug` that was created after the previous release tag (a shipped regression waiting on a release), and `medium` otherwise.
 
 ### 3. Remediation: a `worker` field and exact commands
 
@@ -99,7 +116,7 @@ The finding fires when a release PR has been open more than `release_pending.gra
 
 The first is `worker`, the name of the skill that should handle the finding. For `owner-move` it is the repo's entry in a new `factory.workers` map in `.github/roadmap.yml`, `{ teams-for-linux: teams-for-linux-issue-review }`, falling back to `pr-maintainer`. For `release-pending` there is no worker, because the commands are the whole remediation.
 
-The second is `commands`, an array of exact single-line shell commands, never chained. For `ci-not-triggered` they are `gh pr close N -R owner/repo` and `gh pr reopen N -R owner/repo`. For a release PR that is green, it is `gh pr merge N -R owner/repo --<method> --delete-branch`. These are presented to the owner; nothing in the pipeline or the skill runs them unprompted.
+The second is `commands`, an array of exact single-line shell commands, never chained. For `ci-not-triggered` they are `gh pr close N -R owner/repo` and `gh pr reopen N -R owner/repo`. For a release PR that is green, it is `gh pr merge N -R owner/repo --<method> --delete-branch --match-head-commit <sha>`, where `<sha>` is the head the finding classified as green. The finding records that SHA as `headSha`. Before showing any release command, the dispatch step re-reads the live head and state. If the head has moved, it re-classifies the PR and shows the new state and command, asking again. `--match-head-commit` makes GitHub refuse the merge if the head moves between approval and execution, the same guard `mergePR` in `src/github.js` applies with `sha`. These commands are presented to the owner; nothing in the pipeline or the skill runs them unprompted.
 
 Commands are built only from enum values and `REPO_NAME_PATTERN`-checked names, never from PR titles or bodies. This is the same fixed-string rule as ADR-005.
 
@@ -114,7 +131,7 @@ Each worktree is classified as follows.
 `prunable` requires all of these to hold:
 
 - the worktree has no uncommitted changes;
-- it has no commits that are not on a remote branch;
+- it has no commits that are not on a remote branch, unless its tip equals the final head SHA of a merged PR (below), which proves the same thing after `fetch --prune` has removed a squash-merged PR's deleted source branch;
 - no stash references its branch;
 - it is not locked by a live process (the lock reason's PID is checked with `kill -0`);
 - its branch has landed, in one of two ways: it is an ancestor of the default branch (`git merge-base --is-ancestor`), or a PR from it was merged (state `MERGED`, not merely closed) and that PR's final head SHA equals the local branch tip, so nothing local was left out of the squash.
@@ -131,7 +148,13 @@ Stashes are listed with their age and their source branch, along with whether th
 
 A checkout with more than 20 dirty files, on a detached HEAD, or with more than 3 stashes gets a separate `at-risk` flag. pr-agent is the motivating case.
 
-The remediation `commands` for prunable worktrees are `git -C <repo> worktree remove <path>`, then a branch delete, one command per line. The delete is `branch -d` for ancestor-merged branches. For squash-merged branches it is `branch -D`, because `-d` would always refuse them; that is safe only because of the head-SHA check above, and the script re-runs that check immediately before printing the command. `worktree remove` without `--force` refuses a dirty worktree, so that step fails safe as well. For `at-risk` checkouts the command creates a WIP branch, `git -C <repo> switch -c wip/<date>-rescue`. It never stashes and never resets.
+A prunable worktree's remediation is a single command, `node scripts/local-hygiene.js prune <repo> <worktree-path> --expect-tip <sha>`, never raw git commands. `<sha>` is the branch tip the finding classified and the owner approved. A check done when the command is printed protects nothing, because an agent can commit to the branch between printing and approval. So the helper does all of its checking at action time, in this order:
+
+1. It re-runs every prunable condition above against the live state, and aborts if any fails.
+2. It runs `git worktree remove <path>` without `--force`, which refuses a dirty worktree, and aborts if the removal fails.
+3. It deletes the branch with `git update-ref -d refs/heads/<branch> <sha>`. Git refuses that atomically if the ref no longer points at the approved tip, so a commit added at any point before the delete survives.
+
+The same helper is the only path a graduated `prune-merged-worktree` class may use. For `at-risk` checkouts the command creates a WIP branch, `git -C <repo> switch -c wip/<date>-rescue`. It never stashes and never resets.
 
 The `repo-butler` briefing skill swaps its inline bash block for this script and keeps its one-line observation. That removes a copy rather than adding one.
 
