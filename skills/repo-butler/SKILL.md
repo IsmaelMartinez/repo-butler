@@ -192,23 +192,11 @@ Fetch the data:
 If any MCP call fails or returns empty, give the no-data line and stop. If the most recent weekly aggregate's `timestamp` (or the MCP `staleness.data_age_hours`) is 3+ days stale, put the dumbwaiter line in panel 1's caption.
 
 ```bash
-while IFS= read -r parent; do
-  [ -z "$parent" ] && continue
-  for dir in "$parent"/*/; do
-    [ -d "$dir/.git" ] || continue
-    repo=$(basename "$dir")
-    st=$(git -C "$dir" status --porcelain 2>/dev/null | head -5)
-    branches=$(git -C "$dir" branch --no-merged main 2>/dev/null | grep -v '^\*' | head -5)
-    stash=$(git -C "$dir" stash list 2>/dev/null | head -3)
-    current=$(git -C "$dir" branch --show-current 2>/dev/null)
-    if [ -n "$st" ] || [ -n "$branches" ] || [ -n "$stash" ]; then
-      echo "REPO:$repo|BRANCH:$current|DIRTY:$([ -n "$st" ] && echo yes || echo no)|UNMERGED:$(echo "$branches" | grep -c .)|STASH:$(echo "$stash" | grep -c .)"
-    fi
-  done
-done <<EOF
-$REPO_BUTLER_PROJECTS_DIRS
-EOF
+export REPO_BUTLER_PROJECTS_DIRS
+node "$SKILL_DIR/../../scripts/local-hygiene.js" audit --json --no-fetch 2>/dev/null || true
 ```
+
+This is the same audit `/repo-butler-apply` acts on (its Section D), read-only here and without fetching, so a briefing stays quick. The `|| true` is required, because the script exits 1 whenever it has findings. The output is a JSON array of `local-hygiene` findings, one per repo with anything to say. Each has a `worktrees[]` status (`prunable`, `needs-look`, `live`), `stashes[]` and `atRisk`. An empty array, `[]`, means every checkout is tidy.
 
 The portfolio CI streak comes from `get_weekly_trend`'s portfolio-wide series — count consecutive recent weeks where every repo was clean (success streak) or ≥1 was red (failure streak). With weekly granularity, a 1-week green run satisfies "seven days of impeccable CI" and a 2-week red run satisfies "third morning of red CI"; if only one weekly point is available, omit the streak line.
 
@@ -218,7 +206,7 @@ Write the script:
 - An unread scanner (`{ "unreadable": true }`) is never clean and never a pest: it neither triggers `garden-pests` nor lets the day be all-clear, and Reginald does not say the garden is clear of pests while one went unread. Name it plainly instead ("the gardener could not get into the code-scanning shed at bonnie-wee-plot, sir"). A repo with `tier_provisional: true` is unconfirmed, not demoted: it is not "sub-Gold" for the scene table, it counts as neither Gold nor below in the stat line (add `* {n} unconfirmed` when there are any), and no balloon calls it Silver.
 - Every balloon about a concern names the real signal — repo names and counts — e.g. the gardener "has found three pests in teams-for-linux, sir." The Doric word goes only in `garden-pests`/`storm` (dreich) or a calm scene (braw).
 - Panel 1's caption opens with the continuity delta if present ("Since your last briefing, sir, …"), then the streak or saga line. On Mondays with open issues > 0, the postmaster's tardiness belongs in whichever panel he appears in, or in panel 3's last word. On 25 January Reginald opens with "A guid Burns Night to ye, sir."; on 31 December "Hogmanay greetings, sir."
-- On a calm day, fold one working-state observation into panel 3 if the local block returned anything ("a forgotten parcel in the hallway, sir" for a stash older than the last commit; otherwise "the study is in impeccable order, sir").
+- On a calm day, fold one working-state observation into panel 3 from the local audit. When any finding is `atRisk`, use "a forgotten parcel in the hallway, sir", naming the repo. When there are prunable worktrees, use "N rooms want airing, sir", with N as the total and a pointer to `/repo-butler-apply`. When the output is `[]`, use "the study is in impeccable order, sir". Never claim the study is in order while a finding is `atRisk`.
 - Panel 3's last balloon is the sign-off: pick exactly ONE from this pool of eight (do not invent more):
 
 1. "Will that be all, sir?"

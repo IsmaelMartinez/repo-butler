@@ -1,7 +1,7 @@
 # Design: the "your move" factory
 
 Date: 2026-11-06
-Status: PROPOSED. Nothing here is scheduled. The owner skipped the brainstorming questions and asked for the design straight from the 2026-11-06 portfolio sweep, so every choice below not stated by the owner is marked as the author's call.
+Status: ACCEPTED (#506). Phase 1, the local hygiene audit, is implemented by `src/local-hygiene.js`, `scripts/local-hygiene.js` and Section D of the apply skill, following `docs/superpowers/plans/2026-11-06-local-hygiene-audit.md`. Phases 2 and 3 are not started. The owner skipped the brainstorming questions and asked for the design straight from the 2026-11-06 portfolio sweep, so every choice below not stated by the owner is marked as the author's call.
 
 Facts were read from `origin/main` at `f024c8e4` and from live `gh` output on 2026-11-06.
 
