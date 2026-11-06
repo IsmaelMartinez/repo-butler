@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-11-02
+**Last Updated:** 2026-11-06
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -120,6 +120,8 @@ Roadmap Next Up documentation aligned with active simplification planning 2026-1
 Evidence-based fix in flight and stuck security PR governance shipped 2026-10-15 (PR #499). Enhances governance logic to detect stuck security PRs and track evidence for fixes in flight, supporting multi-copy vulnerability verification across the repository tree.
 
 Automated maintenance PR validation and paginated GitHub stream safety shipped 2026-10-15 (PRs #501, #502). Hardens automated governance by strictly verifying `npm fix` updates against the package lockfile and failing closed on malformed pages during GitHub API pagination, preventing malformed inputs or improper automated updates from introducing undetected runtime failures.
+
+Owner-move factory design and Phase 1 workspace hygiene shipped 2026-11-06 (PRs #506, #507). Establishes the multi-phase architectural blueprint for the owner-move factory and implements Phase 1 local worktree and stash auditing with guarded pruning to maintain local workspace cleanliness during operational refactoring.
 
 ---
 
