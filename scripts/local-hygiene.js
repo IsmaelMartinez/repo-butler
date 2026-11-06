@@ -71,7 +71,9 @@ function audit(args) {
       for (const c of f.remediation.commands) process.stdout.write(`    ${c}\n`);
     }
   }
-  process.exit(findings.length ? 1 : 0);
+  // exitCode, not exit(): writes to a pipe are asynchronous, and exiting
+  // straight away can truncate a large JSON array mid-document.
+  process.exitCode = findings.length ? 1 : 0;
 }
 
 function prune(args) {
@@ -87,10 +89,10 @@ function prune(args) {
   const result = pruneWorktree({ repoDir, worktreePath, expectTip });
   if (result.ok) {
     process.stdout.write(`pruned ${worktreePath}\n`);
-    process.exit(0);
+    return;
   }
   process.stderr.write(`refused: ${result.reason}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 const [command, ...rest] = process.argv.slice(2);

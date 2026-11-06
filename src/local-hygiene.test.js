@@ -6,12 +6,12 @@
 import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   classifyWorktree, summariseRepo, readRepo, auditDirs, pruneWorktree,
-  recordApproval, approvalStreak, approvalsFile,
+  recordApproval, approvalStreak, approvalsFile, shellQuote,
 } from './local-hygiene.js';
 
 const CLI = join(import.meta.dirname, '..', 'scripts', 'local-hygiene.js');
@@ -24,7 +24,7 @@ after(() => rmSync(NO_GH.GH_CONFIG_DIR, { recursive: true, force: true }));
 const HEAD = 'a'.repeat(40);
 const clean = {
   path: '/r/.claude/worktrees/x', branch: 'feat/x', head: HEAD, isMain: false,
-  dirty: false, lockPid: undefined, lockLive: false, unpushed: 0,
+  idleHours: 48, dirty: false, lockPid: undefined, lockLive: false, unpushed: 0,
   stashOnBranch: false, ancestorOfDefault: true, pr: { state: 'NONE' },
 };
 
@@ -81,6 +81,13 @@ describe('classifyWorktree', () => {
     assert.equal(classifyWorktree({ ...clean, unpushed: null }).status, 'needs-look');
   });
 
+  it('a worktree used in the last 24 hours, or of unknown age, is never prunable', () => {
+    const fresh = classifyWorktree({ ...clean, idleHours: 2 });
+    assert.equal(fresh.status, 'needs-look');
+    assert.ok(fresh.reasons.some(x => /last 24 hours/.test(x)));
+    assert.equal(classifyWorktree({ ...clean, idleHours: null }).status, 'needs-look');
+  });
+
   it('no PR and not merged needs a look', () => {
     const r = classifyWorktree({ ...clean, ancestorOfDefault: false });
     assert.equal(r.status, 'needs-look');
@@ -108,23 +115,40 @@ describe('summariseRepo', () => {
     assert.deepEqual(f.remediation.commands, [`node /s/local-hygiene.js prune /r /r/w --expect-tip ${HEAD}`]);
   });
 
-  it('flags at-risk checkouts as high and offers a rescue branch, never a stash or reset', () => {
+  it('flags at-risk checkouts as high; only a detached HEAD gets a rescue branch, never a stash or reset', () => {
     const detached = summariseRepo({ ...base, mainDetached: true, worktrees: [wt()] });
     assert.equal(detached.atRisk, true);
     assert.equal(detached.priority, 'high');
-    assert.ok(detached.remediation.commands.includes('git -C /r switch -c wip/2026-11-06-rescue'));
+    assert.ok(detached.remediation.commands.includes('git -C /r switch -c wip/2026-11-06-aaaaaaa-rescue'));
 
     const stashy = summariseRepo({ ...base, stashes: [1, 2, 3, 4].map(i => ({ ref: `stash@{${i}}` })), worktrees: [wt()] });
     assert.equal(stashy.atRisk, true);
     assert.ok(!stashy.remediation.commands.some(c => c.includes('switch -c')), 'stashes alone need no rescue branch');
 
-    const dirty = summariseRepo({ ...base, mainDirtyCount: 21, worktrees: [wt()] });
+    const dirty = summariseRepo({ ...base, mainDirtyCount: 21, stashes: [1, 2, 3, 4].map(i => ({ ref: `stash@{${i}}` })), worktrees: [wt()] });
     assert.equal(dirty.atRisk, true);
+    assert.ok(!dirty.remediation.commands.some(c => c.includes('switch -c')), 'a new branch does not preserve uncommitted files');
+    assert.match(dirty.remediation.rationale, /21 uncommitted files/);
     assert.equal(summariseRepo({ ...base, mainDirtyCount: 20, worktrees: [wt()] }), null, 'the threshold is more than 20');
 
     for (const f of [detached, stashy, dirty]) {
       for (const c of f.remediation.commands) assert.doesNotMatch(c, /--force|\s-D\b|stash|reset/);
     }
+  });
+
+  it('quotes paths with spaces or metacharacters in printed commands', () => {
+    const f = summariseRepo({
+      ...base, repoDir: '/Library/Application Support/r', mainDetached: true,
+      worktrees: [wt(), wt({ path: "/r/it's $(x)", branch: 'feat/x', status: 'prunable' })],
+    });
+    assert.ok(f.remediation.commands.includes("git -C '/Library/Application Support/r' switch -c wip/2026-11-06-aaaaaaa-rescue"));
+    assert.ok(f.remediation.commands.some(c => c.includes(`'/r/it'\\''s $(x)' --expect-tip ${HEAD}`)));
+  });
+
+  it('shellQuote leaves plain paths alone and single-quotes the rest', () => {
+    assert.equal(shellQuote('/a/b-c_d.e'), '/a/b-c_d.e');
+    assert.equal(shellQuote('a b'), "'a b'");
+    assert.equal(shellQuote("it's"), "'it'\\''s'");
   });
 
   it('reports stale worktree entries', () => {
@@ -143,6 +167,15 @@ Object.assign(process.env, {
 });
 
 const g = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+// Backdate a worktree's HEAD and reflog by two days, past the 24-hour idle guard.
+function ageWorktree(repo, name) {
+  const past = new Date(Date.now() - 48 * 3600000);
+  for (const f of ['HEAD', join('logs', 'HEAD')]) {
+    const p = join(repo, '.git', 'worktrees', name, f);
+    if (existsSync(p)) utimesSync(p, past, past);
+  }
+}
 
 // Builds remote.git (bare) and repo (its clone, origin/HEAD = origin/main,
 // origin URL presented as github.com/o/r through insteadOf) with worktrees
@@ -196,6 +229,8 @@ function buildFixture() {
   g(behindPath, 'reset', '-q', '--hard', heads.behind);
   g(repo, 'push', '-q', 'origin', '--delete', 'behind');
 
+  for (const name of Object.keys(heads)) ageWorktree(repo, name);
+
   const prs = [
     { headRefName: 'behind', headRefOid: behindPrHead, state: 'MERGED', number: 4 },
     { headRefName: 'squashed', headRefOid: heads.squashed, state: 'MERGED', number: 1 },
@@ -226,6 +261,25 @@ describe('readRepo against a real repository', () => {
     assert.equal(f.worktrees.find(w => w.path === fx.repo).status, 'main');
   });
 
+  it('a just-created worktree with no commits is not prunable, though its tip is on main', () => {
+    const path = join(fx.wtDir, 'fresh');
+    g(fx.repo, 'worktree', 'add', '-q', '-b', 'fresh', path, 'main');
+    try {
+      const w = byName(readRepo(fx.repo, opts()), 'fresh');
+      assert.equal(w.status, 'needs-look');
+      assert.ok(w.reasons.some(x => /last 24 hours/.test(x)));
+    } finally {
+      g(fx.repo, 'worktree', 'remove', path);
+      g(fx.repo, 'branch', '-q', '-D', 'fresh');
+    }
+  });
+
+  it('a fork PR with the same branch name is not evidence about the local branch', () => {
+    const fork = { headRefName: 'merged', headRefOid: fx.heads.merged, state: 'OPEN', number: 9, isCrossRepository: true };
+    const f = readRepo(fx.repo, opts({ listPRs: () => [...fx.prs, fork] }));
+    assert.equal(byName(f, 'merged').status, 'prunable', 'the fork PR must not make it live');
+  });
+
   it('unread PR state leaves a squash-merged branch as needs-look but still audits', () => {
     const f = readRepo(fx.repo, opts({ listPRs: () => null }));
     assert.equal(byName(f, 'squashed').status, 'needs-look');
@@ -242,6 +296,7 @@ describe('readRepo against a real repository', () => {
       assert.equal(f.stashes.length, 1);
     } finally {
       g(wt, 'stash', 'drop', '-q');
+      ageWorktree(fx.repo, 'merged'); // stash push wrote the worktree's HEAD reflog
     }
   });
 
