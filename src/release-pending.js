@@ -214,15 +214,51 @@ async function pagedList(gh, path, key, params = {}) {
   return null;
 }
 
+const RUN_OK = new Set(['success', 'neutral', 'skipped']);
+
+// The most recent run of each workflow. A head keeps every run ever made for
+// it: a close-and-reopen or an approval leaves the old action_required or
+// failed runs beside the new ones (delegate-local #690 carries failures from
+// 31 Oct under its green 6 Nov runs), and only the latest says where CI is.
+function latestPerWorkflow(runs) {
+  const byWorkflow = new Map();
+  const unkeyed = [];
+  for (const r of runs) {
+    const key = r?.workflow_id ?? r?.path ?? r?.name;
+    // A run with no workflow identity is kept on its own, never folded into
+    // another: collapsing could hide a blocked or failed run.
+    if (key === undefined || key === null) { unkeyed.push(r); continue; }
+    const prev = byWorkflow.get(key);
+    const newer = !prev
+      || (Date.parse(r?.created_at) || 0) > (Date.parse(prev?.created_at) || 0)
+      || ((Date.parse(r?.created_at) || 0) === (Date.parse(prev?.created_at) || 0) && (Number(r?.run_attempt) || 1) > (Number(prev?.run_attempt) || 1));
+    if (newer) byWorkflow.set(key, r);
+  }
+  return [...byWorkflow.values(), ...unkeyed];
+}
+
+// Failing workflow names for the rationale: the repo's own workflow files
+// (fork heads never reach here), still reduced to a plain character set,
+// capped and de-duplicated, because they travel to MCP clients and the page.
+function workflowNames(runs) {
+  const names = runs
+    .map(r => (typeof r?.name === 'string' ? r.name.replace(/[^A-Za-z0-9 ._()&/-]/g, '').trim().slice(0, 60) : ''))
+    .filter(Boolean);
+  return [...new Set(names)].sort().slice(0, 5);
+}
+
 /**
- * What GitHub Actions did for this head:
+ * What GitHub Actions did for this head, as { state, failing? }:
  *   'ran'               — every workflow run on the head has completed and at
  *                         least one Actions run or check exists, so classifyPR
  *                         can judge it
  *   'awaiting-approval' — some run ended `action_required` (blocked on approval)
+ * judged on the latest run of each workflow only.
  *   'queued'            — some run has not completed yet
+ *   'failed'            — some run ended in anything but success/neutral/skipped;
+ *                         `failing` names those workflows
  *   'none'              — no Actions check run and no workflow run at all
- *   null                — unreadable
+ *   null                — unreadable (not an object)
  * Every workflow run is inspected, not just the check runs: a run blocked on
  * approval, or still waiting for a runner, produces no check run, so on check
  * runs alone it would read as "not triggered", or — beside one passing check
@@ -235,10 +271,15 @@ export async function actionsStateOn(gh, owner, repo, sha) {
     if (!checks) return null;
     const runs = await pagedList(gh, `/repos/${owner}/${repo}/actions/runs`, 'workflow_runs', { head_sha: sha });
     if (!runs) return null;
-    if (runs.some(r => r?.status !== 'completed')) return 'queued';
-    if (runs.some(r => r?.conclusion === 'action_required')) return 'awaiting-approval';
-    if (runs.length > 0 || checks.some(r => r?.app?.slug === ACTIONS_APP_SLUG)) return 'ran';
-    return 'none';
+    const latest = latestPerWorkflow(runs);
+    if (latest.some(r => r?.status !== 'completed')) return { state: 'queued' };
+    if (latest.some(r => r?.conclusion === 'action_required')) return { state: 'awaiting-approval' };
+    // A run can fail without leaving a check run behind (startup_failure, a
+    // cancelled run), and prCiState would then see only the green checks.
+    const failed = latest.filter(r => !RUN_OK.has(r?.conclusion));
+    if (failed.length > 0) return { state: 'failed', failing: workflowNames(failed) };
+    if (latest.length > 0 || checks.some(r => r?.app?.slug === ACTIONS_APP_SLUG)) return { state: 'ran' };
+    return { state: 'none' };
   } catch {
     return null;
   }
@@ -357,19 +398,26 @@ async function regressionWaiting(gh, owner, repo) {
 export async function classifyReleasePR(gh, owner, repo, pr, { now = Date.now() } = {}) {
   const sha = pr?.head?.sha;
   const actions = await actionsStateOn(gh, owner, repo, sha);
-  if (actions === null) return 'unknown';
-  if (actions === 'awaiting-approval') return 'ci-awaiting-approval';
+  if (actions === null) return { state: 'unknown' };
+  if (actions.state === 'awaiting-approval') return { state: 'ci-awaiting-approval' };
   // Runs exist but none has reported: never let an external check alone read
   // as green while Actions is still to come.
-  if (actions === 'queued') return 'ci-pending';
-  if (actions === 'none') {
+  if (actions.state === 'queued') return { state: 'ci-pending' };
+  // Never green over a failed run, whatever the check runs say. The failing
+  // workflows are named, because a run that failed without a check run is
+  // invisible on the PR page (delegate-local #683's auto-merge workflow).
+  if (actions.state === 'failed') {
+    const judged = (await classifyPR(gh, owner, repo, pr)).state;
+    return { state: judged === 'blocked-persistent' ? judged : 'blocked-transient', failingWorkflows: actions.failing };
+  }
+  if (actions.state === 'none') {
     // A head pushed within the hour may simply not have its runs yet, and an
     // unreadable commit date proves nothing either way.
-    if (!(await headIsSettled(gh, owner, repo, sha, now))) return 'unknown';
+    if (!(await headIsSettled(gh, owner, repo, sha, now))) return { state: 'unknown' };
     const applicable = await workflowsProvenApplicable(gh, owner, repo, { ref: sha, baseBranch: pr?.base?.ref });
-    return applicable === true ? 'ci-not-triggered' : 'unknown';
+    return { state: applicable === true ? 'ci-not-triggered' : 'unknown' };
   }
-  return (await classifyPR(gh, owner, repo, pr)).state;
+  return { state: (await classifyPR(gh, owner, repo, pr)).state };
 }
 
 /**
@@ -416,7 +464,7 @@ export async function detectPendingReleases(gh, owner, repos, { openPRs = null }
           // The title is never stored: it is PR text, and findings reach MCP
           // clients next to executable commands. The version is all it carries.
           version: parseReleaseVersion(pr.title),
-          state: await classifyReleasePR(gh, owner, repo.name, pr),
+          ...(await classifyReleasePR(gh, owner, repo.name, pr)),
           headSha: pr.head?.sha ?? null,
           waitingDays,
           mergeMethod,

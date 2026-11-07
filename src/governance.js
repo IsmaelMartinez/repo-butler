@@ -1132,7 +1132,7 @@ export function buildRemediationPlan(finding) {
         executor: 'manual',
         targetFiles: [],
         intent: `Release ${finding.version ?? `PR #${finding.number}`} in ${finding.repo}`,
-        rationale: `Release PR #${finding.number} has waited ${finding.waitingDays} day(s) (state: ${finding.state}). ${remedy}`,
+        rationale: `Release PR #${finding.number} has waited ${finding.waitingDays} day(s) (state: ${finding.state}). ${remedy}${finding.failingWorkflows?.length ? ` Failing workflow run(s): ${finding.failingWorkflows.join(', ')} — a run that fails before any job starts leaves no check on the PR page, so look in the Actions tab.` : ''}`,
         acceptanceCriteria: [`Release PR #${finding.number} is merged or closed`],
         commands: releaseCommands(finding),
       };

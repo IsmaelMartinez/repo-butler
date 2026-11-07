@@ -195,6 +195,26 @@ describe('detectPendingReleases', () => {
     assert.equal(f.state, 'awaiting-human');
   });
 
+  it('judges the latest run of each workflow, so an approved or re-triggered head is not stuck on old runs (#690 shape)', async () => {
+    const old = { workflow_id: 1, created_at: daysAgoISO(3), status: 'completed', conclusion: 'action_required' };
+    const fresh = { workflow_id: 1, created_at: daysAgoISO(1), status: 'completed', conclusion: 'success' };
+    const [f] = await detectPendingReleases(makeGh({ checkRuns: [{ app: { slug: 'github-actions' } }], workflowRuns: [old, fresh] }), 'o', repos);
+    assert.equal(f.state, 'awaiting-human');
+    const newerFail = { ...fresh, created_at: daysAgoISO(0.5), conclusion: 'failure' };
+    const [g] = await detectPendingReleases(makeGh({ checkRuns: [{ app: { slug: 'github-actions' } }], workflowRuns: [fresh, newerFail] }), 'o', repos);
+    assert.equal(g.state, 'blocked-transient');
+  });
+
+  it('a run that failed without a check run is never green beside a passing external check', async () => {
+    const run = { workflow_id: 2, name: 'Dependabot auto-merge', created_at: daysAgoISO(1), status: 'completed', conclusion: 'startup_failure' };
+    const odd = { workflow_id: 3, name: 'ci <script>`x`', created_at: daysAgoISO(1), status: 'completed', conclusion: 'failure' };
+    const [f] = await detectPendingReleases(makeGh({ checkRuns: [{ app: { slug: 'sonarcloud' } }], workflowRuns: [run, odd], ciState: 'green' }), 'o', repos);
+    assert.equal(f.state, 'blocked-transient');
+    assert.deepEqual(buildRemediationPlan(f).commands, []);
+    assert.deepEqual(f.failingWorkflows, ['Dependabot auto-merge', 'ci scriptx']);
+    assert.match(buildRemediationPlan(f).rationale, /Dependabot auto-merge/);
+  });
+
   it('is unknown when the workflow-run list cannot be read, even with an Actions check present', async () => {
     const gh = makeGh({ checkRuns: [{ app: { slug: 'github-actions' } }] });
     const request = gh.request;

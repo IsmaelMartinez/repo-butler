@@ -397,7 +397,7 @@ export function buildGovernanceSection(findings) {
   <td><a href="${escHtml(f.repo)}.html">${escHtml(f.repo)}</a></td>
   <td>#${escHtml(String(f.number))}${f.version ? ` <span class="muted">${escHtml(f.version)}</span>` : ''}</td>
   <td>${escHtml(String(f.waitingDays))}d</td>
-  <td>${escHtml(label[f.state] || f.state)}${f.priority === 'high' ? ' <span class="muted">(a bug filed since the last release is waiting on it)</span>' : ''}</td>
+  <td>${escHtml(label[f.state] || f.state)}${Array.isArray(f.failingWorkflows) && f.failingWorkflows.length ? ` <span class="muted">(${f.failingWorkflows.map(n => escHtml(n)).join(', ')})</span>` : ''}${f.priority === 'high' ? ' <span class="muted">(a bug filed since the last release is waiting on it)</span>' : ''}</td>
 </tr>`)
       .join('');
     parts.push(`<h3>Release PRs Waiting</h3>

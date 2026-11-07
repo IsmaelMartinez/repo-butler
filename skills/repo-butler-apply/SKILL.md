@@ -266,14 +266,14 @@ Before showing a command, re-read the PR and its CI live. These are two separate
 
 ```bash
 gh pr view <number> -R <owner>/<repo> --json state,headRefOid,statusCheckRollup
-gh run list -R <owner>/<repo> --commit <headSha> --json status,conclusion
+gh run list -R <owner>/<repo> --commit <headSha> --limit 100 --json workflowName,status,conclusion,createdAt
 ```
 
 The stored classification may be stale even on an unchanged head (a check can be re-run and turn red), so the command is offered only when the live reads still support it:
 
 - either read fails, the PR is not open, or `headRefOid` differs from the finding's `headSha`: offer nothing for that PR and say why; the next pipeline run re-classifies it. The one exception is the reopen that follows a close run in this same flow: the PR is then expected to be `CLOSED`, and the reopen is offered once `headRefOid` still matches and `gh run list` is still `[]`;
 - close and reopen: only while `gh run list` still returns `[]`, since any run, queued or blocked on approval, means CI was triggered after all;
-- merge: only when `gh run list` is non-empty with every run completed and none `action_required`, and every `statusCheckRollup` entry has completed with `SUCCESS`, `NEUTRAL` or `SKIPPED` (a status context with state `SUCCESS`); anything pending, failed or unreadable offers nothing.
+- merge: only when `gh run list` is non-empty and the newest run of each `workflowName` (older runs on the same head are superseded) has completed with `success`, `neutral` or `skipped`, and every `statusCheckRollup` entry has completed with `SUCCESS`, `NEUTRAL` or `SKIPPED` (a status context with state `SUCCESS`); anything pending, failed or unreadable offers nothing.
 
 Otherwise Otherwise show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. A merge is the owner's "merge it" for that named PR, nothing less.
 
