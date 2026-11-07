@@ -80,8 +80,9 @@ function isVerified(pr) {
 // always comes from the quad-state prCiState (never prCiGreen, which collapses
 // 'red', 'pending', 'none' and 'error' into one false); prCiHistory only NAMES a
 // failure, and it fails open, so it can add detail but can never turn a blocked
-// PR into an all-clear.
-async function classifyPR(gh, owner, repo, pr) {
+// PR into an all-clear. Exported for release-pending.js, which layers its
+// ci-not-triggered state on top rather than keeping a second copy.
+export async function classifyPR(gh, owner, repo, pr) {
   const state = await gh.prCiState(owner, repo, pr.head?.sha);
 
   if (state === 'green') return { state: 'awaiting-human', failing: [] };

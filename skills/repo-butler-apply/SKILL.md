@@ -252,11 +252,31 @@ B4. Render one closing panel summarising the PRs opened (and any that failed), w
 
 ## Section C — Manual tray (for your own hand)
 
-If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them; they are licence choices, policy drift, stale-Dependabot queues, and open-vulnerability states that Reginald will not presume to settle.
+If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them, except for the commands a `release-pending` finding carries (below); they are licence choices, policy drift, stale-Dependabot queues, and open-vulnerability states that Reginald will not presume to settle.
 
 One manual finding has a settings-write remediation the owner may run deliberately, but Reginald never triggers it from this skill. For an `open-vulnerability` finding whose `sources` includes `dependabot`, GitHub can open the fix PRs itself once **automated security updates** are enabled. That is the ADR-012 settings write — manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default. Mention it as an option ("this one can be remediated by enabling Dependabot security updates: dispatch Governance Apply with `tools=dependabot-security dry-run=false`"), but leave the decision — and the dispatch — to the owner. Code-scanning and secret-scanning open-vulnerability findings have no such switch (they need a code change or a secret rotation) and stay purely manual.
 
 Such a finding now carries an `autofixEnabled` field (ADR-012 Phase 3, dependabot-sourced only): `true` means GitHub's automated security fixes are already opening the bump PRs — the remediation is **in flight**, so there is nothing to dispatch; `false` means they are **not driven** and the `dependabot-security` dispatch above is the lever; `null` means the state was unreadable. When it is already `true`, say so and do not offer the enable dispatch. The reversal is `tools=dependabot-security-off dry-run=false` — it issues the ADR-012 `DELETE`, disabling the setting on the same dependabot-sourced targets. Reversal is **partial**: it reverts the *setting only*, never closing any bump PR GitHub already opened, and it leaves vulnerability-alerts on. Like the enable path it is manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default — offer it only if the owner asks to turn autofix back off, and leave the dispatch to them.
+
+### Release PRs that are waiting (`release-pending`)
+
+A `release-pending` finding is the one manual finding that carries its own commands, in `remediation.commands`: close then reopen for `state: 'ci-not-triggered'` (no GitHub Actions workflow ran on the head, though one is proven to fire on a reopen), or one merge pinned with `--match-head-commit` for `awaiting-human`. Every other state has no command, and is listed with its rationale like any other manual finding.
+
+Before showing a command, re-read the PR live:
+
+```bash
+gh pr view <number> -R <owner>/<repo> --json state,headRefOid
+```
+
+If it is no longer open, or `headRefOid` differs from the finding's `headSha`, the stored command is stale: say what changed and offer nothing for that PR, because the next pipeline run re-classifies it. Otherwise show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. A merge is the owner's "merge it" for that named PR, nothing less.
+
+After a close-and-reopen pair, record it under the one graduation-eligible class for it, with the same helper Section D uses:
+
+```bash
+node "$HYGIENE" record release-pending release-reopen-for-ci <repo> <number> <outcome>
+```
+
+`<outcome>` is `accepted-unchanged`, `edited`, `rejected` or `skipped`, as in Section D. A merge is never recorded under that class, and never graduates.
 
 ## Section D — Local hygiene (worktrees and stashes)
 

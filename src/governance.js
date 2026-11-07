@@ -2,7 +2,7 @@
 // policy drift, and health tier uplift opportunities. No LLM, no API calls.
 // Pure functions that receive portfolio data and return governance findings.
 
-import { detectEcosystem } from './safety.js';
+import { detectEcosystem, REPO_NAME_PATTERN, validateGitHubUsername } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, hasUnreadableScanner, isTierProvisional, observedFailingChecks } from './report-shared.js';
 import { createClient } from './github.js';
@@ -12,6 +12,7 @@ import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlertsWithStatus } from './stalled-alert.js';
 import { detectSecurityFixState } from './security-pr-stuck.js';
+import { detectPendingReleases } from './release-pending.js';
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
@@ -140,6 +141,15 @@ export async function runGovernance(context) {
   if (butlerPRs.length > 0) {
     context.governanceFindings.push(...butlerPRs);
     console.log(`Butler PR audit: ${butlerPRs.length} repos with stale butler PRs.`);
+  }
+
+  // Factory Phase 2: release PRs waiting past the grace period, and why.
+  // Wrapped like the audits above, for the same reason.
+  const releases = await detectPendingReleases(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => { console.error(`Release-pending detection failed: ${err.message}`); return []; });
+  if (releases.length > 0) {
+    context.governanceFindings.push(...releases);
+    console.log(`Release pending: ${releases.length} release PR(s) waiting.`);
   }
 
   // Attach the portable remediation-plan contract (ADR-007) to every finding
@@ -1106,6 +1116,26 @@ export function buildRemediationPlan(finding) {
         acceptanceCriteria: ['No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain'],
       };
     }
+    case 'release-pending': {
+      // executor 'manual': the commands are the whole remediation, and they are
+      // shown to the owner and run only on their say (factory design section 3).
+      const remedy = {
+        'ci-not-triggered': 'No GitHub Actions workflow ran on its head although one is proven to fire on a reopen — close and reopen it so CI runs.',
+        'awaiting-human': 'CI is green — it needs a merge decision.',
+        'ci-none': 'No CI signal at all on its head.',
+        'ci-pending': 'CI is still running.',
+        'blocked-persistent': 'CI failed identically on the last attempts — a rebase will not clear it.',
+        'blocked-transient': 'CI is red.',
+      }[finding.state] ?? 'Its CI state could not be established, so no command is offered.';
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Release ${finding.version ?? `PR #${finding.number}`} in ${finding.repo}`,
+        rationale: `Release PR #${finding.number} has waited ${finding.waitingDays} day(s) (state: ${finding.state}). ${remedy}`,
+        acceptanceCriteria: [`Release PR #${finding.number} is merged or closed`],
+        commands: releaseCommands(finding),
+      };
+    }
     default:
       return {
         executor: 'manual',
@@ -1115,6 +1145,29 @@ export function buildRemediationPlan(finding) {
         acceptanceCriteria: [],
       };
   }
+}
+
+const MERGE_METHODS = new Set(['squash', 'merge', 'rebase']);
+const FULL_SHA = /^[0-9a-f]{40}$/;
+
+/**
+ * Exact single-line commands for a release-pending finding, built only from
+ * validated identifiers and enum values — never from the PR title (ADR-005's
+ * fixed-string rule). Empty when any part fails validation or the state
+ * offers no safe action. The merge is pinned to the head the finding
+ * classified, so GitHub refuses it if the head has moved since.
+ * @returns {string[]}
+ */
+export function releaseCommands(finding) {
+  const { owner, repo, number, state, headSha, mergeMethod } = finding || {};
+  if (!validateGitHubUsername(owner) || typeof repo !== 'string' || !REPO_NAME_PATTERN.test(repo)) return [];
+  if (!Number.isInteger(number) || number <= 0) return [];
+  const target = `${number} -R ${owner}/${repo}`;
+  if (state === 'ci-not-triggered') return [`gh pr close ${target}`, `gh pr reopen ${target}`];
+  if (state === 'awaiting-human' && MERGE_METHODS.has(mergeMethod) && FULL_SHA.test(headSha ?? '')) {
+    return [`gh pr merge ${target} --${mergeMethod} --delete-branch --match-head-commit ${headSha}`];
+  }
+  return [];
 }
 
 /**
