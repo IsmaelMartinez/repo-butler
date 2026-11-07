@@ -299,7 +299,7 @@ describe('governance-finding schema matches buildRemediationPlan output', () => 
       { type: 'stale-butler-pr', repo: 'repo-g', stalePRs: [{ number: 9, age: 40, branch: 'repo-butler/apply-codeowners', prClass: 'apply', state: 'blocked-persistent', verified: true }] },
       { type: 'automerge-unguarded', repo: 'repo-i', priority: 'medium' },
       { type: 'security-pr-stuck', repo: 'repo-j', stuckPRs: [{ number: 12, age: 9, package: 'lodash', alerts: [4], severity: 'high', state: 'ci-red', majorBump: false, draft: false }] },
-      { type: 'release-pending', repo: 'repo-k', owner: 'o', number: 3189, title: 'chore(main): release 2.31.0', version: '2.31.0', state: 'ci-not-triggered', headSha: 'a'.repeat(40), waitingDays: 3, mergeMethod: 'squash', priority: 'medium' },
+      { type: 'release-pending', repo: 'repo-k', owner: 'o', number: 3189, version: '2.31.0', state: 'ci-not-triggered', headSha: 'a'.repeat(40), waitingDays: 3, mergeMethod: 'squash', priority: 'medium' },
       { type: 'stalled-alert', repo: 'repo-h', alerts: [{ number: 153, package: 'http-proxy-middleware', ecosystem: 'npm', manifestPath: 'docs-site/package-lock.json', severity: 'medium', ageDays: 35, classification: 'reachable-by-update', detail: 'refresh the lockfile instead' }] },
     ];
 

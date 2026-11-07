@@ -212,14 +212,46 @@ async function pagedList(gh, path, key, params = {}) {
   return null;
 }
 
-/** Did any GitHub Actions check run report on this head? true / false / null. */
-export async function actionsRanOn(gh, owner, repo, sha) {
+/**
+ * What GitHub Actions did for this head:
+ *   'ran'               — an Actions check run reported, so classifyPR can judge it
+ *   'awaiting-approval' — workflow runs exist and every one ended
+ *                         `action_required` (blocked on approval, no check run)
+ *   'queued'            — workflow runs exist but no check run yet
+ *   'none'              — no check run and no workflow run at all
+ *   null                — unreadable
+ * Workflow runs are read as well as check runs because a run blocked on
+ * approval, or still waiting for a runner, has no check run: on check runs
+ * alone it would read as "not triggered", or — beside a green external check —
+ * as green and ready to merge (teams-for-linux #3189, 2026-11-07).
+ */
+export async function actionsStateOn(gh, owner, repo, sha) {
   try {
-    const runs = await pagedList(gh, `/repos/${owner}/${repo}/commits/${sha}/check-runs`, 'check_runs');
+    const checks = await pagedList(gh, `/repos/${owner}/${repo}/commits/${sha}/check-runs`, 'check_runs');
+    if (!checks) return null;
+    if (checks.some(r => r?.app?.slug === ACTIONS_APP_SLUG)) return 'ran';
+    const runs = await pagedList(gh, `/repos/${owner}/${repo}/actions/runs`, 'workflow_runs', { head_sha: sha });
     if (!runs) return null;
-    return runs.some(r => r?.app?.slug === ACTIONS_APP_SLUG);
+    if (runs.length === 0) return 'none';
+    if (runs.every(r => r?.status === 'completed' && r?.conclusion === 'action_required')) return 'awaiting-approval';
+    return 'queued';
   } catch {
     return null;
+  }
+}
+
+// How recently the head was pushed, as the head commit's committer date.
+// release-please force-pushes its branch on every merge to main, so an old PR
+// can carry a head minutes old whose runs GitHub has not registered yet.
+const FRESH_HEAD_MS = 60 * 60 * 1000;
+
+async function headIsSettled(gh, owner, repo, sha, now) {
+  try {
+    const c = await gh.request(`/repos/${owner}/${repo}/commits/${sha}`);
+    const at = Date.parse(c?.commit?.committer?.date);
+    return Number.isFinite(at) && now - at > FRESH_HEAD_MS;
+  } catch {
+    return false;
   }
 }
 
@@ -308,17 +340,25 @@ async function regressionWaiting(gh, owner, repo) {
 }
 
 /**
- * Classify one release PR. classifyPR's state, except that a head with no
- * GitHub Actions check run becomes `ci-not-triggered` when a workflow is
+ * Classify one release PR. classifyPR's state once Actions has reported;
+ * `ci-awaiting-approval` or `ci-pending` while its runs are blocked or queued;
+ * and a head with no GitHub Actions run at all becomes `ci-not-triggered` when a workflow is
  * proven to fire on a reopen, and `unknown` when that cannot be shown (or the
  * check runs could not be read). It takes precedence over awaiting-human and
  * ci-none, which is the whole point.
  */
-export async function classifyReleasePR(gh, owner, repo, pr) {
+export async function classifyReleasePR(gh, owner, repo, pr, { now = Date.now() } = {}) {
   const sha = pr?.head?.sha;
-  const ran = await actionsRanOn(gh, owner, repo, sha);
-  if (ran === null) return 'unknown';
-  if (ran === false) {
+  const actions = await actionsStateOn(gh, owner, repo, sha);
+  if (actions === null) return 'unknown';
+  if (actions === 'awaiting-approval') return 'ci-awaiting-approval';
+  // Runs exist but none has reported: never let an external check alone read
+  // as green while Actions is still to come.
+  if (actions === 'queued') return 'ci-pending';
+  if (actions === 'none') {
+    // A head pushed within the hour may simply not have its runs yet, and an
+    // unreadable commit date proves nothing either way.
+    if (!(await headIsSettled(gh, owner, repo, sha, now))) return 'unknown';
     const applicable = await workflowsProvenApplicable(gh, owner, repo, { ref: sha, baseBranch: pr?.base?.ref });
     return applicable === true ? 'ci-not-triggered' : 'unknown';
   }
@@ -364,7 +404,8 @@ export async function detectPendingReleases(gh, owner, repos, { openPRs = null }
           repo: repo.name,
           owner,
           number: pr.number,
-          title: typeof pr.title === 'string' ? pr.title.slice(0, 200) : '',
+          // The title is never stored: it is PR text, and findings reach MCP
+          // clients next to executable commands. The version is all it carries.
           version: parseReleaseVersion(pr.title),
           state: await classifyReleasePR(gh, owner, repo.name, pr),
           headSha: pr.head?.sha ?? null,

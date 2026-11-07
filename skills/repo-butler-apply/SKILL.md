@@ -270,7 +270,7 @@ gh pr view <number> -R <owner>/<repo> --json state,headRefOid
 
 If it is no longer open, or `headRefOid` differs from the finding's `headSha`, the stored command is stale: say what changed and offer nothing for that PR, because the next pipeline run re-classifies it. Otherwise show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. A merge is the owner's "merge it" for that named PR, nothing less.
 
-After a close-and-reopen pair, record it under the one graduation-eligible class for it, with the same helper Section D uses:
+After a close-and-reopen pair, record it under the one graduation-eligible class for it, with the same helper Section D uses (`$HYGIENE` is set by the step 1b block, which always runs first):
 
 ```bash
 node "$HYGIENE" record release-pending release-reopen-for-ci <repo> <number> <outcome>

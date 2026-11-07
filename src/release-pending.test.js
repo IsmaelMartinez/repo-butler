@@ -32,6 +32,8 @@ function makeGh({
   workflows = [{ path: '.github/workflows/build.yml', state: 'active' }],
   files = { '.github/workflows/build.yml': BUILD_YML },
   baseFiles = null,
+  workflowRuns = [],
+  headPushed = daysAgoISO(4),
   ciState = 'green',
   repoInfo = { allow_squash_merge: true },
   latestRelease = { published_at: daysAgoISO(10) },
@@ -53,6 +55,8 @@ function makeGh({
         if (checkRunsThrow) throw new Error('boom');
         return { total_count: checkRuns.length, check_runs: checkRuns };
       }
+      if (path.endsWith('/actions/runs')) return { total_count: workflowRuns.length, workflow_runs: workflowRuns };
+      if (/\/commits\/[0-9a-f]{40}$/.test(path)) return { commit: { committer: { date: headPushed } } };
       if (path.endsWith('/actions/workflows')) return { total_count: workflows.length, workflows };
       const file = path.match(/\/contents\/(.+)$/)?.[1];
       if (file) {
@@ -166,7 +170,7 @@ describe('detectPendingReleases', () => {
     assert.deepEqual(buildRemediationPlan(f).commands, ['gh pr close 7 -R o/app', 'gh pr reopen 7 -R o/app']);
   });
 
-  it('takes precedence over an all-green external check (the #3189 shape)', async () => {
+  it('takes precedence over an all-green external check', async () => {
     const [f] = await detectPendingReleases(makeGh({ ciState: 'green' }), 'o', repos);
     assert.equal(f.state, 'ci-not-triggered');
   });
@@ -229,6 +233,34 @@ describe('detectPendingReleases', () => {
     assert.equal(f.state, 'ci-not-triggered');
   });
 
+  it('a queued workflow run with no check run yet is pending, never green beside an external check', async () => {
+    const [f] = await detectPendingReleases(makeGh({ workflowRuns: [{ status: 'queued', conclusion: null }] }), 'o', repos);
+    assert.equal(f.state, 'ci-pending');
+    assert.deepEqual(buildRemediationPlan(f).commands, []);
+  });
+
+  it('runs all blocked on approval are ci-awaiting-approval, with no command (the #3189 shape)', async () => {
+    const blocked = { status: 'completed', conclusion: 'action_required' };
+    const [f] = await detectPendingReleases(makeGh({ workflowRuns: [blocked, blocked] }), 'o', repos);
+    assert.equal(f.state, 'ci-awaiting-approval');
+    assert.deepEqual(buildRemediationPlan(f).commands, []);
+    const [g] = await detectPendingReleases(makeGh({ workflowRuns: [blocked, { status: 'in_progress', conclusion: null }] }), 'o', repos);
+    assert.equal(g.state, 'ci-pending');
+  });
+
+  it('is unknown for a head pushed within the hour, whose runs may not be registered yet', async () => {
+    const fresh = new Date(Date.now() - 10 * 60000).toISOString();
+    const [f] = await detectPendingReleases(makeGh({ headPushed: fresh }), 'o', repos);
+    assert.equal(f.state, 'unknown');
+    const [g] = await detectPendingReleases(makeGh({ headPushed: 'nope' }), 'o', repos);
+    assert.equal(g.state, 'unknown');
+  });
+
+  it('never stores the PR title', async () => {
+    const [f] = await detectPendingReleases(makeGh(), 'o', repos);
+    assert.equal('title' in f, false);
+  });
+
   it('is unknown when the check runs cannot be read', async () => {
     const [f] = await detectPendingReleases(makeGh({ checkRunsThrow: true }), 'o', repos);
     assert.equal(f.state, 'unknown');
@@ -278,7 +310,7 @@ describe('releaseCommands', () => {
   const base = { owner: 'o', repo: 'app', number: 7, headSha: SHA, mergeMethod: 'squash' };
 
   it('offers nothing for states without a safe action', () => {
-    for (const state of ['unknown', 'ci-none', 'ci-pending', 'blocked-persistent', 'blocked-transient']) {
+    for (const state of ['unknown', 'ci-awaiting-approval', 'ci-none', 'ci-pending', 'blocked-persistent', 'blocked-transient']) {
       assert.deepEqual(releaseCommands({ ...base, state }), [], state);
     }
   });
@@ -286,6 +318,7 @@ describe('releaseCommands', () => {
   it('never builds a command from an unvalidated identifier', () => {
     assert.deepEqual(releaseCommands({ ...base, state: 'ci-not-triggered', repo: 'app; rm -rf ~' }), []);
     assert.deepEqual(releaseCommands({ ...base, state: 'ci-not-triggered', owner: '-o' }), []);
+    assert.deepEqual(releaseCommands({ ...base, state: 'ci-not-triggered', repo: '..' }), []);
     assert.deepEqual(releaseCommands({ ...base, state: 'ci-not-triggered', number: '7' }), []);
     assert.deepEqual(releaseCommands({ ...base, state: 'awaiting-human', headSha: 'HEAD' }), []);
     assert.deepEqual(releaseCommands({ ...base, state: 'awaiting-human', mergeMethod: null }), []);

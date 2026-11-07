@@ -1121,6 +1121,7 @@ export function buildRemediationPlan(finding) {
       // shown to the owner and run only on their say (factory design section 3).
       const remedy = {
         'ci-not-triggered': 'No GitHub Actions workflow ran on its head although one is proven to fire on a reopen — close and reopen it so CI runs.',
+        'ci-awaiting-approval': 'Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.',
         'awaiting-human': 'CI is green — it needs a merge decision.',
         'ci-none': 'No CI signal at all on its head.',
         'ci-pending': 'CI is still running.',
@@ -1160,7 +1161,7 @@ const FULL_SHA = /^[0-9a-f]{40}$/;
  */
 export function releaseCommands(finding) {
   const { owner, repo, number, state, headSha, mergeMethod } = finding || {};
-  if (!validateGitHubUsername(owner) || typeof repo !== 'string' || !REPO_NAME_PATTERN.test(repo)) return [];
+  if (!validateGitHubUsername(owner) || typeof repo !== 'string' || !REPO_NAME_PATTERN.test(repo) || /^\.+$/.test(repo)) return [];
   if (!Number.isInteger(number) || number <= 0) return [];
   const target = `${number} -R ${owner}/${repo}`;
   if (state === 'ci-not-triggered') return [`gh pr close ${target}`, `gh pr reopen ${target}`];
