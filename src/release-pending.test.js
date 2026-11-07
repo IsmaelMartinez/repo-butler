@@ -182,6 +182,27 @@ describe('detectPendingReleases', () => {
     assert.deepEqual(buildRemediationPlan(f).commands, [`gh pr merge 7 -R o/app --squash --delete-branch --match-head-commit ${SHA}`]);
   });
 
+  it('mixed workflows: one passing Actions check never makes it green while another run is outstanding', async () => {
+    const actionsCheck = [{ app: { slug: 'github-actions' } }];
+    const done = { status: 'completed', conclusion: 'success' };
+    let [f] = await detectPendingReleases(makeGh({ checkRuns: actionsCheck, workflowRuns: [done, { status: 'queued', conclusion: null }] }), 'o', repos);
+    assert.equal(f.state, 'ci-pending');
+    assert.deepEqual(buildRemediationPlan(f).commands, []);
+    [f] = await detectPendingReleases(makeGh({ checkRuns: actionsCheck, workflowRuns: [done, { status: 'completed', conclusion: 'action_required' }] }), 'o', repos);
+    assert.equal(f.state, 'ci-awaiting-approval');
+    assert.deepEqual(buildRemediationPlan(f).commands, []);
+    [f] = await detectPendingReleases(makeGh({ checkRuns: actionsCheck, workflowRuns: [done, done] }), 'o', repos);
+    assert.equal(f.state, 'awaiting-human');
+  });
+
+  it('is unknown when the workflow-run list cannot be read, even with an Actions check present', async () => {
+    const gh = makeGh({ checkRuns: [{ app: { slug: 'github-actions' } }] });
+    const request = gh.request;
+    gh.request = async (path, opts) => (path.endsWith('/actions/runs') ? { workflow_runs: [] } : request(path, opts));
+    const [f] = await detectPendingReleases(gh, 'o', repos);
+    assert.equal(f.state, 'unknown');
+  });
+
   it('is unknown, with no command, when no workflow is proven to fire', async () => {
     const gh = makeGh({ workflows: [{ path: '.github/workflows/docs.yml', state: 'active' }], files: { '.github/workflows/docs.yml': DOCS_YML } });
     const [f] = await detectPendingReleases(gh, 'o', repos);

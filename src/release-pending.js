@@ -216,27 +216,29 @@ async function pagedList(gh, path, key, params = {}) {
 
 /**
  * What GitHub Actions did for this head:
- *   'ran'               — an Actions check run reported, so classifyPR can judge it
- *   'awaiting-approval' — workflow runs exist and every one ended
- *                         `action_required` (blocked on approval, no check run)
- *   'queued'            — workflow runs exist but no check run yet
- *   'none'              — no check run and no workflow run at all
+ *   'ran'               — every workflow run on the head has completed and at
+ *                         least one Actions run or check exists, so classifyPR
+ *                         can judge it
+ *   'awaiting-approval' — some run ended `action_required` (blocked on approval)
+ *   'queued'            — some run has not completed yet
+ *   'none'              — no Actions check run and no workflow run at all
  *   null                — unreadable
- * Workflow runs are read as well as check runs because a run blocked on
- * approval, or still waiting for a runner, has no check run: on check runs
- * alone it would read as "not triggered", or — beside a green external check —
- * as green and ready to merge (teams-for-linux #3189, 2026-11-07).
+ * Every workflow run is inspected, not just the check runs: a run blocked on
+ * approval, or still waiting for a runner, produces no check run, so on check
+ * runs alone it would read as "not triggered", or — beside one passing check
+ * or a green external one — as green and ready to merge (teams-for-linux
+ * #3189, 2026-11-07, and the mixed case Copilot raised on #509).
  */
 export async function actionsStateOn(gh, owner, repo, sha) {
   try {
     const checks = await pagedList(gh, `/repos/${owner}/${repo}/commits/${sha}/check-runs`, 'check_runs');
     if (!checks) return null;
-    if (checks.some(r => r?.app?.slug === ACTIONS_APP_SLUG)) return 'ran';
     const runs = await pagedList(gh, `/repos/${owner}/${repo}/actions/runs`, 'workflow_runs', { head_sha: sha });
     if (!runs) return null;
-    if (runs.length === 0) return 'none';
-    if (runs.every(r => r?.status === 'completed' && r?.conclusion === 'action_required')) return 'awaiting-approval';
-    return 'queued';
+    if (runs.some(r => r?.status !== 'completed')) return 'queued';
+    if (runs.some(r => r?.conclusion === 'action_required')) return 'awaiting-approval';
+    if (runs.length > 0 || checks.some(r => r?.app?.slug === ACTIONS_APP_SLUG)) return 'ran';
+    return 'none';
   } catch {
     return null;
   }
