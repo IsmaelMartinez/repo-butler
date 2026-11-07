@@ -35,6 +35,10 @@ if (!token) {
   process.exit(1);
 }
 
+// The shared client logs retries and skipped reads with console.log; keep
+// stdout to the single JSON object the skill parses.
+console.log = (...a) => process.stderr.write(`${a.join(' ')}\n`);
+
 const result = await recheckRelease(createClient(token), owner, repo, Number(num));
 process.stdout.write(`${JSON.stringify(result)}\n`);
 process.exit(result.error ? 1 : 0);
