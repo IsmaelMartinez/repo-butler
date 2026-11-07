@@ -2,7 +2,7 @@
 // policy drift, and health tier uplift opportunities. No LLM, no API calls.
 // Pure functions that receive portfolio data and return governance findings.
 
-import { detectEcosystem, REPO_NAME_PATTERN, validateGitHubUsername } from './safety.js';
+import { detectEcosystem } from './safety.js';
 import { TEMPLATES } from './apply-templates.js';
 import { computeHealthTier, REPO_EXCLUSION_PATTERNS, isReleaseExempt, nextTier, isHighSeverity, isAutofixNotDriven, autofixActive, TIER_RANK, isScannerUnreadable, hasUnreadableScanner, isTierProvisional, observedFailingChecks } from './report-shared.js';
 import { createClient } from './github.js';
@@ -12,7 +12,9 @@ import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlertsWithStatus } from './stalled-alert.js';
 import { detectSecurityFixState } from './security-pr-stuck.js';
-import { detectPendingReleases } from './release-pending.js';
+import { detectPendingReleases, releaseCommands } from './release-pending.js';
+
+export { releaseCommands };
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
@@ -1146,29 +1148,6 @@ export function buildRemediationPlan(finding) {
         acceptanceCriteria: [],
       };
   }
-}
-
-const MERGE_METHODS = new Set(['squash', 'merge', 'rebase']);
-const FULL_SHA = /^[0-9a-f]{40}$/;
-
-/**
- * Exact single-line commands for a release-pending finding, built only from
- * validated identifiers and enum values — never from the PR title (ADR-005's
- * fixed-string rule). Empty when any part fails validation or the state
- * offers no safe action. The merge is pinned to the head the finding
- * classified, so GitHub refuses it if the head has moved since.
- * @returns {string[]}
- */
-export function releaseCommands(finding) {
-  const { owner, repo, number, state, headSha, mergeMethod } = finding || {};
-  if (!validateGitHubUsername(owner) || typeof repo !== 'string' || !REPO_NAME_PATTERN.test(repo) || /^\.+$/.test(repo)) return [];
-  if (!Number.isInteger(number) || number <= 0) return [];
-  const target = `${number} -R ${owner}/${repo}`;
-  if (state === 'ci-not-triggered') return [`gh pr close ${target}`, `gh pr reopen ${target}`];
-  if (state === 'awaiting-human' && MERGE_METHODS.has(mergeMethod) && FULL_SHA.test(headSha ?? '')) {
-    return [`gh pr merge ${target} --${mergeMethod} --delete-branch --match-head-commit ${headSha}`];
-  }
-  return [];
 }
 
 /**

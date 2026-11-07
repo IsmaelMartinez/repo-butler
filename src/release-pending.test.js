@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isReleasePR, parseReleaseVersion, pullRequestTriggerApplies, detectPendingReleases, GRACE_DAYS,
+  isReleasePR, parseReleaseVersion, pullRequestTriggerApplies, detectPendingReleases, recheckRelease, GRACE_DAYS,
 } from './release-pending.js';
 import { buildRemediationPlan, releaseCommands } from './governance.js';
 
@@ -55,6 +55,8 @@ function makeGh({
         if (checkRunsThrow) throw new Error('boom');
         return { total_count: checkRuns.length, check_runs: checkRuns };
       }
+      const one = path.match(/\/pulls\/(\d+)$/)?.[1];
+      if (one) { const pr = prs.find(p => p.number === Number(one)); if (!pr) throw Object.assign(new Error('nf'), { status: 404 }); return pr; }
       if (path.endsWith('/actions/runs')) return { total_count: workflowRuns.length, workflow_runs: workflowRuns };
       if (/\/commits\/[0-9a-f]{40}$/.test(path)) return { commit: { committer: { date: headPushed } } };
       if (path.endsWith('/actions/workflows')) return { total_count: workflows.length, workflows };
@@ -393,5 +395,41 @@ describe('releaseCommands', () => {
   it('ignores the title entirely', () => {
     const cmds = releaseCommands({ ...base, state: 'ci-not-triggered', title: '$(curl evil)' });
     assert.ok(cmds.every(c => !c.includes('curl')));
+  });
+});
+
+describe('recheckRelease', () => {
+  it('re-runs the classification live and returns the commands for an open PR', async () => {
+    const r = await recheckRelease(makeGh({ prs: [makePR(7, { state: 'open' })] }), 'o', 'app', 7);
+    assert.equal(r.state, 'ci-not-triggered');
+    assert.equal(r.headSha, SHA);
+    assert.deepEqual(r.commands, ['gh pr close 7 -R o/app', 'gh pr reopen 7 -R o/app']);
+  });
+
+  it('offers only the reopen once the skill has closed it, and nothing once merged', async () => {
+    let r = await recheckRelease(makeGh({ prs: [makePR(7, { state: 'closed', merged_at: null })] }), 'o', 'app', 7);
+    assert.deepEqual(r.commands, ['gh pr reopen 7 -R o/app']);
+    r = await recheckRelease(makeGh({ prs: [makePR(7, { state: 'closed', merged_at: daysAgoISO(0) })] }), 'o', 'app', 7);
+    assert.deepEqual(r.commands, []);
+  });
+
+  it('refreshes the proof: a workflow disabled since detection withdraws the pair', async () => {
+    const gh = makeGh({ prs: [makePR(7, { state: 'open' })], workflows: [{ path: '.github/workflows/build.yml', state: 'disabled_manually' }] });
+    const r = await recheckRelease(gh, 'o', 'app', 7);
+    assert.equal(r.state, 'unknown');
+    assert.deepEqual(r.commands, []);
+  });
+
+  it('a merge command pins the live head', async () => {
+    const gh = makeGh({ prs: [makePR(7, { state: 'open' })], checkRuns: [{ app: { slug: 'github-actions' } }] });
+    const r = await recheckRelease(gh, 'o', 'app', 7);
+    assert.deepEqual(r.commands, [`gh pr merge 7 -R o/app --squash --delete-branch --match-head-commit ${SHA}`]);
+  });
+
+  it('refuses anything that is not a readable release PR', async () => {
+    assert.ok((await recheckRelease(makeGh({ prs: [makePR(7, { state: 'open', labels: [], user: { login: 'x' } })] }), 'o', 'app', 7)).error);
+    assert.ok((await recheckRelease(makeGh(), 'o', 'app', 99)).error);
+    assert.ok((await recheckRelease(makeGh(), 'o', '..', 7)).error);
+    assert.ok((await recheckRelease(makeGh(), 'o', 'app', '7')).error);
   });
 });

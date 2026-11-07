@@ -262,20 +262,19 @@ Such a finding now carries an `autofixEnabled` field (ADR-012 Phase 3, dependabo
 
 A `release-pending` finding is the one manual finding that carries its own commands, in `remediation.commands`: close then reopen for `state: 'ci-not-triggered'` (no GitHub Actions workflow ran on the head, though one is proven to fire on a reopen), or one merge pinned with `--match-head-commit` for `awaiting-human`. Every other state has no command, and is listed with its rationale like any other manual finding.
 
-Before showing a command, re-read the PR and its CI live. These are two separate commands, never chained:
+Before showing a command, re-classify the PR live with the pipeline's own code (read-only; it uses `GH_TOKEN` or `gh auth token`):
 
 ```bash
-gh pr view <number> -R <owner>/<repo> --json state,headRefOid,statusCheckRollup
-gh run list -R <owner>/<repo> --commit <headSha> --limit 100 --json workflowName,status,conclusion,createdAt
+node "$SKILL_DIR/../../scripts/release-check.js" <owner> <repo> <number>
 ```
 
-The stored classification may be stale even on an unchanged head (a check can be re-run and turn red), so the command is offered only when the live reads still support it:
+It prints one JSON object, `{ open, merged, headSha, state, failingWorkflows?, commands }`, re-running the whole classification against the current head: every workflow run, the check runs, and the proof that an active workflow on head and base fires on a reopen. A stored finding is never the evidence for a write, because CI can re-run on the same head and a workflow can be disabled or retriggered after detection. Offer a command only when all of these hold:
 
-- either read fails, the PR is not open, or `headRefOid` differs from the finding's `headSha`: offer nothing for that PR and say why; the next pipeline run re-classifies it. The one exception is the reopen that follows a close run in this same flow: the PR is then expected to be `CLOSED`, and the reopen is offered once `headRefOid` still matches and `gh run list` is still `[]`;
-- close and reopen: only while `gh run list` still returns `[]`, since any run, queued or blocked on approval, means CI was triggered after all;
-- merge: only when `gh run list` is non-empty and the newest run of each `workflowName` (older runs on the same head are superseded) has completed with `success`, `neutral` or `skipped`, and every `statusCheckRollup` entry has completed with `SUCCESS`, `NEUTRAL` or `SKIPPED` (a status context with state `SUCCESS`); anything pending, failed or unreadable offers nothing.
+- the script exits 0 and prints parseable JSON with no `error`;
+- its `headSha` equals the finding's `headSha` (a moved head means the finding is stale; say so, and leave the PR to the next pipeline run);
+- the command is one the script printed in `commands`, shown exactly as printed.
 
-Otherwise Otherwise show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. A merge is the owner's "merge it" for that named PR, nothing less.
+When `commands` is empty, report the live `state` (and any `failingWorkflows`, which name runs that failed without leaving a check on the PR page) and offer nothing. Show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. After a close, run the script again before offering the reopen: for a closed, unmerged PR that still reads `ci-not-triggered` it prints the reopen alone. A merge is the owner's "merge it" for that named PR, nothing less.
 
 After a close-and-reopen pair, record it under the one graduation-eligible class for it, with the same helper Section D uses (`$HYGIENE` is set by the step 1b block, which always runs first):
 

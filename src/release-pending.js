@@ -17,6 +17,7 @@
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { classifyPR } from './butler-pr-audit.js';
 import { isSameRepoPR } from './stalled-alert.js';
+import { REPO_NAME_PATTERN, validateGitHubUsername } from './safety.js';
 
 export const GRACE_DAYS = 2;
 
@@ -354,7 +355,7 @@ export async function workflowsProvenApplicable(gh, owner, repo, { ref, baseBran
 }
 
 /** The repo's preferred allowed merge method, squash first; null when unreadable or none. */
-async function preferredMergeMethod(gh, owner, repo) {
+export async function preferredMergeMethod(gh, owner, repo) {
   try {
     const r = await gh.request(`/repos/${owner}/${repo}`);
     if (r?.allow_squash_merge === true) return 'squash';
@@ -479,4 +480,64 @@ export async function detectPendingReleases(gh, owner, repos, { openPRs = null }
   }));
 
   return perRepo.flat().sort((a, b) => a.repo.localeCompare(b.repo) || a.number - b.number);
+}
+
+const MERGE_METHODS = new Set(['squash', 'merge', 'rebase']);
+const FULL_SHA = /^[0-9a-f]{40}$/;
+
+/**
+ * Exact single-line commands for a release-pending finding, built only from
+ * validated identifiers and enum values — never from the PR title (ADR-005's
+ * fixed-string rule). Empty when any part fails validation or the state
+ * offers no safe action. The merge is pinned to the head the finding
+ * classified, so GitHub refuses it if the head has moved since.
+ * @returns {string[]}
+ */
+export function releaseCommands(finding) {
+  const { owner, repo, number, state, headSha, mergeMethod } = finding || {};
+  if (!validateGitHubUsername(owner) || typeof repo !== 'string' || !REPO_NAME_PATTERN.test(repo) || /^\.+$/.test(repo)) return [];
+  if (!Number.isInteger(number) || number <= 0) return [];
+  const target = `${number} -R ${owner}/${repo}`;
+  if (state === 'ci-not-triggered') return [`gh pr close ${target}`, `gh pr reopen ${target}`];
+  if (state === 'awaiting-human' && MERGE_METHODS.has(mergeMethod) && FULL_SHA.test(headSha ?? '')) {
+    return [`gh pr merge ${target} --${mergeMethod} --delete-branch --match-head-commit ${headSha}`];
+  }
+  return [];
+}
+
+/**
+ * Re-classify one release PR live, for the apply skill to call just before it
+ * shows a command (scripts/release-check.js). It re-runs the pipeline's own
+ * classification against the current head, so the proof that a reopen can
+ * trigger CI (an active, applicable workflow on head and base) is refreshed
+ * rather than trusted from the stored finding. Read-only.
+ *
+ * Commands follow the PR's live state: an open PR gets the state's commands;
+ * a closed, unmerged PR gets only the reopen, and only while it still reads
+ * ci-not-triggered (the second half of a close-and-reopen the skill started);
+ * anything else gets none.
+ *
+ * @returns {Promise<{ open: boolean, merged: boolean, headSha: string|null, state: string, failingWorkflows?: string[], commands: string[] }|{ error: string }>}
+ */
+export async function recheckRelease(gh, owner, repo, number) {
+  if (!validateGitHubUsername(owner) || !REPO_NAME_PATTERN.test(repo ?? '') || /^\.+$/.test(repo) || !Number.isInteger(number) || number <= 0) {
+    return { error: 'invalid owner, repo or number' };
+  }
+  let pr;
+  try {
+    pr = await gh.request(`/repos/${owner}/${repo}/pulls/${number}`);
+  } catch (err) {
+    return { error: `could not read the PR (${err?.status ?? 'error'})` };
+  }
+  if (!isReleasePR(pr)) return { error: 'not a release PR' };
+  const open = pr.state === 'open';
+  const merged = Boolean(pr.merged_at);
+  const headSha = pr.head?.sha ?? null;
+  const classified = await classifyReleasePR(gh, owner, repo, pr);
+  const mergeMethod = open ? await preferredMergeMethod(gh, owner, repo) : null;
+  const all = releaseCommands({ owner, repo, number, headSha, mergeMethod, state: classified.state });
+  const commands = open ? all
+    : (!merged && classified.state === 'ci-not-triggered') ? all.filter(c => c.startsWith('gh pr reopen '))
+      : [];
+  return { open, merged, headSha, ...classified, commands };
 }
