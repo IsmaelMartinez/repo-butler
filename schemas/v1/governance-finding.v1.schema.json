@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/governance-finding.v1.schema.json",
   "title": "GovernanceFinding",
-  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale), src/butler-pr-audit.js (stale-butler-pr), src/stalled-alert.js (stalled-alert) and src/security-pr-stuck.js (security-pr-stuck). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
+  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale), src/butler-pr-audit.js (stale-butler-pr), src/stalled-alert.js (stalled-alert), src/security-pr-stuck.js (security-pr-stuck) and src/release-pending.js (release-pending). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
   "type": "object",
   "required": ["type", "priority", "remediation"],
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr", "stalled-alert", "security-pr-stuck", "automerge-unguarded"],
+      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr", "stalled-alert", "security-pr-stuck", "automerge-unguarded", "release-pending"],
       "description": "The finding category, which determines the remaining fields."
     },
     "priority": {
@@ -22,7 +22,7 @@
     },
     "repo": {
       "type": "string",
-      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr, stalled-alert, security-pr-stuck, automerge-unguarded: the affected repository name."
+      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr, stalled-alert, security-pr-stuck, automerge-unguarded, release-pending: the affected repository name."
     },
     "nonCompliant": {
       "type": "array",
@@ -184,6 +184,43 @@
         }
       }
     },
+    "owner": {
+      "type": "string",
+      "description": "release-pending only: the repository owner, validated before any command is built from it."
+    },
+    "number": {
+      "type": "integer",
+      "description": "release-pending only: the release PR number."
+    },
+    "version": {
+      "type": ["string", "null"],
+      "description": "release-pending only: the M.m.p version the title names (\"release 2.31.0\"), or null when it names none."
+    },
+    "state": {
+      "type": "string",
+      "enum": ["ci-not-triggered", "ci-awaiting-approval", "merge-conflict", "awaiting-human", "ci-none", "ci-pending", "blocked-persistent", "blocked-transient", "unknown"],
+      "description": "release-pending only. ci-not-triggered = no GitHub Actions check run or queued workflow run on a head pushed over an hour ago, while at least one active workflow is proven to fire on a reopened PR into the base branch (no paths/branches-ignore filter, a literal branch list naming the base or none, a types list naming reopened or none) — the default-token release-please case; it takes precedence over awaiting-human and ci-none. merge-conflict = no Actions run and GitHub reports the PR conflicted, so no pull_request workflow can run and a reopen would not help; no command. ci-awaiting-approval = every GitHub Actions workflow run on the head ended action_required (blocked on approval) and none produced a check run; no command, and never read as green beside an external check. ci-pending also covers Actions runs that exist but have not reported a check run yet, and blocked-transient also covers a run that failed without leaving a check run (startup_failure, cancelled). All of these judge the latest run of each workflow only, since a head keeps every run ever made for it. unknown = the check runs could not be read, or the head was pushed within the hour (its runs may not be registered yet), or no Actions ran and no workflow could be proven to fire, or a workflow file could not be read or parsed; no command is offered. The other states are classifyPR's (butler-pr-audit.js), from the five-state prCiState."
+    },
+    "failingWorkflows": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 5,
+      "description": "release-pending with a blocked state only: names of the workflows whose latest run on the head did not succeed, reduced to a plain character set and capped at 60 characters each. A run that fails before any job starts (startup_failure) leaves no check run, so the PR page looks green; this says where to look."
+    },
+    "headSha": {
+      "type": ["string", "null"],
+      "description": "release-pending only: the head SHA that was classified. A merge command is pinned to it with --match-head-commit."
+    },
+    "waitingDays": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "release-pending only: days the release PR has been open. The finding fires past a 2-day grace."
+    },
+    "mergeMethod": {
+      "type": ["string", "null"],
+      "enum": ["squash", "merge", "rebase", null],
+      "description": "release-pending only: the repo's preferred allowed merge method (squash first), or null when unreadable."
+    },
     "remediation": { "$ref": "#/$defs/RemediationPlan" }
   },
   "$defs": {
@@ -215,6 +252,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Conditions that, once true, mean the finding is resolved."
+        },
+        "commands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional. Exact single-line shell commands, never chained, built only from validated identifiers and enum values (ADR-005). Shown to the owner verbatim and run only on their say for that item. release-pending only today: close then reopen for ci-not-triggered, or a --match-head-commit merge for awaiting-human."
         }
       }
     }

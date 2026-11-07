@@ -12,6 +12,9 @@ import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlertsWithStatus } from './stalled-alert.js';
 import { detectSecurityFixState } from './security-pr-stuck.js';
+import { detectPendingReleases, releaseCommands } from './release-pending.js';
+
+export { releaseCommands };
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { detectTierChanges } from './tier-change.js';
 import { buildPortfolioSnapshot, isoWeekKey } from './store.js';
@@ -140,6 +143,15 @@ export async function runGovernance(context) {
   if (butlerPRs.length > 0) {
     context.governanceFindings.push(...butlerPRs);
     console.log(`Butler PR audit: ${butlerPRs.length} repos with stale butler PRs.`);
+  }
+
+  // Factory Phase 2: release PRs waiting past the grace period, and why.
+  // Wrapped like the audits above, for the same reason.
+  const releases = await detectPendingReleases(gh, owner, portfolio.repos, { openPRs })
+    .catch(err => { console.error(`Release-pending detection failed: ${err.message}`); return []; });
+  if (releases.length > 0) {
+    context.governanceFindings.push(...releases);
+    console.log(`Release pending: ${releases.length} release PR(s) waiting.`);
   }
 
   // Attach the portable remediation-plan contract (ADR-007) to every finding
@@ -1104,6 +1116,28 @@ export function buildRemediationPlan(finding) {
         intent: `Remediate open security alerts in ${finding.repo}`,
         rationale: `${finding.critical || 0} critical / ${finding.high || 0} high open alert(s)${secret ? ` + ${secret} secret-scanning hit(s)` : ''} from ${sources.join(', ') || 'unknown source'}.${autofixNote}`,
         acceptanceCriteria: ['No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain'],
+      };
+    }
+    case 'release-pending': {
+      // executor 'manual': the commands are the whole remediation, and they are
+      // shown to the owner and run only on their say (factory design section 3).
+      const remedy = {
+        'ci-not-triggered': 'No GitHub Actions workflow ran on its head although one is proven to fire on a reopen — close and reopen it so CI runs.',
+        'merge-conflict': 'It has merge conflicts, and GitHub runs no pull_request workflow for a conflicted PR — resolve the conflict (or let release-please regenerate the branch); a close and reopen would not start CI.',
+        'ci-awaiting-approval': 'Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.',
+        'awaiting-human': 'CI is green — it needs a merge decision.',
+        'ci-none': 'No CI signal at all on its head.',
+        'ci-pending': 'CI is still running.',
+        'blocked-persistent': 'CI failed identically on the last attempts — a rebase will not clear it.',
+        'blocked-transient': 'CI is red.',
+      }[finding.state] ?? 'Its CI state could not be established, so no command is offered.';
+      return {
+        executor: 'manual',
+        targetFiles: [],
+        intent: `Release ${finding.version ?? `PR #${finding.number}`} in ${finding.repo}`,
+        rationale: `Release PR #${finding.number} has waited ${finding.waitingDays} day(s) (state: ${finding.state}). ${remedy}${finding.failingWorkflows?.length ? ` Failing workflow run(s): ${finding.failingWorkflows.join(', ')} — a run that fails before any job starts leaves no check on the PR page, so look in the Actions tab.` : ''}`,
+        acceptanceCriteria: [`Release PR #${finding.number} is merged or closed`],
+        commands: releaseCommands(finding),
       };
     }
     default:

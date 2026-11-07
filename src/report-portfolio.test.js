@@ -799,6 +799,19 @@ describe('buildGovernanceSection', () => {
     assert.ok(html.indexOf('href="repo-a.html"') < html.indexOf('href="repo-b.html"'), 'repos are linked in name order');
   });
 
+  it('renders a Release PRs Waiting table for release-pending findings', () => {
+    const findings = [
+      { type: 'release-pending', repo: 'repo-b', owner: 'o', number: 9, version: '1.2.0', state: 'ci-not-triggered', waitingDays: 4, priority: 'high', remediation: { executor: 'manual', commands: ['gh pr close 9 -R o/repo-b'] } },
+      { type: 'release-pending', repo: 'repo-a', owner: 'o', number: 3, version: null, state: '<img src=x>', waitingDays: 3, priority: 'medium', remediation: { executor: 'manual', commands: [] } },
+    ];
+    const html = buildGovernanceSection(findings);
+    assert.ok(html.includes('Release PRs Waiting'), 'should have a heading');
+    assert.ok(html.indexOf('href="repo-a.html"') < html.indexOf('href="repo-b.html"'), 'rows in repo order');
+    assert.ok(html.includes('#9') && html.includes('1.2.0') && html.includes('CI never triggered'));
+    assert.ok(!html.includes('gh pr close'), 'commands stay off the public dashboard');
+    assert.ok(!html.includes('<img src=x>'), 'an unexpected state is escaped');
+  });
+
   it('renders a Tier Regressions table for tier-regression findings', () => {
     const findings = [
       { type: 'tier-regression', repo: 'repo-a', previousTier: 'gold', currentTier: 'silver', priorWeek: '2026-W26', priority: 'high', remediation: { executor: 'manual' } },
