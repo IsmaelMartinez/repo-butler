@@ -125,6 +125,8 @@ Owner-move factory design and Phase 1 workspace hygiene shipped 2026-11-06 (PRs 
 
 Release-pending detector with ci-not-triggered state shipped 2026-11-07 (PR #509). Enhances factory Phase 2 governance capabilities by systematically identifying pending releases and un-triggered CI states to improve automated oversight reliability.
 
+Pagination fix for GitHub check-runs in prCiState and prCiGreen shipped 2026-11-07 (PR #511). Ensures strict check-runs paging during CI state validation to maintain reliable observation and robust CI pass rate tracking across repositories.
+
 ---
 
 ## Next Up
