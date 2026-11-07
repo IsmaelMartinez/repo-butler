@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, requiresStatusChecks, getAutomatedSecurityFixesState, getLargeFileContent } from './github.js';
+import { createClient, redactRepoPath, hasActiveCopilotReviewRuleset, requiresStatusChecks, getAutomatedSecurityFixesState, getLargeFileContent, checkRunsPage } from './github.js';
 
 // Helper: build a fetch response object compatible with the github.js client.
 function jsonResponse(body, { status = 200, headers = new Map() } = {}) {
@@ -635,7 +635,7 @@ describe('createClient — prCiGreen', () => {
   function route(checkRuns, statusBody) {
     return mock.fn(async (url) => {
       const u = url.toString();
-      if (u.includes('/check-runs')) return jsonResponse({ check_runs: checkRuns });
+      if (u.includes('/check-runs')) return jsonResponse({ total_count: checkRuns.length, check_runs: checkRuns });
       if (u.endsWith('/status')) return jsonResponse(statusBody);
       return jsonResponse({});
     });
@@ -1122,5 +1122,41 @@ describe('createClient — paginate (#501)', () => {
       createClient('tok', { redactPaths: true }).paginate('/repos/o/secret-thing/issues'),
       (err) => !err.message.includes('secret-thing') && err.message.includes('<redacted>'),
     );
+  });
+});
+
+// #510: a malformed check-runs page used to end paging as a complete empty
+// list, which beside a green combined status read as green — and prCiGreen is
+// the ADR-007 merge guard. Every shape below must be unreadable instead.
+describe('createClient — strict check-runs paging (#510)', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  const malformed = {
+    'a non-array check_runs': { total_count: 0, check_runs: { oops: true } },
+    'a missing total_count': { check_runs: [] },
+    'a string total_count': { total_count: '0', check_runs: [] },
+    'an empty page before the count is reached': { total_count: 3, check_runs: [] },
+  };
+
+  for (const [name, page] of Object.entries(malformed)) {
+    it(`${name} is unknown to prCiState and not green to prCiGreen`, async () => {
+      globalThis.fetch = mock.fn(async (url) => {
+        const u = url.toString();
+        if (u.includes('/check-runs')) return jsonResponse(page);
+        if (u.endsWith('/status')) return jsonResponse({ state: 'success', statuses: [{ state: 'success' }] });
+        return jsonResponse({});
+      });
+      const gh = createClient('tok');
+      assert.equal(await gh.prCiState('o', 'r', 'sha'), 'unknown');
+      assert.equal(await gh.prCiGreen('o', 'r', 'sha'), false);
+    });
+  }
+
+  it('checkRunsPage accepts a well-formed page and a genuine empty list', () => {
+    assert.deepEqual(checkRunsPage({ total_count: 0, check_runs: [] }, 0), { batch: [], done: true });
+    assert.deepEqual(checkRunsPage({ total_count: 2, check_runs: [{}] }, 0), { batch: [{}], done: false });
+    assert.deepEqual(checkRunsPage({ total_count: 2, check_runs: [{}] }, 1), { batch: [{}], done: true });
   });
 });

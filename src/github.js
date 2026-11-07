@@ -28,6 +28,21 @@ export function redactRepoPath(path) {
  *   so logs stay debuggable; there is no reason to blunt them for the 13 repos
  *   whose names are already public.
  */
+// One check-runs page, strictly (#510). A page whose `check_runs` is not an
+// array, whose `total_count` is not a non-negative integer, or that comes back
+// empty before the count is reached is unreadable (null), never a complete
+// empty list: coercing either field let a malformed 200 end paging as "no
+// check runs", which with green statuses read as green — and prCiGreen is a
+// merge guard. Returns { batch, done } otherwise.
+export function checkRunsPage(cr, collected) {
+  const batch = cr?.check_runs;
+  const total = cr?.total_count;
+  if (!Array.isArray(batch) || typeof total !== 'number' || !Number.isInteger(total) || total < 0) return null;
+  if (collected + batch.length >= total) return { batch, done: true };
+  if (batch.length === 0) return null;
+  return { batch, done: false };
+}
+
 export function createClient(token, options = {}) {
   const redactPaths = !!options.redactPaths;
   const safePath = p => (redactPaths ? redactRepoPath(p) : p);
@@ -275,10 +290,10 @@ export function createClient(token, options = {}) {
       let complete = false;
       for (let page = 1; page <= 10; page++) {
         const cr = await request(`/repos/${owner}/${repo}/commits/${ref}/check-runs`, { params: { per_page: 100, page } });
-        const batch = Array.isArray(cr?.check_runs) ? cr.check_runs : [];
-        runs.push(...batch);
-        const total = Number(cr?.total_count) || 0;
-        if (batch.length === 0 || runs.length >= total) { complete = true; break; }
+        const pg = checkRunsPage(cr, runs.length);
+        if (!pg) break;
+        runs.push(...pg.batch);
+        if (pg.done) { complete = true; break; }
       }
       // Hit the 10-page cap without collecting every run (>1000 check-runs): the
       // full set is unverifiable, so fail closed rather than risk merging past a
@@ -333,10 +348,10 @@ export function createClient(token, options = {}) {
       let complete = false;
       for (let page = 1; page <= 10; page++) {
         const cr = await request(`/repos/${owner}/${repo}/commits/${ref}/check-runs`, { params: { per_page: 100, page } });
-        const batch = Array.isArray(cr?.check_runs) ? cr.check_runs : [];
-        runs.push(...batch);
-        const total = Number(cr?.total_count) || 0;
-        if (batch.length === 0 || runs.length >= total) { complete = true; break; }
+        const pg = checkRunsPage(cr, runs.length);
+        if (!pg) break;
+        runs.push(...pg.batch);
+        if (pg.done) { complete = true; break; }
       }
       // Same runaway backstop as prCiGreen; an incomplete read is 'unknown'
       // rather than a guess in either direction.
