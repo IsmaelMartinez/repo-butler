@@ -103,7 +103,7 @@ The single glyph between the cuffs `( | X | )` is the tray's content slot: `o` f
 |                                                                |
 |     ,---.                                                      |
 |     | B B |  "Which tray shall I action, sir?"                 |
-|     | ~m~ |   "(template / agent / none)"                      |
+|     | ~m~ |   "(template / agent / release / none)"            |
 |    ( |o| )                                                     |
 |     \===/                                                      |
 |    [_____]                                    -- Reginald      |
@@ -111,7 +111,7 @@ The single glyph between the cuffs `( | X | )` is the tray's content slot: `o` f
 +================================================================+
 ```
 
-7. After rendering, ask the user which tray to action. Lowercase the reply and trim whitespace. `template` actions the template tray (Section A). `agent` actions the agent tray (Section B). `local` goes straight to Section D: local cleanup only, with no governance write and no `gh` identity check, because it touches nothing on GitHub. Anything else — including `none`, `manual`, `no` — means abort: Reginald replies "Very good, sir. The tray remains on the sideboard." and stops. The governance manual tray is never actioned; it is presented for the owner's own attention. Local hygiene (Section D) is the one exception: its commands may be run item by item, each on its own yes. After Section A or B finishes, offer Section D too, if step 1b found anything.
+7. After rendering, ask the user which tray to action. Lowercase the reply and trim whitespace. `template` actions the template tray (Section A). `agent` actions the agent tray (Section B). `local` goes straight to Section D: local cleanup only, with no governance write and no `gh` identity check, because it touches nothing on GitHub. `release` goes to the release-pending part of Section C, after the step 8 identity check, and touches no other manual finding. Anything else — including `none`, `manual`, `no` — means abort: Reginald replies "Very good, sir. The tray remains on the sideboard." and stops. The governance manual tray is never actioned; it is presented for the owner's own attention. Local hygiene (Section D) is the one exception: its commands may be run item by item, each on its own yes. After Section A or B finishes, offer Section D too, if step 1b found anything.
 
 8. Before any write, verify the active `gh` identity matches `$OWNER`. If `gh` is signed in as someone else, render the abort comic below and stop without dispatching or drafting:
 
@@ -262,13 +262,20 @@ Such a finding now carries an `autofixEnabled` field (ADR-012 Phase 3, dependabo
 
 A `release-pending` finding is the one manual finding that carries its own commands, in `remediation.commands`: close then reopen for `state: 'ci-not-triggered'` (no GitHub Actions workflow ran on the head, though one is proven to fire on a reopen), or one merge pinned with `--match-head-commit` for `awaiting-human`. Every other state has no command, and is listed with its rationale like any other manual finding.
 
-Before showing a command, re-read the PR live:
+Before showing a command, re-read the PR and its CI live. These are two separate commands, never chained:
 
 ```bash
-gh pr view <number> -R <owner>/<repo> --json state,headRefOid
+gh pr view <number> -R <owner>/<repo> --json state,headRefOid,statusCheckRollup
+gh run list -R <owner>/<repo> --commit <headSha> --json status,conclusion
 ```
 
-If it is no longer open, or `headRefOid` differs from the finding's `headSha`, the stored command is stale: say what changed and offer nothing for that PR, because the next pipeline run re-classifies it. Otherwise show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. A merge is the owner's "merge it" for that named PR, nothing less.
+The stored classification may be stale even on an unchanged head (a check can be re-run and turn red), so the command is offered only when the live reads still support it:
+
+- either read fails, the PR is no longer open, or `headRefOid` differs from the finding's `headSha`: offer nothing for that PR and say why; the next pipeline run re-classifies it;
+- close and reopen: only while `gh run list` still returns `[]`, since any run, queued or blocked on approval, means CI was triggered after all;
+- merge: only when `gh run list` is non-empty with every run completed and none `action_required`, and every `statusCheckRollup` entry has completed with `SUCCESS`, `NEUTRAL` or `SKIPPED` (a status context with state `SUCCESS`); anything pending, failed or unreadable offers nothing.
+
+Otherwise Otherwise show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. A merge is the owner's "merge it" for that named PR, nothing less.
 
 After a close-and-reopen pair, record it under the one graduation-eligible class for it, with the same helper Section D uses (`$HYGIENE` is set by the step 1b block, which always runs first):
 

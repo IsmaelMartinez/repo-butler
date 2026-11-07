@@ -204,10 +204,12 @@ async function pagedList(gh, path, key, params = {}) {
     if (!batch) return null;
     items.push(...batch);
     // Without a count a short read cannot be told from a complete one, and a
-    // missed check run would read as "no Actions ran" — so it is unreadable.
-    const total = Number(res?.total_count);
-    if (!Number.isFinite(total)) return null;
-    if (batch.length === 0 || items.length >= total) return items;
+    // missed check run would read as "no Actions ran" — so it is unreadable,
+    // as is an empty page that arrives before the count is reached.
+    const total = res?.total_count;
+    if (typeof total !== 'number' || !Number.isInteger(total) || total < 0) return null;
+    if (items.length >= total) return items;
+    if (batch.length === 0) return null;
   }
   return null;
 }
@@ -260,9 +262,10 @@ const ABSENT = Symbol('absent');
 // A workflow file's text, ABSENT, or null (unreadable). GitHub keeps a deleted
 // workflow registered as `active`, so a 404 must not poison the whole repo —
 // but getFileContent folds 404 into every other failure, hence the direct read.
-// A pull_request run uses the merge of head into base, so a file counts as
-// absent only when neither side has it; present on base but not at the head
-// cannot be judged from the head alone, so it is unreadable.
+// A pull_request run uses the merge of head into base, so both sides are
+// read: absent only when neither side has it; the head's copy when base lacks
+// it (the PR adds it); unreadable when only base has it, or when the two
+// copies differ, since the merged definition cannot be judged from either.
 async function readWorkflowFile(gh, owner, repo, path, { ref, baseBranch }) {
   const read = async (at) => {
     try {
@@ -272,9 +275,11 @@ async function readWorkflowFile(gh, owner, repo, path, { ref, baseBranch }) {
       return err?.status === 404 ? ABSENT : null;
     }
   };
-  const atHead = await read(ref);
-  if (atHead !== ABSENT) return atHead;
-  return (await read(baseBranch)) === ABSENT ? ABSENT : null;
+  const [atHead, atBase] = await Promise.all([read(ref), read(baseBranch)]);
+  if (atHead === null || atBase === null) return null;
+  if (atHead === ABSENT) return atBase === ABSENT ? ABSENT : null;
+  if (atBase === ABSENT) return atHead;
+  return atHead === atBase ? atHead : null;
 }
 
 /**
@@ -385,10 +390,12 @@ export async function detectPendingReleases(gh, owner, repos, { openPRs = null }
       const waiting = [];
       for (const pr of prs) {
         if (!isReleasePR(pr)) continue;
-        const waitingDays = Math.floor((now - new Date(pr.created_at).getTime()) / 86400000);
-        // Negated so an unparseable created_at (NaN) skips the PR rather than
-        // reporting one of unknown age (butler-pr-audit.js does the same).
-        if (!(waitingDays > GRACE_DAYS)) continue;
+        const ageDays = (now - new Date(pr.created_at).getTime()) / 86400000;
+        // Unrounded, so the grace is two days and not three. Negated so an
+        // unparseable created_at (NaN) skips the PR rather than reporting one
+        // of unknown age (butler-pr-audit.js does the same).
+        if (!(ageDays > GRACE_DAYS)) continue;
+        const waitingDays = Math.floor(ageDays);
         waiting.push({ pr, waitingDays });
       }
       if (waiting.length === 0) return [];

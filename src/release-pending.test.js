@@ -223,6 +223,18 @@ describe('detectPendingReleases', () => {
     assert.equal(f.state, 'unknown');
   });
 
+  it('is unknown when the head and base copies of a workflow differ', async () => {
+    const gh = makeGh({ baseFiles: { '.github/workflows/build.yml': 'on:\n  pull_request:\n    types: [opened]\n' } });
+    const [f] = await detectPendingReleases(gh, 'o', repos);
+    assert.equal(f.state, 'unknown');
+  });
+
+  it('uses the head copy of a workflow the PR adds', async () => {
+    const gh = makeGh({ baseFiles: {} });
+    const [f] = await detectPendingReleases(gh, 'o', repos);
+    assert.equal(f.state, 'ci-not-triggered');
+  });
+
   it('ignores disabled and dynamic workflows', async () => {
     const gh = makeGh({ workflows: [
       { path: '.github/workflows/build.yml', state: 'active' },
@@ -266,12 +278,25 @@ describe('detectPendingReleases', () => {
     assert.equal(f.state, 'unknown');
   });
 
+  it('is unknown when an empty page arrives before the reported count', async () => {
+    const gh = makeGh();
+    const request = gh.request;
+    gh.request = async (path, opts) => (path.includes('/check-runs') ? { total_count: 1, check_runs: [] } : request(path, opts));
+    const [f] = await detectPendingReleases(gh, 'o', repos);
+    assert.equal(f.state, 'unknown');
+  });
+
   it('is unknown when the check-runs page carries no count, since a short read looks complete', async () => {
     const gh = makeGh();
     const request = gh.request;
     gh.request = async (path, opts) => (path.includes('/check-runs') ? { check_runs: [] } : request(path, opts));
     const [f] = await detectPendingReleases(gh, 'o', repos);
     assert.equal(f.state, 'unknown');
+  });
+
+  it('the grace is two days, not three: 2.5 days open is reported as 2', async () => {
+    const [f] = await detectPendingReleases(makeGh({ prs: [makePR(7, { created_at: daysAgoISO(2.5) })] }), 'o', repos);
+    assert.equal(f.waitingDays, 2);
   });
 
   it(`stays silent inside the ${GRACE_DAYS}-day grace, and for an unparseable age`, async () => {

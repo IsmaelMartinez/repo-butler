@@ -201,6 +201,7 @@ export function buildGovernanceSection(findings) {
   const stalledAlerts = findings.filter(f => f.type === 'stalled-alert');
   const stuckSecurity = findings.filter(f => f.type === 'security-pr-stuck');
   const unguarded = findings.filter(f => f.type === 'automerge-unguarded');
+  const releases = findings.filter(f => f.type === 'release-pending');
 
   const parts = [];
 
@@ -373,6 +374,38 @@ export function buildGovernanceSection(findings) {
     parts.push(`<h3>Unguarded Auto-merge</h3>
 <p>${links}</p>
 <p class="muted">Dependabot auto-merge is on but the default branch requires no status check, so a bump can merge before CI runs. Add a non-strict ruleset requiring checks that report on every PR.</p>`);
+  }
+
+  // Release PRs waiting past the grace (factory Phase 2). Numbers, versions,
+  // ages and states only; the commands stay with the apply skill, which re-reads
+  // the PR before showing them.
+  if (releases.length > 0) {
+    const label = {
+      'ci-not-triggered': 'CI never triggered',
+      'ci-awaiting-approval': 'CI runs awaiting approval',
+      'awaiting-human': 'green, awaiting merge',
+      'ci-none': 'no CI signal',
+      'ci-pending': 'CI pending',
+      'blocked-persistent': 'CI failing persistently',
+      'blocked-transient': 'CI red',
+      unknown: 'CI state unknown',
+    };
+    const rows = releases
+      .slice()
+      .sort((a, b) => a.repo.localeCompare(b.repo) || a.number - b.number)
+      .map(f => `<tr>
+  <td><a href="${escHtml(f.repo)}.html">${escHtml(f.repo)}</a></td>
+  <td>#${escHtml(String(f.number))}${f.version ? ` <span class="muted">${escHtml(f.version)}</span>` : ''}</td>
+  <td>${escHtml(String(f.waitingDays))}d</td>
+  <td>${escHtml(label[f.state] || f.state)}${f.priority === 'high' ? ' <span class="muted">(a bug filed since the last release is waiting on it)</span>' : ''}</td>
+</tr>`)
+      .join('');
+    parts.push(`<h3>Release PRs Waiting</h3>
+<p class="muted">Release PRs open past a 2-day grace. <em>CI never triggered</em> = no Actions run on the head though a workflow is proven to fire on a reopen; close and reopen it.</p>
+<div class="chart-container">
+<table><thead><tr><th>Repo</th><th>PR</th><th>Waiting</th><th>State</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</div>`);
   }
 
   // The butler's own PRs that never landed. Rendered explicitly because a
