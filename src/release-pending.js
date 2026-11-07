@@ -301,6 +301,16 @@ async function headIsSettled(gh, owner, repo, sha, now) {
   }
 }
 
+async function readMergeable(gh, owner, repo, pr) {
+  if (typeof pr?.mergeable === 'boolean') return pr.mergeable;
+  try {
+    const full = await gh.request(`/repos/${owner}/${repo}/pulls/${pr?.number}`);
+    return typeof full?.mergeable === 'boolean' ? full.mergeable : null;
+  } catch {
+    return null;
+  }
+}
+
 const ABSENT = Symbol('absent');
 
 // A workflow file's text, ABSENT, or null (unreadable). GitHub keeps a deleted
@@ -415,6 +425,13 @@ export async function classifyReleasePR(gh, owner, repo, pr, { now = Date.now() 
     // A head pushed within the hour may simply not have its runs yet, and an
     // unreadable commit date proves nothing either way.
     if (!(await headIsSettled(gh, owner, repo, sha, now))) return { state: 'unknown' };
+    // GitHub runs no pull_request workflow for a conflicted PR, so a matching
+    // trigger proves nothing there and a reopen would not start CI. The list
+    // endpoint carries no `mergeable`, so it is read from the PR itself; null
+    // means GitHub is still computing it.
+    const mergeable = await readMergeable(gh, owner, repo, pr);
+    if (mergeable === false) return { state: 'merge-conflict' };
+    if (mergeable !== true) return { state: 'unknown' };
     const applicable = await workflowsProvenApplicable(gh, owner, repo, { ref: sha, baseBranch: pr?.base?.ref });
     return { state: applicable === true ? 'ci-not-triggered' : 'unknown' };
   }

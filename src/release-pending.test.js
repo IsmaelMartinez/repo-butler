@@ -17,6 +17,7 @@ function makePR(number, overrides = {}) {
     labels: [{ name: 'autorelease: pending' }],
     head: { ref: 'release-please--branches--main', sha: SHA, repo: { full_name: 'o/app' } },
     base: { ref: 'main', repo: { full_name: 'o/app' } },
+    mergeable: true,
     ...overrides,
   };
 }
@@ -34,6 +35,7 @@ function makeGh({
   baseFiles = null,
   workflowRuns = [],
   headPushed = daysAgoISO(4),
+  fullPR = null,
   ciState = 'green',
   repoInfo = { allow_squash_merge: true },
   latestRelease = { published_at: daysAgoISO(10) },
@@ -56,7 +58,7 @@ function makeGh({
         return { total_count: checkRuns.length, check_runs: checkRuns };
       }
       const one = path.match(/\/pulls\/(\d+)$/)?.[1];
-      if (one) { const pr = prs.find(p => p.number === Number(one)); if (!pr) throw Object.assign(new Error('nf'), { status: 404 }); return pr; }
+      if (one) { if (fullPR) return fullPR; const pr = prs.find(p => p.number === Number(one)); if (!pr) throw Object.assign(new Error('nf'), { status: 404 }); return pr; }
       if (path.endsWith('/actions/runs')) return { total_count: workflowRuns.length, workflow_runs: workflowRuns };
       if (/\/commits\/[0-9a-f]{40}$/.test(path)) return { commit: { committer: { date: headPushed } } };
       if (path.endsWith('/actions/workflows')) return { total_count: workflows.length, workflows };
@@ -222,6 +224,20 @@ describe('detectPendingReleases', () => {
     const request = gh.request;
     gh.request = async (path, opts) => (path.endsWith('/actions/runs') ? { workflow_runs: [] } : request(path, opts));
     const [f] = await detectPendingReleases(gh, 'o', repos);
+    assert.equal(f.state, 'unknown');
+  });
+
+  it('a conflicted PR is merge-conflict, not ci-not-triggered: GitHub runs no workflow for it', async () => {
+    const [f] = await detectPendingReleases(makeGh({ prs: [makePR(7, { mergeable: false })] }), 'o', repos);
+    assert.equal(f.state, 'merge-conflict');
+    assert.deepEqual(buildRemediationPlan(f).commands, []);
+  });
+
+  it('reads mergeability from the PR itself when the list omits it, and is unknown while GitHub computes it', async () => {
+    const listed = makePR(7, { mergeable: undefined });
+    let [f] = await detectPendingReleases(makeGh({ prs: [listed], fullPR: { ...listed, mergeable: true } }), 'o', repos);
+    assert.equal(f.state, 'ci-not-triggered');
+    [f] = await detectPendingReleases(makeGh({ prs: [listed], fullPR: { ...listed, mergeable: null } }), 'o', repos);
     assert.equal(f.state, 'unknown');
   });
 

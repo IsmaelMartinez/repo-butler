@@ -383,6 +383,7 @@ export function buildGovernanceSection(findings) {
     const label = {
       'ci-not-triggered': 'CI never triggered',
       'ci-awaiting-approval': 'CI runs awaiting approval',
+      'merge-conflict': 'merge conflict, so CI cannot run',
       'awaiting-human': 'green, awaiting merge',
       'ci-none': 'no CI signal',
       'ci-pending': 'CI pending',

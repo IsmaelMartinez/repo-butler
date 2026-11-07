@@ -1123,6 +1123,7 @@ export function buildRemediationPlan(finding) {
       // shown to the owner and run only on their say (factory design section 3).
       const remedy = {
         'ci-not-triggered': 'No GitHub Actions workflow ran on its head although one is proven to fire on a reopen — close and reopen it so CI runs.',
+        'merge-conflict': 'It has merge conflicts, and GitHub runs no pull_request workflow for a conflicted PR — resolve the conflict (or let release-please regenerate the branch); a close and reopen would not start CI.',
         'ci-awaiting-approval': 'Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.',
         'awaiting-human': 'CI is green — it needs a merge decision.',
         'ci-none': 'No CI signal at all on its head.',
