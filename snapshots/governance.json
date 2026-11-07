@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "type": "tier-uplift",
+    "repo": "teams-for-linux",
+    "currentTier": "silver",
+    "targetTier": "gold",
+    "failingChecks": [
+      {
+        "name": "Fewer than 10 open bugs",
+        "required_for": "gold"
+      }
+    ],
+    "priority": "high",
+    "remediation": {
+      "executor": "agent",
+      "targetFiles": [],
+      "intent": "Uplift teams-for-linux from silver to gold",
+      "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
+      "acceptanceCriteria": [
+        "Check \"Fewer than 10 open bugs\" passes"
+      ]
+    }
+  }
+]
