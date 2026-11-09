@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-11-08
+**Last Updated:** 2026-11-09
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -57,9 +57,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-08** — 21 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374, #375, #378, #380, #381, #383, #384, #385, #386, #387, #388, #389, #390). Full details in git history.
 
-**2026-09** — 2 entries (#391, #396). Full details in git history.
-
-Automated dependency deployment workflow update shipped 2026-09-10 (PR #398). Maintains CI/CD pipeline health and ensures the project's documentation and live roadmap deployment workflows remain fully functional and secure by updating dependency actions.
+**2026-09** — 3 entries (#391, #396, #398). Full details in git history.
 
 Repo Butler v1.1.2 stable release deployed 2026-09-15 (v1.1.2). This release consolidates the stable, feature-complete state of the pipeline, including the section-edit roadmap update engine, cross-repo PROPOSE, and the completed OSV-Scanner security migration, ensuring reliable continuous planning on its daily schedule.
 
