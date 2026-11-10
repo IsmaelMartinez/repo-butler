@@ -212,12 +212,12 @@
     "teams-for-linux": {
       "id": 151476958,
       "open_issues": 27,
-      "open_bugs": 10,
-      "commits_6mo": 402,
-      "stars": 5225,
+      "open_bugs": 11,
+      "commits_6mo": 403,
+      "stars": 5226,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9767441860465116,
+      "ciPassRate": 1,
       "vulns": {
         "count": 4,
         "critical": 0,
@@ -239,15 +239,15 @@
       },
       "ci": 20,
       "released_at": "2026-11-07T10:16:14Z",
-      "pushed_at": "2026-11-09T20:16:30Z",
+      "pushed_at": "2026-11-10T09:45:09Z",
       "traffic": {
         "views_14d": {
-          "count": 11146,
-          "uniques": 6620
+          "count": 11161,
+          "uniques": 6523
         },
         "clones_14d": {
-          "count": 5975,
-          "uniques": 814
+          "count": 5935,
+          "uniques": 843
         }
       },
       "computed": {
@@ -321,7 +321,7 @@
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.96875,
+      "ciPassRate": 0.9791666666666666,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-10-31T08:20:29Z",
-      "pushed_at": "2026-11-10T01:18:39Z",
+      "pushed_at": "2026-11-10T14:26:48Z",
       "traffic": {
         "views_14d": {
-          "count": 65,
-          "uniques": 13
+          "count": 64,
+          "uniques": 11
         },
         "clones_14d": {
-          "count": 864,
-          "uniques": 234
+          "count": 927,
+          "uniques": 238
         }
       },
       "computed": {
@@ -759,15 +759,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-11-10T00:55:48Z",
+      "pushed_at": "2026-11-10T13:52:44Z",
       "traffic": {
         "views_14d": {
-          "count": 312,
-          "uniques": 261
+          "count": 311,
+          "uniques": 262
         },
         "clones_14d": {
-          "count": 1871,
-          "uniques": 518
+          "count": 1917,
+          "uniques": 534
         }
       },
       "computed": {
