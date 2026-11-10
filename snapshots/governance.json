@@ -23,6 +23,28 @@
   },
   {
     "type": "release-pending",
+    "repo": "delegate-local",
+    "owner": "IsmaelMartinez",
+    "number": 692,
+    "version": "0.51.2",
+    "state": "ci-awaiting-approval",
+    "headSha": "16233ac09c7c688f95e1e166d1e0a8805555466a",
+    "waitingDays": 2,
+    "mergeMethod": "squash",
+    "priority": "medium",
+    "remediation": {
+      "executor": "manual",
+      "targetFiles": [],
+      "intent": "Release 0.51.2 in delegate-local",
+      "rationale": "Release PR #692 has waited 2 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+      "acceptanceCriteria": [
+        "Release PR #692 is merged or closed"
+      ],
+      "commands": []
+    }
+  },
+  {
+    "type": "release-pending",
     "repo": "teams-for-linux",
     "owner": "IsmaelMartinez",
     "number": 3189,
