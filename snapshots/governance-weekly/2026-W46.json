@@ -1,28 +1,6 @@
 {
   "findings": [
     {
-      "type": "tier-uplift",
-      "repo": "teams-for-linux",
-      "currentTier": "silver",
-      "targetTier": "gold",
-      "failingChecks": [
-        {
-          "name": "Fewer than 10 open bugs",
-          "required_for": "gold"
-        }
-      ],
-      "priority": "high",
-      "remediation": {
-        "executor": "agent",
-        "targetFiles": [],
-        "intent": "Uplift teams-for-linux from silver to gold",
-        "rationale": "1 check(s) block gold: Fewer than 10 open bugs.",
-        "acceptanceCriteria": [
-          "Check \"Fewer than 10 open bugs\" passes"
-        ]
-      }
-    },
-    {
       "type": "release-pending",
       "repo": "delegate-local",
       "owner": "IsmaelMartinez",
@@ -30,14 +8,14 @@
       "version": "0.51.2",
       "state": "ci-awaiting-approval",
       "headSha": "16233ac09c7c688f95e1e166d1e0a8805555466a",
-      "waitingDays": 2,
+      "waitingDays": 3,
       "mergeMethod": "squash",
       "priority": "medium",
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Release 0.51.2 in delegate-local",
-        "rationale": "Release PR #692 has waited 2 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+        "rationale": "Release PR #692 has waited 3 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
         "acceptanceCriteria": [
           "Release PR #692 is merged or closed"
         ],
