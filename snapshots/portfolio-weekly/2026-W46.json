@@ -211,13 +211,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 27,
-      "open_bugs": 11,
-      "commits_6mo": 405,
-      "stars": 5226,
+      "open_issues": 24,
+      "open_bugs": 9,
+      "commits_6mo": 402,
+      "stars": 5228,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.8809523809523809,
+      "ciPassRate": 0.868421052631579,
       "vulns": {
         "count": 4,
         "critical": 0,
@@ -238,20 +238,20 @@
         "count": 0
       },
       "ci": 20,
-      "released_at": "2026-11-10T19:43:56Z",
-      "pushed_at": "2026-11-10T19:43:56Z",
+      "released_at": "2026-11-11T01:16:40Z",
+      "pushed_at": "2026-11-11T01:16:40Z",
       "traffic": {
         "views_14d": {
-          "count": 11161,
-          "uniques": 6523
+          "count": 11115,
+          "uniques": 6373
         },
         "clones_14d": {
-          "count": 5935,
-          "uniques": 843
+          "count": 6080,
+          "uniques": 837
         }
       },
       "computed": {
-        "tier": "silver",
+        "tier": "gold",
         "provisional": false,
         "checks": [
           {
@@ -266,7 +266,7 @@
           },
           {
             "name": "Fewer than 10 open bugs",
-            "passed": false,
+            "passed": true,
             "required_for": "gold"
           },
           {
@@ -310,7 +310,7 @@
             "required_for": "bronze"
           }
         ],
-        "next_step": "Fewer than 10 open bugs"
+        "next_step": null
       }
     },
     "ismaelmartinez.me.uk": {
@@ -343,14 +343,14 @@
       },
       "ci": 12,
       "released_at": "2026-10-31T08:20:29Z",
-      "pushed_at": "2026-11-10T20:27:15Z",
+      "pushed_at": "2026-11-10T22:57:46Z",
       "traffic": {
         "views_14d": {
           "count": 64,
-          "uniques": 11
+          "uniques": 12
         },
         "clones_14d": {
-          "count": 927,
+          "count": 930,
           "uniques": 238
         }
       },
@@ -759,15 +759,15 @@
       },
       "ci": 14,
       "released_at": "2026-09-15T11:05:19Z",
-      "pushed_at": "2026-11-10T15:22:54Z",
+      "pushed_at": "2026-11-11T13:05:12Z",
       "traffic": {
         "views_14d": {
-          "count": 311,
-          "uniques": 262
+          "count": 305,
+          "uniques": 258
         },
         "clones_14d": {
-          "count": 1917,
-          "uniques": 534
+          "count": 2001,
+          "uniques": 544
         }
       },
       "computed": {
