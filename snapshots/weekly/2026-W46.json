@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-12T22:00:00.900Z",
+  "timestamp": "2026-11-13T15:01:44.538Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-11-12T15:44:18Z",
+    "pushed_at": "2026-11-13T13:31:39Z",
     "archived": false
   },
   "issues": {
@@ -1171,27 +1171,6 @@
         "author": "repo-butler-app[bot]",
         "labels": [],
         "merged_at": "2026-08-15T07:09:10Z"
-      },
-      {
-        "number": 380,
-        "title": "fix(detection): hasActiveCopilotReviewRuleset is tri-state, and its guard fails closed",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-14T08:32:56Z"
-      },
-      {
-        "number": 378,
-        "title": "fix(detection): stop transient failures reporting as non-compliance",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-14T06:39:11Z"
-      },
-      {
-        "number": 377,
-        "title": "chore: update roadmap (repo-butler)",
-        "author": "repo-butler-app[bot]",
-        "labels": [],
-        "merged_at": "2026-08-14T06:32:16Z"
       }
     ]
   },
@@ -1401,8 +1380,8 @@
   },
   "ci_pass_rate": {
     "pass_rate": 1,
-    "total_runs": 85,
-    "passed": 85,
+    "total_runs": 86,
+    "passed": 86,
     "failed": 0
   },
   "automated_security_fixes": {
@@ -1417,9 +1396,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 34,
-    "recently_merged_prs": 92,
+    "recently_merged_prs": 89,
     "bot_prs": 11,
-    "human_prs": 81,
+    "human_prs": 78,
     "unique_contributors": 3,
     "releases": 3,
     "latest_release": "v1.1.2",
