@@ -28,7 +28,7 @@
     "number": 3210,
     "version": "2.32.0",
     "state": "ci-awaiting-approval",
-    "headSha": "9d01ba8fb40ed4964f0e3f4ad4fd85a1305fec4d",
+    "headSha": "06655291395a3c21228d967cd274d5135ed9126f",
     "waitingDays": 3,
     "mergeMethod": "squash",
     "priority": "high",
