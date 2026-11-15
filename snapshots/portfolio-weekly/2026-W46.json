@@ -214,7 +214,7 @@
       "open_issues": 16,
       "open_bugs": 6,
       "commits_6mo": 404,
-      "stars": 5232,
+      "stars": 5231,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9454545454545454,
@@ -759,7 +759,7 @@
       },
       "ci": 14,
       "released_at": "2026-11-15T13:26:34Z",
-      "pushed_at": "2026-11-15T13:26:33Z",
+      "pushed_at": "2026-11-15T14:29:44Z",
       "traffic": {
         "views_14d": {
           "count": 139,
