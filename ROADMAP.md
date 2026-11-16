@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-11-14
+**Last Updated:** 2026-11-16
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -57,9 +57,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-08** — 21 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374, #375, #378, #380, #381, #383, #384, #385, #386, #387, #388, #389, #390). Full details in git history.
 
-**2026-09** — 4 entries (#391, #396, #398). Full details in git history.
-
-Automated lockfile update tool for reachable-by-update alerts shipped 2026-09-17 (PR #400). Following the ADR-015 design, this implements the `lockfile-update` apply tool specifically targeting `reachable-by-update` Dependabot alerts, allowing the butler to autonomously resolve targeted security vulnerabilities by updating lockfiles.
+**2026-09** — 5 entries (#391, #396, #398, #400). Full details in git history.
 
 CI workflow alignments on Node 24 and lockfile dependency updates shipped 2026-09-26 (PR #405). Aligns the CI test run execution and lockfile updates with Node 24 to support modern npm-11 lockfile formats, preventing environment-specific blockages during scheduled planning cycles.
 
