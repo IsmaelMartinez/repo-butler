@@ -63,5 +63,18 @@
     "council_summary": "As a proposal targeting another repository (`teams-for-linux`), it lacks a unique butler-computed cross-portfolio statistic (such as median drift or adoption fraction) and relies primarily on per-repo alert counts.",
     "added_at": "2026-10-12T14:38:05.132Z",
     "review_count": 0
+  },
+  {
+    "title": "Agentic lockfile remediation for robust daily dependency synchronization",
+    "type": "proposal",
+    "severity": "medium",
+    "targetRepo": null,
+    "held_back_reason": null,
+    "council_verdict": "watch",
+    "council_confidence": "medium",
+    "council_priority": "medium",
+    "council_summary": "While agentic lockfile remediation is valuable, starting with a spike on a docker agent requires careful observation to ensure stability before full adoption.",
+    "added_at": "2026-11-16T15:01:14.180Z",
+    "review_count": 0
   }
 ]
