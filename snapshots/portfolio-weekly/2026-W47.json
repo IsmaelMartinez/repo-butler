@@ -214,7 +214,7 @@
       "open_issues": 17,
       "open_bugs": 7,
       "commits_6mo": 401,
-      "stars": 5235,
+      "stars": 5237,
       "license": "GPL-3.0",
       "communityHealth": 100,
       "ciPassRate": 0.9333333333333333,
@@ -343,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-10-31T08:20:29Z",
-      "pushed_at": "2026-11-15T22:36:44Z",
+      "pushed_at": "2026-11-17T01:42:18Z",
       "traffic": {
         "views_14d": {
           "count": 51,
@@ -733,7 +733,7 @@
       "id": 1185787142,
       "open_issues": 9,
       "open_bugs": 0,
-      "commits_6mo": 238,
+      "commits_6mo": 237,
       "stars": 3,
       "license": "MIT",
       "communityHealth": 100,
@@ -759,7 +759,7 @@
       },
       "ci": 14,
       "released_at": "2026-11-15T13:26:34Z",
-      "pushed_at": "2026-11-16T15:01:18Z",
+      "pushed_at": "2026-11-17T01:13:12Z",
       "traffic": {
         "views_14d": {
           "count": 139,
