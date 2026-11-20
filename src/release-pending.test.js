@@ -1,9 +1,29 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isReleasePR, parseReleaseVersion, pullRequestTriggerApplies, detectPendingReleases, recheckRelease, GRACE_DAYS,
+  isReleasePR, parseReleaseVersion, pullRequestTriggerApplies, classifyReleasePR, preferredMergeMethod, recheckRelease,
 } from './release-pending.js';
-import { buildRemediationPlan, releaseCommands } from './governance.js';
+import { buildRemediationPlan as planFor, releaseCommands } from './governance.js';
+
+// The plan a release-advice finding with a verdict worth acting on would carry.
+const buildRemediationPlan = f => planFor({ type: 'release-advice', verdict: 'good-moment', reason: 'Two features have waited.', ...f });
+
+// The classification is exercised the way the advisor reaches it: every open
+// release PR in a repo, classified against its head.
+async function detectPendingReleases(gh, owner, repos) {
+  const out = [];
+  for (const repo of repos) {
+    for (const pr of await gh.paginate(`/repos/${owner}/${repo.name}/pulls`)) {
+      if (!isReleasePR(pr)) continue;
+      out.push({
+        owner, repo: repo.name, number: pr.number, headSha: pr.head?.sha ?? null,
+        mergeMethod: await preferredMergeMethod(gh, owner, repo.name),
+        ...(await classifyReleasePR(gh, owner, repo.name, pr)),
+      });
+    }
+  }
+  return out;
+}
 
 const daysAgoISO = n => new Date(Date.now() - n * 86400000).toISOString();
 const SHA = 'a'.repeat(40);
@@ -162,16 +182,13 @@ describe('pullRequestTriggerApplies', () => {
   });
 });
 
-describe('detectPendingReleases', () => {
+describe('classifyReleasePR', () => {
   it('flags ci-not-triggered when no Actions run reported and a workflow is proven to fire', async () => {
     const [f] = await detectPendingReleases(makeGh(), 'o', repos);
-    assert.equal(f.type, 'release-pending');
     assert.equal(f.state, 'ci-not-triggered');
-    assert.equal(f.version, '2.31.0');
     assert.equal(f.headSha, SHA);
     assert.equal(f.mergeMethod, 'squash');
-    assert.equal(f.priority, 'medium');
-    assert.deepEqual(buildRemediationPlan(f).commands, ['gh pr close 7 -R o/app', 'gh pr reopen 7 -R o/app']);
+    assert.deepEqual(releaseCommands(f), ['gh pr close 7 -R o/app', 'gh pr reopen 7 -R o/app']);
   });
 
   it('takes precedence over an all-green external check', async () => {
@@ -327,11 +344,6 @@ describe('detectPendingReleases', () => {
     assert.equal(g.state, 'unknown');
   });
 
-  it('never stores the PR title', async () => {
-    const [f] = await detectPendingReleases(makeGh(), 'o', repos);
-    assert.equal('title' in f, false);
-  });
-
   it('is unknown when the check runs cannot be read', async () => {
     const [f] = await detectPendingReleases(makeGh({ checkRunsThrow: true }), 'o', repos);
     assert.equal(f.state, 'unknown');
@@ -351,42 +363,6 @@ describe('detectPendingReleases', () => {
     gh.request = async (path, opts) => (path.includes('/check-runs') ? { check_runs: [] } : request(path, opts));
     const [f] = await detectPendingReleases(gh, 'o', repos);
     assert.equal(f.state, 'unknown');
-  });
-
-  it('the grace is two days, not three: 2.5 days open is reported as 2', async () => {
-    const [f] = await detectPendingReleases(makeGh({ prs: [makePR(7, { created_at: daysAgoISO(2.5) })] }), 'o', repos);
-    assert.equal(f.waitingDays, 2);
-  });
-
-  it(`stays silent inside the ${GRACE_DAYS}-day grace, and for an unparseable age`, async () => {
-    assert.deepEqual(await detectPendingReleases(makeGh({ prs: [makePR(7, { created_at: daysAgoISO(1) })] }), 'o', repos), []);
-    assert.deepEqual(await detectPendingReleases(makeGh({ prs: [makePR(7, { created_at: 'nope' })] }), 'o', repos), []);
-  });
-
-  it('is high when an open bug was filed after the latest release', async () => {
-    const gh = makeGh({ bugs: [{ number: 3172, created_at: daysAgoISO(3) }, { number: 9, created_at: daysAgoISO(3), pull_request: {} }] });
-    const [f] = await detectPendingReleases(gh, 'o', repos);
-    assert.equal(f.priority, 'high');
-  });
-
-  it('stays medium when the bug predates the release, or the release cannot be read', async () => {
-    let [f] = await detectPendingReleases(makeGh({ bugs: [{ number: 1, created_at: daysAgoISO(30) }] }), 'o', repos);
-    assert.equal(f.priority, 'medium');
-    [f] = await detectPendingReleases(makeGh({ latestRelease: null, bugs: [{ number: 1, created_at: daysAgoISO(1) }] }), 'o', repos);
-    assert.equal(f.priority, 'medium');
-  });
-
-  it('skips archived repos and never throws on a failed listing', async () => {
-    assert.deepEqual(await detectPendingReleases(makeGh(), 'o', [{ name: 'app', archived: true }]), []);
-    assert.deepEqual(await detectPendingReleases(makeGh({ listThrows: true }), 'o', repos), []);
-    assert.deepEqual(await detectPendingReleases(makeGh(), 'o', null), []);
-  });
-
-  it('reads from the shared open-PR sweep when given one', async () => {
-    const gh = makeGh({ prs: [] });
-    const [f] = await detectPendingReleases(gh, 'o', repos, { openPRs: { app: [makePR(8)] } });
-    assert.equal(f.number, 8);
-    assert.ok(!gh.calls.some(p => p.endsWith('/pulls')));
   });
 });
 

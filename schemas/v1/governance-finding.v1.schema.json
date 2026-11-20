@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/IsmaelMartinez/repo-butler/schemas/v1/governance-finding.v1.schema.json",
   "title": "GovernanceFinding",
-  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale), src/butler-pr-audit.js (stale-butler-pr), src/stalled-alert.js (stalled-alert), src/security-pr-stuck.js (security-pr-stuck) and src/release-pending.js (release-pending). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
+  "description": "A single portfolio governance finding, persisted as one element of the array at snapshots/governance.json on the repo-butler-data orphan branch. Produced deterministically by src/governance.js (standards-gap, policy-drift, tier-uplift, tier-regression, open-vulnerability), src/dependabot-audit.js (dependabot-stale), src/butler-pr-audit.js (stale-butler-pr), src/stalled-alert.js (stalled-alert), src/security-pr-stuck.js (security-pr-stuck) and src/release-advisor.js (release-advice). Every finding carries a `remediation` plan (ADR-007) — an executor routing hint plus a change spec — consumed by the MCP get_governance_findings tool, the dashboard, the repo-butler-apply skill, and any future hosted agent.",
   "type": "object",
   "required": ["type", "priority", "remediation"],
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr", "stalled-alert", "security-pr-stuck", "automerge-unguarded", "release-pending"],
+      "enum": ["standards-gap", "policy-drift", "tier-uplift", "tier-regression", "dependabot-stale", "open-vulnerability", "stale-butler-pr", "stalled-alert", "security-pr-stuck", "automerge-unguarded", "release-advice"],
       "description": "The finding category, which determines the remaining fields."
     },
     "priority": {
@@ -22,7 +22,7 @@
     },
     "repo": {
       "type": "string",
-      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr, stalled-alert, security-pr-stuck, automerge-unguarded, release-pending: the affected repository name."
+      "description": "policy-drift, tier-uplift, tier-regression, dependabot-stale, open-vulnerability, stale-butler-pr, stalled-alert, security-pr-stuck, automerge-unguarded, release-advice: the affected repository name."
     },
     "nonCompliant": {
       "type": "array",
@@ -186,40 +186,126 @@
     },
     "owner": {
       "type": "string",
-      "description": "release-pending only: the repository owner, validated before any command is built from it."
+      "description": "release-advice only: the repository owner, validated before any command is built from it."
     },
     "number": {
       "type": "integer",
-      "description": "release-pending only: the release PR number."
+      "description": "release-advice only: the release PR number."
     },
     "version": {
       "type": ["string", "null"],
-      "description": "release-pending only: the M.m.p version the title names (\"release 2.31.0\"), or null when it names none."
+      "description": "release-advice only: the M.m.p version the title names (\"release 2.31.0\"), or null when it names none."
     },
     "state": {
       "type": "string",
       "enum": ["ci-not-triggered", "ci-awaiting-approval", "merge-conflict", "awaiting-human", "ci-none", "ci-pending", "blocked-persistent", "blocked-transient", "unknown"],
-      "description": "release-pending only. ci-not-triggered = no GitHub Actions check run or queued workflow run on a head pushed over an hour ago, while at least one active workflow is proven to fire on a reopened PR into the base branch (no paths/branches-ignore filter, a literal branch list naming the base or none, a types list naming reopened or none) — the default-token release-please case; it takes precedence over awaiting-human and ci-none. merge-conflict = no Actions run and GitHub reports the PR conflicted, so no pull_request workflow can run and a reopen would not help; no command. ci-awaiting-approval = every GitHub Actions workflow run on the head ended action_required (blocked on approval) and none produced a check run; no command, and never read as green beside an external check. ci-pending also covers Actions runs that exist but have not reported a check run yet, and blocked-transient also covers a run that failed without leaving a check run (startup_failure, cancelled). All of these judge the latest run of each workflow only, since a head keeps every run ever made for it. unknown = the check runs could not be read, or the head was pushed within the hour (its runs may not be registered yet), or no Actions ran and no workflow could be proven to fire, or a workflow file could not be read or parsed; no command is offered. The other states are classifyPR's (butler-pr-audit.js), from the five-state prCiState."
+      "description": "release-advice only: whether the release PR could be merged as it stands. ci-not-triggered = no GitHub Actions check run or queued workflow run on a head pushed over an hour ago, while at least one active workflow is proven to fire on a reopened PR into the base branch (no paths/branches-ignore filter, a literal branch list naming the base or none, a types list naming reopened or none) — the default-token release-please case; it takes precedence over awaiting-human and ci-none. merge-conflict = no Actions run and GitHub reports the PR conflicted, so no pull_request workflow can run and a reopen would not help; no command. ci-awaiting-approval = every GitHub Actions workflow run on the head ended action_required (blocked on approval) and none produced a check run; no command, and never read as green beside an external check. ci-pending also covers Actions runs that exist but have not reported a check run yet, and blocked-transient also covers a run that failed without leaving a check run (startup_failure, cancelled). All of these judge the latest run of each workflow only, since a head keeps every run ever made for it. unknown = the check runs could not be read, or the head was pushed within the hour (its runs may not be registered yet), or no Actions ran and no workflow could be proven to fire, or a workflow file could not be read or parsed; no command is offered. The other states are classifyPR's (butler-pr-audit.js), from the five-state prCiState."
     },
     "failingWorkflows": {
       "type": "array",
       "items": { "type": "string" },
       "maxItems": 5,
-      "description": "release-pending with a blocked state only: names of the workflows whose latest run on the head did not succeed, reduced to a plain character set and capped at 60 characters each. A run that fails before any job starts (startup_failure) leaves no check run, so the PR page looks green; this says where to look."
+      "description": "release-advice with a blocked state only: names of the workflows whose latest run on the head did not succeed, reduced to a plain character set and capped at 60 characters each. A run that fails before any job starts (startup_failure) leaves no check run, so the PR page looks green; this says where to look."
     },
     "headSha": {
       "type": ["string", "null"],
-      "description": "release-pending only: the head SHA that was classified. A merge command is pinned to it with --match-head-commit."
+      "description": "release-advice only: the head SHA that was classified. A merge command is pinned to it with --match-head-commit."
     },
-    "waitingDays": {
+    "verdict": {
+      "type": "string",
+      "enum": ["release-now", "good-moment", "wait", "breaking", "quiet"],
+      "description": "release-advice only. release-now = a critical or high Dependabot alert was fixed since the last release in a runtime-scope manifest that release-please packages, or an open issue labelled bug and \"release ready\" (not blocked) was filed after the last release and a fix is waiting. breaking = a breaking change is queued (a conventional-commit ! or BREAKING CHANGE footer); it beats every other verdict and the timing is the owner's. good-moment = features or fixes have waited at least gapDays. wait = they have not yet. quiet = only docs, chores, CI or dependency bumps are waiting."
+    },
+    "reason": {
+      "type": "string",
+      "description": "release-advice only: one plain sentence for the verdict, built from counts, package names and issue numbers."
+    },
+    "since": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "release-advice only: the date this verdict first held for this release PR, carried forward from the previous run while the verdict is unchanged, so a consumer can tell a new verdict from a repeated one."
+    },
+    "goodMomentInDays": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "release-advice only: for wait, the days until daysSinceRelease reaches gapDays; 0 for good-moment; null otherwise."
+    },
+    "daysSinceRelease": {
       "type": "integer",
       "minimum": 0,
-      "description": "release-pending only: days the release PR has been open. The finding fires past a 2-day grace."
+      "description": "release-advice only: whole days since the latest published release (pre-releases count, drafts do not)."
+    },
+    "gapDays": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 30,
+      "description": "release-advice only: the repo's usual gap between releases: the median gap between release days over its last 30 releases, several releases on one day counting once, clamped to 3-30; 7 when the repo has fewer than five release days."
+    },
+    "gapSource": {
+      "type": "string",
+      "enum": ["history", "default"],
+      "description": "release-advice only: whether gapDays was learnt from the release history or is the default."
+    },
+    "features": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "release-advice only: feat commits since the last release, outside dependency, docs and CI scopes, less any that were reverted."
+    },
+    "fixes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "release-advice only: fix, perf and security commits since the last release, outside dependency, docs and CI scopes, less any that were reverted."
+    },
+    "security": {
+      "type": "array",
+      "description": "release-advice only: shipped-code security fixes since the last release, one entry per package at its worst severity.",
+      "items": {
+        "type": "object",
+        "required": ["package", "severity"],
+        "properties": {
+          "package": { "type": "string" },
+          "severity": { "type": "string", "enum": ["critical", "high"] }
+        }
+      }
+    },
+    "regressionIssues": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "maxItems": 5,
+      "description": "release-advice only: the issue numbers behind a release-now verdict that rests on a confirmed fix; empty otherwise."
+    },
+    "breaking": {
+      "type": "boolean",
+      "description": "release-advice only: whether a breaking change is among the commits since the last release."
+    },
+    "note": {
+      "type": "string",
+      "description": "release-advice with verdict release-now, good-moment or breaking only: the exact comment drafted for the release PR, a marker line then at most six plain lines. Commit summaries in it are reduced to a plain character set and capped at 80 characters. A draft: it reaches GitHub only through scripts/release-note.js after the owner approves this text."
+    },
+    "noteHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "release-advice with a note only: the sha256 of note. The poster refuses any text that does not hash to the value the owner approved."
+    },
+    "lifecycle": {
+      "type": "object",
+      "description": "release-advice only, present when there is something to say about the last release: the steps nothing fails on when they are skipped.",
+      "properties": {
+        "prerelease": {
+          "type": "object",
+          "description": "The latest published release is still a pre-release.",
+          "properties": {
+            "tag": { "type": "string" },
+            "days": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "releaseReadyOpen": { "type": "integer", "minimum": 1, "description": "Open issues labelled \"release ready\"." }
+      }
     },
     "mergeMethod": {
       "type": ["string", "null"],
       "enum": ["squash", "merge", "rebase", null],
-      "description": "release-pending only: the repo's preferred allowed merge method (squash first), or null when unreadable."
+      "description": "release-advice only: the repo's preferred allowed merge method (squash first), or null when unreadable."
     },
     "remediation": { "$ref": "#/$defs/RemediationPlan" }
   },
@@ -256,7 +342,7 @@
         "commands": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Optional. Exact single-line shell commands, never chained, built only from validated identifiers and enum values (ADR-005). Shown to the owner verbatim and run only on their say for that item. release-pending only today: close then reopen for ci-not-triggered, or a --match-head-commit merge for awaiting-human."
+          "description": "Optional. Exact single-line shell commands, never chained, built only from validated identifiers and enum values (ADR-005). Shown to the owner verbatim and run only on their say for that item. release-advice only today, and only for a verdict worth acting on: close then reopen for ci-not-triggered, or a --match-head-commit merge for awaiting-human."
         }
       }
     }

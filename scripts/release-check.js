@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // release-check.js — re-classify one release PR live, read-only, for the
-// repo-butler-apply skill to call immediately before it shows a release-pending
+// repo-butler-apply skill to call immediately before it shows a release-advice
 // command (factory design section 3). It runs the pipeline's own
 // classification against the PR's current head, so a stale finding can never
 // be the evidence for a close, reopen or merge.

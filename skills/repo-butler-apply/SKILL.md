@@ -111,7 +111,7 @@ The single glyph between the cuffs `( | X | )` is the tray's content slot: `o` f
 +================================================================+
 ```
 
-7. After rendering, ask the user which tray to action. Lowercase the reply and trim whitespace. `template` actions the template tray (Section A). `agent` actions the agent tray (Section B). `local` goes straight to Section D: local cleanup only, with no governance write and no `gh` identity check, because it touches nothing on GitHub. `release` goes to the release-pending part of Section C, after the step 8 identity check, and touches no other manual finding. Anything else — including `none`, `manual`, `no` — means abort: Reginald replies "Very good, sir. The tray remains on the sideboard." and stops. The governance manual tray is never actioned; it is presented for the owner's own attention. Local hygiene (Section D) is the one exception: its commands may be run item by item, each on its own yes. After Section A or B finishes, offer Section D too, if step 1b found anything.
+7. After rendering, ask the user which tray to action. Lowercase the reply and trim whitespace. `template` actions the template tray (Section A). `agent` actions the agent tray (Section B). `local` goes straight to Section D: local cleanup only, with no governance write and no `gh` identity check, because it touches nothing on GitHub. `release` goes to the release-advice part of Section C, after the step 8 identity check, and touches no other manual finding. Anything else — including `none`, `manual`, `no` — means abort: Reginald replies "Very good, sir. The tray remains on the sideboard." and stops. The governance manual tray is never actioned; it is presented for the owner's own attention. Local hygiene (Section D) is the one exception: its commands may be run item by item, each on its own yes. After Section A or B finishes, offer Section D too, if step 1b found anything.
 
 8. Before any write, verify the active `gh` identity matches `$OWNER`. If `gh` is signed in as someone else, render the abort comic below and stop without dispatching or drafting:
 
@@ -252,17 +252,33 @@ B4. Render one closing panel summarising the PRs opened (and any that failed), w
 
 ## Section C — Manual tray (for your own hand)
 
-If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them, except for the commands a `release-pending` finding carries (below); they are licence choices, policy drift, stale-Dependabot queues, and open-vulnerability states that Reginald will not presume to settle.
+If the overview showed manual findings, list them plainly after the actioned tray's closing panel so the owner knows what awaits their judgement — the finding `type`, the affected `repo`, and the `intent`. Do not automate them and do not prompt to action them, except for the note and commands a `release-advice` finding carries (below); they are licence choices, policy drift, stale-Dependabot queues, and open-vulnerability states that Reginald will not presume to settle.
 
 One manual finding has a settings-write remediation the owner may run deliberately, but Reginald never triggers it from this skill. For an `open-vulnerability` finding whose `sources` includes `dependabot`, GitHub can open the fix PRs itself once **automated security updates** are enabled. That is the ADR-012 settings write — manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default. Mention it as an option ("this one can be remediated by enabling Dependabot security updates: dispatch Governance Apply with `tools=dependabot-security dry-run=false`"), but leave the decision — and the dispatch — to the owner. Code-scanning and secret-scanning open-vulnerability findings have no such switch (they need a code change or a secret rotation) and stay purely manual.
 
 Such a finding now carries an `autofixEnabled` field (ADR-012 Phase 3, dependabot-sourced only): `true` means GitHub's automated security fixes are already opening the bump PRs — the remediation is **in flight**, so there is nothing to dispatch; `false` means they are **not driven** and the `dependabot-security` dispatch above is the lever; `null` means the state was unreadable. When it is already `true`, say so and do not offer the enable dispatch. The reversal is `tools=dependabot-security-off dry-run=false` — it issues the ADR-012 `DELETE`, disabling the setting on the same dependabot-sourced targets. Reversal is **partial**: it reverts the *setting only*, never closing any bump PR GitHub already opened, and it leaves vulnerability-alerts on. Like the enable path it is manual-dispatch only, off every scheduled/auto path by construction, and dry-run by default — offer it only if the owner asks to turn autofix back off, and leave the dispatch to them.
 
-### Release PRs that are waiting (`release-pending`)
+### Release advice (`release-advice`)
 
-A `release-pending` finding is the one manual finding that carries its own commands, in `remediation.commands`: close then reopen for `state: 'ci-not-triggered'` (no GitHub Actions workflow ran on the head, though one is proven to fire on a reopen), or one merge pinned with `--match-head-commit` for `awaiting-human`. Every other state has no command, and is listed with its rationale like any other manual finding.
+A `release-advice` finding says whether what has accumulated on an open release PR is worth shipping. Its `verdict` is `release-now`, `good-moment`, `wait`, `breaking` or `quiet`, with a one-sentence `reason`. An open release PR is the normal state, never a fault: for `wait`, give the reason with its forecast and offer nothing; for `quiet`, say nothing unless asked; and never suggest closing a release PR because of its age. Only `release-now`, `good-moment` and `breaking` carry a drafted note and, when the PR's CI state allows one, commands. If the finding has `lifecycle`, state its fact plainly (a release still marked pre-release, issues labelled `release ready` still open) and leave any promotion or closing to the owner.
 
-Before showing a command, re-classify the PR live with the pipeline's own code (read-only; it uses `GH_TOKEN` or `gh auth token`):
+Read the advice live before showing anything (read-only; it uses `GH_TOKEN` or `gh auth token`):
+
+```bash
+node "$SKILL_DIR/../../scripts/release-note.js" draft <owner> <repo> <number>
+```
+
+It prints one JSON object with the live `verdict`, `reason`, `state`, `headSha` and, for the three verdicts above, `note` and `noteHash`. Go by this reading, not the stored finding: commits may have landed since the pipeline ran.
+
+**The note.** When the live reading has a `note`, show it exactly as printed (the first line is a hidden marker; show the rest) and ask whether to post it on the release PR. On the owner's explicit yes for that PR, post it with the hash from the same reading you just showed:
+
+```bash
+node "$SKILL_DIR/../../scripts/release-note.js" post <owner> <repo> <number> <noteHash>
+```
+
+This script is the only way a release note is posted. It re-reads the advice, refuses unless the note it would post hashes to `<noteHash>`, and edits its own earlier note in place rather than adding a second comment. Never post the note with `gh pr comment`, `gh api` or any other tool, never reword it, and never pass a hash the owner did not just approve the text for. If it answers that the note has changed since it was approved, run `draft` again, show the new text and ask again. If the owner wants different wording, the note is theirs to write; say so and post nothing.
+
+**The commands.** A finding with a verdict worth acting on may carry `remediation.commands`: close then reopen for `state: 'ci-not-triggered'` (no GitHub Actions workflow ran on the head, though one is proven to fire on a reopen), or one merge pinned with `--match-head-commit` for `awaiting-human`. Every other state has no command. Before showing a command, re-classify the PR live with the pipeline's own code:
 
 ```bash
 node "$SKILL_DIR/../../scripts/release-check.js" <owner> <repo> <number>
@@ -270,8 +286,9 @@ node "$SKILL_DIR/../../scripts/release-check.js" <owner> <repo> <number>
 
 It prints one JSON object, `{ open, merged, headSha, state, failingWorkflows?, commands }`, re-running the whole classification against the current head: every workflow run, the check runs, and the proof that an active workflow on head and base fires on a reopen. A stored finding is never the evidence for a write, because CI can re-run on the same head and a workflow can be disabled or retriggered after detection. Offer a command only when all of these hold:
 
+- the live verdict from `release-note.js draft` is `release-now`, `good-moment` or `breaking`;
 - the script exits 0 and prints parseable JSON with no `error`;
-- its `headSha` equals the finding's `headSha` (a moved head means the finding is stale; say so, and leave the PR to the next pipeline run);
+- its `headSha` equals the `headSha` of that live `draft` reading (a moved head means the reading is stale; read both again);
 - the command is one the script printed in `commands`, shown exactly as printed.
 
 When `commands` is empty, report the live `state` (and any `failingWorkflows`, which name runs that failed without leaving a check on the PR page) and offer nothing. Show each command verbatim, one at a time, and run it only after the owner's explicit yes for that item. Never chain the close and the reopen into one line, and never rewrite a command. After a close, run the script again before offering the reopen: for a closed, unmerged PR that still reads `ci-not-triggered` it prints the reopen alone. If that second reading fails or offers no reopen, never leave the release closed silently: say plainly that the PR is now closed because of this flow, and offer the `gh pr reopen` line from the first reading on the owner's yes, since reopening a PR this flow just closed cannot lose anything. Only ever offer that reopen for a PR closed in this same flow. A merge is the owner's "merge it" for that named PR, nothing less.
@@ -279,7 +296,7 @@ When `commands` is empty, report the live `state` (and any `failingWorkflows`, w
 After a close-and-reopen pair, record it under the one graduation-eligible class for it, with the same helper Section D uses (`$HYGIENE` is set by the step 1b block, which always runs first):
 
 ```bash
-node "$HYGIENE" record release-pending release-reopen-for-ci <repo> <number> <outcome>
+node "$HYGIENE" record release-advice release-reopen-for-ci <repo> <number> <outcome>
 ```
 
 `<outcome>` is `accepted-unchanged`, `edited`, `rejected` or `skipped`, as in Section D. A merge is never recorded under that class, and never graduates.
@@ -345,7 +362,7 @@ Speech bubbles must stay within the 64-char comic width. Sample repo lists shoul
 
 ## Safety
 
-This skill is the only butler skill that triggers write actions. It has four: dispatching the cloud workflow (Section A), opening local pull requests (Section B), running a `release-pending` finding's own commands (Section C: close and reopen, or a head-pinned merge, each only after the live re-check and on the owner's yes for that named PR, and the merge only on their "merge it"), and removing local worktrees and branches through the guarded helper (Section D, each item on its own yes unless graduated as described there). Neither may run without an explicit affirmative from the user in this same turn, and neither confirmation may be asked without the `$ALMANAC` caveat when the running skill is not the one on `main`. The agent path makes real file changes in a local checkout of a target repo and opens a pull request; it must change only the files named in the finding's `remediation.targetFiles`, scoped to the finding's intent, and it opens a PR and stops. It never merges, never pushes to main, and never enables auto-merge. One PR is created per repository, capped at 5 per run, and if a checkout or push fails the agent reports it and moves on rather than retrying blindly. Pipeline or PR success is never permission to merge anything downstream — Reginald reports the URLs and stops. The Section C release merge is the one merge this skill may run, and only as the owner's explicit, per-PR instruction.
+This skill is the only butler skill that triggers write actions. It has five: dispatching the cloud workflow (Section A), opening local pull requests (Section B), posting a `release-advice` finding's drafted note through `scripts/release-note.js post` (Section C: only the exact text the owner was just shown and approved, identified by its hash, never a comment composed any other way), running that finding's own commands (Section C: close and reopen, or a head-pinned merge, each only after the live re-check and on the owner's yes for that named PR, and the merge only on their "merge it"), and removing local worktrees and branches through the guarded helper (Section D, each item on its own yes unless graduated as described there). Neither may run without an explicit affirmative from the user in this same turn, and neither confirmation may be asked without the `$ALMANAC` caveat when the running skill is not the one on `main`. The agent path makes real file changes in a local checkout of a target repo and opens a pull request; it must change only the files named in the finding's `remediation.targetFiles`, scoped to the finding's intent, and it opens a PR and stops. It never merges, never pushes to main, and never enables auto-merge. One PR is created per repository, capped at 5 per run, and if a checkout or push fails the agent reports it and moves on rather than retrying blindly. Pipeline or PR success is never permission to merge anything downstream — Reginald reports the URLs and stops. The Section C release merge is the one merge this skill may run, and only as the owner's explicit, per-PR instruction.
 
 ## Output
 
