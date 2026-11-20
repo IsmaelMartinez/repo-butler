@@ -278,15 +278,6 @@
       "type": "boolean",
       "description": "release-advice only: whether a breaking change is among the commits since the last release."
     },
-    "note": {
-      "type": "string",
-      "description": "release-advice with verdict release-now, good-moment or breaking only: the exact comment drafted for the release PR, a marker line then at most six plain lines. Commit summaries in it are reduced to a plain character set and capped at 80 characters. A draft: it reaches GitHub only through scripts/release-note.js after the owner approves this text."
-    },
-    "noteHash": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$",
-      "description": "release-advice with a note only: the sha256 of note. The poster refuses any text that does not hash to the value the owner approved."
-    },
     "lifecycle": {
       "type": "object",
       "description": "release-advice only, present when there is something to say about the last release: the steps nothing fails on when they are skipped.",

@@ -69,6 +69,10 @@ describe('classifyCommit', () => {
     assert.equal(classifyCommit(undefined).kind, 'noise');
     const c = classifyCommit('feat: add <img src=x onerror=alert(1)> `thing` [link](http://x)');
     assert.equal(/[<>`[\]=]/.test(c.summary), false);
+    // Nothing that notifies, cross-references or links from a posted comment.
+    const hostile = classifyCommit('fix(@evil): thanks @torvalds see #1 and octo/repo#2 at https://evil.example www.evil.example');
+    assert.equal(/[@#:]|www\./.test(hostile.summary.replace(/^evil: /, '')), false);
+    assert.equal(hostile.summary.startsWith('evil: '), true);
     assert.ok(classifyCommit(`feat: ${'x'.repeat(300)}`).summary.length <= 80);
   });
 });
@@ -257,8 +261,10 @@ describe('detectReleaseAdvice', () => {
     const releases = weeklyReleases.map(r => ({ ...r, published_at: new Date(Date.parse(r.published_at) - 86400000).toISOString() }));
     const [f] = await detectReleaseAdvice(makeGh({ releases }), 'o', repos, { now: NOW });
     assert.equal(f.verdict, 'good-moment');
-    assert.equal(f.noteHash, noteHash(f.note));
-    assert.match(f.note, /Features: a\n\nFixes: b\n\nMergeable as it stands: yes, CI is green$/);
+    assert.equal('note' in f || 'noteHash' in f, false, 'the note is never stored in a finding');
+    const live = await recheckAdvice(makeGh({ releases }), 'o', 'app', 7, { now: NOW });
+    assert.equal(live.noteHash, noteHash(live.note));
+    assert.match(live.note, /Features: a\n\nFixes: b\n\nMergeable as it stands: yes, CI is green$/);
     assert.deepEqual(buildRemediationPlan(f).commands, [`gh pr merge 7 -R o/app --squash --delete-branch --match-head-commit ${SHA}`]);
   });
 
@@ -287,7 +293,8 @@ describe('detectReleaseAdvice', () => {
     const [f] = await detectReleaseAdvice(makeGh({ alerts, commits: ['chore(deps): bump dompurify'] }), 'o', repos, { now: NOW });
     assert.equal(f.verdict, 'release-now');
     assert.deepEqual(f.security, [{ package: 'dompurify', severity: 'critical' }]);
-    assert.match(f.note, /Security: dompurify \(critical\)/);
+    const live = await recheckAdvice(makeGh({ alerts, commits: ['chore(deps): bump dompurify'] }), 'o', 'app', 7, { now: NOW });
+    assert.match(live.note, /Security: dompurify \(critical\)/);
   });
 
   it('an unchanged verdict keeps its since date; a changed one starts today', async () => {

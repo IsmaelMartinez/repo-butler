@@ -59,10 +59,15 @@ export function usualGapDays(publishedDates) {
   return { days: Math.min(MAX_GAP_DAYS, Math.max(MIN_GAP_DAYS, Math.round(median))), source: 'history' };
 }
 
-// Commit and package text travels to MCP clients, the dashboard and a PR
-// comment, so it is reduced to a plain character set and capped.
+// Commit and package text is written by contributors and ends up in a comment
+// posted under the owner's account, so it is reduced to a plain character set
+// and capped. No `@` (a mention notifies someone), no `#` (an issue or
+// cross-repo reference), no `:` (a URL scheme), and `www.` is broken up, so
+// nothing in it can notify, cross-link or autolink.
 function plain(text, max = 80) {
-  return typeof text === 'string' ? text.replace(/[^A-Za-z0-9 .,_()&/:#'+@-]/g, '').replace(/ {2,}/g, ' ').trim().slice(0, max) : '';
+  return typeof text === 'string'
+    ? text.replace(/[^A-Za-z0-9 .,_()&/'+-]/g, '').replace(/www\./gi, 'www ').replace(/ {2,}/g, ' ').trim().slice(0, max)
+    : '';
 }
 
 const SUBJECT = /^([A-Za-z]+)(?:\(([^()]*)\))?(!)?:[ \t]*(.+)$/;
@@ -84,7 +89,8 @@ export function classifyCommit(message) {
   const type = m[1].toLowerCase();
   const scope = (m[2] || '').toLowerCase();
   const breaking = Boolean(m[3]) || BREAKING_FOOTER.test(text);
-  const summary = plain(scope ? `${scope}: ${m[4]}` : m[4]);
+  const body = plain(m[4], 60);
+  const summary = scope && plain(scope, 18) ? `${plain(scope, 18)}: ${body}` : body;
   let kind = 'noise';
   if (!NOISE_SCOPES.has(scope)) {
     if (type === 'feat') kind = 'feature';
@@ -387,8 +393,12 @@ export async function detectReleaseAdvice(gh, owner, repos, { openPRs = null, pr
       const findings = [];
       for (const pr of prs) {
         if (!isReleasePR(pr)) continue;
-        const advice = await adviseReleasePR(gh, owner, repo.name, pr, { now });
-        if (!advice) continue;
+        const live = await adviseReleasePR(gh, owner, repo.name, pr, { now });
+        if (!live) continue;
+        // The drafted note carries contributor-written commit text, so it is
+        // never stored: findings reach MCP clients next to commands. It exists
+        // only in the live read the apply skill shows the owner (recheckAdvice).
+        const { note: _note, noteHash: _hash, ...advice } = live;
         findings.push({
           type: 'release-advice',
           repo: repo.name,

@@ -37,7 +37,7 @@ A confirmed fix counts only when an open issue carries both `bug` and `release r
 
 ## The note and the one write path
 
-The note is a hidden marker line followed by at most six plain lines: the verdict and version, the reason, up to three features, up to three fixes, the security fixes, and whether the PR can be merged as it stands. Commit text in it is reduced to a plain character set and capped. Reginald's voice stops at the briefing; nothing posted to GitHub says "sir".
+The note is a hidden marker line followed by at most six plain lines: the verdict and version, the reason, up to three features, up to three fixes, the security fixes, and whether the PR can be merged as it stands. Commit text in it is written by contributors and would be posted under the owner's account, so it is reduced to a character set without `@`, `#` or `:` and capped: it cannot mention anyone, reference an issue or form a link. For the same reason the note is never stored in a finding, where it would sit next to commands in what MCP clients read; it exists only in the live read. Reginald's voice stops at the briefing; nothing posted to GitHub says "sir".
 
 `scripts/release-note.js draft` prints the live advice with the note and its sha256. `scripts/release-note.js post` takes that hash, re-reads the advice, and refuses unless the note it is about to post hashes to the same value. It then creates the comment, or edits its own earlier one in place. This makes "never posts without a yes" a mechanism: a model cannot pass different text through it, and a note that changed after the approval is refused. It edits only a comment written by the authenticated user, since anyone can type the marker.
 
