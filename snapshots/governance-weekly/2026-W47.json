@@ -1,6 +1,32 @@
 {
   "findings": [
     {
+      "type": "stalled-alert",
+      "repo": "teams-for-linux",
+      "alerts": [
+        {
+          "number": 309,
+          "package": "minimatch",
+          "ecosystem": "npm",
+          "manifestPath": "package-lock.json",
+          "severity": "medium",
+          "ageDays": 15,
+          "classification": "disjoint-ranges",
+          "detail": "minimatch@11.0.1 sits outside the major line declared by @electron/asar@^3.0.4, @electron/universal@^9.0.3, @eslint/config-array@^10.2.4, app-builder-lib@^10.2.5, dir-compare@^3.0.5, eslint@^10.2.6, f"
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+        "acceptanceCriteria": [
+          "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
+        ]
+      }
+    },
+    {
       "type": "release-pending",
       "repo": "delegate-local",
       "owner": "IsmaelMartinez",
@@ -8,14 +34,14 @@
       "version": "0.51.2",
       "state": "ci-awaiting-approval",
       "headSha": "16233ac09c7c688f95e1e166d1e0a8805555466a",
-      "waitingDays": 11,
+      "waitingDays": 12,
       "mergeMethod": "squash",
       "priority": "medium",
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Release 0.51.2 in delegate-local",
-        "rationale": "Release PR #692 has waited 11 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+        "rationale": "Release PR #692 has waited 12 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
         "acceptanceCriteria": [
           "Release PR #692 is merged or closed"
         ],
