@@ -201,7 +201,7 @@ export function buildGovernanceSection(findings) {
   const stalledAlerts = findings.filter(f => f.type === 'stalled-alert');
   const stuckSecurity = findings.filter(f => f.type === 'security-pr-stuck');
   const unguarded = findings.filter(f => f.type === 'automerge-unguarded');
-  const releases = findings.filter(f => f.type === 'release-pending');
+  const releases = findings.filter(f => f.type === 'release-advice');
 
   const parts = [];
 
@@ -376,10 +376,12 @@ export function buildGovernanceSection(findings) {
 <p class="muted">Dependabot auto-merge is on but the default branch requires no status check, so a bump can merge before CI runs. Add a non-strict ruleset requiring checks that report on every PR.</p>`);
   }
 
-  // Release PRs waiting past the grace (factory Phase 2). Numbers, versions,
-  // ages and states only; the commands stay with the apply skill, which re-reads
-  // the PR before showing them.
+  // Release readiness (factory Phase 2): is what has piled up worth shipping?
+  // Verdict, reason, counts and CI state only; the drafted note and the
+  // commands stay with the apply skill, which re-reads the PR before showing
+  // them. Commit text never reaches this page.
   if (releases.length > 0) {
+    const verdictLabel = { 'release-now': 'release now', 'good-moment': 'good moment', wait: 'wait', breaking: 'breaking, your call', quiet: 'nothing to ship' };
     const label = {
       'ci-not-triggered': 'CI never triggered',
       'ci-awaiting-approval': 'CI runs awaiting approval',
@@ -397,14 +399,16 @@ export function buildGovernanceSection(findings) {
       .map(f => `<tr>
   <td><a href="${escHtml(f.repo)}.html">${escHtml(f.repo)}</a></td>
   <td>#${escHtml(String(f.number))}${f.version ? ` <span class="muted">${escHtml(f.version)}</span>` : ''}</td>
-  <td>${escHtml(String(f.waitingDays))}d</td>
-  <td>${escHtml(label[f.state] || f.state)}${Array.isArray(f.failingWorkflows) && f.failingWorkflows.length ? ` <span class="muted">(${f.failingWorkflows.map(n => escHtml(n)).join(', ')})</span>` : ''}${f.priority === 'high' ? ' <span class="muted">(a bug filed since the last release is waiting on it)</span>' : ''}</td>
+  <td>${f.verdict === 'quiet' ? `<span class="muted">${escHtml(verdictLabel.quiet)}</span>` : `<strong>${escHtml(verdictLabel[f.verdict] || String(f.verdict))}</strong>`}${f.since ? ` <span class="muted">since ${escHtml(String(f.since))}</span>` : ''}</td>
+  <td>${escHtml(String(f.reason ?? ''))}${f.lifecycle?.prerelease ? ` <span class="muted">${escHtml(String(f.lifecycle.prerelease.tag))} has been a pre-release for ${escHtml(String(f.lifecycle.prerelease.days))}d.</span>` : ''}${f.lifecycle?.releaseReadyOpen ? ` <span class="muted">${escHtml(String(f.lifecycle.releaseReadyOpen))} "release ready" issue(s) still open.</span>` : ''}</td>
+  <td>${escHtml(String(f.daysSinceRelease))}d of ${escHtml(String(f.gapDays))}d</td>
+  <td>${escHtml(label[f.state] || String(f.state))}${Array.isArray(f.failingWorkflows) && f.failingWorkflows.length ? ` <span class="muted">(${f.failingWorkflows.map(n => escHtml(n)).join(', ')})</span>` : ''}</td>
 </tr>`)
       .join('');
-    parts.push(`<h3>Release PRs Waiting</h3>
-<p class="muted">Release PRs open past a 2-day grace. <em>CI never triggered</em> = no Actions run on the head though a workflow is proven to fire on a reopen; close and reopen it.</p>
+    parts.push(`<h3>Release Readiness</h3>
+<p class="muted">One row per open release PR: whether what has accumulated since the last release is worth shipping, judged against the repo's own usual gap between releases. A release PR is meant to stay open, so its age alone is never a finding.</p>
 <div class="chart-container">
-<table><thead><tr><th>Repo</th><th>PR</th><th>Waiting</th><th>State</th></tr></thead>
+<table><thead><tr><th>Repo</th><th>PR</th><th>Verdict</th><th>Why</th><th>Since release</th><th>CI</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </div>`);
   }

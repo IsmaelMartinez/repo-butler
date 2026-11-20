@@ -799,17 +799,21 @@ describe('buildGovernanceSection', () => {
     assert.ok(html.indexOf('href="repo-a.html"') < html.indexOf('href="repo-b.html"'), 'repos are linked in name order');
   });
 
-  it('renders a Release PRs Waiting table for release-pending findings', () => {
+  it('renders a Release Readiness table for release-advice findings', () => {
     const findings = [
-      { type: 'release-pending', repo: 'repo-b', owner: 'o', number: 9, version: '1.2.0', state: 'ci-not-triggered', waitingDays: 4, priority: 'high', remediation: { executor: 'manual', commands: ['gh pr close 9 -R o/repo-b'] } },
-      { type: 'release-pending', repo: 'repo-a', owner: 'o', number: 3, version: null, state: '<img src=x>', waitingDays: 3, priority: 'medium', remediation: { executor: 'manual', commands: [] } },
+      { type: 'release-advice', repo: 'repo-b', owner: 'o', number: 9, version: '1.2.0', verdict: 'good-moment', reason: '2 features have waited 7 days; this repo usually ships every 7.', since: '2026-11-18', daysSinceRelease: 7, gapDays: 7, state: 'ci-not-triggered', priority: 'medium', lifecycle: { prerelease: { tag: 'v1.1.0', days: 7 }, releaseReadyOpen: 2 }, remediation: { executor: 'manual', commands: ['gh pr close 9 -R o/repo-b'] } },
+      { type: 'release-advice', repo: 'repo-a', owner: 'o', number: 3, version: null, verdict: '<img src=x>', reason: '<script>', daysSinceRelease: 1, gapDays: 7, state: '<img src=y>', priority: 'low', remediation: { executor: 'manual', commands: [] } },
+      { type: 'release-advice', repo: 'repo-c', owner: 'o', number: 4, version: '0.1.0', verdict: 'quiet', reason: 'Only docs, chores or dependency bumps are waiting.', daysSinceRelease: 2, gapDays: 3, state: 'awaiting-human', priority: 'low', remediation: { executor: 'manual', commands: [] } },
     ];
     const html = buildGovernanceSection(findings);
-    assert.ok(html.includes('Release PRs Waiting'), 'should have a heading');
+    assert.ok(html.includes('Release Readiness'), 'should have a heading');
     assert.ok(html.indexOf('href="repo-a.html"') < html.indexOf('href="repo-b.html"'), 'rows in repo order');
-    assert.ok(html.includes('#9') && html.includes('1.2.0') && html.includes('CI never triggered'));
+    assert.ok(html.includes('#9') && html.includes('1.2.0') && html.includes('<strong>good moment</strong>') && html.includes('since 2026-11-18'));
+    assert.ok(html.includes('7d of 7d') && html.includes('CI never triggered'));
+    assert.ok(html.includes('v1.1.0 has been a pre-release for 7d') && html.includes('2 "release ready" issue(s) still open'));
+    assert.ok(html.includes('<span class="muted">nothing to ship</span>'), 'a quiet repo is muted, not a nudge');
     assert.ok(!html.includes('gh pr close'), 'commands stay off the public dashboard');
-    assert.ok(!html.includes('<img src=x>'), 'an unexpected state is escaped');
+    assert.ok(!html.includes('<img src=x>') && !html.includes('<img src=y>') && !html.includes('<script>'), 'unexpected values are escaped');
   });
 
   it('renders a Tier Regressions table for tier-regression findings', () => {
