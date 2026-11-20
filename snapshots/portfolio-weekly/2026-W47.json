@@ -211,13 +211,13 @@
     },
     "teams-for-linux": {
       "id": 151476958,
-      "open_issues": 20,
+      "open_issues": 21,
       "open_bugs": 7,
       "commits_6mo": 396,
       "stars": 5245,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.8709677419354839,
+      "ciPassRate": 0.8620689655172413,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -343,7 +343,7 @@
       },
       "ci": 12,
       "released_at": "2026-10-31T08:20:29Z",
-      "pushed_at": "2026-11-19T05:56:49Z",
+      "pushed_at": "2026-11-20T00:25:57Z",
       "traffic": {
         "views_14d": {
           "count": 38,
@@ -759,7 +759,7 @@
       },
       "ci": 14,
       "released_at": "2026-11-15T13:26:34Z",
-      "pushed_at": "2026-11-19T14:49:11Z",
+      "pushed_at": "2026-11-19T23:58:13Z",
       "traffic": {
         "views_14d": {
           "count": 133,
