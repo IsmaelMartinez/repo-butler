@@ -24,7 +24,7 @@
 import { createHash } from 'node:crypto';
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { isReleasePR, parseReleaseVersion, classifyReleasePR, preferredMergeMethod, releaseCommands } from './release-pending.js';
-import { REPO_NAME_PATTERN, validateGitHubUsername } from './safety.js';
+import { REPO_NAME_PATTERN, validateGitHubUsername, validateIssueBody } from './safety.js';
 
 export const DEFAULT_GAP_DAYS = 7;
 export const MIN_GAP_DAYS = 3;
@@ -78,14 +78,15 @@ const NOISE_SCOPES = new Set(['deps', 'deps-dev', 'docs', 'ci', 'test', 'tests',
 /**
  * Classify one conventional commit. `kind` is 'feature', 'fix' (fix, perf,
  * revert, security) or 'noise'; dependency, docs and CI scopes are noise
- * whatever the type. A non-conventional subject is noise and never breaking.
+ * whatever the type. A non-conventional subject is noise, but a BREAKING
+ * CHANGE footer under it still makes the release breaking.
  * @returns {{ kind: 'feature'|'fix'|'noise', breaking: boolean, summary: string }}
  */
 export function classifyCommit(message) {
   const text = typeof message === 'string' ? message : '';
   const first = text.split('\n', 1)[0].replace(PR_SUFFIX, '');
   const m = first.match(SUBJECT);
-  if (!m) return { kind: 'noise', breaking: false, summary: plain(first) };
+  if (!m) return { kind: 'noise', breaking: BREAKING_FOOTER.test(text), summary: plain(first) };
   const type = m[1].toLowerCase();
   const scope = (m[2] || '').toLowerCase();
   const breaking = Boolean(m[3]) || BREAKING_FOOTER.test(text);
@@ -278,15 +279,20 @@ async function readCommitMessages(gh, owner, repo, tag, base) {
     messages.push(...commits.map(c => c?.commit?.message).filter(m => typeof m === 'string'));
     if (commits.length < 100) return messages;
   }
-  return messages;
+  // Fail closed: a later page could hold a breaking change or a revert, so an
+  // incomplete history must not produce advice (the caller reports nothing).
+  throw new Error('too many commits since the last release to judge');
 }
 
 async function readShippedDirs(gh, owner, repo, ref) {
   try {
     const file = await gh.request(`/repos/${owner}/${repo}/contents/release-please-config.json`, { params: { ref } });
     return shippedDirsFrom(JSON.parse(Buffer.from(file.content, 'base64').toString('utf8')));
-  } catch {
-    return [''];
+  } catch (err) {
+    // No config at all means a single root package. A config that exists but
+    // could not be read or parsed proves nothing about what ships, so no
+    // directory counts and no alert can raise the verdict.
+    return err?.status === 404 ? [''] : [];
   }
 }
 
@@ -344,7 +350,11 @@ export async function adviseReleasePR(gh, owner, repo, pr, { now = Date.now() } 
     security, regressionIssues, breaking: waitingWork.breaking,
   });
   const version = parseReleaseVersion(pr.title);
-  const note = draftNote({ version, ...advice, features: waitingWork.features, fixes: waitingWork.fixes, security, state: ci.state });
+  const drafted = draftNote({ version, ...advice, features: waitingWork.features, fixes: waitingWork.fixes, security, state: ci.state });
+  // The same safety rules as every other body the butler writes (mentions,
+  // URLs, token-shaped strings): a note that fails them is withheld, never
+  // hashed, and so can never be approved or posted.
+  const note = drafted && validateIssueBody(drafted).valid ? drafted : null;
   // After the merge: the steps nothing fails on when they are skipped.
   const lifecycle = {};
   if (latest.prerelease) lifecycle.prerelease = { tag: plain(latest.tag_name, 40), days: daysSinceRelease };

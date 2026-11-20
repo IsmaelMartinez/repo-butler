@@ -66,6 +66,8 @@ describe('classifyCommit', () => {
 
   it('a non-conventional subject is noise, and text is reduced to a plain set', () => {
     assert.equal(classifyCommit('Merge branch main').kind, 'noise');
+    assert.deepEqual([classifyCommit('Remove legacy CLI flags\n\nBREAKING CHANGE: gone').kind, classifyCommit('Remove legacy CLI flags\n\nBREAKING CHANGE: gone').breaking], ['noise', true]);
+    assert.equal(summariseCommits(['Remove legacy CLI flags\n\nBREAKING CHANGE: gone']).breaking, true);
     assert.equal(classifyCommit(undefined).kind, 'noise');
     const c = classifyCommit('feat: add <img src=x onerror=alert(1)> `thing` [link](http://x)');
     assert.equal(/[<>`[\]=]/.test(c.summary), false);
@@ -297,6 +299,28 @@ describe('detectReleaseAdvice', () => {
     assert.match(live.note, /Security: dompurify \(critical\)/);
   });
 
+  it('an unreadable release-please config proves no shipped directory; a missing one means the root', async () => {
+    const alerts = [{ fixed_at: daysAgo(1), security_advisory: { severity: 'critical' }, dependency: { scope: 'runtime', manifest_path: 'package-lock.json', package: { name: 'dompurify' } } }];
+    const failing = status => { const gh = makeGh({ alerts }); const request = gh.request; gh.request = async (path, opts) => { if (path.endsWith('/contents/release-please-config.json')) throw Object.assign(new Error('x'), { status }); return request(path, opts); }; return gh; };
+    let [f] = await detectReleaseAdvice(failing(403), 'o', repos, { now: NOW });
+    assert.deepEqual([f.verdict, f.security], ['wait', []]);
+    [f] = await detectReleaseAdvice(failing(404), 'o', repos, { now: NOW });
+    assert.equal(f.verdict, 'release-now');
+    const bad = makeGh({ alerts }); const request = bad.request;
+    bad.request = async (path, opts) => (path.endsWith('/contents/release-please-config.json') ? { content: Buffer.from('{nope').toString('base64') } : request(path, opts));
+    [f] = await detectReleaseAdvice(bad, 'o', repos, { now: NOW });
+    assert.equal(f.verdict, 'wait');
+  });
+
+  it('withholds a note that fails the body safety rules', async () => {
+    const releases = weeklyReleases.map(r => ({ ...r, published_at: new Date(Date.parse(r.published_at) - 86400000).toISOString() }));
+    const ok = await recheckAdvice(makeGh({ releases }), 'o', 'app', 7, { now: NOW });
+    assert.equal(typeof ok.note, 'string');
+    const secret = await recheckAdvice(makeGh({ releases, commits: ['feat: rotate ghp_' + 'a'.repeat(36)] }), 'o', 'app', 7, { now: NOW });
+    assert.equal(secret.verdict, 'good-moment');
+    assert.equal('note' in secret || 'noteHash' in secret, false);
+  });
+
   it('an unchanged verdict keeps its since date; a changed one starts today', async () => {
     const prior = [{ type: 'release-advice', repo: 'app', number: 7, verdict: 'wait', since: '2026-11-15' }];
     let [f] = await detectReleaseAdvice(makeGh(), 'o', repos, { now: NOW, prior });
@@ -311,6 +335,8 @@ describe('detectReleaseAdvice', () => {
     assert.deepEqual(await detectReleaseAdvice(makeGh({ prs: [makePR(7, { labels: [], user: { login: 'someone' } })] }), 'o', repos, { now: NOW }), []);
     assert.deepEqual(await detectReleaseAdvice(makeGh({ releases: [{ tag_name: 'v1', published_at: null, draft: true }] }), 'o', repos, { now: NOW }), []);
     assert.deepEqual(await detectReleaseAdvice(makeGh({ compareThrows: true }), 'o', repos, { now: NOW }), []);
+    // 300 commits fill the page cap: an incomplete history gives no advice.
+    assert.deepEqual(await detectReleaseAdvice(makeGh({ commits: Array(100).fill('feat: x') }), 'o', repos, { now: NOW }), []);
     assert.deepEqual(await detectReleaseAdvice(makeGh(), 'o', [{ name: 'app', archived: true }], { now: NOW }), []);
     assert.deepEqual(await detectReleaseAdvice(makeGh(), 'o', null), []);
   });
