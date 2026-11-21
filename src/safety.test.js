@@ -343,6 +343,19 @@ describe('link shapes that reach GitHub without an http(s) scheme', () => {
     rejected('<img src="//evil-site.com/pixel.png">', 'disallowed host: evil-site.com');
   });
 
+  it('judges a scheme-less target by its parsed host, not by a leading allowlisted name', () => {
+    rejected('[open](//github.com@evil-site.com/payload)', 'credentialed link target');
+    rejected('See www.github.com@evil-site.com/payload', 'credentialed link target');
+    rejected('[open](//github.com:99999/x)', 'unparseable');
+    rejected('[open](//evil-site%2ecom/x)', 'disallowed host');
+    rejected('[open](//[::1]/x)', 'disallowed host');
+    rejected('[open](//3232235777/x)', 'disallowed host');
+  });
+
+  it('drops trailing sentence punctuation before judging a scheme-less target', () => {
+    assert.equal(validateIssueBody('It lives at www.github.com. Also //github.com/foo, as noted.').valid, true);
+  });
+
   it('rejects non-http schemes, which the autolinker and inline links also render', () => {
     rejected('Mirror at ftp://evil-site.com/file', 'disallowed scheme: ftp');
     rejected('[open](FTP://github.com/file)', 'disallowed scheme: ftp');
@@ -384,6 +397,18 @@ describe('@mention shapes GitHub notifies on', () => {
 
   it('rejects a handle after an unclosed backtick, which opens no code span', () => {
     pings('Ask `@octocat about it.');
+  });
+
+  it('rejects a handle between backslash-escaped backticks, which are literal punctuation', () => {
+    pings('Thanks \\`(@octocat)\\` for this.');
+  });
+
+  it('rejects a handle after a single backtick that only a double run follows', () => {
+    pings('Ask `(@octocat)`` about it.');
+  });
+
+  it('accepts a handle inside a double-backtick span', () => {
+    assert.equal(validateIssueBody('Install ``(@types/node)`` first.').valid, true);
   });
 
   it('still rejects a whitespace-preceded handle inside a code span, as before', () => {

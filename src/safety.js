@@ -652,14 +652,32 @@ const SCHEME_TOKEN = /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*):\/\/[^\s)>\]"']*/gi;
 
 // A protocol-relative target (`[text](//host/path)`, `<img src="//host/x">`):
 // no scheme, so SCHEME_TOKEN never sees it, yet the browser resolves it against
-// https://github.com and leaves for `host`. The lookbehind excludes the `//` of
-// an ordinary URL (preceded by `:`) and of a doubled path separator.
-const PROTOCOL_RELATIVE = /(?<![:\w/])\/\/((?:[a-z0-9-]+\.)+[a-z0-9-]+)/gi;
+// https://github.com and leaves for its host. The lookbehind excludes the `//`
+// of an ordinary URL (preceded by `:`) and of a doubled path separator. The
+// whole target is captured, not just a leading hostname-shaped prefix: in
+// `//github.com@evil.example/` the allowlisted name is userinfo and the host is
+// what follows, which only a real URL parse can tell.
+const PROTOCOL_RELATIVE = /(?<![:\w/])\/\/([^\s/)>\]"'][^\s)>\]"']*)/g;
 
 // A bare `www.host` — GFM's extended autolinker turns it into a link to
 // http://www.host with no scheme written at all. The lookbehind skips a `www.`
-// that is already the host of a scheme URL or part of a longer name.
-const WWW_AUTOLINK = /(?<![\w./:@-])(www\.(?:[a-z0-9-]+\.)+[a-z0-9-]+)/gi;
+// that is already the host of a scheme URL or part of a longer name. Captured
+// whole for the same reason as above.
+const WWW_AUTOLINK = /(?<![\w./:@-])(www\.[^\s<)>\]"']+)/gi;
+
+// Resolve a scheme-less link target the way a browser would and return its
+// hostname, or null when it does not parse or carries userinfo. Trailing
+// sentence punctuation is dropped first, as the autolinker drops it.
+function schemelessHost(target) {
+  const trimmed = target.replace(/[.,;:!?*_~]+$/, '');
+  try {
+    const url = new URL(`https://${trimmed}`);
+    if (url.username || url.password) return null;
+    return url.hostname;
+  } catch {
+    return null;
+  }
+}
 
 function validateUrls(text, { allowDocs = false } = {}) {
   const errors = [];
@@ -691,8 +709,10 @@ function validateUrls(text, { allowDocs = false } = {}) {
 
   for (const pattern of [PROTOCOL_RELATIVE, WWW_AUTOLINK]) {
     for (const match of text.matchAll(pattern)) {
-      const host = match[1].toLowerCase();
-      if (!isAllowedHost(host, allowedHosts)) {
+      const host = schemelessHost(match[1]);
+      if (host === null) {
+        errors.push('URL with disallowed host: unparseable or credentialed link target');
+      } else if (!isAllowedHost(host, allowedHosts)) {
         errors.push(`URL with disallowed host: ${host}`);
       }
     }
@@ -701,15 +721,31 @@ function validateUrls(text, { allowDocs = false } = {}) {
   return errors;
 }
 
-// Is the character at `index` inside an inline code span on its own line? True
-// when an odd number of backticks precede it on that line and at least one
-// follows — GitHub does not turn a handle inside a code span into a mention.
+// Is the character at `index` inside an inline code span on its own line?
+// Follows CommonMark's rule: a run of N backticks opens a span that only a run
+// of exactly N closes, and an opener with no match is literal text. Counting
+// raw backticks instead gets both of these wrong — a single backtick is not
+// closed by a double one. A backslash before a backtick makes that backtick
+// literal outside a span but not inside one, so a line containing that shape
+// is treated as uncertain and nothing on it is exempt. Spans that cross a line
+// break are not recognised, which errs toward flagging.
 function inInlineCodeSpan(text, index) {
   const lineStart = text.lastIndexOf('\n', index - 1) + 1;
   const nextBreak = text.indexOf('\n', index);
-  const lineEnd = nextBreak === -1 ? text.length : nextBreak;
-  const before = text.slice(lineStart, index).split('`').length - 1;
-  return before % 2 === 1 && text.slice(index, lineEnd).includes('`');
+  const line = text.slice(lineStart, nextBreak === -1 ? text.length : nextBreak);
+  if (line.includes('\\`')) return false;
+  const target = index - lineStart;
+
+  const runs = [...line.matchAll(/`+/g)].map(m => ({ start: m.index, length: m[0].length }));
+  for (let i = 0; i < runs.length; i++) {
+    const open = runs[i];
+    const closeAt = runs.findIndex((r, j) => j > i && r.length === open.length);
+    if (closeAt === -1) continue;
+    const close = runs[closeAt];
+    if (target >= open.start + open.length && target < close.start) return true;
+    i = closeAt;
+  }
+  return false;
 }
 
 function validateMentions(text) {
