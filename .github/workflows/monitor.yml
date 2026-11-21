@@ -21,18 +21,34 @@ permissions:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Dependabot-triggered runs get Dependabot's secret store, not the Actions one,
     # so secrets.APP_ID resolves empty and the App-token step always fails. The
     # monitor loses nothing by skipping: detection is cursor-based polling that
     # never reads the webhook payload, so the next scheduled run picks the PR up.
-    if: github.actor != 'dependabot[bot]'
+    #
+    # A pull request from a fork gets no secrets either, so the same step would
+    # fail there for the same reason; it is skipped for the same reason too.
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     # Limit concurrency so only one monitor runs at a time.
     concurrency:
       group: repo-butler-monitor
       cancel-in-progress: true
     steps:
+      # On a pull_request event the default checkout is the PR's merge commit,
+      # which would run the PR's own src/ with the App private key and the LLM
+      # keys in the environment below. The monitor never reads the PR's code or
+      # the webhook payload, so on that event it runs the default branch's code
+      # instead. Every other event keeps its own ref (schedule and issues are
+      # the default branch already; a dispatch runs the ref it was given). This
+      # does not cover a PR that edits this workflow file itself, which needs
+      # the token that pushed it to hold the workflows permission.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.repository.default_branch || '' }}
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
