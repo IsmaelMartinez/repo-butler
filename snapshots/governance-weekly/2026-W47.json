@@ -10,7 +10,7 @@
           "ecosystem": "npm",
           "manifestPath": "package-lock.json",
           "severity": "medium",
-          "ageDays": 16,
+          "ageDays": 17,
           "classification": "disjoint-ranges",
           "detail": "minimatch@11.0.1 sits outside the major line declared by @electron/asar@^3.0.4, @electron/universal@^9.0.3, @eslint/config-array@^10.2.4, app-builder-lib@^10.2.5, dir-compare@^3.0.5, eslint@^10.2.6, f"
         }
@@ -20,7 +20,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 16 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 17 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
         "acceptanceCriteria": [
           "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
         ]
