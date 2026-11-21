@@ -43,6 +43,7 @@ on:
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       security-events: write
       contents: read
@@ -145,6 +146,7 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Fetch Dependabot metadata
@@ -246,6 +248,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # Pinned to a commit rather than a floating major tag: a moving tag
       # resolves differently in each repo carrying this template, and is a

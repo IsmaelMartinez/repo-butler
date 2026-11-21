@@ -23,6 +23,29 @@ function errorResponse(status, text = '') {
   };
 }
 
+describe('createClient — request timeout', () => {
+  let originalFetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('bounds every attempt with an abort signal', async () => {
+    const signals = [];
+    globalThis.fetch = mock.fn(async (_url, init) => { signals.push(init.signal); return jsonResponse({ ok: true }); });
+    await createClient('tok').request('/rate_limit');
+    assert.equal(signals.length, 1);
+    assert.ok(signals[0] instanceof AbortSignal, 'fetch has no default timeout, so one must be passed');
+    assert.equal(signals[0].aborted, false);
+  });
+
+  it('surfaces a timeout as a status-less error, never as an HTTP answer', async () => {
+    globalThis.fetch = mock.fn(async () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError'); });
+    await assert.rejects(
+      () => createClient('tok').request('/rate_limit'),
+      (err) => err.name === 'TimeoutError' && err.status === undefined,
+    );
+  });
+});
+
 describe('createClient — getFileContent', () => {
   let originalFetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });

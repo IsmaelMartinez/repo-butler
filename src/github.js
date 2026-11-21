@@ -3,6 +3,13 @@
 
 const API_BASE = 'https://api.github.com';
 
+// Upper bound on one request, headers and body together. fetch has no default
+// timeout, so a connection that stalls would otherwise hold the run (and the
+// installation token in its environment) until the job is killed. A timeout
+// rejects with a status-less error, which callers already treat as an
+// unreadable answer rather than a reply.
+export const REQUEST_TIMEOUT_MS = 60_000;
+
 /**
  * Replace the repo segment of an API path with a placeholder.
  *
@@ -71,6 +78,7 @@ export function createClient(token, options = {}) {
         method,
         headers: { ...headers, ...(body ? { 'Content-Type': 'application/json' } : {}) },
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
 
       // Handle rate limiting (429) and distinguish from permission errors (403).

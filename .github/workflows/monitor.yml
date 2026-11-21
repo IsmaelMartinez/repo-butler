@@ -61,7 +61,21 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
+          # No `owner` or `repositories`: the action then scopes the token to
+          # this repository alone, which is all the monitor phase reads (it
+          # never loads the portfolio). The permissions are the ones its
+          # detectors and the cursor write use: issues, pull requests and
+          # releases to read, the three alert scanners to read, and contents to
+          # write snapshots/monitor-cursor.json on the data branch. Workflow
+          # runs are public on a public repository and need no grant.
+          # Requesting a permission the App does not hold fails this step, so
+          # add one here only together with the read that needs it.
+          permission-contents: write
+          permission-issues: read
+          permission-pull-requests: read
+          permission-security-events: read
+          permission-vulnerability-alerts: read
+          permission-secret-scanning-alerts: read
 
       - name: Run Monitor + Council Triage
         env:
