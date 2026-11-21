@@ -326,6 +326,87 @@ describe('URL allowlist context tiers', () => {
   });
 });
 
+describe('link shapes that reach GitHub without an http(s) scheme', () => {
+  const rejected = (body, fragment) => {
+    const result = validateIssueBody(body);
+    assert.equal(result.valid, false, `expected rejection: ${body}`);
+    assert.ok(result.errors.some(e => e.includes(fragment)), `expected "${fragment}" in ${JSON.stringify(result.errors)}`);
+  };
+
+  it('rejects a bare www. host, which GFM autolinks with no scheme written', () => {
+    rejected('Details at www.evil-site.com/payload today.', 'disallowed host: www.evil-site.com');
+    rejected('(www.evil-site.com)', 'disallowed host');
+  });
+
+  it('rejects a protocol-relative link target', () => {
+    rejected('[the docs](//evil-site.com/payload)', 'disallowed host: evil-site.com');
+    rejected('<img src="//evil-site.com/pixel.png">', 'disallowed host: evil-site.com');
+  });
+
+  it('rejects non-http schemes, which the autolinker and inline links also render', () => {
+    rejected('Mirror at ftp://evil-site.com/file', 'disallowed scheme: ftp');
+    rejected('[open](FTP://github.com/file)', 'disallowed scheme: ftp');
+  });
+
+  it('does not read a longer scheme as its https tail', () => {
+    rejected('xhttps://github.com/foo', 'disallowed scheme: xhttps');
+  });
+
+  it('fails closed on a URL that does not parse', () => {
+    rejected('See https://github.com:99999/foo for details.', 'unparseable URL');
+  });
+
+  it('still accepts allowlisted hosts in every shape', () => {
+    assert.equal(validateIssueBody('See www.github.com/foo and [x](//github.com/foo/bar).').valid, true);
+    assert.equal(validateIssueBody('Pages at https://ismaelmartinez.github.io/repo-butler/').valid, true);
+  });
+
+  it('leaves ordinary prose, paths and comments alone', () => {
+    assert.equal(validateIssueBody('Compare src//double.js, a // trailing comment, and the www prefix.').valid, true);
+    assert.equal(validateIssueBody('Ratio is 3://4 of nothing').valid, true);
+  });
+});
+
+describe('@mention shapes GitHub notifies on', () => {
+  const pings = (body) => {
+    const result = validateIssueBody(body);
+    assert.equal(result.valid, false, `expected rejection: ${body}`);
+    assert.ok(result.errors.some(e => e.includes('@mention')));
+  };
+
+  it('rejects a handle preceded by punctuation rather than whitespace', () => {
+    pings('Thanks (@octocat) for the report.');
+    pings('**@octocat** should look.');
+    pings('cc:@octocat');
+    pings('"@octocat"');
+    pings('see/@octocat');
+  });
+
+  it('rejects a handle after an unclosed backtick, which opens no code span', () => {
+    pings('Ask `@octocat about it.');
+  });
+
+  it('still rejects a whitespace-preceded handle inside a code span, as before', () => {
+    pings('Run `npm i @types/node` first.');
+  });
+
+  it('accepts emails, version refs and allowlisted bots', () => {
+    assert.equal(validateIssueBody('Mail someone@example.org, pin actions/checkout@v4 and repo-butler@v1.').valid, true);
+    assert.equal(validateIssueBody('Opened by (@dependabot) and **@repo-butler**.').valid, true);
+  });
+
+  it('accepts a scoped package quoted in a closed code span', () => {
+    assert.equal(validateIssueBody('| `@babel/core` | 7.0.0 | 7.0.1 |\n| `node_modules/@babel/core` | 7.0.0 | 7.0.1 |').valid, true);
+  });
+
+  it('applies to roadmap content too', () => {
+    const roadmap = `# Roadmap\n\nShipped by (@octocat).\n${'x'.repeat(100)}`;
+    const result = validateRoadmap(roadmap);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => e.startsWith('Roadmap contains @mention')));
+  });
+});
+
 describe('validateIdeas', () => {
   it('passes valid ideas through', () => {
     const ideas = [
