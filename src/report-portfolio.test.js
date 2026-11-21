@@ -332,6 +332,21 @@ describe('portfolio table ci cell is tri-state', () => {
   });
 });
 
+describe('weekly chart datasets are inert in the inline script', () => {
+  it('encodes the repo name and coerces weekly values to numbers', async () => {
+    const { generatePortfolioReport } = await import('./report-portfolio.js');
+    const name = `a'}]});alert(1);//</script>`;
+    const portfolio = { repos: [
+      { name, stars: 0, forks: 0, open_issues: 0, pushed_at: new Date().toISOString(), archived: false, fork: false, language: 'JS' },
+    ] };
+    const details = { [name]: { commits: 20, weekly: [1, '2);alert(2);//', 3], license: 'MIT', ci: 2, communityHealth: 90, vulns: { count: 0, max_severity: null }, ciPassRate: 0.95, open_issues: 0, open_bugs: 0, released_at: new Date().toISOString(), codeScanning: null, secretScanning: { count: 0 } } };
+    const html = generatePortfolioReport({ owner: 'test', portfolio, details, config: {} });
+    assert.ok(html.includes('{label:"a\'}]});alert(1);//\\u003c/script\\u003e",data:[1,0,3],'), 'label is a JSON string and the non-number became 0');
+    assert.ok(!html.includes(`label:'a'`), 'no raw single-quoted label');
+    assert.ok(!html.includes('alert(2)'), 'a non-numeric weekly value never reaches the script');
+  });
+});
+
 describe('generatePortfolioReport restructure', () => {
   it('has the status hero with tier mix instead of vanity stats', async () => {
     const { generatePortfolioReport } = await import('./report-portfolio.js');
