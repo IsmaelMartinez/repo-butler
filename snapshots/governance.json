@@ -33,14 +33,14 @@
     "version": "0.51.2",
     "state": "ci-awaiting-approval",
     "headSha": "16233ac09c7c688f95e1e166d1e0a8805555466a",
-    "waitingDays": 12,
+    "waitingDays": 13,
     "mergeMethod": "squash",
     "priority": "medium",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Release 0.51.2 in delegate-local",
-      "rationale": "Release PR #692 has waited 12 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+      "rationale": "Release PR #692 has waited 13 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
       "acceptanceCriteria": [
         "Release PR #692 is merged or closed"
       ],
@@ -55,14 +55,14 @@
     "version": "2.33.0",
     "state": "ci-awaiting-approval",
     "headSha": "e72450f6189fc19f330da822e20fc7ee87da3cc0",
-    "waitingDays": 5,
+    "waitingDays": 6,
     "mergeMethod": "squash",
     "priority": "high",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Release 2.33.0 in teams-for-linux",
-      "rationale": "Release PR #3221 has waited 5 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+      "rationale": "Release PR #3221 has waited 6 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
       "acceptanceCriteria": [
         "Release PR #3221 is merged or closed"
       ],
