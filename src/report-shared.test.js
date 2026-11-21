@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildActionItems } from './report-repo.js';
 import { buildCampaignSection } from './report-portfolio.js';
 import { campaignsFor } from './mcp.js';
-import { generateHealthBadge, computeHealthTier, isReleaseExempt, isBugIssue, isFeatureIssue, CAMPAIGN_DEFS, buildRepoSnapshot, jsStr, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
+import { generateHealthBadge, computeHealthTier, isReleaseExempt, isBugIssue, isFeatureIssue, CAMPAIGN_DEFS, buildRepoSnapshot, jsStr, escHtml, deployedLink, evaluateCampaign, autofixActive, isActionableBug } from './report-shared.js';
 
 describe('jsStr', () => {
   it('quotes and escapes strings for inline <script> embedding', () => {
@@ -25,6 +25,12 @@ describe('jsStr', () => {
 
 // #477: the public badge says unconfirmed for a provisional tier, and the
 // portfolio badge averages confirmed tiers only.
+describe('escHtml', () => {
+  it('escapes both quote characters, so a value is inert in either attribute style', () => {
+    assert.equal(escHtml(`a"b'c<d>&`), 'a&quot;b&#39;c&lt;d&gt;&amp;');
+  });
+});
+
 describe('provisional badges', () => {
   it('renders a provisional tier as unconfirmed in the neutral grey', async () => {
     const { generateHealthBadge } = await import('./report-shared.js');

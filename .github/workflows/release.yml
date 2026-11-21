@@ -30,6 +30,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # Pinned to a commit rather than a floating major tag: a moving tag
       # resolves differently in each repo carrying this template, and is a

@@ -25,6 +25,11 @@ const MAX_ATTEMPTS = 3;
 // or stalling the runner for minutes.
 const MAX_BACKOFF_SEC = 60;
 
+// Upper bound on one generate() attempt, headers and body together. fetch has
+// no default timeout, and a stalled provider would otherwise hold the run until
+// the job is killed. Generous, because a long completion is legitimate.
+export const REQUEST_TIMEOUT_MS = 300_000;
+
 const defaultSleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // Shared HTTP wrapper for the LLM REST APIs.
@@ -43,6 +48,7 @@ export async function fetchJson({ url, headers, body, extractText, providerName,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (res.ok) {

@@ -8,7 +8,7 @@ import {
   SIX_MONTHS_AGO, ONE_YEAR_AGO,
   TIER_DISPLAY, TIER_RANK, COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER,
   REPO_EXCLUSION_PATTERNS, isExcludedRepo,
-  escHtml, fmt, countBy, daysAgo,
+  escHtml, jsStr, fmt, countBy, daysAgo,
   getLibyearColor, isReleaseExempt, isCopyleft, describeLicenseConcern,
   CAMPAIGN_DEFS, evaluateCampaign, buildRepoSnapshot, colorByThreshold, nextTier, isHighSeverity, isCheckRequiredForTier, deployedLink,
   isAutofixNotDriven, isAutofixInFlight, computeCountTrend, isScannerUnreadable,
@@ -891,7 +891,7 @@ export function generatePortfolioReport({ owner, portfolio, details, depInventor
   ];
 
   const weeklyDatasets = topRepos.map((r, i) =>
-    `{label:'${r.name}',data:[${(r.weekly || []).join(',')}],backgroundColor:'${chartColors[i] || chartColors[7]}',borderRadius:1}`
+    `{label:${jsStr(r.name)},data:[${(r.weekly || []).map(n => Number(n) || 0).join(',')}],backgroundColor:'${chartColors[i] || chartColors[7]}',borderRadius:1}`
   ).join(',');
 
   // --- Status hero + delta (calm & adaptive layout) ---

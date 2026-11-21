@@ -213,8 +213,8 @@ export function validateRoadmap(content) {
 
   // The roadmap is committed to the repo and deployed to Pages, so LLM-supplied
   // entry text must not @mention real users — same guard validateIssueBody
-  // applies to issue bodies. The (?<!\S)@ matcher only fires on a whitespace- or
-  // line-start-preceded handle, so version refs like `repo-butler@v1` are safe;
+  // applies to issue bodies. The matcher skips a handle preceded by a word
+  // character, so version refs like `repo-butler@v1` are safe;
   // repo-butler/dependabot/github-actions are allowlisted in validateMentions.
   // validateMentions prefixes errors with "Body contains" (its issue-body
   // origin); relabel for the roadmap context so the surfaced error is accurate.
@@ -638,46 +638,138 @@ export function safeDeployedUrl(url) {
 
 // --- Internal helpers ---
 
+// Hostname allowlist test shared by every link shape validateUrls recognises.
+function isAllowedHost(host, allowedHosts) {
+  return allowedHosts.some(allowed => host === allowed || host.endsWith(`.${allowed}`));
+}
+
+// Any `scheme://` token. GitHub renders more than http(s) as a link: the GFM
+// extended autolinker also links `ftp://`, and an inline `[text](scheme://…)`
+// or `<scheme://…>` link takes any scheme its sanitiser allows. The lookbehind
+// keeps the match at the start of the scheme so `xhttps://` cannot be read as
+// its `https://` tail.
+const SCHEME_TOKEN = /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*):\/\/[^\s)>\]"']*/gi;
+
+// A protocol-relative target (`[text](//host/path)`, `<img src="//host/x">`):
+// no scheme, so SCHEME_TOKEN never sees it, yet the browser resolves it against
+// https://github.com and leaves for its host. The lookbehind excludes the `//`
+// of an ordinary URL (preceded by `:`) and of a doubled path separator. The
+// whole target is captured, not just a leading hostname-shaped prefix: in
+// `//github.com@evil.example/` the allowlisted name is userinfo and the host is
+// what follows, which only a real URL parse can tell.
+const PROTOCOL_RELATIVE = /(?<![:\w/])\/\/([^\s/)>\]"'][^\s)>\]"']*)/g;
+
+// A bare `www.host` — GFM's extended autolinker turns it into a link to
+// http://www.host with no scheme written at all. The lookbehind skips a `www.`
+// that is already the host of a scheme URL or part of a longer name. Captured
+// whole for the same reason as above.
+const WWW_AUTOLINK = /(?<![\w./:@-])(www\.[^\s<)>\]"']+)/gi;
+
+// Resolve a scheme-less link target the way a browser would and return its
+// hostname, or null when it does not parse or carries userinfo. Trailing
+// sentence punctuation is dropped first, as the autolinker drops it.
+function schemelessHost(target) {
+  const trimmed = target.replace(/[.,;:!?*_~]+$/, '');
+  try {
+    const url = new URL(`https://${trimmed}`);
+    if (url.username || url.password) return null;
+    return url.hostname;
+  } catch {
+    return null;
+  }
+}
+
 function validateUrls(text, { allowDocs = false } = {}) {
   const errors = [];
-  // Case-insensitive: URL schemes are case-insensitive, so HTTPS://evil.com
-  // must be caught just like https://evil.com.
-  const urlRegex = /https?:\/\/[^\s)>\]"']+/gi;
-  let match;
-
   const allowedHosts = allowDocs ? [...CORE_URL_HOSTS, ...DOCS_URL_HOSTS] : CORE_URL_HOSTS;
 
-  while ((match = urlRegex.exec(text)) !== null) {
+  // Scheme matching is case-insensitive: HTTPS://evil.com must be caught just
+  // like https://evil.com.
+  for (const match of text.matchAll(SCHEME_TOKEN)) {
+    const scheme = match[1].toLowerCase();
+    if (scheme !== 'http' && scheme !== 'https') {
+      errors.push(`URL with disallowed scheme: ${scheme}`);
+      continue;
+    }
+    let host;
     try {
-      const url = new URL(match[0]);
-      const host = url.hostname;
-      const isAllowed = allowedHosts.some(
-        allowed => host === allowed || host.endsWith(`.${allowed}`)
-      );
-      if (!isAllowed) {
+      host = new URL(match[0]).hostname;
+    } catch {
+      // Fail closed. This used to skip, on the theory that a URL which does not
+      // parse cannot be followed — but the allowlist is the only thing between
+      // LLM output and a link on GitHub, and what GitHub's renderer makes of a
+      // token is not ours to predict. Unparseable is not the same as harmless.
+      errors.push('URL with disallowed host: unparseable URL');
+      continue;
+    }
+    if (!isAllowedHost(host, allowedHosts)) {
+      errors.push(`URL with disallowed host: ${host}`);
+    }
+  }
+
+  for (const pattern of [PROTOCOL_RELATIVE, WWW_AUTOLINK]) {
+    for (const match of text.matchAll(pattern)) {
+      const host = schemelessHost(match[1]);
+      if (host === null) {
+        errors.push('URL with disallowed host: unparseable or credentialed link target');
+      } else if (!isAllowedHost(host, allowedHosts)) {
         errors.push(`URL with disallowed host: ${host}`);
       }
-    } catch {
-      // Malformed URL — skip.
     }
   }
 
   return errors;
 }
 
+// Is the character at `index` inside an inline code span on its own line?
+// Follows CommonMark's rule: a run of N backticks opens a span that only a run
+// of exactly N closes, and an opener with no match is literal text. Counting
+// raw backticks instead gets both of these wrong — a single backtick is not
+// closed by a double one. A backslash before a backtick makes that backtick
+// literal outside a span but not inside one, so a line containing that shape
+// is treated as uncertain and nothing on it is exempt. Spans that cross a line
+// break are not recognised, which errs toward flagging.
+function inInlineCodeSpan(text, index) {
+  const lineStart = text.lastIndexOf('\n', index - 1) + 1;
+  const nextBreak = text.indexOf('\n', index);
+  const line = text.slice(lineStart, nextBreak === -1 ? text.length : nextBreak);
+  if (line.includes('\\`')) return false;
+  const target = index - lineStart;
+
+  const runs = [...line.matchAll(/`+/g)].map(m => ({ start: m.index, length: m[0].length }));
+  for (let i = 0; i < runs.length; i++) {
+    const open = runs[i];
+    const closeAt = runs.findIndex((r, j) => j > i && r.length === open.length);
+    if (closeAt === -1) continue;
+    const close = runs[closeAt];
+    if (target >= open.start + open.length && target < close.start) return true;
+    i = closeAt;
+  }
+  return false;
+}
+
 function validateMentions(text) {
   const errors = [];
-  // Match @username patterns but not email addresses.
-  const mentionRegex = /(?<!\S)@([a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)/g;
-  let match;
+  // GitHub turns `@handle` into a mention after ANY non-word character, not
+  // only whitespace: `(@user)`, `**@user**`, `"@user"` and `cc:@user` all
+  // notify. The lookbehind therefore excludes only a preceding word character,
+  // which is what keeps email addresses (`a@b.c`) and version refs
+  // (`repo-butler@v1`, `actions/checkout@v4`) out.
+  const mentionRegex = /(?<!\w)@([a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)/g;
+  // Allow bot self-references and common non-user mentions.
+  const allowed = ['repo-butler', 'dependabot', 'github-actions'];
 
-  while ((match = mentionRegex.exec(text)) !== null) {
+  for (const match of text.matchAll(mentionRegex)) {
     const username = match[1];
-    // Allow bot self-references and common non-user mentions.
-    const allowed = ['repo-butler', 'dependabot', 'github-actions'];
-    if (!allowed.includes(username.toLowerCase())) {
-      errors.push(`Body contains @mention: @${username} — LLM should not ping real users`);
-    }
+    if (allowed.includes(username.toLowerCase())) continue;
+    // A handle inside a closed inline code span and not preceded by whitespace
+    // (`@types/node`, `node_modules/@babel/core`) is a token being quoted, not
+    // a ping, and lockfile PR tables are full of them. A whitespace-preceded
+    // handle is flagged wherever it sits, as it always was, and an unclosed
+    // backtick opens no span.
+    const prev = match.index > 0 ? text[match.index - 1] : '';
+    if (prev && !/\s/.test(prev) && inInlineCodeSpan(text, match.index)) continue;
+    errors.push(`Body contains @mention: @${username} — LLM should not ping real users`);
   }
 
   return errors;
