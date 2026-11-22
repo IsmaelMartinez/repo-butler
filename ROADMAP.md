@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-11-16
+**Last Updated:** 2026-11-22
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -118,6 +118,8 @@ Owner-move factory design and Phase 1 workspace hygiene shipped 2026-11-06 (PRs 
 Release-pending detector with ci-not-triggered state shipped 2026-11-07 (PR #509). Enhances factory Phase 2 governance capabilities by systematically identifying pending releases and un-triggered CI states to improve automated oversight reliability.
 
 Pagination fix for GitHub check-runs in prCiState and prCiGreen shipped 2026-11-07 (PR #511). Ensures strict check-runs paging during CI state validation to maintain reliable observation and robust CI pass rate tracking across repositories.
+
+Security review hardening shipped 2026-11-22 (PR #515). Addresses validator bypasses, monitor workflow security, and execution timeouts to ensure the agent executes safely within its autonomous environment.
 
 ---
 
