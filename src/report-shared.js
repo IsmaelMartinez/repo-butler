@@ -286,8 +286,11 @@ export function isBotAuthor(author = '') {
   return author.includes('[bot]') || author.startsWith('app/');
 }
 
+// Escapes the single quote too, so a value stays inert in a single-quoted
+// attribute as well as a double-quoted one — every call site quotes with `"`
+// today, and nothing but this function would stop the first one that does not.
 export function escHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // Render a repo's deployed-page link for the dashboard, or '' when no valid

@@ -46,6 +46,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     outputs:
       has-reports: ${{ steps.check.outputs.has-reports }}
     steps:
@@ -120,6 +121,7 @@ jobs:
     if: needs.run.outputs.has-reports == 'true'
     needs: run
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       pages: write
       id-token: write

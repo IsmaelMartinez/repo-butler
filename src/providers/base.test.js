@@ -38,6 +38,13 @@ describe('fetchJson', () => {
     assert.equal(calls[0].init.body, JSON.stringify({ prompt: 'hi' }));
   });
 
+  it('bounds each attempt with an abort signal', async () => {
+    let signal;
+    globalThis.fetch = mock.fn(async (_url, init) => { signal = init.signal; return jsonResponse({}); });
+    await fetchJson({ url: 'x', headers: {}, body: {}, extractText: () => 'ok', providerName: 'p' });
+    assert.ok(signal instanceof AbortSignal, 'fetch has no default timeout, so one must be passed');
+  });
+
   it('defaults Content-Type to application/json (caller can override)', async () => {
     const calls = [];
     globalThis.fetch = mock.fn(async (url, init) => { calls.push(init); return jsonResponse({}); });

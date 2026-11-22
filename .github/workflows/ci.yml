@@ -12,6 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,6 +84,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,7 +96,12 @@ jobs:
           # Exclude safety.js and test files (they contain patterns and fixtures, not real keys)
           # The PEM header class covers RSA, EC, PKCS8 (`BEGIN PRIVATE KEY`,
           # `BEGIN ENCRYPTED PRIVATE KEY`) and OpenSSH; one bracket class, no nesting.
-          if grep -rn 'AIza\|sk-ant-\|sk-[a-zA-Z0-9]\{40\}\|-----BEGIN [A-Z ]*PRIVATE KEY-----\|github_pat_' src/ --include='*.js' --exclude='safety.js' --exclude='*.test.js'; then
+          # GitHub tokens (ghp_/gho_/ghu_/ghs_/ghr_), AWS access key IDs and
+          # Slack tokens mirror safety.js's runtime BLOCKED_PATTERNS, and the
+          # scan covers scripts/ and skills/ as well as src/, since code ships
+          # from all three. Docs and workflows are left out: they name these
+          # prefixes in prose, and this file contains the pattern itself.
+          if grep -rn 'AIza\|sk-ant-\|sk-[a-zA-Z0-9]\{40\}\|-----BEGIN [A-Z ]*PRIVATE KEY-----\|github_pat_\|gh[pousr]_[a-zA-Z0-9]\{36\}\|\(AKIA\|ASIA\)[A-Z0-9]\{16\}\|xox[baprse]-[a-zA-Z0-9-]\{10\}' src/ scripts/ skills/ --include='*.js' --include='*.ts' --include='*.sh' --include='*.json' --exclude='safety.js' --exclude='*.test.js' --exclude='*.test.ts'; then
             echo "ERROR: Potential API key found in source code"
             exit 1
           fi
