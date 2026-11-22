@@ -56,14 +56,14 @@
       "version": "2.33.0",
       "state": "ci-awaiting-approval",
       "headSha": "e72450f6189fc19f330da822e20fc7ee87da3cc0",
-      "waitingDays": 6,
+      "waitingDays": 7,
       "mergeMethod": "squash",
       "priority": "high",
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Release 2.33.0 in teams-for-linux",
-        "rationale": "Release PR #3221 has waited 6 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+        "rationale": "Release PR #3221 has waited 7 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
         "acceptanceCriteria": [
           "Release PR #3221 is merged or closed"
         ],
