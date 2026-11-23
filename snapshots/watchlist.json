@@ -76,5 +76,18 @@
     "council_summary": "While agentic lockfile remediation is valuable, starting with a spike on a docker agent requires careful observation to ensure stability before full adoption.",
     "added_at": "2026-11-16T15:01:14.180Z",
     "review_count": 0
+  },
+  {
+    "title": "Governance: resolve stalled Dependabot alert for teams-for-linux",
+    "type": "proposal",
+    "severity": "high",
+    "targetRepo": "teams-for-linux",
+    "held_back_reason": null,
+    "council_verdict": "watch",
+    "council_confidence": "low",
+    "council_priority": "medium",
+    "council_summary": "Although the security rationale is valid, the proposal targets an external repository (`teams-for-linux`) without citing a unique portfolio-wide statistical metric computed by Repo Butler. Lacking this quantitative baseline justification, we prefer to watch rather than act.",
+    "added_at": "2026-11-23T17:33:41.194Z",
+    "review_count": 0
   }
 ]
