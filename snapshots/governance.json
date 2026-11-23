@@ -11,7 +11,7 @@
         "severity": "medium",
         "ageDays": 18,
         "classification": "disjoint-ranges",
-        "detail": "minimatch@11.0.1 sits outside the major line declared by @electron/asar@^3.0.4, @electron/universal@^9.0.3, @eslint/config-array@^10.2.4, app-builder-lib@^10.2.5, dir-compare@^3.0.5, eslint@^10.2.6, f"
+        "detail": "minimatch@11.0.1 sits outside the major line declared by @electron/asar@^3.0.4, @electron/universal@^9.0.3, app-builder-lib@^10.2.5, dir-compare@^3.0.5, filelist@^5.0.1, glob@^3.1.1; an override would"
       }
     ],
     "priority": "medium",
@@ -33,14 +33,14 @@
     "version": "0.51.2",
     "state": "ci-awaiting-approval",
     "headSha": "16233ac09c7c688f95e1e166d1e0a8805555466a",
-    "waitingDays": 14,
+    "waitingDays": 15,
     "mergeMethod": "squash",
     "priority": "medium",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Release 0.51.2 in delegate-local",
-      "rationale": "Release PR #692 has waited 14 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+      "rationale": "Release PR #692 has waited 15 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
       "acceptanceCriteria": [
         "Release PR #692 is merged or closed"
       ],
@@ -54,15 +54,15 @@
     "number": 3221,
     "version": "2.33.0",
     "state": "ci-awaiting-approval",
-    "headSha": "0127279b3de16306fee8d3c828593a4a9e5a7ea7",
-    "waitingDays": 7,
+    "headSha": "914e59f087191527fc6f628d2d3eda0bf665b5c1",
+    "waitingDays": 8,
     "mergeMethod": "squash",
     "priority": "high",
     "remediation": {
       "executor": "manual",
       "targetFiles": [],
       "intent": "Release 2.33.0 in teams-for-linux",
-      "rationale": "Release PR #3221 has waited 7 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+      "rationale": "Release PR #3221 has waited 8 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
       "acceptanceCriteria": [
         "Release PR #3221 is merged or closed"
       ],
