@@ -1,25 +1,19 @@
-// Release-pending detector (agentic factory Phase 2, design doc
-// docs/superpowers/specs/2026-11-06-agentic-factory-design.md section 2).
+// Release PR mechanics (agentic factory Phase 2): recognising a release PR and
+// saying whether it can be merged as it stands. Whether it is WORTH merging is
+// src/release-advisor.js's question; this module only answers the footnote.
 //
-// Finds release PRs that are waiting, and why. The case that bit twice
-// (teams-for-linux #3158, delegate-local #690) is a release-please PR opened
-// with the default token: GitHub runs no Actions workflow for it at all, so it
-// sits with external checks green (or none) and nothing says CI never ran.
-// `classifyPR` reads that as awaiting-human or ci-none, which is the same
-// failure under two names. This module adds the `ci-not-triggered` state for
-// it, and errs towards saying nothing: the close-and-reopen command it unlocks
-// is only emitted when a workflow is PROVEN to fire on a reopened PR.
-//
-// Never throws: a per-repo failure yields no finding, matching the other
-// PR-reading audits, so runGovernance degrades to "found nothing" rather than
-// to stale output.
+// The case that bit twice (teams-for-linux #3158, delegate-local #690) is a
+// release-please PR opened with the default token: GitHub runs no Actions
+// workflow for it at all, so it sits with external checks green (or none) and
+// nothing says CI never ran. `classifyPR` reads that as awaiting-human or
+// ci-none, which is the same failure under two names. This module adds the
+// `ci-not-triggered` state for it, and errs towards saying nothing: the
+// close-and-reopen command it unlocks is only emitted when a workflow is
+// PROVEN to fire on a reopened PR.
 
-import { eligibleRepos, listOpenPRs } from './governance-repos.js';
 import { classifyPR } from './butler-pr-audit.js';
 import { isSameRepoPR } from './stalled-alert.js';
 import { REPO_NAME_PATTERN, validateGitHubUsername } from './safety.js';
-
-export const GRACE_DAYS = 2;
 
 const RELEASE_BRANCH_PREFIX = 'release-please--';
 const RELEASE_LABEL = 'autorelease: pending';
@@ -378,27 +372,6 @@ export async function preferredMergeMethod(gh, owner, repo) {
 }
 
 /**
- * Is a shipped regression waiting on this release? True when an open issue
- * labelled `bug` was created after the latest published release. Any read
- * failure, or no release yet, is false: this can only raise a priority, so it
- * needs positive evidence.
- */
-async function regressionWaiting(gh, owner, repo) {
-  try {
-    const latest = await gh.request(`/repos/${owner}/${repo}/releases/latest`);
-    const since = Date.parse(latest?.published_at);
-    if (!Number.isFinite(since)) return false;
-    const bugs = await gh.paginate(`/repos/${owner}/${repo}/issues`, {
-      params: { state: 'open', labels: 'bug', per_page: 100 },
-      max: 200,
-    });
-    return bugs.some(i => !i.pull_request && Date.parse(i.created_at) > since);
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Classify one release PR. classifyPR's state once Actions has reported;
  * `ci-awaiting-approval` or `ci-pending` while its runs are blocked or queued;
  * and a head with no GitHub Actions run at all becomes `ci-not-triggered` when a workflow is
@@ -438,72 +411,11 @@ export async function classifyReleasePR(gh, owner, repo, pr, { now = Date.now() 
   return { state: (await classifyPR(gh, owner, repo, pr)).state };
 }
 
-/**
- * Release PRs open past the grace period, one finding per PR.
- *
- * @param {object} gh — GitHub API client
- * @param {string} owner
- * @param {Array} repos — portfolio repos from observePortfolio()
- * @param {{ openPRs?: Object }} [options] — the shared open-PR sweep
- * @returns {Promise<Array>} findings of type 'release-pending'
- */
-export async function detectPendingReleases(gh, owner, repos, { openPRs = null } = {}) {
-  if (!Array.isArray(repos)) return [];
-  const now = Date.now();
-
-  const perRepo = await Promise.all(eligibleRepos(repos).map(async (repo) => {
-    try {
-      const prs = await listOpenPRs(gh, owner, repo.name, openPRs);
-      if (!Array.isArray(prs)) return [];
-      const waiting = [];
-      for (const pr of prs) {
-        if (!isReleasePR(pr)) continue;
-        const ageDays = (now - new Date(pr.created_at).getTime()) / 86400000;
-        // Unrounded, so the grace is two days and not three. Negated so an
-        // unparseable created_at (NaN) skips the PR rather than reporting one
-        // of unknown age (butler-pr-audit.js does the same).
-        if (!(ageDays > GRACE_DAYS)) continue;
-        const waitingDays = Math.floor(ageDays);
-        waiting.push({ pr, waitingDays });
-      }
-      if (waiting.length === 0) return [];
-
-      const [mergeMethod, regression] = await Promise.all([
-        preferredMergeMethod(gh, owner, repo.name),
-        regressionWaiting(gh, owner, repo.name),
-      ]);
-      const findings = [];
-      for (const { pr, waitingDays } of waiting) {
-        findings.push({
-          type: 'release-pending',
-          repo: repo.name,
-          owner,
-          number: pr.number,
-          // The title is never stored: it is PR text, and findings reach MCP
-          // clients next to executable commands. The version is all it carries.
-          version: parseReleaseVersion(pr.title),
-          ...(await classifyReleasePR(gh, owner, repo.name, pr)),
-          headSha: pr.head?.sha ?? null,
-          waitingDays,
-          mergeMethod,
-          priority: regression ? 'high' : 'medium',
-        });
-      }
-      return findings;
-    } catch (err) {
-      console.log(`release-pending: skipping ${repo.name} (${err.status ?? 'error'})`);
-      return [];
-    }
-  }));
-
-  return perRepo.flat().sort((a, b) => a.repo.localeCompare(b.repo) || a.number - b.number);
-}
-
 const MERGE_METHODS = new Set(['squash', 'merge', 'rebase']);
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
 /**
- * Exact single-line commands for a release-pending finding, built only from
+ * Exact single-line commands for a release PR in a given CI state, built only from
  * validated identifiers and enum values — never from the PR title (ADR-005's
  * fixed-string rule). Empty when any part fails validation or the state
  * offers no safe action. The merge is pinned to the head the finding

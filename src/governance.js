@@ -12,7 +12,8 @@ import { auditDependabot } from './dependabot-audit.js';
 import { auditButlerPRs } from './butler-pr-audit.js';
 import { detectStalledAlertsWithStatus } from './stalled-alert.js';
 import { detectSecurityFixState } from './security-pr-stuck.js';
-import { detectPendingReleases, releaseCommands } from './release-pending.js';
+import { releaseCommands } from './release-pending.js';
+import { detectReleaseAdvice, adviceCommands, ACTIONABLE, VERDICT_LABEL } from './release-advisor.js';
 
 export { releaseCommands };
 import { eligibleRepos, listOpenPRs } from './governance-repos.js';
@@ -145,13 +146,15 @@ export async function runGovernance(context) {
     console.log(`Butler PR audit: ${butlerPRs.length} repos with stale butler PRs.`);
   }
 
-  // Factory Phase 2: release PRs waiting past the grace period, and why.
-  // Wrapped like the audits above, for the same reason.
-  const releases = await detectPendingReleases(gh, owner, portfolio.repos, { openPRs })
-    .catch(err => { console.error(`Release-pending detection failed: ${err.message}`); return []; });
+  // Factory Phase 2: is what has piled up on each open release PR worth
+  // shipping yet? The previous run's findings let an unchanged verdict keep
+  // its `since` date. Wrapped like the audits above, for the same reason.
+  const priorFindings = store?.readGovernanceFindings ? await store.readGovernanceFindings() : null;
+  const releases = await detectReleaseAdvice(gh, owner, portfolio.repos, { openPRs, prior: priorFindings })
+    .catch(err => { console.error(`Release advice failed: ${err.message}`); return []; });
   if (releases.length > 0) {
     context.governanceFindings.push(...releases);
-    console.log(`Release pending: ${releases.length} release PR(s) waiting.`);
+    console.log(`Release advice: ${releases.map(f => `${f.repo} ${f.verdict}`).join(', ')}.`);
   }
 
   // Attach the portable remediation-plan contract (ADR-007) to every finding
@@ -1118,26 +1121,32 @@ export function buildRemediationPlan(finding) {
         acceptanceCriteria: ['No open critical/high Dependabot or code-scanning alerts and no open secret-scanning alerts remain'],
       };
     }
-    case 'release-pending': {
-      // executor 'manual': the commands are the whole remediation, and they are
-      // shown to the owner and run only on their say (factory design section 3).
+    case 'release-advice': {
+      // executor 'manual': the verdict is advice, the note is a draft, and the
+      // commands are shown to the owner and run only on their say (factory
+      // design section 3). Commands exist only for a verdict worth acting on.
       const remedy = {
-        'ci-not-triggered': 'No GitHub Actions workflow ran on its head although one is proven to fire on a reopen — close and reopen it so CI runs.',
-        'merge-conflict': 'It has merge conflicts, and GitHub runs no pull_request workflow for a conflicted PR — resolve the conflict (or let release-please regenerate the branch); a close and reopen would not start CI.',
-        'ci-awaiting-approval': 'Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.',
-        'awaiting-human': 'CI is green — it needs a merge decision.',
-        'ci-none': 'No CI signal at all on its head.',
+        'ci-not-triggered': 'No GitHub Actions workflow ran on its head although one is proven to fire on a reopen, so a close and reopen would start CI.',
+        'merge-conflict': 'It has merge conflicts, and GitHub runs no pull_request workflow for a conflicted PR; a close and reopen would not start CI.',
+        'ci-awaiting-approval': 'Its GitHub Actions runs are waiting for approval in the Actions tab.',
+        'awaiting-human': 'CI is green.',
+        'ci-none': 'There is no CI signal on its head.',
         'ci-pending': 'CI is still running.',
-        'blocked-persistent': 'CI failed identically on the last attempts — a rebase will not clear it.',
+        'blocked-persistent': 'CI failed identically on the last attempts; a rebase will not clear it.',
         'blocked-transient': 'CI is red.',
       }[finding.state] ?? 'Its CI state could not be established, so no command is offered.';
+      const actionable = ACTIONABLE.has(finding.verdict);
+      const after = [];
+      if (finding.lifecycle?.prerelease) after.push(`${finding.lifecycle.prerelease.tag} has been a pre-release for ${finding.lifecycle.prerelease.days} day(s)`);
+      if (finding.lifecycle?.releaseReadyOpen) after.push(`${finding.lifecycle.releaseReadyOpen} issue(s) labelled "release ready" are still open`);
       return {
         executor: 'manual',
         targetFiles: [],
-        intent: `Release ${finding.version ?? `PR #${finding.number}`} in ${finding.repo}`,
-        rationale: `Release PR #${finding.number} has waited ${finding.waitingDays} day(s) (state: ${finding.state}). ${remedy}${finding.failingWorkflows?.length ? ` Failing workflow run(s): ${finding.failingWorkflows.join(', ')} — a run that fails before any job starts leaves no check on the PR page, so look in the Actions tab.` : ''}`,
-        acceptanceCriteria: [`Release PR #${finding.number} is merged or closed`],
-        commands: releaseCommands(finding),
+        intent: `Release advice for ${finding.repo} ${finding.version ?? `PR #${finding.number}`}: ${VERDICT_LABEL[finding.verdict] ?? finding.verdict}`,
+        // The CI footnote is only worth reading when there is a merge to consider.
+        rationale: !actionable ? `${finding.reason}${after.length ? ` After the last release: ${after.join('; ')}.` : ''}` : `${finding.reason} Release PR #${finding.number}: ${remedy}${finding.failingWorkflows?.length ? ` Failing workflow run(s): ${finding.failingWorkflows.join(', ')} (a run that fails before any job starts leaves no check on the PR page, so look in the Actions tab).` : ''}${after.length ? ` After the last release: ${after.join('; ')}.` : ''}`,
+        acceptanceCriteria: [`The owner has decided on release PR #${finding.number}`],
+        commands: adviceCommands(finding),
       };
     }
     default:
