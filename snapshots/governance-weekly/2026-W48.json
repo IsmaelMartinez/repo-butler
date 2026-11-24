@@ -2,6 +2,32 @@
   "findings": [
     {
       "type": "stalled-alert",
+      "repo": "betis-escocia",
+      "alerts": [
+        {
+          "number": 152,
+          "package": "minimatch",
+          "ecosystem": "npm",
+          "manifestPath": "package-lock.json",
+          "severity": "medium",
+          "ageDays": 15,
+          "classification": "disjoint-ranges",
+          "detail": "minimatch@11.0.1 sits outside the major line declared by @eslint/config-array@^10.2.4, @eslint/eslintrc@^3.1.5, @typescript-eslint/typescript-estree@^10.2.2, eslint@^10.2.4, eslint-plugin-import@^3.1."
+        }
+      ],
+      "priority": "medium",
+      "remediation": {
+        "executor": "manual",
+        "targetFiles": [],
+        "intent": "Unblock 1 stalled Dependabot alert(s) in betis-escocia",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+        "acceptanceCriteria": [
+          "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
+        ]
+      }
+    },
+    {
+      "type": "stalled-alert",
       "repo": "teams-for-linux",
       "alerts": [
         {
@@ -70,28 +96,6 @@
         "rationale": "Release PR #692 has waited 16 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
         "acceptanceCriteria": [
           "Release PR #692 is merged or closed"
-        ],
-        "commands": []
-      }
-    },
-    {
-      "type": "release-pending",
-      "repo": "teams-for-linux",
-      "owner": "IsmaelMartinez",
-      "number": 3221,
-      "version": "2.33.0",
-      "state": "ci-awaiting-approval",
-      "headSha": "914e59f087191527fc6f628d2d3eda0bf665b5c1",
-      "waitingDays": 8,
-      "mergeMethod": "squash",
-      "priority": "high",
-      "remediation": {
-        "executor": "manual",
-        "targetFiles": [],
-        "intent": "Release 2.33.0 in teams-for-linux",
-        "rationale": "Release PR #3221 has waited 8 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
-        "acceptanceCriteria": [
-          "Release PR #3221 is merged or closed"
         ],
         "commands": []
       }
