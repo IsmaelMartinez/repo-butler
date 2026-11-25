@@ -36,7 +36,7 @@
           "ecosystem": "npm",
           "manifestPath": "package-lock.json",
           "severity": "medium",
-          "ageDays": 19,
+          "ageDays": 20,
           "classification": "disjoint-ranges",
           "detail": "minimatch@11.0.1 sits outside the major line declared by @electron/asar@^3.0.4, @electron/universal@^9.0.3, app-builder-lib@^10.2.5, dir-compare@^3.0.5, filelist@^5.0.1, glob@^3.1.1; an override would"
         }
@@ -46,7 +46,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Unblock 1 stalled Dependabot alert(s) in teams-for-linux",
-        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 19 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 20 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
         "acceptanceCriteria": [
           "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
         ]
@@ -86,14 +86,14 @@
       "version": "0.51.2",
       "state": "ci-awaiting-approval",
       "headSha": "16233ac09c7c688f95e1e166d1e0a8805555466a",
-      "waitingDays": 16,
+      "waitingDays": 17,
       "mergeMethod": "squash",
       "priority": "medium",
       "remediation": {
         "executor": "manual",
         "targetFiles": [],
         "intent": "Release 0.51.2 in delegate-local",
-        "rationale": "Release PR #692 has waited 16 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
+        "rationale": "Release PR #692 has waited 17 day(s) (state: ci-awaiting-approval). Its GitHub Actions runs are waiting for approval — approve them in the Actions tab; no command is offered.",
         "acceptanceCriteria": [
           "Release PR #692 is merged or closed"
         ],
