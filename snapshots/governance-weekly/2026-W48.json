@@ -10,7 +10,7 @@
           "ecosystem": "npm",
           "manifestPath": "package-lock.json",
           "severity": "medium",
-          "ageDays": 15,
+          "ageDays": 16,
           "classification": "disjoint-ranges",
           "detail": "minimatch@11.0.1 sits outside the major line declared by @eslint/config-array@^10.2.4, @eslint/eslintrc@^3.1.5, @typescript-eslint/typescript-estree@^10.2.2, eslint@^10.2.4, eslint-plugin-import@^3.1."
         }
@@ -20,7 +20,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Unblock 1 stalled Dependabot alert(s) in betis-escocia",
-        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 16 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
         "acceptanceCriteria": [
           "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
         ]
@@ -62,7 +62,7 @@
           "ecosystem": "npm",
           "manifestPath": "package-lock.json",
           "severity": "medium",
-          "ageDays": 15,
+          "ageDays": 16,
           "classification": "disjoint-ranges",
           "detail": "minimatch@11.0.1 sits outside the major line declared by filelist@^5.0.1, glob@^10.1.1; an override would force a major bump"
         }
@@ -72,7 +72,7 @@
         "executor": "manual",
         "targetFiles": [],
         "intent": "Unblock 1 stalled Dependabot alert(s) in yourear",
-        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 15 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
+        "rationale": "1 open alert(s) past the staleness threshold with no Dependabot PR addressing them (oldest 16 days; classified: disjoint-ranges). These need a human decision about the dependency graph.",
         "acceptanceCriteria": [
           "Each stalled alert is resolved, dismissed, or has a Dependabot PR open against it"
         ]
