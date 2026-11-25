@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-24T18:33:38.884Z",
+  "timestamp": "2026-11-25T03:17:10.897Z",
   "repository": "IsmaelMartinez/repo-butler",
   "meta": {
     "description": "Continuous roadmap planner agent — analyses GitHub repos, maintains a living roadmap, and proposes improvements",
@@ -13,7 +13,7 @@
     "homepage": "https://ismaelmartinez.github.io/repo-butler/",
     "topics": [],
     "created_at": "2026-03-19T00:10:09Z",
-    "pushed_at": "2026-11-24T16:37:44Z",
+    "pushed_at": "2026-11-25T01:41:19Z",
     "archived": false
   },
   "issues": {
@@ -1129,41 +1129,6 @@
           "github_actions"
         ],
         "merged_at": "2026-08-27T01:36:26Z"
-      },
-      {
-        "number": 388,
-        "title": "refactor: delete twelve exports with no non-test caller",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-26T19:00:15Z"
-      },
-      {
-        "number": 387,
-        "title": "docs: remove the triage-bot integration prose, three months after the code",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-26T18:21:23Z"
-      },
-      {
-        "number": 386,
-        "title": "fix(config): load block scalars instead of discarding them",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-26T17:55:27Z"
-      },
-      {
-        "number": 385,
-        "title": "fix(apply): harden the release-cadence workflow template (#327)",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-26T17:54:57Z"
-      },
-      {
-        "number": 384,
-        "title": "fix(update): dedupe on the whole Implemented section, and unpin the roadmap test's clock",
-        "author": "IsmaelMartinez",
-        "labels": [],
-        "merged_at": "2026-08-26T06:50:54Z"
       }
     ]
   },
@@ -1395,9 +1360,9 @@
     "blocked_issues": 0,
     "awaiting_feedback": 0,
     "recently_closed": 34,
-    "recently_merged_prs": 88,
+    "recently_merged_prs": 83,
     "bot_prs": 11,
-    "human_prs": 77,
+    "human_prs": 72,
     "unique_contributors": 3,
     "releases": 4,
     "latest_release": "v1.1.3",
