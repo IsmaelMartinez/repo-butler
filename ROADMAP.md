@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-11-25
+**Last Updated:** 2026-11-26
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -57,21 +57,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-08** — 21 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374, #375, #378, #380, #381, #383, #384, #385, #386, #387, #388, #389, #390). Full details in git history.
 
-**2026-09** — 6 entries (#391, #396, #398, #400, #405). Full details in git history.
-
-Governance configuration schema alignment and onboarding safeguards shipped 2026-09-27 (PRs #431, #432, #434, #436). Hardens the repository onboarding flow by skipping declined pull requests, refusing unreadable CLAUDE.md files, and strictly requiring boolean true values for approval gates. Additionally, prevents silent configuration drift by aligning the core configuration schema with system defaults and enforces stricter roadmap integrity by requiring merged-PR evidence for all shipped entries.
-
-Model Context Protocol test fixture isolation shipped 2026-09-27 (PR #437). Decouples the MCP test suite from live, volatile GitHub branches by injecting an IO seam to run tests against predictable, local fixture data, improving CI/CD pipeline reliability and deterministic agent execution.
-
-Executed plans and one-shot verification scripts archived 2026-09-27 (PR #445). Cleans up historical execution artifacts and past agent run files to keep the repository's codebase and documentation organized and free of clutter, resolving issue #419.
-
-Core agent logic refactored for pure module extraction and shared predicates shipped 2026-09-27 (PRs #443, #444). Simplifies the decision-making runtime by extracting a pure `apply-templates` module and consolidating shared predicates across `autofix`, `actionable-bug`, and `campaign` behaviors, improving internal code health and maintainability.
-
-Robust numeric error handling for scheduler resiliency shipped 2026-09-27 (PR #446). Replaces fragile error string parsing with robust validation of numeric error statuses (`err.status`) in the scheduler branch logic, preventing silent automation failures and hardening the agent's scheduled execution loop.
-
-GitHub Contents API 1 MB ceiling workaround shipped 2026-09-27 (PR #451). Resolves a critical scalability issue for repositories with large cache files by switching to the Blob API to read the `repo-cache.json` snapshot database, ensuring reliable state tracking across larger portfolios.
-
-Governance execution flow and audit logic simplified 2026-09-27 (PRs #448, #450). Reduces technical debt and optimizes the scheduled apply path by moving the `runApply` routine out of the main index and consolidating shared `eligibleRepos` and `listOpenPRs` predicates across the active governance audits.
+**2026-09** — 13 entries (#391, #396, #398, #400, #405, #419, #431, #432, #434, #436, #437, #443, #444, #445, #446, #448, #450, #451). Full details in git history.
 
 Modular test suite architecture for report generation shipped 2026-09-28 (PR #453). Improves codebase maintainability and test readability by splitting the large, consolidated `report.test.js` file into modular, per-module test files, resolving technical debt and simplifying future test coverage expansion.
 
