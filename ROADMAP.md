@@ -1,6 +1,6 @@
 # Repo Butler — Roadmap
 
-**Last Updated:** 2026-11-26
+**Last Updated:** 2026-11-27
 **Status:** Feature-complete across all seven pipeline phases plus the monitor. Reports are live at [ismaelmartinez.github.io/repo-butler](https://ismaelmartinez.github.io/repo-butler/), which is the authoritative source for current portfolio health — this document deliberately does not duplicate counts that go stale. The estate is 14 public repos plus 1 private. UPDATE runs live on the daily schedule in section-edit mode; GOVERNANCE, the scheduled apply path, per-class auto-merge and private-repo watching are all live; cross-repo PROPOSE is mid-graduation. GOVERNANCE now produces eight finding types, three of them watchers added in late July that check what the butler and its collaborators did rather than what the repos look like.
 
 This document answers two questions: what has been built, and what is being built now. Older work is deliberately compressed to a single line per month — the shape of what landed and when, with the prose left in git history.
@@ -57,11 +57,7 @@ Section-edit mode (PR #231, May 2026) is worth calling out separately, as the me
 
 **2026-08** — 21 entries (#291, #350, #359, #361, #362, #364, #365, #367, #368, #370, #371, #372, #373, #374, #375, #378, #380, #381, #383, #384, #385, #386, #387, #388, #389, #390). Full details in git history.
 
-**2026-09** — 13 entries (#391, #396, #398, #400, #405, #419, #431, #432, #434, #436, #437, #443, #444, #445, #446, #448, #450, #451). Full details in git history.
-
-Modular test suite architecture for report generation shipped 2026-09-28 (PR #453). Improves codebase maintainability and test readability by splitting the large, consolidated `report.test.js` file into modular, per-module test files, resolving technical debt and simplifying future test coverage expansion.
-
-Roadmap and developer guidelines aligned with simplification pass tracking 2026-09-28 (PR #455). Points the project's living roadmap and developer guidelines to a central tracking issue to coordinate active architectural simplification and complexity reduction goals.
+**2026-09** — 15 entries (#391, #396, #398, #400, #405, #419, #431, #432, #434, #436, #437, #443, #444, #445, #446, #448, #450, #451, #453, #455). Full details in git history.
 
 Portfolio report split into data and rendering 2026-09-30 (PR #456). `fetchPortfolioDetails` and the dependency-inventory analysis moved to `report-portfolio-data.js`, so GOVERNANCE no longer loads the dashboard renderer; its cache-hit refresh and fresh fetch now resolve their parallel reads by name rather than by position.
 
