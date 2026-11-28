@@ -213,11 +213,11 @@
       "id": 151476958,
       "open_issues": 14,
       "open_bugs": 4,
-      "commits_6mo": 397,
-      "stars": 5266,
+      "commits_6mo": 399,
+      "stars": 5267,
       "license": "GPL-3.0",
       "communityHealth": 100,
-      "ciPassRate": 0.9555555555555556,
+      "ciPassRate": 1,
       "vulns": {
         "count": 1,
         "critical": 0,
@@ -239,15 +239,15 @@
       },
       "ci": 19,
       "released_at": "2026-11-27T17:45:51Z",
-      "pushed_at": "2026-11-27T23:24:05Z",
+      "pushed_at": "2026-11-28T13:22:39Z",
       "traffic": {
         "views_14d": {
-          "count": 9081,
-          "uniques": 4190
+          "count": 9170,
+          "uniques": 4155
         },
         "clones_14d": {
-          "count": 12725,
-          "uniques": 759
+          "count": 12871,
+          "uniques": 723
         }
       },
       "computed": {
@@ -317,11 +317,11 @@
       "id": 786898753,
       "open_issues": 4,
       "open_bugs": 0,
-      "commits_6mo": 259,
+      "commits_6mo": 260,
       "stars": 1,
       "license": "MIT",
       "communityHealth": 100,
-      "ciPassRate": 0.98989898989899,
+      "ciPassRate": 0.9896907216494846,
       "vulns": {
         "count": 0,
         "critical": 0,
@@ -343,15 +343,15 @@
       },
       "ci": 12,
       "released_at": "2026-10-31T08:20:29Z",
-      "pushed_at": "2026-11-27T23:11:07Z",
+      "pushed_at": "2026-11-28T13:38:00Z",
       "traffic": {
         "views_14d": {
           "count": 14,
           "uniques": 6
         },
         "clones_14d": {
-          "count": 448,
-          "uniques": 150
+          "count": 521,
+          "uniques": 164
         }
       },
       "computed": {
@@ -759,14 +759,14 @@
       },
       "ci": 14,
       "released_at": "2026-11-15T13:26:34Z",
-      "pushed_at": "2026-11-28T00:46:01Z",
+      "pushed_at": "2026-11-28T14:39:51Z",
       "traffic": {
         "views_14d": {
           "count": 14,
           "uniques": 6
         },
         "clones_14d": {
-          "count": 1799,
+          "count": 1800,
           "uniques": 585
         }
       },
